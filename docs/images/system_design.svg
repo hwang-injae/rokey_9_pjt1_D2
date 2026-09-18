@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="620" viewBox="0 0 960 620" font-family="Noto Sans KR, Apple SD Gothic Neo, sans-serif" font-size="13">
+<defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#444" stroke-width="1.5"/></marker></defs>
+<rect width="960" height="620" fill="#ffffff"/>
+<text x="24" y="34" font-size="20" font-weight="600" fill="#222">ReWash-Cell 시스템 설계도 — 그릇 1개의 서비스 호출 순서와 물리 인계</text>
+<!-- lanes -->
+<g font-weight="600">
+<rect x="24" y="60" width="130" height="44" rx="8" fill="#EEEDFE" stroke="#534AB7"/><text x="89" y="87" text-anchor="middle" fill="#26215C">HMI (F4)</text>
+<rect x="24" y="130" width="130" height="44" rx="8" fill="#E1F5EE" stroke="#0F6E56"/><text x="89" y="157" text-anchor="middle" fill="#04342C">flow_node</text>
+<rect x="24" y="230" width="130" height="44" rx="8" fill="#FAECE7" stroke="#993C1D"/><text x="89" y="257" text-anchor="middle" fill="#4A1B0C">f1 파지·이송</text>
+<rect x="24" y="330" width="130" height="44" rx="8" fill="#FAECE7" stroke="#993C1D"/><text x="89" y="357" text-anchor="middle" fill="#4A1B0C">f2 무게·털기</text>
+<rect x="24" y="430" width="130" height="44" rx="8" fill="#FAECE7" stroke="#993C1D"/><text x="89" y="457" text-anchor="middle" fill="#4A1B0C">f3 닦기</text>
+<rect x="24" y="530" width="130" height="44" rx="8" fill="#FBEAF0" stroke="#993556"/><text x="89" y="557" text-anchor="middle" fill="#4B1528">물리 위치</text>
+</g>
+<g stroke="#ccc" stroke-dasharray="4 4"><line x1="160" y1="82" x2="940" y2="82"/><line x1="160" y1="152" x2="940" y2="152"/><line x1="160" y1="252" x2="940" y2="252"/><line x1="160" y1="352" x2="940" y2="352"/><line x1="160" y1="452" x2="940" y2="452"/><line x1="160" y1="552" x2="940" y2="552"/></g>
+<!-- steps -->
+<g font-size="12" fill="#222">
+<!-- 1 start -->
+<rect x="170" y="64" width="80" height="36" rx="6" fill="#fff" stroke="#534AB7"/><text x="210" y="86" text-anchor="middle">start</text>
+<line x1="210" y1="100" x2="210" y2="134" stroke="#444" marker-end="url(#a)"/>
+<!-- flow boxes -->
+<rect x="170" y="134" width="80" height="36" rx="6" fill="#fff" stroke="#0F6E56"/><text x="210" y="156" text-anchor="middle">PICK</text>
+<rect x="270" y="134" width="80" height="36" rx="6" fill="#fff" stroke="#0F6E56"/><text x="310" y="156" text-anchor="middle">WEIGH/SHAKE</text>
+<rect x="370" y="134" width="80" height="36" rx="6" fill="#fff" stroke="#0F6E56"/><text x="410" y="156" text-anchor="middle">SEAT</text>
+<rect x="470" y="134" width="80" height="36" rx="6" fill="#fff" stroke="#0F6E56"/><text x="510" y="156" text-anchor="middle">SOAP/WIPE</text>
+<rect x="570" y="134" width="80" height="36" rx="6" fill="#fff" stroke="#0F6E56"/><text x="610" y="156" text-anchor="middle">RINSE</text>
+<rect x="670" y="134" width="80" height="36" rx="6" fill="#fff" stroke="#0F6E56"/><text x="710" y="156" text-anchor="middle">RACK</text>
+<rect x="770" y="134" width="80" height="36" rx="6" fill="#fff" stroke="#0F6E56"/><text x="810" y="156" text-anchor="middle">DONE/NEXT</text>
+<g stroke="#444"><line x1="250" y1="152" x2="270" y2="152" marker-end="url(#a)"/><line x1="350" y1="152" x2="370" y2="152" marker-end="url(#a)"/><line x1="450" y1="152" x2="470" y2="152" marker-end="url(#a)"/><line x1="550" y1="152" x2="570" y2="152" marker-end="url(#a)"/><line x1="650" y1="152" x2="670" y2="152" marker-end="url(#a)"/><line x1="750" y1="152" x2="770" y2="152" marker-end="url(#a)"/></g>
+<!-- f1 calls -->
+<rect x="170" y="234" width="80" height="36" rx="6" fill="#fff" stroke="#993C1D"/><text x="210" y="256" text-anchor="middle">pick(RET_B (탐색))</text>
+<rect x="370" y="234" width="80" height="36" rx="6" fill="#fff" stroke="#993C1D"/><text x="410" y="250" text-anchor="middle">place(BED)</text><text x="410" y="264" text-anchor="middle">tool(SPONGE)</text>
+<rect x="570" y="234" width="80" height="36" rx="6" fill="#fff" stroke="#993C1D"/><text x="610" y="256" text-anchor="middle">pick(BED)</text>
+<rect x="670" y="234" width="80" height="36" rx="6" fill="#fff" stroke="#993C1D"/><text x="710" y="250" text-anchor="middle">rack_place</text><text x="710" y="264" text-anchor="middle">(RACK_B1) · home</text>
+<!-- f2 calls -->
+<rect x="270" y="334" width="80" height="36" rx="6" fill="#fff" stroke="#993C1D"/><text x="310" y="350" text-anchor="middle">leftover_loop</text><text x="310" y="364" text-anchor="middle">weigh→shake→weigh</text>
+<rect x="570" y="334" width="80" height="36" rx="6" fill="#fff" stroke="#993C1D"/><text x="610" y="350" text-anchor="middle">dip(RINSE)</text><text x="610" y="364" text-anchor="middle">shake(RINSE)</text>
+<!-- f3 calls -->
+<rect x="370" y="434" width="80" height="36" rx="6" fill="#fff" stroke="#993C1D"/><text x="410" y="450" text-anchor="middle">seat(BOWL)</text><text x="410" y="464" text-anchor="middle">+ periodic 탐색</text>
+<rect x="470" y="434" width="80" height="36" rx="6" fill="#fff" stroke="#993C1D"/><text x="510" y="450" text-anchor="middle">soap(3)</text><text x="510" y="464" text-anchor="middle">wipe(BOWL) 힘제어</text>
+<!-- vertical call arrows -->
+<g stroke="#444"><line x1="210" y1="170" x2="210" y2="234" marker-end="url(#a)"/><line x1="310" y1="170" x2="310" y2="334" marker-end="url(#a)"/><line x1="410" y1="170" x2="410" y2="234" marker-end="url(#a)"/><line x1="410" y1="270" x2="410" y2="434" marker-end="url(#a)"/><line x1="510" y1="170" x2="510" y2="434" marker-end="url(#a)"/><line x1="610" y1="170" x2="610" y2="234" marker-end="url(#a)"/><line x1="610" y1="270" x2="610" y2="334" marker-end="url(#a)"/><line x1="710" y1="170" x2="710" y2="234" marker-end="url(#a)"/></g>
+<!-- physical -->
+<rect x="170" y="534" width="80" height="36" rx="6" fill="#FBEAF0" stroke="#993556"/><text x="210" y="556" text-anchor="middle">반납 슬롯</text>
+<rect x="270" y="534" width="80" height="36" rx="6" fill="#FBEAF0" stroke="#993556"/><text x="310" y="556" text-anchor="middle">잔반통 상공</text>
+<rect x="370" y="534" width="180" height="36" rx="6" fill="#FBEAF0" stroke="#993556"/><text x="460" y="556" text-anchor="middle">스펀지 홈 (F1이 놓고 F3가 시작)</text>
+<rect x="570" y="534" width="80" height="36" rx="6" fill="#FBEAF0" stroke="#993556"/><text x="610" y="556" text-anchor="middle">헹굼 수조</text>
+<rect x="670" y="534" width="80" height="36" rx="6" fill="#FBEAF0" stroke="#993556"/><text x="710" y="556" text-anchor="middle">세척기 랙</text>
+<g stroke="#993556" stroke-dasharray="3 3"><line x1="210" y1="270" x2="210" y2="534"/><line x1="310" y1="370" x2="310" y2="534"/><line x1="460" y1="470" x2="460" y2="534"/><line x1="610" y1="370" x2="610" y2="534"/><line x1="710" y1="270" x2="710" y2="534"/></g>
+<!-- state back to HMI -->
+<path d="M810 134 V100 H260" fill="none" stroke="#534AB7" stroke-dasharray="4 3" marker-end="url(#a)"/><text x="540" y="96" text-anchor="middle" font-size="11" fill="#534AB7">/flow/state @2Hz · /flow/event (DONE/ISOLATED)</text>
+</g>
+<text x="24" y="605" font-size="12" fill="#555">실패 코드: EMPTY_ZONE → 다음 구역 (GRIP_FAIL은 f1 내부 재탐색) · LEFTOVER_REMAIN·SEAT_FAIL → ISOLATE · FORCE_LIMIT·TIMEOUT·RACK_JAM → 후퇴 재시도 1회 → ISOLATE · ROBOT_ERROR → PAUSED (resume)</text>
+</svg>

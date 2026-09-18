@@ -1,0 +1,65 @@
+# ReWash-Cell — 경기장 다회용기 예비세척·식기세척기 팔레트 적재 자동화 셀
+
+> ROKEY 9기 협동1 · **D그룹 2조** (한석형 팀장 · 민범진 · 박진용 · 황인재)
+> 두산 **M0609** + OnRobot **RG2** · ROS 2 Jazzy · 비전 없음 · 발표 **2026-09-30(수)**
+
+반납 구역에 놓인(겹쳐 있어도 되는) 그릇·컵을 **탐색하며 집어**, **무게로 잔반을 판정·털어내고**, **스펀지 고정틀에서 안쪽을 닦고**, **헹굼 모션 후 식기세척기용 팔레트의 정해진 칸·각도로 적재**한다. 본세척은 식기세척기가 한다.
+
+## 처음 들어온 사람은 이 순서로
+1. **[AGENTS.md](AGENTS.md)** — 확정값·시나리오·역할·절대 규칙. 에이전트에게도 이 파일을 준다
+2. **[docs/02_인터페이스_IRD.md](docs/02_인터페이스_IRD.md)** — 노드 간 계약 (혼자 바꾸지 않는다)
+3. **[docs/setup/M0609_환경설정.md](docs/setup/M0609_환경설정.md)** — 내 PC 환경 (GPU 유무 공통)
+4. **[docs/prompts/](docs/prompts/)** — 내 프롬프트 (아래 "에이전트 사용법")
+5. **[CONTRIBUTING.md](CONTRIBUTING.md)** — 브랜치·커밋·PR·개발 흐름·안전
+
+## 문서 (3개 + 일정표 + 보조)
+| 파일 | 내용 |
+|---|---|
+| [docs/01_요구사항_BR-SR.md](docs/01_요구사항_BR-SR.md) | 비즈니스·시스템 요구 (BR·FR·NFR·SR·IR·TR·AC·평가기준 대응·추적표) |
+| [docs/02_인터페이스_IRD.md](docs/02_인터페이스_IRD.md) + [docs/interfaces/](docs/interfaces/) | 인터페이스 정본 (srv·msg 파일) |
+| [docs/03_설계_SDD.md](docs/03_설계_SDD.md) | 설계 (PC 2대 아키텍처·네트워크·통신 표·노드·상태 머신·YAML·오류·안전) + **§9 테스트 계획**(사전 검증 V·TC·INT·실패 주입·녹화 규칙·범위 방어) + 강사 산출물 매핑 |
+| **일정표 (구글 드라이브 xlsx)** — [팀 드라이브 폴더](https://drive.google.com/drive/folders/1t58F08_auBRa_q7c4KeNirLKR6CKa4hU?usp=sharing) | 강사 일정·마일스톤·로봇 슬롯·작업 목록(색 간트)·규칙·변경이력. 저장소에는 두지 않는다 |
+| [docs/images/](docs/images/) | 시스템 아키텍처(PC 단위, `.svg` + 편집용 `.drawio`) · 설계도 · 워크셀 |
+| [docs/setup/M0609_환경설정.md](docs/setup/M0609_환경설정.md) | PC 환경 설정 (ws_dsr + rokey_pjt01_ws, 별칭, 함정) |
+| [docs/ref/](docs/ref/) | 법규·산업 조사, 브리핑 자료, 팀원 제안서, (일정 양식은 드라이브 일정표에 반영됨) |
+| `class_doc/` | 협동로봇 강의 PDF |
+
+## 역할 (기능 단위)
+| 기능 | 담당 | 노드 |
+|---|---|---|
+| F1 파지·이송·적재 | 한석형 | `f1_handling` + `cobot_common` |
+| F2 무게·털기·헹굼 + 흐름 | 민범진 | `f2_sense_flow` (`f2_node`, `flow_node`) + `cobot_msgs` |
+| F3 접촉 닦기 | 박진용 | `f3_wipe` |
+| F4 시스템 모니터(웹 HMI) | 황인재 | `f4_hmi` (FastAPI + SQLite) |
+
+## 에이전트 사용법
+| 담당 | 프롬프트 |
+|---|---|
+| 한석형 | [docs/prompts/F1_한석형_프롬프트.md](docs/prompts/F1_한석형_프롬프트.md) |
+| 민범진 | [docs/prompts/F2_민범진_프롬프트.md](docs/prompts/F2_민범진_프롬프트.md) |
+| 박진용 | [docs/prompts/F3_박진용_프롬프트.md](docs/prompts/F3_박진용_프롬프트.md) |
+| 황인재 | [docs/prompts/F4_황인재_프롬프트.md](docs/prompts/F4_황인재_프롬프트.md) |
+
+| 에이전트 | 방법 |
+|---|---|
+| **Claude Code** | 저장소(clone한 `rokey_pjt01_ws` 폴더)를 열면 `CLAUDE.md` → `AGENTS.md`를 자동으로 읽는다. 내 프롬프트 파일 내용을 첫 메시지로 붙여넣는다. |
+| **ChatGPT / Gemini(웹)** | 첫 메시지 = 내 프롬프트 전문. 첨부: `AGENTS.md`, `docs/01~03`. 첨부가 안 되면 `AGENTS.md`를 이어서 붙여넣는다. |
+| **Cursor / Codex / Gemini CLI** | 저장소 루트의 `AGENTS.md`를 자동 인식(도구에 따라 `.cursorrules`·`GEMINI.md`로 복사). 프롬프트는 채팅에 붙여넣기. |
+
+프롬프트의 `______`(이름·수준·GitHub ID)는 붙여넣기 전에 채운다. 모르면 비워두면 에이전트가 질문한다.
+
+## 저장소 구조
+```
+rokey_pjt01_ws/        ← clone 폴더 (= 우리 ROS 2 워크스페이스). 위치는 자유, `.bashrc`의 REWASH_WS 로 지정
+├── AGENTS.md CLAUDE.md README.md CONTRIBUTING.md
+├── docs/              문서·인터페이스 정본·이미지·프롬프트·환경설정
+├── src/               우리 ROS 2 패키지 7개 (cobot_msgs cobot_common f1_handling f2_sense_flow f3_wipe f4_hmi rewash_bringup)
+└── build/ install/ log/   (.gitignore)
+```
+
+## 🚨 5개만 기억
+1. `main` 직접 push 금지 — PR + 다른 팀원 1명 승인. 브랜치 삭제는 팀장 승인
+2. Virtual에서 통과한 것만 실기로, 첫 실기 저속. 접촉 동작엔 힘 상한·후퇴·타임아웃
+3. 힘·좌표·횟수·탐색점은 YAML — 코드에 숫자 금지, 경로는 상대경로
+4. 인터페이스(IRD)는 계약 — 혼자 바꾸지 않는다
+5. 구현 → 단위 테스트(녹화) → main pull → 통합 → PR. **9/23 동결**

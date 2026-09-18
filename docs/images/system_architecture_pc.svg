@@ -1,0 +1,298 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1720" height="1180" viewBox="0 0 1720 1180" font-family="Noto Sans CJK KR, Noto Sans CJK JP, NanumGothic, Malgun Gothic, sans-serif" font-size="12">
+<rect width="1720" height="1180" fill="#ffffff"/>
+<defs><marker id="ar" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker></defs>
+<text x="40" y="45" font-size="22" font-weight="bold">ReWash-Cell 시스템 아키텍처 (PC 단위) — 통합 실행 구성 2대 + 로봇 셀</text>
+<text x="40" y="62" font-size="11" fill="#555">SDD-REWASH-001 §2 · 2026-09-18 초안 · draw.io 로 다시 그릴 때 참고용 (같은 내용의 .drawio 파일 첨부)</text>
+<rect x="40" y="70" width="700" height="650" rx="6" fill="#FFFFFF" stroke="#222222" stroke-width="2" />
+<text x="50" y="88" font-size="13" font-weight="bold" fill="#222">PC-A  로봇 제어 PC  (통합 실행 시 필수)</text>
+<text x="50" y="103" font-size="11" font-weight="normal" fill="#222">Ubuntu 24.04 · ROS 2 Jazzy · ROS_DOMAIN_ID=60 · IP 192.168.1.__ (컨트롤러와 같은 유선망)</text>
+<rect x="60" y="130" width="660" height="120" rx="6" fill="#F3F3F3" stroke="#999999" stroke-width="1.2" stroke-dasharray="6,4"/>
+<text x="70" y="148" font-size="13" font-weight="bold" fill="#222">ws_dsr  (강사 배포 드라이버 워크스페이스 — 수정하지 않음, 먼저 source)</text>
+<rect x="80" y="170" width="350" height="68" rx="4" fill="#EFEFEF" stroke="#666666" stroke-width="1.2" />
+<text x="255.0" y="193.0" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">dsr_controller2  (네임스페이스 /dsr01)</text>
+<text x="255.0" y="208.0" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">ros2 launch m0609_rg2_bringup bringup.launch.py</text>
+<text x="255.0" y="223.0" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">mode:=real host:=192.168.1.100 port:=12345 model:=m0609</text>
+<rect x="450" y="170" width="250" height="68" rx="4" fill="#EFEFEF" stroke="#666666" stroke-width="1.2" />
+<text x="575.0" y="193.0" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">DSR_ROBOT2 파이썬 API (DR_init)</text>
+<text x="575.0" y="208.0" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">movej / movel / set_desired_force</text>
+<text x="575.0" y="223.0" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">get_workpiece_weight / set_digital_output</text>
+<rect x="60" y="270" width="660" height="430" rx="6" fill="#F3F3F3" stroke="#999999" stroke-width="1.2" stroke-dasharray="6,4"/>
+<text x="70" y="288" font-size="13" font-weight="bold" fill="#222">rokey_pjt01_ws  (우리 저장소 rokey_9_pjt1_D2)</text>
+<text x="70" y="303" font-size="11" font-weight="normal" fill="#222">docs/ + src/ · build·install·log 는 .gitignore</text>
+<rect x="80" y="310" width="620" height="52" rx="4" fill="#CFE2F3" stroke="#3D85C6" stroke-width="1.2" />
+<text x="390.0" y="332.5" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">cobot_common  (라이브러리, 노드 아님 · 한석형)  — 두산 API를 감싼 공용 로봇 함수 모음</text>
+<text x="390.0" y="347.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">move_to · grip · release · weigh · force_on/off · contact_down · periodic_search · safe_retreat</text>
+<rect x="80" y="392" width="196" height="88" rx="4" fill="#CFE2F3" stroke="#3D85C6" stroke-width="1.2" />
+<text x="178.0" y="410.0" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">f1_node  (f1_handling)</text>
+<text x="178.0" y="425.0" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">한석형 · 파지·이송·적재 · srv:</text>
+<text x="178.0" y="440.0" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">/f1/pick /f1/place /f1/move_to</text>
+<text x="178.0" y="455.0" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">/f1/tool /f1/rack_place /f1/home</text>
+<text x="178.0" y="470.0" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">f1.yaml (좌표·폭·힘·속도)</text>
+<rect x="292" y="392" width="196" height="88" rx="4" fill="#D9EAD3" stroke="#6AA84F" stroke-width="1.2" />
+<text x="390.0" y="410.0" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">f2_node  (f2_sense_flow)</text>
+<text x="390.0" y="425.0" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">민범진 · 무게·털기·헹굼 · srv:</text>
+<text x="390.0" y="440.0" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">/f2/weigh /f2/leftover_loop</text>
+<text x="390.0" y="455.0" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">/f2/shake /f2/dip</text>
+<text x="390.0" y="470.0" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">f2.yaml (기준 무게·임계·진폭)</text>
+<rect x="504" y="392" width="196" height="88" rx="4" fill="#FCE5CD" stroke="#E69138" stroke-width="1.2" />
+<text x="602.0" y="417.5" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">f3_node  (f3_wipe)</text>
+<text x="602.0" y="432.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">박진용 · 접촉 닦기 · srv:</text>
+<text x="602.0" y="447.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">/f3/seat /f3/soap /f3/wipe</text>
+<text x="602.0" y="462.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">f3.yaml (목표 힘·상한·궤적)</text>
+<rect x="190" y="522" width="400" height="92" rx="4" fill="#D9EAD3" stroke="#6AA84F" stroke-width="1.2" />
+<text x="390.0" y="549.5" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">flow_node (f2_sense_flow) · 민범진 — 유일한 호출자(상태 머신)</text>
+<text x="390.0" y="564.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">srv 제공: /flow/start /flow/stop /flow/resume (std_srvs/Trigger)</text>
+<text x="390.0" y="579.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">pub: /flow/state (2 Hz) · /flow/event (용기당 1건)</text>
+<text x="390.0" y="594.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">flow.yaml (슬롯 순서 · 실패 정책 · 랙 배정)</text>
+<path d="M610,644 a45.0,8 0 0,0 90,0 a45.0,8 0 0,0 -90,0 v36 a45.0,8 0 0,0 90,0 v-36" fill="#FFF2CC" stroke="#BF9000" stroke-width="1.2"/>
+<text x="655.0" y="658.5" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">records.csv</text>
+<text x="655.0" y="673.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">(PC-A 로컬)</text>
+<rect x="80" y="636" width="230" height="52" rx="4" fill="#D9EAD3" stroke="#6AA84F" stroke-width="1.2" />
+<text x="195.0" y="658.5" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">cobot_msgs  (민범진 정본 관리)</text>
+<text x="195.0" y="673.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">srv 12종 + msg 2종 (IRD)  — PC-A·PC-B 양쪽에서 빌드</text>
+<rect x="330" y="636" width="260" height="52" rx="4" fill="#D9EAD3" stroke="#6AA84F" stroke-width="1.2" />
+<text x="460.0" y="658.5" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">rewash_bringup  (민범진)</text>
+<text x="460.0" y="673.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">rewash.launch.py / rewash_mock.launch.py</text>
+<rect x="780" y="330" width="120" height="70" rx="4" fill="#EFEFEF" stroke="#666666" stroke-width="1.2" />
+<text x="840.0" y="354.0" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">스위치 / 공유기</text>
+<text x="840.0" y="369.0" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">192.168.1.0/24</text>
+<text x="840.0" y="384.0" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">(유선 권장)</text>
+<rect x="940" y="70" width="480" height="380" rx="6" fill="#FFFFFF" stroke="#222222" stroke-width="2" />
+<text x="950" y="88" font-size="13" font-weight="bold" fill="#222">PC-B  HMI PC  (통합 실행 시 권장 · 없으면 PC-A 1대로 통합 가능)</text>
+<text x="950" y="103" font-size="11" font-weight="normal" fill="#222">Ubuntu 24.04 · ROS 2 Jazzy · ROS_DOMAIN_ID=60 · IP 192.168.1.__ (PC-A와 같은 스위치)</text>
+<rect x="960" y="130" width="440" height="200" rx="6" fill="#F3F3F3" stroke="#999999" stroke-width="1.2" stroke-dasharray="6,4"/>
+<text x="970" y="148" font-size="13" font-weight="bold" fill="#222">rokey_pjt01_ws  (같은 저장소 clone — cobot_msgs + f4_hmi 만 빌드)</text>
+<rect x="980" y="170" width="180" height="50" rx="4" fill="#D9EAD3" stroke="#6AA84F" stroke-width="1.2" />
+<text x="1070.0" y="191.5" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">cobot_msgs</text>
+<text x="1070.0" y="206.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">(FlowState·FlowEvent 해석용)</text>
+<rect x="1180" y="170" width="200" height="140" rx="4" fill="#D9D2E9" stroke="#8E7CC3" stroke-width="1.2" />
+<text x="1280.0" y="206.5" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">hmi_bridge  (f4_hmi) · 황인재</text>
+<text x="1280.0" y="221.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">FastAPI + rclpy · 포트 8000</text>
+<text x="1280.0" y="236.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">sub  /flow/state  /flow/event</text>
+<text x="1280.0" y="251.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">cli  /flow/start|stop|resume</text>
+<text x="1280.0" y="266.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">REST /api/*   WS /ws/state</text>
+<text x="1280.0" y="281.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">SQLite 기록 (events 표)</text>
+<rect x="980" y="240" width="180" height="70" rx="4" fill="#D9D2E9" stroke="#8E7CC3" stroke-width="1.2" stroke-dasharray="5,3"/>
+<text x="1070.0" y="264.0" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">fake_state_pub  (개발용)</text>
+<text x="1070.0" y="279.0" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">/flow/state·/flow/event 를</text>
+<text x="1070.0" y="294.0" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">시나리오대로 발행 — 로봇 불필요</text>
+<path d="M1300,358 a50.0,8 0 0,0 100,0 a50.0,8 0 0,0 -100,0 v64 a50.0,8 0 0,0 100,0 v-64" fill="#FFF2CC" stroke="#BF9000" stroke-width="1.2"/>
+<text x="1350.0" y="386.5" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">rewash.db</text>
+<text x="1350.0" y="401.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">(SQLite)</text>
+<rect x="960" y="350" width="320" height="80" rx="4" fill="#D9D2E9" stroke="#8E7CC3" stroke-width="1.2" />
+<text x="1120.0" y="379.0" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">브라우저 (Chrome) — PC-B 화면 또는 LAN 태블릿</text>
+<text x="1120.0" y="394.0" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">http://&lt;PC-B IP&gt;:8000</text>
+<text x="1120.0" y="409.0" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">시작·정지·재개 / 단계·슬롯·수량 / 오류 / 이력</text>
+<rect x="940" y="500" width="480" height="220" rx="6" fill="#FFFFFF" stroke="#222222" stroke-width="2" />
+<text x="950" y="518" font-size="13" font-weight="bold" fill="#222">로봇 셀</text>
+<rect x="960" y="540" width="210" height="90" rx="4" fill="#EFEFEF" stroke="#666666" stroke-width="1.2" />
+<text x="1065.0" y="566.5" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">M0609 컨트롤러 (제어함)</text>
+<text x="1065.0" y="581.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">IP 192.168.1.100 · TCP 12345</text>
+<text x="1065.0" y="596.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">Dart Platform 2.12.1</text>
+<text x="1065.0" y="611.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">제어권: ROS ↔ 티치펜던트 동시 금지</text>
+<rect x="1200" y="540" width="200" height="50" rx="4" fill="#EFEFEF" stroke="#666666" stroke-width="1.2" />
+<text x="1300.0" y="561.5" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">M0609 협동로봇 (6축 · 6 kg · 900 mm)</text>
+<text x="1300.0" y="576.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">관절 토크 센서 → 하중·힘 측정</text>
+<rect x="1200" y="615" width="200" height="90" rx="4" fill="#EFEFEF" stroke="#666666" stroke-width="1.2" />
+<text x="1300.0" y="641.5" text-anchor="middle" font-size="12" font-weight="bold" fill="#111">OnRobot RG2 그리퍼</text>
+<text x="1300.0" y="656.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">파지 폭 0~110 mm · 폭 피드백</text>
+<text x="1300.0" y="671.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">Compute Box 설정 웹 192.168.1.1</text>
+<text x="1300.0" y="686.5" text-anchor="middle" font-size="11" font-weight="normal" fill="#111">DO1/DO2 ← 잡기/놓기 · DI1/DI2 → 완료</text>
+<rect x="1450" y="70" width="250" height="380" rx="6" fill="#F3F3F3" stroke="#999999" stroke-width="1.2" />
+<text x="1460" y="88" font-size="13" font-weight="bold" fill="#222">개발 중 구성 (9/17~9/22)  — 4대 각자, 로봇 없이</text>
+<text x="1460" y="103" font-size="11" font-weight="normal" fill="#222"></text>
+<text x="1460" y="118" font-size="11" font-weight="normal" fill="#222">PC1 한석형: sodvir(Virtual) + f1_node</text>
+<text x="1460" y="133" font-size="11" font-weight="normal" fill="#222">    + rig_f1 (단독 시험)</text>
+<text x="1460" y="148" font-size="11" font-weight="normal" fill="#222">PC2 민범진: sodvir + f2_node + flow_node</text>
+<text x="1460" y="163" font-size="11" font-weight="normal" fill="#222">    + mock_f1_f3 (가짜 F1·F3)</text>
+<text x="1460" y="178" font-size="11" font-weight="normal" fill="#222">PC3 박진용: sodvir + f3_node + rig_f3</text>
+<text x="1460" y="193" font-size="11" font-weight="normal" fill="#222">PC4 황인재: fake_state_pub + hmi_bridge</text>
+<text x="1460" y="208" font-size="11" font-weight="normal" fill="#222">    + 브라우저 (ROS 드라이버 불필요)</text>
+<text x="1460" y="223" font-size="11" font-weight="normal" fill="#222"></text>
+<text x="1460" y="238" font-size="11" font-weight="normal" fill="#222">실기 슬롯(1대 로봇)은 docs/04 로봇 슬롯 표</text>
+<text x="1460" y="253" font-size="11" font-weight="normal" fill="#222">Virtual 에는 힘·무게·접촉이 없음</text>
+<text x="1460" y="268" font-size="11" font-weight="normal" fill="#222">→ 로직은 Virtual/mock, 임계값은 실기</text>
+<rect x="1450" y="500" width="250" height="220" rx="6" fill="#F3F3F3" stroke="#999999" stroke-width="1.2" />
+<text x="1460" y="518" font-size="13" font-weight="bold" fill="#222">범례</text>
+<text x="1460" y="533" font-size="11" font-weight="normal" fill="#222"></text>
+<text x="1460" y="548" font-size="11" font-weight="normal" fill="#222">실선 = 서비스 호출 (요청→응답)</text>
+<text x="1460" y="563" font-size="11" font-weight="normal" fill="#222">점선 = 토픽 (발행→구독)</text>
+<text x="1460" y="578" font-size="11" font-weight="normal" fill="#222">굵은 선 = 네트워크·물리 연결</text>
+<text x="1460" y="593" font-size="11" font-weight="normal" fill="#222"></text>
+<text x="1460" y="608" font-size="11" font-weight="normal" fill="#222">파랑 F1 한석형 · 초록 F2 민범진</text>
+<text x="1460" y="623" font-size="11" font-weight="normal" fill="#222">주황 F3 박진용 · 보라 F4 황인재</text>
+<text x="1460" y="638" font-size="11" font-weight="normal" fill="#222">회색 = 두산·OnRobot·외부</text>
+<text x="1460" y="653" font-size="11" font-weight="normal" fill="#222"></text>
+<text x="1460" y="668" font-size="11" font-weight="normal" fill="#222">IP 빈칸(__)은 실측 후 기입</text>
+<polyline points="390.0,522 390.0,501.0 178.0,501.0 178.0,480" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#ar)"/>
+<rect x="251.2" y="492.0" width="65.6" height="16" fill="#fff" fill-opacity="0.92"/>
+<text x="284.0" y="504.0" text-anchor="middle" font-size="10.5" fill="#222">srv /f1/*</text>
+<polyline points="390.0,522 390.0,501.0 390.0,501.0 390.0,480" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#ar)"/>
+<rect x="357.2" y="502.5" width="65.6" height="16" fill="#fff" fill-opacity="0.92"/>
+<text x="390.0" y="514.5" text-anchor="middle" font-size="10.5" fill="#222">srv /f2/*</text>
+<polyline points="390.0,522 390.0,501.0 602.0,501.0 602.0,480" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#ar)"/>
+<rect x="463.2" y="492.0" width="65.6" height="16" fill="#fff" fill-opacity="0.92"/>
+<text x="496.0" y="504.0" text-anchor="middle" font-size="10.5" fill="#222">srv /f3/*</text>
+<polyline points="178,392 178,362" fill="none" stroke="#777" stroke-width="1.1" marker-end="url(#ar)"/>
+<polyline points="390,392 390,362" fill="none" stroke="#777" stroke-width="1.1" marker-end="url(#ar)"/>
+<polyline points="602,392 602,362" fill="none" stroke="#777" stroke-width="1.1" marker-end="url(#ar)"/>
+<polyline points="570,310 570,238" fill="none" stroke="#777" stroke-width="1.1" marker-end="url(#ar)"/>
+<rect x="607.2" y="265" width="65.6" height="16" fill="#fff" fill-opacity="0.92"/>
+<text x="640" y="277" text-anchor="middle" font-size="10.5" fill="#222">파이썬 함수 호출</text>
+<polyline points="450,204 430,204" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#ar)"/>
+<rect x="394.4" y="149" width="91.2" height="16" fill="#fff" fill-opacity="0.92"/>
+<text x="440" y="161" text-anchor="middle" font-size="10.5" fill="#222">dsr_msgs2 서비스</text>
+<polyline points="590,600 655,600 655,636" fill="none" stroke="#777" stroke-width="1.1" marker-end="url(#ar)"/>
+<rect x="592.2" y="581" width="65.6" height="16" fill="#fff" fill-opacity="0.92"/>
+<text x="625" y="593" text-anchor="middle" font-size="10.5" fill="#222">CSV 1행/용기</text>
+<polyline points="590,545 760,545 760,470 1280,470 1280,310" fill="none" stroke="#333" stroke-width="1.4" stroke-dasharray="6,4" marker-end="url(#ar)"/>
+<rect x="811.2" y="452" width="417.6" height="16" fill="#fff" fill-opacity="0.92"/>
+<text x="1020" y="464" text-anchor="middle" font-size="10.5" fill="#222">/flow/state · /flow/event  (FlowState·FlowEvent, DDS: PC-A→PC-B)</text>
+<polyline points="1290,310 1290,482 770,482 770,555 590,555" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#ar)"/>
+<rect x="827.2" y="485" width="385.6" height="16" fill="#fff" fill-opacity="0.92"/>
+<text x="1020" y="497" text-anchor="middle" font-size="10.5" fill="#222">/flow/start·stop·resume  (std_srvs/Trigger, DDS: PC-B→PC-A)</text>
+<polyline points="1160,275 1180,275" fill="none" stroke="#333" stroke-width="1.4" stroke-dasharray="6,4" marker-end="url(#ar)"/>
+<rect x="1143.6" y="316" width="52.800000000000004" height="16" fill="#fff" fill-opacity="0.92"/>
+<text x="1170" y="328" text-anchor="middle" font-size="10.5" fill="#222">개발 시 대체</text>
+<polyline points="1110,350 1110,330 1230,330 1230,310" fill="none" stroke="#1155aa" stroke-width="3" marker-end="url(#ar)"/>
+<rect x="1062.8" y="333" width="174.4" height="16" fill="#fff" fill-opacity="0.92"/>
+<text x="1150" y="345" text-anchor="middle" font-size="10.5" fill="#222">HTTP /api/* · WS /ws/state</text>
+<polyline points="1350,310 1350,350" fill="none" stroke="#777" stroke-width="1.1" marker-end="url(#ar)"/>
+<rect x="1304.4" y="323" width="91.2" height="16" fill="#fff" fill-opacity="0.92"/>
+<text x="1350" y="335" text-anchor="middle" font-size="10.5" fill="#222">INSERT events</text>
+<polyline points="1170,565 1200,565" fill="none" stroke="#444" stroke-width="3" marker-end="url(#ar)"/>
+<polyline points="1170,600 1185,600 1185,660 1200,660" fill="none" stroke="#444" stroke-width="3" marker-end="url(#ar)"/>
+<rect x="1006.6" y="639" width="116.80000000000001" height="16" fill="#fff" fill-opacity="0.92"/>
+<text x="1065" y="651" text-anchor="middle" font-size="10.5" fill="#222">DO1/DO2 · DI1/DI2</text>
+<polyline points="740,365 780,365" fill="none" stroke="#1155aa" stroke-width="3" marker-end="url(#ar)"/>
+<rect x="727.2" y="343" width="65.6" height="16" fill="#fff" fill-opacity="0.92"/>
+<text x="760" y="355" text-anchor="middle" font-size="10.5" fill="#222">DDS + TCP</text>
+<polyline points="900,365 920,365 920,260 940,260" fill="none" stroke="#1155aa" stroke-width="3" marker-end="url(#ar)"/>
+<rect x="880.8" y="239" width="78.4" height="16" fill="#fff" fill-opacity="0.92"/>
+<text x="920" y="251" text-anchor="middle" font-size="10.5" fill="#222">DDS (ROS 2)</text>
+<polyline points="840,400 840,585 960,585" fill="none" stroke="#1155aa" stroke-width="3" marker-end="url(#ar)"/>
+<rect x="838.4" y="587" width="123.2" height="16" fill="#fff" fill-opacity="0.92"/>
+<text x="900" y="599" text-anchor="middle" font-size="10.5" fill="#222">TCP 12345 (DDS 아님)</text>
+<text x="40" y="742" font-size="14" font-weight="bold">노드 간 통신 정의 (토픽 · 서비스 · 네트워크)</text>
+<rect x="40" y="750" width="470" height="24" fill="#DDE6F0" stroke="#999" stroke-width="0.8"/>
+<text x="45" y="766" font-size="12" font-weight="bold">이름</text>
+<rect x="510" y="750" width="560" height="24" fill="#DDE6F0" stroke="#999" stroke-width="0.8"/>
+<text x="515" y="766" font-size="12" font-weight="bold">타입</text>
+<rect x="1070" y="750" width="300" height="24" fill="#DDE6F0" stroke="#999" stroke-width="0.8"/>
+<text x="1075" y="766" font-size="12" font-weight="bold">방향</text>
+<rect x="1370" y="750" width="160" height="24" fill="#DDE6F0" stroke="#999" stroke-width="0.8"/>
+<text x="1375" y="766" font-size="12" font-weight="bold">구간</text>
+<rect x="40" y="774" width="470" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="45" y="790" font-size="11" font-weight="normal">/flow/state</text>
+<rect x="510" y="774" width="560" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="515" y="790" font-size="11" font-weight="normal">cobot_msgs/msg/FlowState  (2 Hz)</text>
+<rect x="1070" y="774" width="300" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1075" y="790" font-size="11" font-weight="normal">flow_node → hmi_bridge</text>
+<rect x="1370" y="774" width="160" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1375" y="790" font-size="11" font-weight="normal">PC-A → PC-B (DDS)</text>
+<rect x="40" y="798" width="470" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="45" y="814" font-size="11" font-weight="normal">/flow/event</text>
+<rect x="510" y="798" width="560" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="515" y="814" font-size="11" font-weight="normal">cobot_msgs/msg/FlowEvent  (용기당 1건)</text>
+<rect x="1070" y="798" width="300" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1075" y="814" font-size="11" font-weight="normal">flow_node → hmi_bridge</text>
+<rect x="1370" y="798" width="160" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1375" y="814" font-size="11" font-weight="normal">PC-A → PC-B (DDS)</text>
+<rect x="40" y="822" width="470" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="45" y="838" font-size="11" font-weight="normal">/flow/start  /flow/stop  /flow/resume</text>
+<rect x="510" y="822" width="560" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="515" y="838" font-size="11" font-weight="normal">std_srvs/srv/Trigger</text>
+<rect x="1070" y="822" width="300" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1075" y="838" font-size="11" font-weight="normal">hmi_bridge → flow_node</text>
+<rect x="1370" y="822" width="160" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1375" y="838" font-size="11" font-weight="normal">PC-B → PC-A (DDS)</text>
+<rect x="40" y="846" width="470" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="45" y="862" font-size="11" font-weight="normal">/f1/pick /f1/place /f1/move_to /f1/tool /f1/rack_place /f1/home</text>
+<rect x="510" y="846" width="560" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="515" y="862" font-size="11" font-weight="normal">cobot_msgs/srv/F1Pick · F1Place · F1MoveTo · F1Tool · F1RackPlace · std_srvs/Trigger(home)</text>
+<rect x="1070" y="846" width="300" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1075" y="862" font-size="11" font-weight="normal">flow_node → f1_node</text>
+<rect x="1370" y="846" width="160" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1375" y="862" font-size="11" font-weight="normal">PC-A 내부</text>
+<rect x="40" y="870" width="470" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="45" y="886" font-size="11" font-weight="normal">/f2/weigh /f2/leftover_loop /f2/shake /f2/dip</text>
+<rect x="510" y="870" width="560" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="515" y="886" font-size="11" font-weight="normal">cobot_msgs/srv/F2Weigh · F2LeftoverLoop · F2Shake · F2Dip</text>
+<rect x="1070" y="870" width="300" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1075" y="886" font-size="11" font-weight="normal">flow_node → f2_node</text>
+<rect x="1370" y="870" width="160" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1375" y="886" font-size="11" font-weight="normal">PC-A 내부</text>
+<rect x="40" y="894" width="470" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="45" y="910" font-size="11" font-weight="normal">/f3/seat /f3/soap /f3/wipe</text>
+<rect x="510" y="894" width="560" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="515" y="910" font-size="11" font-weight="normal">cobot_msgs/srv/F3Seat · F3Soap · F3Wipe</text>
+<rect x="1070" y="894" width="300" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1075" y="910" font-size="11" font-weight="normal">flow_node → f3_node</text>
+<rect x="1370" y="894" width="160" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1375" y="910" font-size="11" font-weight="normal">PC-A 내부</text>
+<rect x="40" y="918" width="470" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="45" y="934" font-size="11" font-weight="normal">/dsr01/motion/move_joint · move_line  (movej·movel)</text>
+<rect x="510" y="918" width="560" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="515" y="934" font-size="11" font-weight="normal">dsr_msgs2/srv/MoveJoint · MoveLine</text>
+<rect x="1070" y="918" width="300" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1075" y="934" font-size="11" font-weight="normal">cobot_common(DSR_ROBOT2) → dsr_controller2</text>
+<rect x="1370" y="918" width="160" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1375" y="934" font-size="11" font-weight="normal">PC-A 내부</text>
+<rect x="40" y="942" width="470" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="45" y="958" font-size="11" font-weight="normal">/dsr01/force/task_compliance_ctrl · set_desired_force · release_force</text>
+<rect x="510" y="942" width="560" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="515" y="958" font-size="11" font-weight="normal">dsr_msgs2/srv/TaskComplianceCtrl · SetDesiredForce · ReleaseForce</text>
+<rect x="1070" y="942" width="300" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1075" y="958" font-size="11" font-weight="normal">cobot_common → dsr_controller2</text>
+<rect x="1370" y="942" width="160" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1375" y="958" font-size="11" font-weight="normal">PC-A 내부</text>
+<rect x="40" y="966" width="470" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="45" y="982" font-size="11" font-weight="normal">/dsr01/force/get_workpiece_weight  (하중 = 잔반 판정)</text>
+<rect x="510" y="966" width="560" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="515" y="982" font-size="11" font-weight="normal">dsr_msgs2/srv/GetWorkpieceWeight</text>
+<rect x="1070" y="966" width="300" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1075" y="982" font-size="11" font-weight="normal">cobot_common → dsr_controller2</text>
+<rect x="1370" y="966" width="160" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1375" y="982" font-size="11" font-weight="normal">PC-A 내부</text>
+<rect x="40" y="990" width="470" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="45" y="1006" font-size="11" font-weight="normal">/dsr01/io/set_ctrl_box_digital_output · get_ctrl_box_digital_input  (RG2 제어)</text>
+<rect x="510" y="990" width="560" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="515" y="1006" font-size="11" font-weight="normal">dsr_msgs2/srv/SetCtrlBoxDigitalOutput · GetCtrlBoxDigitalInput</text>
+<rect x="1070" y="990" width="300" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1075" y="1006" font-size="11" font-weight="normal">cobot_common → dsr_controller2</text>
+<rect x="1370" y="990" width="160" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1375" y="1006" font-size="11" font-weight="normal">PC-A 내부</text>
+<rect x="40" y="1014" width="470" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="45" y="1030" font-size="11" font-weight="normal">/dsr01/joint_states</text>
+<rect x="510" y="1014" width="560" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="515" y="1030" font-size="11" font-weight="normal">sensor_msgs/msg/JointState</text>
+<rect x="1070" y="1014" width="300" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1075" y="1030" font-size="11" font-weight="normal">dsr_controller2 → (모니터링·rviz)</text>
+<rect x="1370" y="1014" width="160" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1375" y="1030" font-size="11" font-weight="normal">PC-A 내부</text>
+<rect x="40" y="1038" width="470" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="45" y="1054" font-size="11" font-weight="normal">dsr_controller2 ↔ 컨트롤러</text>
+<rect x="510" y="1038" width="560" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="515" y="1054" font-size="11" font-weight="normal">두산 전용 TCP 프로토콜, 포트 12345  (DDS 아님)</text>
+<rect x="1070" y="1038" width="300" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1075" y="1054" font-size="11" font-weight="normal">PC-A ↔ M0609 컨트롤러</text>
+<rect x="1370" y="1038" width="160" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1375" y="1054" font-size="11" font-weight="normal">유선 192.168.1.x</text>
+<rect x="40" y="1062" width="470" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="45" y="1078" font-size="11" font-weight="normal">브라우저 ↔ hmi_bridge</text>
+<rect x="510" y="1062" width="560" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="515" y="1078" font-size="11" font-weight="normal">HTTP  GET /  ·  POST /api/start|stop|resume  ·  GET /api/history  ·  WS /ws/state (JSON)</text>
+<rect x="1070" y="1062" width="300" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1075" y="1078" font-size="11" font-weight="normal">브라우저 ↔ FastAPI</text>
+<rect x="1370" y="1062" width="160" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1375" y="1078" font-size="11" font-weight="normal">PC-B 내부 또는 LAN</text>
+<rect x="40" y="1086" width="470" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="45" y="1102" font-size="11" font-weight="normal">hmi_bridge → rewash.db</text>
+<rect x="510" y="1086" width="560" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="515" y="1102" font-size="11" font-weight="normal">SQLite  events 표 (FlowEvent 필드 그대로) · state 표</text>
+<rect x="1070" y="1086" width="300" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1075" y="1102" font-size="11" font-weight="normal">FastAPI → 파일</text>
+<rect x="1370" y="1086" width="160" height="24" fill="#fff" stroke="#999" stroke-width="0.8"/>
+<text x="1375" y="1102" font-size="11" font-weight="normal">PC-B 내부</text>
+<text x="40" y="1128" font-size="11" fill="#555">※ /dsr01/* 서비스의 정확한 이름·타입은 두산 ROS 2 매뉴얼(jazzy)로 확인 후 확정. IRD 정본은 docs/interfaces/*.srv·*.msg.</text>
+</svg>
