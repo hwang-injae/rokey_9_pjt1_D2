@@ -3,7 +3,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 ID | SDD-PREWASH-001 · **v3.0** (2026-09-18) — 실행 구조를 스크립트형으로 변경([DSN-02b](meetings/20260918_DSN-02b_구조변경_스크립트형.md)) |
+| 문서 ID | SDD-PREWASH-001 · **v3.0** (2026-09-18) — 실행 구조를 스크립트형으로 변경([DSN-02b](meetings/20260918_결정기록_구조_인터페이스.md)) |
 | 상위 | [01_요구사항_BR-SR.md](01_요구사항_BR-SR.md) · [02_인터페이스_IRD.md](02_인터페이스_IRD.md) · 일정표(구글 드라이브 xlsx) |
 | 그림 | [images/system_architecture_pc.svg](images/system_architecture_pc.svg) (편집용 [.drawio](images/system_architecture_pc.drawio)) · [images/system_design.svg](images/system_design.svg) · [images/workcell.svg](images/workcell.svg) |
 
@@ -17,7 +17,7 @@
 
 그림 규칙: **사각형 = 노드, 타원 = 토픽, 점선 상자 = 파이썬 패키지·라이브러리(노드 아님)**. 실선 화살표는 서비스 호출(요청 방향)이고 라벨에 `서비스 이름 : 타입`을 적는다. 점선 화살표는 토픽 publish/subscribe이고 라벨에 메시지 타입을 적는다. 회색 가는 화살표는 **파이썬 함수 호출**(ROS 통신 아님)이다. **PC-B(웹) 안쪽은 비워 두었다** — 황인재의 HMI 설계 초안(F4-00) 뒤 DSN-03 회의에서 채운다. 팀이 다시 그릴 수 있게 같은 내용의 [.drawio](images/system_architecture_pc.drawio)를 둔다(생성기 `tools/gen/gen_arch.py`).
 
-**구조 한 줄 요약(9/18 저녁 결정, [DSN-02b](meetings/20260918_DSN-02b_구조변경_스크립트형.md))**: `flow_node`가 **메인 프로그램**이다. f1·f2·f3는 노드가 아니라 **함수를 제공하는 파이썬 패키지**이고, `flow_node`의 메인 스레드가 그 함수를 차례로 부른다. 두산 API가 전제하는 "혼자 도는 스크립트" 방식 그대로다. ROS 통신은 flow ↔ HMI, 그리고 `cobot_common` ↔ 두산·그리퍼 드라이버뿐이다.
+**구조 한 줄 요약(9/18 저녁 결정, [DSN-02b](meetings/20260918_결정기록_구조_인터페이스.md))**: `flow_node`가 **메인 프로그램**이다. f1·f2·f3는 노드가 아니라 **함수를 제공하는 파이썬 패키지**이고, `flow_node`의 메인 스레드가 그 함수를 차례로 부른다. 두산 API가 전제하는 "혼자 도는 스크립트" 방식 그대로다. ROS 통신은 flow ↔ HMI, 그리고 `cobot_common` ↔ 두산·그리퍼 드라이버뿐이다.
 
 ### 1.1 PC 배치 (통합 실행: 2대 · 개발: 4대 각자)
 | PC | 역할 | 실행하는 것 | 네트워크 |
@@ -142,7 +142,7 @@ rokey_pjt01_ws/                ← 저장소 루트 (rokey_9_pjt1_D2)
 | `periodic_search(amp, period, duration)` | Move Periodic |
 | `safe_retreat()` | 툴 Z 후퇴 → 안전 높이 |
 
-### 3.2 실행 뼈대 규약 (9/18 [TS-01](troubleshooting/TS-01_두산API_초기화_실행기_교착.md) → [DSN-02b](meetings/20260918_DSN-02b_구조변경_스크립트형.md))
+### 3.2 실행 뼈대 규약 (9/18 [TS-01](troubleshooting/TS-01_두산API_초기화_실행기_교착.md) → [DSN-02b](meetings/20260918_결정기록_구조_인터페이스.md))
 두산 API(`DSR_ROBOT2`)는 **혼자 위에서 아래로 도는 스크립트**를 전제로 만들어졌다. 로봇 명령마다 자기가 실행기를 돌려 응답을 기다리므로, 서비스 콜백 안에서 부르면 교착한다. 그래서 우리는 로봇을 움직이는 코드를 **전부 메인 스레드에서 차례로** 실행한다.
 
 ```
@@ -352,7 +352,7 @@ return EMPTY_ZONE (attempts = max_attempts)
 - 하강은 항상 힘 상한·최대 깊이·타임아웃과 함께(NFR-01).
 - `zone_id`가 `SPONGE_BED_*`면 탐색점 1개(고정 위치 재파지).
 
-**place (안착 놓기)** — `station`이 `SPONGE_BED_B/C`일 때: 용기를 쥔 채 홈 상공(`cell.beds.*.seat.approach_z_mm`) → `force_on(z)` 순응 하강 → `contact_down`으로 접촉·깊이 판정 → 깊이 미달이면 `periodic_search(amp, period, max_s)` 중 접촉 조건 감시 → 들어가면 `release` → 후퇴(`OK`, `offset_mm`) / 한도 초과면 들고 후퇴(`SEAT_FAIL`). 그 외 station은 상공 → 하강 → 놓기 → 후퇴. (v2.0의 `seat` 동작을 흡수)
+**place (안착 놓기)** — `station`이 `SPONGE_BED_B/C`일 때: 용기를 쥔 채 홈 상공(`cell.beds.*.seat.approach_z_mm`) → `force_on(z)` 순응 하강 → `contact_down`으로 접촉·깊이 판정 → 깊이 미달이면 `periodic_search(amp, period, max_s)` 중 접촉 조건 감시 → 들어가면 `release` → 후퇴(`OK`, `offset_mm`) / 한도 초과면 들고 후퇴(`SEAT_FAIL`). 그 외 station은 상공 → 하강 → 놓기 → 후퇴.
 
 **rack_place**: 팔레트 기준점 + 칸 오프셋 → 지정 각도(tilt) → 상공 → `force_on(z)` 하강 → `contact_down`으로 삽입력 감시 → 도달 시 `release` → 후퇴. 걸림(힘 > limit, 깊이 미달) → 후퇴 → `RACK_JAM`.
 

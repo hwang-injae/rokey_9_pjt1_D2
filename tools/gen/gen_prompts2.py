@@ -13,7 +13,7 @@ COMMON_TEAM='''## 2. 팀·환경 (✅ 확정)
 '''
 COMMON_IF='''## 3. 인터페이스 (정본 `docs/02_인터페이스_IRD.md` · `docs/interfaces/`)
 - 내가 **제공**하는 함수(F4는 ROS 인터페이스)와 **사용**하는 것을 IRD에서 그대로 읽고 첫 응답에 표로 정리할 것. 공통 ID(`BOWL` `CUP` `SPONGE` `BRUSH`, 구역 `RET_B` `RET_C`, 칸 `RACK_B1..2` `RACK_C1..4`, 스테이션, 실패 코드)는 IRD §2 문자열 그대로.
-- 실행 구조(9/18 결정, `docs/meetings/20260918_DSN-02b_…md`): **노드는 `flow_node`(메인 프로그램)와 `hmi_bridge` 둘뿐.** f1·f2·f3는 노드가 아니라 **함수를 제공하는 파이썬 패키지**이고 `flow_node`의 메인 스레드가 그 함수를 차례로 부른다(서비스 아님). 기능 패키지끼리는 서로 import하지 않는다(F4는 flow의 `/flow/*` 서비스를 부르는 클라이언트).
+- 실행 구조(9/18 결정, `docs/meetings/20260918_결정기록_구조_인터페이스.md`): **노드는 `flow_node`(메인 프로그램)와 `hmi_bridge` 둘뿐.** f1·f2·f3는 노드가 아니라 **함수를 제공하는 파이썬 패키지**이고 `flow_node`의 메인 스레드가 그 함수를 차례로 부른다(서비스 아님). 기능 패키지끼리는 서로 import하지 않는다(F4는 flow의 `/flow/*` 서비스를 부르는 클라이언트).
 - 동시 개발 약속: 각 기능은 정해진 위치에서 시작·끝난다 → 용기를 손으로 놓고 `rig_f*.py`로 단독 시험. 로봇 없이 mock 모듈(`f2_sense_flow.mock`, 같은 함수 이름)·`fake_state_pub`으로 flow·HMI 개발.
 '''
 COMMON_RULES='''## 4. 진행 규칙 (반드시)
