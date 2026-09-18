@@ -2,7 +2,7 @@
 import os
 import os; ROOT=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))); OUT=os.path.join(ROOT,'docs/prompts')
 AGENTS=open(os.path.join(ROOT,'AGENTS.md'),encoding='utf-8').read().replace('\n## ','\n### ').replace('# AGENTS.md — ','### AGENTS.md — ',1)
-DOCS='`AGENTS.md` · `docs/01_요구사항_BR-SR.md` · `docs/02_인터페이스_IRD.md` · `docs/03_설계_SDD.md`(§9 테스트 계획) · 일정표(구글 드라이브 xlsx: https://drive.google.com/drive/folders/1t58F08_auBRa_q7c4KeNirLKR6CKa4hU?usp=sharing)'
+DOCS='`AGENTS.md` · `docs/01_요구사항_BR-SR.md` · `docs/02_인터페이스_IRD.md` · `docs/03_설계_SDD.md`(§9 테스트 계획) · 일정표(구글 시트: https://docs.google.com/spreadsheets/d/1ikTAYTa8bgZofF_3RgP5jDoOipSZBPB1/edit)'
 COMMON_TEAM='''## 2. 팀·환경 (✅ 확정)
 - D그룹 2조: 한석형(팀장·F1) · 민범진(통합 리더·F2·flow) · 박진용(안전·F3) · 황인재(**PM**·F4). 겸임: 실기 슬롯·기구·브랜치 삭제 승인 한석형 / 통합 리더(L3·L4 주도)·인터페이스 창구 민범진 / 안전 파라미터 박진용 / PM(일정표·문서·제출·강사 창구·PR 승인)·영상·발표·아키텍처 그림 황인재
 - M0609 + RG2 1대, 컨트롤러 IP 192.168.1.100 · TCP 12345 · RG2 설정 웹 192.168.1.1. Ubuntu 24.04 + ROS 2 Jazzy, `ROS_DOMAIN_ID=60`. 비전·3D 프린터·액체 사용 불가

@@ -6,7 +6,7 @@
       tools/sched.py --sheet 규칙     → 다른 시트 출력 (마일스톤·로봇 슬롯 / 완료 목록 / 규칙 / 변경이력)
 """
 import sys, io, re, zipfile, urllib.request, xml.etree.ElementTree as ET
-SHEET_ID='1zV0yb2k89li7SNBvDWSXT2jT3KTbuDVF'
+SHEET_ID='1ikTAYTa8bgZofF_3RgP5jDoOipSZBPB1'
 URL=f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=xlsx'
 NS={'m':'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
 def load():

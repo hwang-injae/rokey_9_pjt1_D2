@@ -137,7 +137,7 @@ HIST=[('1.0','생성','전체','9/17 초안 — ■ 문자 간트, 요일 오차
 def live_status():
     import urllib.request, io, re as _re, xml.etree.ElementTree as ET
     try:
-        data=urllib.request.urlopen('https://docs.google.com/spreadsheets/d/1zV0yb2k89li7SNBvDWSXT2jT3KTbuDVF/export?format=xlsx',timeout=30).read()
+        data=urllib.request.urlopen('https://docs.google.com/spreadsheets/d/1ikTAYTa8bgZofF_3RgP5jDoOipSZBPB1/export?format=xlsx',timeout=30).read()
         z=zipfile.ZipFile(io.BytesIO(data)); ns={'m':'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
         ss=[''.join(t.text or '' for t in si.iter('{%s}t'%ns['m'])) for si in ET.fromstring(z.read('xl/sharedStrings.xml')).findall('m:si',ns)]
         rows=[]

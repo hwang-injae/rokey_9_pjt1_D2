@@ -23,7 +23,7 @@
 | 용기·기구 | 그릇 1규격 **2개** + 컵 1규격 **2개** · 식기세척기용 팔레트 모형 **그릇 2칸·컵 4칸** · 잔반 대용품은 고형물(물·기름 금지) |
 | 일정 | 개발 **9/18(금)~9/23(수)** 주말 로봇 가능 · 9/21(월) 오후 중간점검 발표 · 추석 9/24~28 로봇 불가 · 9/29(화) 14:00 강사 시연 · **9/30(수) 11:00 제출·발표** · **9/23 저녁 기능 동결** |
 | 저장소 | https://github.com/hwang-injae/rokey_9_pjt1_D2.git |
-| 문서 | `docs/01_요구사항_BR-SR.md` · `02_인터페이스_IRD.md`(계약 정본) · `03_설계_SDD.md`(§9 테스트 계획) · `setup/M0609_환경설정.md` · 일정표 = **구글 드라이브 xlsx** [일정표(구글 시트)](https://docs.google.com/spreadsheets/d/1zV0yb2k89li7SNBvDWSXT2jT3KTbuDVF/edit?usp=sharing) |
+| 문서 | `docs/01_요구사항_BR-SR.md` · `02_인터페이스_IRD.md`(계약 정본) · `03_설계_SDD.md`(§9 테스트 계획) · `setup/M0609_환경설정.md` · 일정표 = **구글 드라이브 xlsx** [일정표(구글 시트)](https://docs.google.com/spreadsheets/d/1ikTAYTa8bgZofF_3RgP5jDoOipSZBPB1/edit?usp=sharing) |
 
 ### 시나리오 (용기 1개)
 ```
