@@ -1,0 +1,6 @@
+string kind
+---
+bool ok
+string code
+string force_log_path
+float32 duration_s

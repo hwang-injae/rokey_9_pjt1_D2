@@ -1,0 +1,5 @@
+string mode
+uint8 count
+---
+bool ok
+string code
