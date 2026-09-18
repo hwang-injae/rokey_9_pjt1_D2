@@ -1,4 +1,4 @@
-# AGENTS.md — ReWash-Cell (D그룹 2조) 에이전트·팀원 공통 규칙서
+# AGENTS.md — PreWash-Cell (D그룹 2조) 에이전트·팀원 공통 규칙서
 
 > Claude Code · ChatGPT · Gemini · Cursor 등 **어떤 에이전트든** 이 저장소에서 작업하기 전에 읽는 파일이다.
 > Claude Code는 `CLAUDE.md`(이 파일을 불러옴)를 자동으로 읽는다. 다른 에이전트는 첫 메시지에 이 파일을 첨부하거나 붙여넣는다.
@@ -15,15 +15,15 @@
 | 항목 | 값 |
 |---|---|
 | 과정 / 팀 | ROKEY 9기 협동1 · **D그룹 2조** (한석형 팀장 · 민범진 · 박진용 · 황인재) |
-| 주제 | **경기장 다회용기 예비세척·식기세척기 팔레트 적재 자동화 셀 (ReWash-Cell)** |
+| 주제 | **경기장 다회용기 예비세척·식기세척기 팔레트 적재 자동화 셀 (PreWash-Cell)** |
 | 로봇 | 두산 **M0609** 1대 + OnRobot **RG2** · 컨트롤러 IP **192.168.1.100** · TCP 12345 · Dart Platform 2.12.1 · RG2 설정 웹 192.168.1.1 |
 | PC | Ubuntu 24.04 · ROS 2 Jazzy · `ROS_DOMAIN_ID=60`. 개발 4대 각자(Virtual/mock). 통합 실행 **PC-A 로봇 제어 + PC-B HMI** |
-| 워크스페이스 | 두산 드라이버 `~/ws_cobot_pjt/ws_dsr`(강사 배포, 수정 금지) 위에 우리 **`rokey_pjt01_ws`**(= 저장소 루트, `docs/` + `src/`). clone 위치는 자유, `.bashrc`에 `REWASH_WS`로 지정(예 `~/rokey9_pjt1/rokey_pjt01_ws`) |
+| 워크스페이스 | 두산 드라이버 `~/ws_cobot_pjt/ws_dsr`(강사 배포, 수정 금지) 위에 우리 **`rokey_pjt01_ws`**(= 저장소 루트, `docs/` + `src/`). clone 위치는 자유, `.bashrc`에 `PREWASH_WS`로 지정(예 `~/rokey9_pjt1/rokey_pjt01_ws`) |
 | 비전 | 🚨 **사용 불가** — 판단은 파지 폭·하중 측정·툴 힘·위치 |
 | 용기·기구 | 그릇 1규격 **2개** + 컵 1규격 **2개** · 식기세척기용 팔레트 모형 **그릇 2칸·컵 4칸** · 잔반 대용품은 고형물(물·기름 금지) |
 | 일정 | 개발 **9/18(금)~9/23(수)** 주말 로봇 가능 · 9/21(월) 오후 중간점검 발표 · 추석 9/24~28 로봇 불가 · 9/29(화) 14:00 강사 시연 · **9/30(수) 11:00 제출·발표** · **9/23 저녁 기능 동결** |
 | 저장소 | https://github.com/hwang-injae/rokey_9_pjt1_D2.git |
-| 문서 | `docs/01_요구사항_BR-SR.md` · `02_인터페이스_IRD.md`(계약 정본) · `03_설계_SDD.md`(§9 테스트 계획) · `setup/M0609_환경설정.md` · 일정표 = **구글 드라이브 xlsx** [일정표(구글 시트)](https://docs.google.com/spreadsheets/d/1zV0yb2k89li7SNBvDWSXT2jT3KTbuDVF/edit?usp=sharing) |
+| 문서 | `docs/01_요구사항_BR-SR.md` · `02_인터페이스_IRD.md`(계약 정본) · `03_설계_SDD.md`(§9 테스트 계획) · `setup/M0609_환경설정.md` · 일정표 = **구글 드라이브 xlsx** [일정표(구글 시트)](https://docs.google.com/spreadsheets/d/1ikTAYTa8bgZofF_3RgP5jDoOipSZBPB1/edit?usp=sharing) |
 
 ### 시나리오 (용기 1개)
 ```
@@ -38,11 +38,11 @@ HMI 시작 1회 → 반납 구역 계획 순서(그릇 구역 2개 → 컵 구�
 ## 2. 역할 = 기능 (🚨 남의 기능 코드를 만들지 않는다)
 | 기능 | 담당 | 노드 | 서비스 | 설정 |
 |---|---|---|---|---|
-| **F1 파지·이송·적재** | **한석형** | `f1_handling/f1_node` + `cobot_common`(두산 API를 감싼 **공용 로봇 함수 모음**) | `/f1/pick`(탐색) `/f1/place` `/f1/move_to` `/f1/tool` `/f1/rack_place` `/f1/home` | `f1.yaml` |
-| **F2 무게·털기·헹굼 + 흐름** | **민범진** | `f2_sense_flow/f2_node` + `flow_node` + `cobot_msgs` 정본 + mock | `/f2/weigh` `/f2/leftover_loop` `/f2/shake` `/f2/dip` · `/flow/start|stop|resume` `/flow/state` `/flow/event` | `f2.yaml` `flow.yaml` |
-| **F3 접촉 닦기** | **박진용** | `f3_wipe/f3_node` | `/f3/seat` `/f3/soap` `/f3/wipe` | `f3.yaml` |
-| **F4 시스템 모니터(웹 HMI)** | **황인재** | `f4_hmi/hmi_bridge` (FastAPI + rclpy + SQLite) + `fake_state_pub` | REST `/api/*` · WS `/ws/state` | `hmi.yaml` |
-겸임: 팀장·실기 슬롯·기구·브랜치 삭제 승인 = 한석형 / 통합 리더(L3·L4 주도)·인터페이스 창구(cobot_msgs) = 민범진 / 안전 파라미터 = 박진용 / **PM(일정표·문서·제출·강사 창구·PR 승인)**·영상·발표·아키텍처 그림 = 황인재
+| **F1 파지·이송·적재** | **한석형** | `f1_handling/f1_node` + **좌표 계산·티칭(`config/cell.yaml` 값)** | `/f1/pick`(탐색) `/f1/place`(스펀지 홈 **안착 놓기** 포함) `/f1/move_to` `/f1/tool` `/f1/rack_place` | `config/cell.yaml`과 `config/params.yaml`의 `f1` 절 |
+| **F2 무게·털기·헹굼 + 흐름** | **민범진** | `f2_sense_flow/f2_node` + `flow_node` + `mock_f1_f3` | `/f2/weigh` `/f2/leftover_loop` `/f2/shake` `/f2/dip` · `/flow/start|stop|resume` `/flow/state` `/flow/event` | `config/params.yaml`의 `f2`·`flow` 절 |
+| **F3 접촉 닦기 + 공용 로봇 함수** | **박진용** | `f3_wipe/f3_node` + **`cobot_common`**(두산 API를 감싼 **공용 로봇 함수 모음**: 이동·그리퍼·무게·힘 + 설정 로더) | `/f3/soap` `/f3/wipe_bowl` `/f3/wipe_cup` | `config/params.yaml`의 `f3` 절 |
+| **F4 시스템 모니터(웹 HMI) + PM** | **황인재** | `f4_hmi/hmi_bridge` (FastAPI + rclpy + SQLite) + `fake_state_pub` · **`cobot_msgs` 정본 관리** · `prewash_bringup` 런치 · `config/` 골격 | REST `/api/*` · WS `/ws/state` | `config/params.yaml`의 `hmi` 절 |
+겸임: 팀장·실기 슬롯·기구·**좌표(티칭·`cell.yaml`)**·브랜치 삭제 승인 = 한석형 / 통합 리더(L3·L4 실행 주도) = 민범진 / 안전 파라미터·**`cobot_common` 전체**(9/18 F1 부담 분산: 한석형은 좌표 계산에 집중) = 박진용 / **PM(일정표·문서·인터페이스 정본(`docs/interfaces`→`cobot_msgs`)·런치·제출·강사 창구·PR 승인)**·영상·발표·아키텍처 그림 = 황인재
 
 **동시 개발 약속**: 부르는 쪽은 `flow_node` 하나뿐. 기능 노드는 정해진 위치에서 시작·끝나므로 용기를 손으로 놓고 혼자 시험할 수 있다. 로봇 없이도 `mock_f1_f3`·`fake_state_pub`으로 flow·HMI를 만든다.
 통합 순서: **구현 → 사전 검증(V) → L1 단위기능 테스트(녹화) → L2 단위기능 통합 → L3 노드 통합 → L4 전체 통합** (`docs/03_설계_SDD.md` §9)
@@ -53,7 +53,7 @@ HMI 시작 1회 → 반납 구역 계획 순서(그릇 구역 2개 → 컵 구�
 3. **순응·힘제어는 접촉 구간에서만** 켠다. 힘만으로 성공 판정하지 않는다.
 4. **DSR API를 직접 부르지 않는다** — `cobot_common` 공용 함수만. 다른 기능 노드의 서비스를 직접 부르지 않는다(호출은 `flow_node`만).
 5. **인터페이스(IRD)를 혼자 바꾸지 않는다.** 변경은 이슈 → 4명 확인.
-6. **좌표·힘·무게·횟수·속도·탐색점을 코드에 하드코딩하지 않는다.** 전부 YAML. 좌표는 변수(설정 키)로 부른다.
+6. **좌표·힘·무게·횟수·속도·탐색점을 코드에 하드코딩하지 않는다.** 전부 **`src/cobot_common/config/`의 파일 2개** — 공용 `cell.yaml`(좌표·속도·힘 상한·프리셋, 주인 한석형) + `params.yaml`(`f1` `f2` `f3` `flow` `hmi` 절, **자기 절만 수정**). 코드는 `cobot_common.config.load()`로 하나의 설정처럼 읽는다. 좌표는 변수(설정 키)로 부른다.
 7. **경로는 항상 상대경로**(패키지·저장소 기준). 절대경로·개인 홈 경로를 코드·문서에 쓰지 않는다.
 8. **비전·센서 해법을 제안하지 않는다.**
 9. **9/23 이후 기능 추가 계획을 만들지 않는다.** 9/24 이후는 발표 준비.
@@ -90,8 +90,8 @@ Virtual에는 **힘·무게·접촉이 없다** → 로직은 Virtual/mock, 임�
 ## 7. 자주 쓰는 명령
 ```bash
 sod && sodvir                                          # Virtual 브링업 (실기: sodreal, IP 192.168.1.100)
-cbc                                                    # $REWASH_WS(rokey_pjt01_ws) 빌드 + source
-ros2 launch rewash_bringup rewash_mock.launch.py       # mock + flow + hmi (로봇 없이)
-ros2 launch rewash_bringup rewash.launch.py vel_scale:=0.3   # PC-A 실기
+cbc                                                    # $PREWASH_WS(rokey_pjt01_ws) 빌드 + source
+ros2 launch prewash_bringup prewash_mock.launch.py       # mock + flow + hmi (로봇 없이)
+ros2 launch prewash_bringup prewash.launch.py vel_scale:=0.3   # PC-A 실기
 ros2 run f4_hmi hmi_bridge                             # PC-B HMI → http://<PC-B>:8000
 ```
