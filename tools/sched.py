@@ -46,7 +46,9 @@ def main():
             vals=[r.get(col(i),'') for i in range(8)]
             if any(vals): print(' | '.join(v for v in vals if v))
         return
-    tl=sheets['Time Line']; hdr=tl[0]; sub=tl[1] if len(tl)>1 else {}
+    tl=sheets['Time Line']
+    h=next((i for i,r in enumerate(tl) if r.get('A','').strip()=='팀'),0)   # 머리글 행 위치(위에 메모 행이 있어도 됨)
+    hdr=tl[h]; sub=tl[h+1] if len(tl)>h+1 else {}
     # 간트 열 = G 이후 ~ ID 열 앞
     keys=sorted(hdr.keys(),key=lambda k:(len(k),k)); idcol=[k for k in keys if 'ID' in (hdr.get(k) or '')][-1]
     gcols=[k for k in keys if k not in ('A','B','C','D','E','F',idcol) and (len(k)==1 and k>'F' or len(k)==2) and (keys.index(k)<keys.index(idcol))]
@@ -55,9 +57,10 @@ def main():
         if hdr.get(k): day=hdr[k].split('(')[0]
         labels.append(f"{day}{sub.get(k,'')[:1]}")
     flt=a[0] if a else None; team=''
-    for r in tl[2:]:
+    for r in tl[h+2:]:
         team=r.get('A') or team
         tid=r.get(idcol,''); own=r.get('D','')
+        if not tid and not r.get('C','').strip(): continue   # 빈 서식 행 건너뜀
         if flt and not (flt==tid or (flt in own) or (flt=='전원' and '전원' in own)): continue
         gantt=''.join('■' if r.get(k,'')=='' and False else '' for k in gcols)  # 색은 xlsx export에 값이 없어 표시 불가
         print(f"[{tid:8}] {team:6} {r.get('B',''):5} {r.get('C','')[:70]:<70} {own:8} 진행 {r.get('E','')} {r.get('F','')}")
