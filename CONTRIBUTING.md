@@ -38,7 +38,7 @@ git push -u origin seokhyung/20260919-F1-02-pick-search          # ③ 하루 1�
 ```
 {이름}/{YYYYMMDD}-{taskID}-{간단설명}
 ```
-- 전부 **영문 kebab-case**. taskID는 [구글 드라이브 일정표](https://drive.google.com/drive/folders/1t58F08_auBRa_q7c4KeNirLKR6CKa4hU?usp=sharing)의 ID 열(`F1-02`, `INT-12a` …).
+- 전부 **영문 kebab-case**. taskID는 [구글 드라이브 일정표](https://docs.google.com/spreadsheets/d/1zV0yb2k89li7SNBvDWSXT2jT3KTbuDVF/edit?usp=sharing)의 ID 열(`F1-02`, `INT-12a` …).
 - 예: `seokhyung/20260919-F1-02-pick-search`, `beomjin/20260920-FLOW-01-state-machine`, `injae/20260918-F4-01-fake-pub`
 
 ### 고정 브랜치

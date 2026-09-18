@@ -464,4 +464,4 @@ soc && ros2 launch rewash_bringup rewash_mock.launch.py
 | Business Requirements | [01_요구사항_BR-SR.md](01_요구사항_BR-SR.md) |
 
 ## 13. 일정표 (정본: 구글 드라이브)
-일정표 `rewash_개발일정_v2.xlsx`는 **구글 공유 드라이브**에서 팀이 함께 관리한다([팀 드라이브 폴더](https://drive.google.com/drive/folders/1t58F08_auBRa_q7c4KeNirLKR6CKa4hU?usp=sharing)). 시트: Time Line(팀별 색 간트) · 상세(산출물·완료기준) · 마일스톤·로봇 슬롯(강사 일정·마감·로봇 슬롯·제출 규칙) · 완료 목록 · 규칙 · 변경이력. 갱신은 PM(민범진)만. 저장소에는 사본을 두지 않는다.
+일정표 `rewash_개발일정_v2.xlsx`는 **구글 공유 드라이브**에서 팀이 함께 관리한다([일정표(구글 시트)](https://docs.google.com/spreadsheets/d/1zV0yb2k89li7SNBvDWSXT2jT3KTbuDVF/edit?usp=sharing)). 시트: Time Line(팀별 색 간트) · 상세(산출물·완료기준) · 마일스톤·로봇 슬롯(강사 일정·마감·로봇 슬롯·제출 규칙) · 완료 목록 · 규칙 · 변경이력. 갱신은 PM(황인재)만(진행·상태·변경이력). 저장소에는 사본을 두지 않는다.
