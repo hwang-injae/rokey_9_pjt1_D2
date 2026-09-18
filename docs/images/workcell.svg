@@ -5,9 +5,9 @@
 <rect x="40" y="60" width="880" height="480" rx="12" fill="#FAFAF7" stroke="#888780" stroke-dasharray="6 4"/>
 <text x="56" y="84" fill="#666" font-size="12">작업대 · 컨트롤러·PC는 수조 반대편(오른쪽 밖)</text>
 <!-- 반납구 -->
-<rect x="70" y="110" width="170" height="110" rx="8" fill="#F1EFE8" stroke="#5F5E5A"/><text x="155" y="130" text-anchor="middle" font-weight="600" fill="#2C2C2A">① 반납구 (시작)</text>
+<rect x="70" y="110" width="170" height="110" rx="8" fill="#F1EFE8" stroke="#5F5E5A"/><text x="155" y="130" text-anchor="middle" font-weight="600" fill="#2C2C2A">① 반납 구역 (시작·탐색 파지)</text>
 <g fill="#F4C0D1" stroke="#993556"><ellipse cx="100" cy="160" rx="18" ry="13"/><ellipse cx="145" cy="160" rx="18" ry="13"/><ellipse cx="190" cy="160" rx="18" ry="13"/><circle cx="100" cy="198" r="11"/><circle cx="145" cy="198" r="11"/><circle cx="190" cy="198" r="11"/></g>
-<text x="215" y="164" font-size="11" fill="#72243E">B1~3</text><text x="215" y="202" font-size="11" fill="#72243E">C1~3</text>
+<text x="215" y="164" font-size="11" fill="#72243E">RET_B</text><text x="215" y="202" font-size="11" fill="#72243E">RET_C</text>
 <!-- 잔반통 -->
 <circle cx="155" cy="300" r="34" fill="#F1EFE8" stroke="#5F5E5A"/><circle cx="155" cy="300" r="22" fill="none" stroke="#5F5E5A"/><text x="155" y="352" text-anchor="middle" font-weight="600" fill="#2C2C2A">② 잔반통 · WEIGH</text><text x="155" y="368" text-anchor="middle" font-size="11" fill="#444">무게 → 털기 3~5회 → 재측정</text>
 <!-- 격리 -->
@@ -25,10 +25,10 @@
 <rect x="580" y="110" width="150" height="70" rx="8" fill="#E6F1FB" stroke="#185FA5"/><text x="655" y="135" text-anchor="middle" font-weight="600" fill="#042C53">세제 수조 SOAP</text><text x="655" y="155" text-anchor="middle" font-size="11" fill="#0C447C">담금 2~3회 (물 없음·모션)</text>
 <rect x="580" y="200" width="150" height="70" rx="8" fill="#E6F1FB" stroke="#185FA5"/><text x="655" y="225" text-anchor="middle" font-weight="600" fill="#042C53">⑤ 헹굼 수조 RINSE</text><text x="655" y="245" text-anchor="middle" font-size="11" fill="#0C447C">담금 → 물 털기</text>
 <!-- 랙 -->
-<rect x="580" y="320" width="330" height="180" rx="10" fill="#E1F5EE" stroke="#0F6E56"/><text x="745" y="343" text-anchor="middle" font-weight="600" fill="#04342C">⑥ 세척기 랙 (식기세척기용 팔레트 모형: 그릇 2칸·컵 4칸)</text>
+<rect x="580" y="320" width="330" height="180" rx="10" fill="#E1F5EE" stroke="#0F6E56"/><text x="745" y="343" text-anchor="middle" font-weight="600" fill="#04342C">⑥ 식기세척기용 팔레트 (식기세척기용 팔레트 모형: 그릇 2칸·컵 4칸)</text>
 <g stroke="#0F6E56" fill="none"><line x1="610" y1="380" x2="610" y2="430"/><line x1="640" y1="380" x2="640" y2="430"/><line x1="670" y1="380" x2="670" y2="430"/><line x1="700" y1="380" x2="700" y2="430"/></g>
 <g fill="#F4C0D1" stroke="#993556"><path d="M612 428 L622 386 H634 L640 428 Z"/><path d="M642 428 L652 386 H664 L670 428 Z"/><path d="M672 428 L682 386 H694 L700 428 Z"/></g>
-<text x="655" y="448" text-anchor="middle" font-size="11" fill="#085041">RACK_B1~3 (기울여 삽입)</text>
+<text x="655" y="448" text-anchor="middle" font-size="11" fill="#085041">RACK_B1~B2 (기울여 삽입)</text>
 <g fill="#F4C0D1" stroke="#993556"><rect x="770" y="386" width="30" height="36" rx="4"/><rect x="810" y="386" width="30" height="36" rx="4"/><rect x="850" y="386" width="30" height="36" rx="4"/></g>
 <text x="825" y="448" text-anchor="middle" font-size="11" fill="#085041">RACK_C1~C4</text>
 <text x="745" y="480" text-anchor="middle" font-size="11" fill="#085041">순응 + 삽입력 감시 · 걸림 → 후퇴·재시도 → 격리</text>
@@ -44,6 +44,6 @@
 <path d="M655 180 V198" marker-end="url(#a)"/>
 <path d="M655 270 V318" marker-end="url(#a)"/>
 </g>
-<text x="56" y="565" font-size="12" fill="#555">경로: ① 반납 슬롯 → ② 잔반통 상공(무게·털기) → ③ 스펀지 홈(안착·툴 픽업·세제·닦기·툴 반납) → ⑤ 헹굼 → ⑥ 랙 지정 슬롯 · 실패 시 격리</text>
+<text x="56" y="565" font-size="12" fill="#555">경로: ① 반납 구역 → ② 잔반통 상공(무게·털기) → ③ 스펀지 홈(안착·툴 픽업·세제·닦기·툴 반납) → ⑤ 헹굼 → ⑥ 팔레트 지정 칸 · 실패 시 격리</text>
 <text x="56" y="585" font-size="12" fill="#555">판단: 파지 폭(잡혔나) · 하중(잔반) · 툴 힘(닦기·안착·삽입) · 위치(도달) — 비전·센서 없음</text>
 </svg>

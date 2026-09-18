@@ -1,0 +1,8 @@
+# 컵 안쪽 닦기 — 수세미 솔을 쥔 상태에서 시작. 컵 안으로 삽입(힘 감시) 후 J6 회전 + Z 상하 스트로크 반복.
+# 삽입 깊이·회전 각·스트로크·횟수·힘 상한은 config/params.yaml 의 f3.wipe_cup 에서 읽는다(요청 인자 없음).
+---
+bool ok
+string code            # OK / FORCE_LIMIT / TIMEOUT / ROBOT_ERROR
+string force_log_path  # 삽입·회전 중 힘 로그 (없으면 빈 문자열)
+float32 duration_s
+float32 insert_depth_mm  # 실제 삽입된 깊이
