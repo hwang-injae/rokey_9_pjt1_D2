@@ -1,0 +1,5 @@
+string rack_slot
+string kind
+---
+bool ok
+string code

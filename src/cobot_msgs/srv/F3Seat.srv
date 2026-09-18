@@ -1,0 +1,5 @@
+string kind
+---
+bool ok
+string code
+float32 offset_mm

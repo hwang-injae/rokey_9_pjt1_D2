@@ -12,6 +12,7 @@
 4. PC 환경: 환경설정 문서 순서대로 — ROS 2 Jazzy, ws_dsr 클론·빌드, DRCF 에뮬레이터, PYTHONPATH(DR_init), `.bashrc` 별칭, `sodvir` Virtual 브링업, `cbc` 빌드. 문서의 "최종 완료 체크리스트"를 하나씩 확인
 5. 읽을 문서를 네가 요약해 준다: AGENTS.md(확정값·절대 규칙 12개), docs/02 IRD(이 사람 기능의 서비스만), CONTRIBUTING §0~2
 6. 첫 PR 실습(가이드 ④-2): 브랜치 생성 → `docs/test_logs/YYYYMMDD_ENV-01_이름.md` 작성 → 커밋 → push → PR 만드는 화면 순서 안내(Reviewer hwang-injae)
-7. 마지막으로 "이제 `/f1` `/f2` `/f3` `/f4` 중 내 기능 명령을 치면 개인 프롬프트로 작업이 시작된다"고 안내
+7. `python3 tools/sched.py <담당 약자 S/M/P/H>` 로 이 사람의 일정표 행을 보여 주고 오늘·내일 할 taskID를 짚어 준다.
+8. 마지막으로 "이제 `/f1` `/f2` `/f3` `/f4` 중 내 기능 명령을 치면 개인 프롬프트로 작업이 시작된다"고 안내
 
 첫 응답: 사용자 이름과 담당 기능(F1 한석형 / F2 민범진 / F3 박진용 / F4 황인재)을 확인하고, 1단계 확인 명령을 네가 실행한 결과부터 보여 준다.

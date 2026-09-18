@@ -1,0 +1,8 @@
+string kind
+uint8 max_rounds
+---
+bool ok
+string code
+float32 weight_before_g
+float32 weight_after_g
+uint8 rounds

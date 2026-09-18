@@ -23,7 +23,7 @@
 | 용기·기구 | 그릇 1규격 **2개** + 컵 1규격 **2개** · 식기세척기용 팔레트 모형 **그릇 2칸·컵 4칸** · 잔반 대용품은 고형물(물·기름 금지) |
 | 일정 | 개발 **9/18(금)~9/23(수)** 주말 로봇 가능 · 9/21(월) 오후 중간점검 발표 · 추석 9/24~28 로봇 불가 · 9/29(화) 14:00 강사 시연 · **9/30(수) 11:00 제출·발표** · **9/23 저녁 기능 동결** |
 | 저장소 | https://github.com/hwang-injae/rokey_9_pjt1_D2.git |
-| 문서 | `docs/01_요구사항_BR-SR.md` · `02_인터페이스_IRD.md`(계약 정본) · `03_설계_SDD.md`(§9 테스트 계획) · `setup/M0609_환경설정.md` · 일정표 = **구글 드라이브 xlsx** [팀 드라이브 > 일정표](https://drive.google.com/drive/folders/1t58F08_auBRa_q7c4KeNirLKR6CKa4hU?usp=sharing) |
+| 문서 | `docs/01_요구사항_BR-SR.md` · `02_인터페이스_IRD.md`(계약 정본) · `03_설계_SDD.md`(§9 테스트 계획) · `setup/M0609_환경설정.md` · 일정표 = **구글 드라이브 xlsx** [일정표(구글 시트)](https://docs.google.com/spreadsheets/d/1zV0yb2k89li7SNBvDWSXT2jT3KTbuDVF/edit?usp=sharing) |
 
 ### 시나리오 (용기 1개)
 ```
@@ -42,7 +42,7 @@ HMI 시작 1회 → 반납 구역 계획 순서(그릇 구역 2개 → 컵 구�
 | **F2 무게·털기·헹굼 + 흐름** | **민범진** | `f2_sense_flow/f2_node` + `flow_node` + `cobot_msgs` 정본 + mock | `/f2/weigh` `/f2/leftover_loop` `/f2/shake` `/f2/dip` · `/flow/start|stop|resume` `/flow/state` `/flow/event` | `f2.yaml` `flow.yaml` |
 | **F3 접촉 닦기** | **박진용** | `f3_wipe/f3_node` | `/f3/seat` `/f3/soap` `/f3/wipe` | `f3.yaml` |
 | **F4 시스템 모니터(웹 HMI)** | **황인재** | `f4_hmi/hmi_bridge` (FastAPI + rclpy + SQLite) + `fake_state_pub` | REST `/api/*` · WS `/ws/state` | `hmi.yaml` |
-겸임: 팀장·실기 슬롯·기구 = 한석형 / 통합·일정·PM = 민범진 / 안전 파라미터 = 박진용 / 영상·발표·아키텍처 그림 = 황인재
+겸임: 팀장·실기 슬롯·기구·브랜치 삭제 승인 = 한석형 / 통합 리더(L3·L4 주도)·인터페이스 창구(cobot_msgs) = 민범진 / 안전 파라미터 = 박진용 / **PM(일정표·문서·제출·강사 창구·PR 승인)**·영상·발표·아키텍처 그림 = 황인재
 
 **동시 개발 약속**: 부르는 쪽은 `flow_node` 하나뿐. 기능 노드는 정해진 위치에서 시작·끝나므로 용기를 손으로 놓고 혼자 시험할 수 있다. 로봇 없이도 `mock_f1_f3`·`fake_state_pub`으로 flow·HMI를 만든다.
 통합 순서: **구현 → 사전 검증(V) → L1 단위기능 테스트(녹화) → L2 단위기능 통합 → L3 노드 통합 → L4 전체 통합** (`docs/03_설계_SDD.md` §9)
@@ -65,7 +65,7 @@ HMI 시작 1회 → 반납 구역 계획 순서(그릇 구역 2개 → 컵 구�
 - 패키지는 `src/` 아래, 노드 1개 = 기능 1개, 서비스는 `ok(bool)+code(string)` 반환, 코드 문자열은 IRD §2 그대로.
 - 로그 `get_logger()`, `print()` 금지. 상태 머신은 전이표를 주석·문서에. 실패는 예외가 아니라 `code`로 보고. 어떤 실패에서도 **툴은 홀더에 반납, 로봇은 안전 높이**.
 - 한국어 문서·주석, 영문 식별자. 커밋 `<타입>(<스코프>): <제목>` 타입 10종(`feat fix refactor style docs test chore remove perf ci`), 브랜치 `{이름}/{YYYYMMDD}-{taskID}-{설명}`.
-- **개발 흐름**: 단위기능 완성 → **단위기능 테스트(항상, 녹화 `YYYYMMDD_TCxx_기능_담당_시도N.mp4`)** → `main` pull → 통합 테스트 → `main`에 PR → 에이전트 검토(`/pr-review`) → **황인재 승인**이면 merge. 주기적으로 `git fetch`, 작업 브랜치는 **하루 1회 이상 push**.
+- **개발 흐름**: 단위기능 완성 → **단위기능 테스트(TC가 있는 작업은 항상; 로봇이 움직이면 녹화 권장 `YYYYMMDD_TCxx_기능_담당_시도N.mp4`)** → `main` pull → 통합 테스트 → `main`에 PR → Actions 자동 검사(main 충돌·산출물) 통과 시 **자동 승인·merge**(보류는 제목 `[hold]`). 주기적으로 `git fetch`, 작업 브랜치는 **하루 1회 이상 push**.
 
 ## 5. 환경 함정 (자세한 건 `docs/setup/M0609_환경설정.md`)
 | 증상 | 해결 |

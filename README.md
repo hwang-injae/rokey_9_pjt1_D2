@@ -20,7 +20,7 @@
 | [docs/01_요구사항_BR-SR.md](docs/01_요구사항_BR-SR.md) | 비즈니스·시스템 요구 (BR·FR·NFR·SR·IR·TR·AC·평가기준 대응·추적표) |
 | [docs/02_인터페이스_IRD.md](docs/02_인터페이스_IRD.md) + [docs/interfaces/](docs/interfaces/) | 인터페이스 정본 (srv·msg 파일) |
 | [docs/03_설계_SDD.md](docs/03_설계_SDD.md) | 설계 (PC 2대 아키텍처·네트워크·통신 표·노드·상태 머신·YAML·오류·안전) + **§9 테스트 계획**(사전 검증 V·TC·INT·실패 주입·녹화 규칙·범위 방어) + 강사 산출물 매핑 |
-| **일정표 (구글 드라이브 xlsx)** — [팀 드라이브 폴더](https://drive.google.com/drive/folders/1t58F08_auBRa_q7c4KeNirLKR6CKa4hU?usp=sharing) | 강사 일정·마일스톤·로봇 슬롯·작업 목록(색 간트)·규칙·변경이력. 저장소에는 두지 않는다 |
+| **일정표 (구글 시트, 실시간 정본)** — 터미널에서 `python3 tools/sched.py [담당|taskID]` 로 조회 — [일정표(구글 시트)](https://docs.google.com/spreadsheets/d/1zV0yb2k89li7SNBvDWSXT2jT3KTbuDVF/edit?usp=sharing) | 강사 일정·마일스톤·로봇 슬롯·작업 목록(색 간트)·규칙·변경이력. 저장소에는 두지 않는다 |
 | [docs/images/](docs/images/) | 시스템 아키텍처(PC 단위, `.svg` + 편집용 `.drawio`) · 설계도 · 워크셀 |
 | [docs/setup/M0609_환경설정.md](docs/setup/M0609_환경설정.md) | PC 환경 설정 (ws_dsr + rokey_pjt01_ws, 별칭, 함정) |
 | [docs/ref/](docs/ref/) | 법규·산업 조사, 브리핑 자료, 팀원 제안서, (일정 양식은 드라이브 일정표에 반영됨) |
