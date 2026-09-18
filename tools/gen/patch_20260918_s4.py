@@ -70,6 +70,7 @@ def main(out):
                 if v is not None: q.set(c, v)
     for tid, after, like, cat, task, owner, status, slots, deliv, crit, note in NEW:
         if has(tl, ID, tid):
+            d.rows[d.find('A', tid)].set('E', deliv)      # 이미 있는 행은 산출물 칸만 최신으로(파일명 변경 반영)
             continue
         n = new_timeline_row(tl, tl.rows[tl.find(ID, like)], slots, A=None, B=cat, C=task, D=owner, F=status, **{ID: tid})
         tl.insert(tl.find(ID, after) + 1, n)
