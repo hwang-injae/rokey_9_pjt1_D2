@@ -38,7 +38,7 @@ git push -u origin seokhyung/20260919-F1-02-pick-search          # ③ 하루 1�
 ```
 {이름}/{YYYYMMDD}-{taskID}-{간단설명}
 ```
-- 전부 **영문 kebab-case**. taskID는 [구글 드라이브 일정표](https://docs.google.com/spreadsheets/d/1zV0yb2k89li7SNBvDWSXT2jT3KTbuDVF/edit?usp=sharing)의 ID 열(`F1-02`, `INT-12a` …).
+- 전부 **영문 kebab-case**. taskID는 [구글 드라이브 일정표](https://docs.google.com/spreadsheets/d/1ikTAYTa8bgZofF_3RgP5jDoOipSZBPB1/edit?usp=sharing)의 ID 열(`F1-02`, `INT-12a` …).
 - 예: `seokhyung/20260919-F1-02-pick-search`, `beomjin/20260920-FLOW-01-state-machine`, `injae/20260918-F4-01-fake-pub`
 
 ### 고정 브랜치
@@ -84,13 +84,13 @@ git push -u origin seokhyung/20260919-F1-02-pick-search          # ③ 하루 1�
 ### 예시
 ```
 feat(f1): pick 탐색 파지 — 탐색점 순회·접촉 하강·폭 판정·EMPTY_ZONE
-fix(f3): seat 탐색 한도 초과 시 SEAT_FAIL 미반환 수정
+fix(f1): place 안착 탐색 한도 초과 시 SEAT_FAIL 미반환 수정
 fix(flow): EMPTY_ZONE 후 다음 구역으로 넘어가지 않는 문제 수정
 docs(setup): PYTHONPATH 누락 시 DR_init import 오류 함정 추가
 ```
 
 ### 🚨 커밋하지 말아야 할 것
-`build/ install/ log/`, `__pycache__/`, `.venv/`, `*.bag`, `*.mp4`, `rewash.db`, 개인 `.bashrc`, **로봇 계정·안전 암호**(공개 저장소다). IP 192.168.1.100은 문서에 적어도 된다.
+`build/ install/ log/`, `__pycache__/`, `.venv/`, `*.bag`, `*.mp4`, `prewash.db`, 개인 `.bashrc`, **로봇 계정·안전 암호**(공개 저장소다). IP 192.168.1.100은 문서에 적어도 된다.
 
 ## 4. Pull Request 규칙
 
@@ -104,13 +104,13 @@ docs(setup): PYTHONPATH 누락 시 DR_init import 오류 함정 추가
 - [ ] 빌드 산출물이 diff에 없다
 
 ### 제목·본문
-제목은 **`<타입>(<스코프>): <taskID> <제목>`** (예: `feat(f2): INF-01 cobot_msgs 배포`, `fix(f3): F3-01 seat 탐색 한도 수정`). 본문은 `.github/PULL_REQUEST_TEMPLATE.md`가 채워진다. **"실기 영향" 칸을 비우지 말 것.**
+제목은 **`<타입>(<스코프>): <taskID> <제목>`** (예: `feat(f2): INF-01 cobot_msgs 배포`, `fix(f3): F3-02 wipe_bowl 힘 상한 수정`). 본문은 `.github/PULL_REQUEST_TEMPLATE.md`가 채워진다. **"실기 영향" 칸을 비우지 말 것.**
 
 ### 4.1 승인 전 2차 확인 (자동 검사 + 에이전트 — 거절 사유는 두 가지뿐)
 | 확인 항목 | 통과 기준 | 실패 시 |
 |---|---|---|
 | **main 병합** | `origin/main` 최신이 PR 브랜치에 포함됨(`git merge origin/main` 후 push) | 거절: "main 병합 후 다시" |
-| **산출물·비밀값** | `build/ install/ log/ *.mp4 rewash.db`·토큰 없음 | 거절 |
+| **산출물·비밀값** | `build/ install/ log/ *.mp4 prewash.db`·토큰 없음 | 거절 |
 | 참고(거절 아님) | 브랜치·제목 형식, 하드코딩·절대경로 의심, 접촉 동작 안전 3종 단어, 인터페이스 파일 변경, 실기 영향 칸 | 코멘트로 알려주고 다음 PR부터 반영. 단, **로봇을 움직이는 코드에 힘 상한·후퇴·타임아웃이 없으면** 사람이 보고 거절할 수 있다 |
 테스트는 팀원 각자가 책임진다(PR 본문에 무엇을 확인했는지 한 줄). 자동 검사(`tools/pr_check.sh`, Actions)가 위 두 항목을 판정하고, 통과하면 **PM 토큰으로 자동 승인·merge** 된다. ❌면 코멘트를 보고 고쳐서 같은 브랜치에 push.
 
@@ -137,10 +137,10 @@ docs(setup): PYTHONPATH 누락 시 DR_init import 오류 함정 추가
 ## 6. 코드 위치
 | 무엇 | 어디에 |
 |---|---|
-| 우리 ROS 2 패키지 | `src/` (저장소 = `rokey_pjt01_ws`, 위치는 `$REWASH_WS`) |
+| 우리 ROS 2 패키지 | `src/` (저장소 = `rokey_pjt01_ws`, 위치는 `$PREWASH_WS`) |
 | 두산 드라이버 | `~/ws_cobot_pjt/ws_dsr` — **수정 금지**, 우리 `src/`에 복사 금지 |
-| 좌표·임계값·속도·탐색점 | `src/<패키지>/config/*.yaml` — 코드에 숫자 금지 |
-| 런치 | `src/rewash_bringup/launch/` |
+| 좌표·임계값·속도·탐색점 | **`src/cobot_common/config/`의 파일 2개** — 공용 `cell.yaml`(좌표·속도·힘 상한·프리셋, 주인 한석형) + `params.yaml`(`f1` `f2` `f3` `flow` `hmi` 절, **자기 절만 수정**) — 코드에 숫자 금지 |
+| 런치 | `src/prewash_bringup/launch/` |
 | 메시지·서비스 | `src/cobot_msgs/` — 변경은 인터페이스 변경 요청 이슈 |
 | 시험 기록 | `docs/test_logs/` |
 

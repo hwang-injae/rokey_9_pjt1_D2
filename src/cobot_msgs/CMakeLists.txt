@@ -6,7 +6,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(builtin_interfaces REQUIRED)   # FlowState/FlowEvent 의 stamp
 
-# IRD v2.0 §3~7 · 정본은 docs/interfaces/ (파일 내용은 그대로 복사한 것)
+# IRD v2.1 §3~7 (9/18 DSN-01: wipe 분리 · seat 삭제 · place 응답 offset_mm) · 정본은 docs/interfaces/ (파일 내용은 그대로 복사한 것)
 rosidl_generate_interfaces(${PROJECT_NAME}
   # --- msg 2 (flow → HMI) ---
   "msg/FlowState.msg"
@@ -22,10 +22,10 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/F2LeftoverLoop.srv"
   "srv/F2Shake.srv"
   "srv/F2Dip.srv"
-  # --- srv 3 : F3 접촉 닦기 (박진용) ---
-  "srv/F3Seat.srv"
+  # --- srv 3 : F3 접촉 닦기 (박진용) — 안착은 F1Place 가 담당 ---
   "srv/F3Soap.srv"
-  "srv/F3Wipe.srv"
+  "srv/F3WipeBowl.srv"
+  "srv/F3WipeCup.srv"
   DEPENDENCIES builtin_interfaces
 )
 

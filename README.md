@@ -1,4 +1,4 @@
-# ReWash-Cell — 경기장 다회용기 예비세척·식기세척기 팔레트 적재 자동화 셀
+# PreWash-Cell — 경기장 다회용기 예비세척·식기세척기 팔레트 적재 자동화 셀
 
 > ROKEY 9기 협동1 · **D그룹 2조** (한석형 팀장 · 민범진 · 박진용 · 황인재)
 > 두산 **M0609** + OnRobot **RG2** · ROS 2 Jazzy · 비전 없음 · 발표 **2026-09-30(수)**
@@ -20,19 +20,20 @@
 | [docs/01_요구사항_BR-SR.md](docs/01_요구사항_BR-SR.md) | 비즈니스·시스템 요구 (BR·FR·NFR·SR·IR·TR·AC·평가기준 대응·추적표) |
 | [docs/02_인터페이스_IRD.md](docs/02_인터페이스_IRD.md) + [docs/interfaces/](docs/interfaces/) | 인터페이스 정본 (srv·msg 파일) |
 | [docs/03_설계_SDD.md](docs/03_설계_SDD.md) | 설계 (PC 2대 아키텍처·네트워크·통신 표·노드·상태 머신·YAML·오류·안전) + **§9 테스트 계획**(사전 검증 V·TC·INT·실패 주입·녹화 규칙·범위 방어) + 강사 산출물 매핑 |
-| **일정표 (구글 시트, 실시간 정본)** — 터미널에서 `python3 tools/sched.py [담당|taskID]` 로 조회 — [일정표(구글 시트)](https://docs.google.com/spreadsheets/d/1zV0yb2k89li7SNBvDWSXT2jT3KTbuDVF/edit?usp=sharing) | 강사 일정·마일스톤·로봇 슬롯·작업 목록(색 간트)·규칙·변경이력. 저장소에는 두지 않는다 |
+| **일정표 (구글 시트, 실시간 정본)** — 터미널에서 `python3 tools/sched.py [담당|taskID]` 로 조회 — [일정표(구글 시트)](https://docs.google.com/spreadsheets/d/1ikTAYTa8bgZofF_3RgP5jDoOipSZBPB1/edit?usp=sharing) | 강사 일정·마일스톤·로봇 슬롯·작업 목록(색 간트)·규칙·변경이력. 저장소에는 두지 않는다 |
 | [docs/images/](docs/images/) | 시스템 아키텍처(PC 단위, `.svg` + 편집용 `.drawio`) · 설계도 · 워크셀 |
 | [docs/setup/M0609_환경설정.md](docs/setup/M0609_환경설정.md) | PC 환경 설정 (ws_dsr + rokey_pjt01_ws, 별칭, 함정) |
+| [docs/meetings/](docs/meetings/) | 회의록 (결정·미결·후속 작업) |
 | [docs/ref/](docs/ref/) | 법규·산업 조사, 브리핑 자료, 팀원 제안서, (일정 양식은 드라이브 일정표에 반영됨) |
 | `class_doc/` | 협동로봇 강의 PDF |
 
 ## 역할 (기능 단위)
 | 기능 | 담당 | 노드 |
 |---|---|---|
-| F1 파지·이송·적재 | 한석형 | `f1_handling` + `cobot_common` |
-| F2 무게·털기·헹굼 + 흐름 | 민범진 | `f2_sense_flow` (`f2_node`, `flow_node`) + `cobot_msgs` |
-| F3 접촉 닦기 | 박진용 | `f3_wipe` |
-| F4 시스템 모니터(웹 HMI) | 황인재 | `f4_hmi` (FastAPI + SQLite) |
+| F1 파지·이송·적재 + 좌표 | 한석형 | `f1_handling` · 좌표 계산·티칭(`config/cell.yaml`) |
+| F2 무게·털기·헹굼 + 흐름 | 민범진 | `f2_sense_flow` (`f2_node`, `flow_node`, `mock_f1_f3`) · 통합 리더 |
+| F3 접촉 닦기 + 공용 로봇 함수 | 박진용 | `f3_wipe` · **`cobot_common`**(이동·그리퍼·무게·힘 함수 + 설정 로더) · 안전 파라미터 |
+| F4 시스템 모니터(웹 HMI) + **PM** | 황인재 | `f4_hmi` (FastAPI + SQLite) · `cobot_msgs` 정본 · `prewash_bringup` · 일정표·문서 |
 
 ## 에이전트 사용법
 | 담당 | 프롬프트 |
@@ -52,10 +53,10 @@
 
 ## 저장소 구조
 ```
-rokey_pjt01_ws/        ← clone 폴더 (= 우리 ROS 2 워크스페이스). 위치는 자유, `.bashrc`의 REWASH_WS 로 지정
+rokey_pjt01_ws/        ← clone 폴더 (= 우리 ROS 2 워크스페이스). 위치는 자유, `.bashrc`의 PREWASH_WS 로 지정
 ├── AGENTS.md CLAUDE.md README.md CONTRIBUTING.md
 ├── docs/              문서·인터페이스 정본·이미지·프롬프트·환경설정
-├── src/               우리 ROS 2 패키지 7개 (cobot_msgs cobot_common f1_handling f2_sense_flow f3_wipe f4_hmi rewash_bringup)
+├── src/               우리 ROS 2 패키지 7개 (cobot_msgs cobot_common f1_handling f2_sense_flow f3_wipe f4_hmi prewash_bringup)
 └── build/ install/ log/   (.gitignore)
 ```
 

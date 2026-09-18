@@ -5,3 +5,13 @@
 | `gen_sched.py` + `extra_sheets.json` | 일정표 xlsx (구글 시트 초기 업로드용, 6시트) | `python3 tools/gen/gen_sched.py 출력.xlsx` — 정본은 구글 시트이므로 보통 재생성하지 않음 |
 | `gen_arch.py` | `docs/images/system_architecture_pc.svg/.drawio` | `python3 tools/gen/gen_arch.py` 후 결과를 docs/images/로 복사 |
 PM(황인재)만 실행한다. 프롬프트를 손으로 고치면 다음 재생성 때 사라지므로 생성기를 고친다.
+
+## gen_todo.py — 담당별 할 일 시트
+
+구글 시트(정본)의 **현재 내용**을 읽어 사람별·날짜별 체크리스트 4장(`할일_이름`)을 만든다. PM이 시트에서 고친 내용이 그대로 반영된다.
+
+```bash
+python3 tools/gen/gen_todo.py ../_upload/prewash_담당별_할일.xlsx
+```
+
+구글 시트에서 `파일 > 가져오기 > 업로드 > 새 시트 삽입`으로 넣는다. 기존 시트는 바뀌지 않는다. 일정이 바뀌면 다시 만들어 `할일_*` 시트만 지우고 다시 넣는다. 쉬운 말 설명은 `gen_todo.py`의 `EASY` 사전에 있다. 새 ID는 사전에 없으면 작업명이 그대로 나온다.
