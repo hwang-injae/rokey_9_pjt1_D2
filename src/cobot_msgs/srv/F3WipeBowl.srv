@@ -1,8 +1,0 @@
-# 그릇 안쪽 닦기 — 수세미 툴을 쥔 상태에서 시작. 힘제어(툴 Z, 목표 힘 유지) + 나선 궤적.
-# 목표 힘·상한·반지름·회전수·시간은 config/params.yaml 의 f3.wipe_bowl 에서 읽는다(요청 인자 없음).
----
-bool ok
-string code            # OK / FORCE_LIMIT / TIMEOUT / ROBOT_ERROR
-string force_log_path  # 힘 로그 CSV 상대경로
-float32 duration_s
-float32 force_mean_n   # 닦는 동안 평균 접촉 힘 (기록·KPI용)

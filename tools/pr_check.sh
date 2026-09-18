@@ -37,7 +37,7 @@ if echo "$FILES" | grep -qE '^(build|install|log)/|/__pycache__/|\.(mp4|webm|mov
 if git diff "origin/main...pr-$N" | grep -qE '^\+.*(ghp_[A-Za-z0-9]{20,}|ntn_[A-Za-z0-9]{20,}|password\s*[:=])'; then ng "토큰·비밀번호로 보이는 문자열이 추가됨"; else ok "토큰·비밀번호 없음"; fi
 
 # 4. 인터페이스 변경
-if echo "$FILES" | grep -qE '^docs/interfaces/|^src/cobot_msgs/|^docs/02_'; then wn "인터페이스(IRD·cobot_msgs) 변경 포함 → 인터페이스 변경 이슈 링크와 4명 확인이 PR 본문에 있어야 함"; else ok "인터페이스 파일 변경 없음"; fi
+if echo "$FILES" | grep -qE '^docs/interfaces/|^src/cobot_msgs/|^src/cobot_api/|^docs/02_'; then wn "인터페이스(IRD·cobot_api·cobot_msgs) 변경 포함 → 인터페이스 변경 이슈 링크와 4명 확인이 PR 본문에 있어야 함"; else ok "인터페이스 파일 변경 없음"; fi
 
 # 5. 코드 변경이면 시험 기록 요구
 if echo "$FILES" | grep -qE '^src/.*\.py$'; then

@@ -1,8 +1,0 @@
-# 헹굼 수조 담금 모션(물 없음). 깊이·유지 시간은 config/params.yaml(f2 절).
-# 담그는 동안은 "강한 파지(HOLD)"로 잡는다 → kind 가 필요하다.
-string station  # RINSE
-uint8 count
-string kind     # BOWL / CUP
----
-bool ok
-string code     # OK / GRIP_FAIL / ROBOT_ERROR

@@ -2,7 +2,7 @@
 
 > Claude Code · ChatGPT · Gemini · Cursor 등 **어떤 에이전트든** 이 저장소에서 작업하기 전에 읽는 파일이다.
 > Claude Code는 `CLAUDE.md`(이 파일을 불러옴)를 자동으로 읽는다. 다른 에이전트는 첫 메시지에 이 파일을 첨부하거나 붙여넣는다.
-> 갱신: 2026-09-18 v2 · 정본 문서는 `docs/01~03` + 구글 드라이브 일정표
+> 갱신: 2026-09-18 **v3(실행 구조 변경: 스크립트형)** · 정본 문서는 `docs/01~03` + 구글 드라이브 일정표
 
 ## 0. 표기
 | 표기 | 의미 | 에이전트 행동 |
@@ -36,22 +36,24 @@ HMI 시작 1회 → 반납 구역 계획 순서(그릇 구역 2개 → 컵 구�
 뒷면·바깥면 닦지 않음. 본세척은 식기세척기. "닦임"은 공정 완료이지 **위생 판정이 아니다(과장 금지)**.
 
 ## 2. 역할 = 기능 (🚨 남의 기능 코드를 만들지 않는다)
-| 기능 | 담당 | 노드 | 서비스 | 설정 |
+**실행 구조(9/18 결정, `docs/meetings/20260918_DSN-02b_…md`)**: 노드는 **`flow_node`(메인 프로그램)와 `hmi_bridge` 둘뿐**이다. f1·f2·f3는 노드가 아니라 **함수를 제공하는 파이썬 패키지**이고, `flow_node`의 메인 스레드가 그 함수를 차례로 부른다(서비스 아님). 함수의 이름·인자·반환·코드는 `src/cobot_api/cobot_api/contracts.py`가 정본이다.
+
+| 기능 | 담당 | 만드는 것 | 제공하는 것 | 설정 |
 |---|---|---|---|---|
-| **F1 파지·이송·적재** | **한석형** | `f1_handling/f1_node` + **좌표 계산·티칭(`config/cell.yaml` 값)** | `/f1/pick`(탐색) `/f1/place`(스펀지 홈 **안착 놓기** 포함) `/f1/move_to` `/f1/tool` `/f1/rack_place` | `config/cell.yaml`과 `config/params.yaml`의 `f1` 절 |
-| **F2 무게·털기·헹굼 + 흐름** | **민범진** | `f2_sense_flow/f2_node` + `flow_node` + `mock_f1_f3` | `/f2/weigh` `/f2/leftover_loop` `/f2/shake` `/f2/dip` · `/flow/start|stop|resume` `/flow/state` `/flow/event` | `config/params.yaml`의 `f2`·`flow` 절 |
-| **F3 접촉 닦기 + 공용 로봇 함수** | **박진용** | `f3_wipe/f3_node` + **`cobot_common`**(두산 API를 감싼 **공용 로봇 함수 모음**: 이동·그리퍼·무게·힘 + 설정 로더) | `/f3/soap` `/f3/wipe_bowl` `/f3/wipe_cup` | `config/params.yaml`의 `f3` 절 |
-| **F4 시스템 모니터(웹 HMI) + PM** | **황인재** | `f4_hmi/hmi_bridge` (FastAPI + rclpy + SQLite) + `fake_state_pub` · **`cobot_msgs` 정본 관리** · `prewash_bringup` 런치 · `config/` 골격 | REST `/api/*` · WS `/ws/state` | `config/params.yaml`의 `hmi` 절 |
+| **F1 파지·이송·적재** | **한석형** | `f1_handling/handling.py` + `test/rig_f1.py` + **좌표 계산·티칭(`config/cell.yaml` 값)** | 함수 `pick`(탐색) `place`(스펀지 홈 **안착 놓기** 포함) `move_to` `tool` `rack_place` | `config/cell.yaml`과 `config/params.yaml`의 `f1` 절 |
+| **F2 무게·털기·헹굼 + 흐름** | **민범진** | `f2_sense_flow/sense.py` + **`flow_node.py`(메인 프로그램)·`flow.py`(상태 머신)** + `mock/mock_f1.py`·`mock_f3.py` + `test/rig_f2.py` | 함수 `weigh` `leftover_loop` `shake` `dip` · ROS `/flow/start|stop|resume` `/flow/state` `/flow/event` | `config/params.yaml`의 `f2`·`flow` 절 |
+| **F3 접촉 닦기 + 공용 로봇 함수** | **박진용** | `f3_wipe/wipe.py` + `test/rig_f3.py` + **`cobot_common`**(두산 API를 감싼 **공용 로봇 함수 모음**: 초기화 `init`·이동·그리퍼·무게·힘 + 설정 로더) | 함수 `soap` `wipe_bowl` `wipe_cup` | `config/params.yaml`의 `f3` 절 |
+| **F4 시스템 모니터(웹 HMI) + PM** | **황인재** | `f4_hmi/hmi_bridge` (FastAPI + rclpy + SQLite) + `fake_state_pub` · **`cobot_api`(함수 약속)·`cobot_msgs`(메시지) 정본 관리** · `prewash_bringup` 런치 · `config/` 골격 | REST `/api/*` · WS `/ws/state` | `config/params.yaml`의 `hmi` 절 |
 겸임: 팀장·실기 슬롯·기구·**좌표(티칭·`cell.yaml`)**·브랜치 삭제 승인 = 한석형 / 통합 리더(L3·L4 실행 주도) = 민범진 / 안전 파라미터·**`cobot_common` 전체**(9/18 F1 부담 분산: 한석형은 좌표 계산에 집중) = 박진용 / **PM(일정표·문서·인터페이스 정본(`docs/interfaces`→`cobot_msgs`)·런치·제출·강사 창구·PR 승인)**·영상·발표·아키텍처 그림 = 황인재
 
-**동시 개발 약속**: 부르는 쪽은 `flow_node` 하나뿐. 기능 노드는 정해진 위치에서 시작·끝나므로 용기를 손으로 놓고 혼자 시험할 수 있다. 로봇 없이도 `mock_f1_f3`·`fake_state_pub`으로 flow·HMI를 만든다.
-통합 순서: **구현 → 사전 검증(V) → L1 단위기능 테스트(녹화) → L2 단위기능 통합 → L3 노드 통합 → L4 전체 통합** (`docs/03_설계_SDD.md` §9)
+**동시 개발 약속**: 부르는 쪽은 `flow_node` 하나뿐이고, 기능 패키지끼리는 서로 import하지 않는다. 각 기능은 정해진 위치에서 시작·끝나므로 용기를 손으로 놓고 `rig_f*.py`로 혼자 시험할 수 있다. 로봇 없이도 mock 모듈(`f2_sense_flow.mock`)·`fake_state_pub`으로 flow·HMI를 만든다.
+통합 순서: **구현 → 사전 검증(V) → L1 단위기능 테스트(녹화) → L2 단위기능 통합 → L3 셀 통합 → L4 전체 통합** (`docs/03_설계_SDD.md` §9)
 
 ## 3. 🚨 절대 규칙
 1. **실기 로봇을 사용자 확인 없이 움직이지 않는다.** Virtual 검증 → 확인 → 실기. 첫 실기 속도 20~30%.
 2. **접촉 동작(탐색 하강·닦기·안착·삽입)에는 힘 상한 + 후퇴 + 타임아웃**을 항상 넣는다. 없으면 코드를 주지 않는다.
 3. **순응·힘제어는 접촉 구간에서만** 켠다. 힘만으로 성공 판정하지 않는다.
-4. **DSR API를 직접 부르지 않는다** — `cobot_common` 공용 함수만. 다른 기능 노드의 서비스를 직접 부르지 않는다(호출은 `flow_node`만).
+4. **DSR API를 직접 부르지 않는다** — `cobot_common` 공용 함수만. **로봇 함수는 메인 스레드에서만** 부른다(콜백·타이머·다른 스레드 금지). 다른 기능 패키지를 import하지 않는다(호출은 `flow_node`만).
 5. **인터페이스(IRD)를 혼자 바꾸지 않는다.** 변경은 이슈 → 4명 확인.
 6. **좌표·힘·무게·횟수·속도·탐색점을 코드에 하드코딩하지 않는다.** 전부 **`src/cobot_common/config/`의 파일 2개** — 공용 `cell.yaml`(좌표·속도·힘 상한·프리셋, 주인 한석형) + `params.yaml`(`f1` `f2` `f3` `flow` `hmi` 절, **자기 절만 수정**). 코드는 `cobot_common.config.load()`로 하나의 설정처럼 읽는다. 좌표는 변수(설정 키)로 부른다.
 7. **경로는 항상 상대경로**(패키지·저장소 기준). 절대경로·개인 홈 경로를 코드·문서에 쓰지 않는다.
@@ -62,8 +64,8 @@ HMI 시작 1회 → 반납 구역 계획 순서(그릇 구역 2개 → 컵 구�
 12. 모르는 값(`______`)을 채워서 진행하지 않는다 — 질문한다.
 
 ## 4. 코드·개발 흐름 규칙
-- 패키지는 `src/` 아래, 노드 1개 = 기능 1개, 서비스는 `ok(bool)+code(string)` 반환, 코드 문자열은 IRD §2 그대로.
-- 🚨 **기능 노드(f1·f2·f3) 뼈대는 SDD §3.2 그대로**: `__init__` 맨 앞에서 `cobot_common.init(self)`, `main()`은 `cobot_common.spin(node)`. `rclpy.spin()` 금지, `DSR_ROBOT2` 직접 import 금지, 서비스는 기본 콜백 그룹 그대로. 이유는 `docs/troubleshooting/TS-01_…md`. 서비스 시험은 **연속 3회 이상** 호출.
+- 패키지는 `src/` 아래, 패키지 1개 = 기능 1개, 기능 함수는 `cobot_api`의 `Result`(`ok`+`code`+필드) 반환, ID·코드 문자열은 IRD §2 그대로(`cobot_api` 상수 사용).
+- 🚨 **실행 뼈대는 SDD §3.2 그대로**: 기능(f1·f2·f3)은 노드가 아니라 **평범한 함수**(`cobot_api`의 서명 그대로, 반환은 `Result`). 프로그램 맨 앞에서 `cobot_common.init(name)` 한 번, 끝낼 때 `cobot_common.shutdown()`. 기능 함수 안에서 노드를 만들거나 `rclpy.init`·`rclpy.spin*`을 부르지 않는다. `DSR_ROBOT2` 직접 import 금지. 통신 노드의 콜백은 값 저장·깃발만. 이유는 `docs/troubleshooting/TS-01_…md`. 시험은 같은 함수를 **연속 3회 이상**.
 - 로그 `get_logger()`, `print()` 금지. 상태 머신은 전이표를 주석·문서에. 실패는 예외가 아니라 `code`로 보고. 어떤 실패에서도 **툴은 홀더에 반납, 로봇은 안전 높이**.
 - 한국어 문서·주석, 영문 식별자. 커밋 `<타입>(<스코프>): <제목>` 타입 10종(`feat fix refactor style docs test chore remove perf ci`), 브랜치 `{이름}/{YYYYMMDD}-{taskID}-{설명}`.
 - **개발 흐름**: 단위기능 완성 → **단위기능 테스트(TC가 있는 작업은 항상; 로봇이 움직이면 녹화 권장 `YYYYMMDD_TCxx_기능_담당_시도N.mp4`)** → `main` pull → 통합 테스트 → `main`에 PR → Actions 자동 검사(main 충돌·산출물) 통과 시 **자동 승인·merge**(보류는 제목 `[hold]`). 주기적으로 `git fetch`, 작업 브랜치는 **하루 1회 이상 push**.
@@ -77,8 +79,10 @@ HMI 시작 1회 → 반납 구역 계획 순서(그릇 구역 2개 → 컵 구�
 | `colcon-argcomplete` 오류 | colcon은 시스템 설치, venv는 HMI 전용 |
 | 토픽이 2개만 보임 | 지난 프로젝트 Fast DDS 화이트리스트 주석 처리 |
 | 팀원 노드 안 보임 | `ROS_DOMAIN_ID` 양쪽 60, 같은 스위치. 안 되면 Discovery Server |
-| 노드가 뜨자마자 `'NoneType' object has no attribute 'create_client'` | `DSR_ROBOT2`를 노드 세팅 전에 import함 → `cobot_common.init(self)`를 맨 앞에서(SDD §3.2, TS-01) |
-| 서비스 콜백에서 첫 로봇 명령이 안 끝남 / `Executor is already spinning` / **두 번째 호출부터 응답 없음** | `rclpy.spin()`을 썼거나 기능 노드 자신을 두산 API에 넘김 → `cobot_common.spin(node)` + DSR 전용 노드(TS-01). 멈춘 노드를 Ctrl+C로 죽였으면 브링업도 다시 |
+| 프로그램이 뜨자마자 `'NoneType' object has no attribute 'create_client'` | `DSR_ROBOT2`를 노드 세팅 전에 import함 → `cobot_common.init(name)`을 맨 앞에서, 직접 import 금지(SDD §3.2, TS-01) |
+| 로봇 명령이 안 끝남 / `Executor is already spinning` / 두 번째 호출부터 응답 없음 | 콜백·타이머·다른 스레드에서 로봇 함수를 불렀다 → **메인 스레드에서만**(SDD §3.2, TS-01). 멈춘 프로그램을 강제로 죽였으면 브링업도 다시 |
+| 실기 브링업이 `gripper_joint_state_publisher.py not found` | 배포본의 실행 권한 누락 → `chmod +x`(TS-02). Virtual에서는 안 드러난다 |
+| `reset_workpiece_weight` 뒤 컨트롤러 서비스가 전부 멈춤 | reset은 선택 동작·응답 상한 3 s·실패 시 반복 금지(TS-03). 복구는 브링업 재시작 |
 | 힘 판정이 반대로 동작 | `check_force_condition`은 **만족 `0` / 아니면 `-1`**(DRL 매뉴얼과 다름) → `cobot_common.force_reached()` 사용. 두산 함수 반환값은 설치된 `DSR_ROBOT2.py`에서 확인 |
 | 두산 패키지가 두 곳에 | 우리 `src/`에 두산 패키지를 복사하지 않는다. source 순서 ws_dsr → rokey_pjt01_ws |
 Virtual에는 **힘·무게·접촉이 없다** → 로직은 Virtual/mock, 임계값은 실기.

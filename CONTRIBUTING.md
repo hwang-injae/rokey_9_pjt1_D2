@@ -141,7 +141,7 @@ docs(setup): PYTHONPATH 누락 시 DR_init import 오류 함정 추가
 | 두산 드라이버 | `~/ws_cobot_pjt/ws_dsr` — **수정 금지**, 우리 `src/`에 복사 금지 |
 | 좌표·임계값·속도·탐색점 | **`src/cobot_common/config/`의 파일 2개** — 공용 `cell.yaml`(좌표·속도·힘 상한·프리셋, 주인 한석형) + `params.yaml`(`f1` `f2` `f3` `flow` `hmi` 절, **자기 절만 수정**) — 코드에 숫자 금지 |
 | 런치 | `src/prewash_bringup/launch/` |
-| 메시지·서비스 | `src/cobot_msgs/` — 변경은 인터페이스 변경 요청 이슈 |
+| 기능 함수 약속·메시지 | `src/cobot_api/`(함수 이름·인자·반환·코드) · `src/cobot_msgs/`(메시지) — 변경은 인터페이스 변경 요청 이슈 |
 | 시험 기록 | `docs/test_logs/` |
 
 ## 7. 충돌을 줄이는 규칙

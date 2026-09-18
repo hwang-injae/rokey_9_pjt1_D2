@@ -50,7 +50,7 @@ Closes #
 ```bash
 # 예시
 sod && sodvir          # 터미널 1
-soc && ros2 run f1_handling f1_node   # 터미널 2 (예). 설정은 src/cobot_common/config/cell.yaml · params.yaml 을 자동으로 읽음
+soc && python3 src/f1_handling/test/rig_f1.py   # 터미널 2 (예: 내 기능 단독 시험). 설정은 src/cobot_common/config/cell.yaml · params.yaml 을 자동으로 읽음
 # 기대 결과:
 ```
 

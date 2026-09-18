@@ -9,21 +9,21 @@ COMMON_TEAM='''## 2. 팀·환경 (✅ 확정)
 - PC: 개발 4대 각자(Virtual/mock). 통합 실행 PC-A(로봇 제어: 드라이버 + f1·f2·f3·flow) + PC-B(HMI). 워크스페이스 `~/ws_cobot_pjt/ws_dsr`(드라이버, 수정 금지) 위에 `rokey_pjt01_ws`(= 저장소, `docs/` + `src/`, 위치는 `.bashrc`의 `PREWASH_WS`)
 - 용기 그릇 1규격 2개 + 컵 1규격 2개. 팔레트 모형 그릇 2칸·컵 4칸. 반납 구역 2곳(그릇·컵), 구역 안 위치·겹침 자유 → 탐색 파지. 잔반 대용품 고형물(구슬·쌀) ≥100 g
 - 일정: 개발 9/18(금)~9/23(수), 주말 로봇 가능. 9/21(월) 오후 중간점검 발표(로봇·개발은 저녁만). 9/23 저녁 **기능 동결**. 추석 9/24~28 로봇 불가. 9/29(화) 14:00 강사 시연. 9/30(수) 11:00 제출·발표
-- 브링업: `sod` → `sodvir`(Virtual) / `sodreal`(실기, PC-A) · 우리 코드 빌드 `cbc`. 시나리오·ID·실패 코드·서비스 이름은 `AGENTS.md` §1~2와 IRD가 정본
+- 브링업: `sod` → `sodvir`(Virtual) / `sodreal`(실기, PC-A) · 우리 코드 빌드 `cbc`. 시나리오·ID·실패 코드·함수 이름은 `AGENTS.md` §1~2와 IRD v3.0(코드 정본 `src/cobot_api/cobot_api/contracts.py`)이 정본
 '''
 COMMON_IF='''## 3. 인터페이스 (정본 `docs/02_인터페이스_IRD.md` · `docs/interfaces/`)
-- 내가 **제공**하는 서비스와 **사용**하는 것을 IRD에서 그대로 읽고 첫 응답에 표로 정리할 것. 공통 ID(`BOWL` `CUP` `SPONGE` `BRUSH`, 구역 `RET_B` `RET_C`, 칸 `RACK_B1..2` `RACK_C1..4`, 스테이션, 실패 코드)는 IRD §2 문자열 그대로.
-- 호출 구조: **flow_node만** 다른 노드를 부른다. 기능 노드는 서비스 제공자다(F4는 flow의 서비스를 부르는 클라이언트).
-- 동시 개발 약속: 각 노드는 정해진 위치에서 시작·끝난다 → 용기를 손으로 놓고 단독 시험. 로봇 없이 `mock_f1_f3`·`fake_state_pub`으로 flow·HMI 개발.
+- 내가 **제공**하는 함수(F4는 ROS 인터페이스)와 **사용**하는 것을 IRD에서 그대로 읽고 첫 응답에 표로 정리할 것. 공통 ID(`BOWL` `CUP` `SPONGE` `BRUSH`, 구역 `RET_B` `RET_C`, 칸 `RACK_B1..2` `RACK_C1..4`, 스테이션, 실패 코드)는 IRD §2 문자열 그대로.
+- 실행 구조(9/18 결정, `docs/meetings/20260918_DSN-02b_…md`): **노드는 `flow_node`(메인 프로그램)와 `hmi_bridge` 둘뿐.** f1·f2·f3는 노드가 아니라 **함수를 제공하는 파이썬 패키지**이고 `flow_node`의 메인 스레드가 그 함수를 차례로 부른다(서비스 아님). 기능 패키지끼리는 서로 import하지 않는다(F4는 flow의 `/flow/*` 서비스를 부르는 클라이언트).
+- 동시 개발 약속: 각 기능은 정해진 위치에서 시작·끝난다 → 용기를 손으로 놓고 `rig_f*.py`로 단독 시험. 로봇 없이 mock 모듈(`f2_sense_flow.mock`, 같은 함수 이름)·`fake_state_pub`으로 flow·HMI 개발.
 '''
 COMMON_RULES='''## 4. 진행 규칙 (반드시)
 - **규칙 0** 답하기 전 {docs}를 실제로 읽고 **읽은 파일 목록**을 먼저 밝힐 것. 못 읽었으면 추측하지 말고 말할 것. `______`는 질문할 것.
 - **규칙 1** 온보딩(§0)이 끝난 뒤의 첫 응답은 계획까지: ① 읽은 파일 ② 내 기능·산출물·**하지 않는 것** ③ 제공/사용 인터페이스(IRD) ④ STEP 표(목표·산출물·완료 기준·선행·Virtual/Real·날짜). 승인 전 구현 금지.
 - **규칙 2** 한 응답 = STEP 하나. STEP 전 사전 점검 표(파일·환경·로봇 슬롯·팀원 의존·가정), 후 완료 요약(한 일·산출물 상대경로·검증 명령·트러블슈팅).
-- **규칙 3** 🚨 **내 기능 밖 코드를 만들지 않는다.** 다른 기능이 필요하면 mock/stub으로 명시. 다른 노드 서비스를 내 노드에서 직접 호출하지 않는다(호출은 flow_node만).
+- **규칙 3** 🚨 **내 기능 밖 코드를 만들지 않는다.** 다른 기능이 필요하면 mock/stub으로 명시. 다른 기능 패키지를 내 코드에서 import·호출하지 않는다(호출은 flow_node만).
 - **규칙 4** 🚨 안전: 실기 전 Virtual, 첫 실기 속도 20~30%, 접촉 동작(탐색 하강·닦기·안착·삽입)엔 **힘 상한 + 후퇴 + 타임아웃** 필수, 순응·힘제어는 접촉 구간만, `dance` Real 금지, 티치펜던트↔ROS 동시 제어 금지, E-Stop·작업 반경 확인. 실기 로봇은 사용자 확인 없이 움직이지 않는다.
 - **규칙 5** 수치·좌표·탐색점은 전부 `src/cobot_common/config/`의 파일 2개(공용 `cell.yaml`은 한석형만 수정·나머지는 읽기만 / `params.yaml`은 **내 절만 고친다**, 키 규칙은 SDD §4.3), 코드에 숫자 금지. **경로는 상대경로.** DSR API 직접 호출 금지 — `cobot_common`(두산 API를 감싼 공용 로봇 함수 모음)만. 서비스는 `ok+code`, 코드 문자열은 IRD §2 그대로.
-- **규칙 5-1** 🚨 **로봇을 움직이는 노드(f1·f2·f3)의 뼈대는 SDD §3.2 그대로**: `__init__` 맨 앞에서 `cobot_common.init(self)`, `main()`은 `cobot_common.spin(node)`. `rclpy.spin()`·`spin_until_future_complete()` 금지, `DSR_ROBOT2` 직접 import 금지, 서비스는 기본 콜백 그룹 그대로(타이머는 별도 그룹). 안 지키면 노드가 뜨자마자 죽거나 **두 번째 서비스 호출부터 멈춘다**(`docs/troubleshooting/TS-01_…md`). 서비스 시험은 **연속 3회 이상** 호출.
+- **규칙 5-1** 🚨 **실행 뼈대는 SDD §3.2 그대로**: 기능은 노드·클래스가 아니라 **평범한 함수**(이름·인자·반환은 `cobot_api` 그대로, 실패는 예외가 아니라 `Result.fail(code)`). 프로그램(`flow_node`·`rig_f*.py`) 맨 앞에서 `cobot_common.init(name)` 한 번, 끝낼 때 `cobot_common.shutdown()`. **로봇 함수는 메인 스레드에서만** — 콜백·타이머·다른 스레드에서 부르지 않는다. 기능 함수 안에서 노드를 만들거나 `rclpy.init`·`rclpy.spin*`을 부르지 않는다. `DSR_ROBOT2` 직접 import 금지. 이유는 `docs/troubleshooting/TS-01_…md`. 시험은 같은 함수를 **연속 3회 이상**.
 - **규칙 6** 인터페이스(IRD·`docs/interfaces/`)를 바꾸지 않는다. 바꿔야 하면 변경 요청 이슈 초안을 만들어 줄 것.
 - **규칙 7** 산출물마다 💾 저장 위치(상대경로·브랜치 `{{이름}}/{{YYYYMMDD}}-{{taskID}}-{{설명}}`·커밋 예시·PR 여부)와 🔔 공유 필요 여부(인터페이스·YAML 키는 무조건).
 - **규칙 8** STEP 끝에 📮 진척 보고: 진척(taskID·완료 기준 수치) / 인터페이스 변경 / 블로커 / 로봇 슬롯 / 9/30 리스크 / 복붙 문장 5줄.
@@ -50,7 +50,7 @@ UNDO='''## 되돌리기 문구
 | 수치 하드코딩 / 절대경로 | `규칙 5. YAML·상대경로로 바꿔서 다시.` |
 | 접촉 동작에 힘 상한·후퇴·타임아웃 없음 | `규칙 4. 세 개 넣어서 다시.` |
 | DSR API 직접 호출 | `규칙 5. cobot_common 공용 함수로.` |
-| `rclpy.spin(node)`를 쓰거나 `cobot_common.init` 없이 노드를 만듦 | `규칙 5-1. SDD §3.2 뼈대로 다시. TS-01 읽어.` |
+| 기능을 노드·서비스로 만들거나, 콜백에서 로봇 함수를 부르거나, `DSR_ROBOT2`를 직접 import함 | `규칙 5-1. SDD §3.2 뼈대로 다시. TS-01 읽어.` |
 | 인터페이스를 바꿈 | `규칙 6. 변경 요청 이슈 초안으로.` |
 | 비전·센서 제안 | `비전 불가. 파지 폭·하중·힘·위치로.` |
 | 단위 테스트 없이 통합 | `규칙 9. TC부터, 녹화하고.` |
@@ -78,21 +78,21 @@ TOOL={
 ROLES={
 'F1':dict(file='F1_한석형_프롬프트.md',name='한석형',title='F1 파지·이송·적재 + 좌표 계산·티칭',
  one='그릇·컵·툴을 **찾아서 잡고·옮기고·놓고·팔레트에 꽂는** 모든 동작. 반납 구역에서 용기가 겹치거나 어긋나 있어도 **탐색 파지**로 집는다. 로봇이 "어디로 어떻게" 움직이는지는 전부 내 일이다.',
- tasks='''- `cobot_common`(공용 로봇 함수)은 **박진용이 작성**한다(9/18 분담 변경 — 나는 좌표 계산·티칭에 집중). 나는 그 함수(`move_to` `move_rel` `grip` `release` `contact_down` `periodic_search` …)를 **쓰기만** 하고, 필요한 함수·인자가 있으면 박진용에게 요청한다. 그때까지는 같은 이름의 임시 stub으로 f1_node 로직을 먼저 짠다
-- `f1_node` 서비스: `/f1/pick`(탐색 파지) `/f1/place`(스펀지 홈이면 **안착 놓기**) `/f1/move_to` `/f1/tool` `/f1/rack_place` — `/f1/home`은 없음(`move_to(HOME)` 사용)
-- **안착 놓기 `place(SPONGE_BED_B/C)`** (SDD §5.2, 구 `/f3/seat`을 흡수): 용기를 쥔 채 홈 상공 → 순응 ON 하강 → 접촉·깊이 판정 → 미달이면 `periodic_search` 중 접촉 조건 감시 → 들어가면 놓고 후퇴(`offset_mm`) / 한도 초과면 들고 후퇴 `SEAT_FAIL`. 힘 관련 공용 함수(`contact_down`·`periodic_search`·`force_on/off`)는 박진용과 같이 다듬는다
+ tasks='''- `cobot_common`(공용 로봇 함수)은 **박진용이 작성**한다(9/18 분담 변경 — 나는 좌표 계산·티칭에 집중). 나는 그 함수(`move_to` `move_rel` `grip` `release` `contact_down` `periodic_search` …)를 **쓰기만** 하고, 필요한 함수·인자가 있으면 박진용에게 요청한다. 그때까지는 같은 이름의 임시 stub으로 `handling.py` 로직을 먼저 짠다
+- **함수 모듈 `src/f1_handling/f1_handling/handling.py`** (노드 아님): `pick(zone_id, kind)`(탐색 파지) `place(station)`(스펀지 홈이면 **안착 놓기**, 항상 release까지) `move_to(station, carrying)` `tool(tool, action)` `rack_place(rack_slot, kind)` — 서명·반환 타입은 `cobot_api`(`PickResult` 등) 그대로. 복귀는 `move_to('HOME', False)`
+- **안착 놓기 `place(SPONGE_BED_B/C)`** (SDD §5.2): 용기를 쥔 채 홈 상공 → 순응 ON 하강 → 접촉·깊이 판정 → 미달이면 `periodic_search` 중 접촉 조건 감시 → 들어가면 놓고 후퇴(`offset_mm`) / 한도 초과면 들고 후퇴 `SEAT_FAIL`. 힘 관련 공용 함수(`contact_down`·`periodic_search`·`force_on/off`)는 박진용과 같이 다듬는다
 - **탐색 파지 `pick(zone_id, kind)`** (SDD §5.2): 구역 기준점 + `config/cell.yaml`(`zones`) 탐색점 오프셋 순회 → 각 점에서 그리퍼 열기 → `contact_down`(힘 상한·최대 깊이·타임아웃)으로 접촉 높이에 정지(겹친 용기는 위 용기 높이) → `grip` → 폭이 프리셋 ±3 mm면 성공(응답에 `attempts`, `offset`) / ≤5 mm 빈손·폭 초과(두 개 파지)면 놓고 다음 점 → 다 돌면 `EMPTY_ZONE`. `zone_id`가 `SPONGE_BED_*`면 탐색점 1개(고정 재파지)
 - **좌표 계산·티칭이 주 업무**: `src/cobot_common/config/cell.yaml`(팀 공용 좌표·속도·프리셋, 한 곳에만 — **나 혼자 고친다**)과 `params.yaml`의 `f1` 절의 **주인**: 종류별 프리셋(폭·힘·허용 폭·접근 높이), 구역 기준점·탐색점 목록·최대 횟수·하강 힘 상한, 스테이션 좌표, 팔레트 기준점 + 칸 오프셋·각도(그릇 2·컵 4), 속도 상한(들고 있을 때 30%), 안전 높이, 삽입력 상한
 - `rack_place`: 기준점 + 칸 오프셋 → 지정 각도 → 상공 → 순응 ON 하강 + 삽입력 감시 → 도달 시 놓기 → 후퇴. 걸림 → 후퇴 → `RACK_JAM`
 - `tool`: 홀더 방향 고정, 픽업 후 폭 확인(범위 밖 `TOOL_FAIL`), 반납은 힘 접촉으로 바닥 확인
 - 기구(9/18): 반납 구역 2곳 표시(트레이·테이프), 팔레트 모형 배치, 격리 구역, 핑거 실리콘 패드
-- **검증(V)**: 9/18 저녁 V-01 파지 폭 3상태(그릇·컵·빈손)·V-05 DO/DI·V-17 컵 옆면 파지(✅ 9/18 검증 완료 — 흔드는 동작용 강한 파지는 V-16·V-23)·**9/19 오전 V-20**(민범진·박진용과: `f1_node`를 SDD §3.2 뼈대로 만들어 세 노드가 Virtual의 실제 드라이버에 번갈아 movej, 노드당 연속 3회 — 박진용의 `cobot_common.init`·`spin` PR이 선행, 배경은 TS-01). 9/19 오전 **공통 좌표 티칭 세션** + V-19 도달 범위·특이점 + V-22 티칭 좌표 재현 오차. 9/19 오후 V-06 삽입·V-08 툴·**V-15 재파지 폭 인식(박진용과)**·V-16 파지력·미끄러짐(민범진과). 9/20 오전 **V-14 겹친 용기 탐색 파지**. 반납 구역 방식은 9/19 저녁 DSN-03에서 확정되므로 `pick` 탐색 구현(F1-02)은 그 뒤에 굳힌다
+- **검증(V)**: 9/18 저녁 V-01 파지 폭 3상태(그릇·컵·빈손)·V-05 DO/DI·V-17 컵 옆면 파지(✅ 9/18 검증 완료 — 흔드는 동작용 강한 파지는 V-16·V-23)·**9/19 오전 V-20 참여**(민범진·박진용 주도: 실행 뼈대를 팀 코드로 Virtual 확인 — 나는 `handling.py`에 빈 함수 5개(각자 `move_to` 한 번)만 넣어 준다. 배경은 TS-01·DSN-02b). 9/19 오전 **공통 좌표 티칭 세션** + V-19 도달 범위·특이점 + V-22 티칭 좌표 재현 오차. 9/19 오후 V-06 삽입·V-08 툴·**V-15 재파지 폭 인식(박진용과)**·V-16 파지력·미끄러짐(민범진과). 9/20 오전 **V-14 겹친 용기 탐색 파지**. 반납 구역 방식은 9/19 저녁 DSN-03에서 확정되므로 `pick` 탐색 구현(F1-02)은 그 뒤에 굳힌다
 - 겸임: 팀장, 실기 슬롯 배분, 기구 총괄, 브랜치 삭제 승인''',
  not_='잔반·닦기 판정 기준(F2·F3), 흐름 순서·정책(flow), HMI. 힘제어 닦기 궤적은 F3.',
- out='`src/f1_handling/f1_node.py` · `src/cobot_common/config/cell.yaml`·`params.yaml`(`f1` 절) · `src/f1_handling/test/rig_f1.py` · 핑거 패드·반납 구역·팔레트 배치',
- rig='반납 구역에 그릇 2개를 겹쳐/어긋나게, 컵 2개 동일 + 빈 구역 1회. 툴 홀더 2종, 팔레트 모형. 손으로 놓고 서비스만 호출.',
+ out='`src/f1_handling/f1_handling/handling.py` · `src/cobot_common/config/cell.yaml`·`params.yaml`(`f1` 절) · `src/f1_handling/test/rig_f1.py` · 핑거 패드·반납 구역·팔레트 배치',
+ rig='반납 구역에 그릇 2개를 겹쳐/어긋나게, 컵 2개 동일 + 빈 구역 1회. 툴 홀더 2종, 팔레트 모형. 손으로 놓고 `rig_f1.py`에서 내 함수만 호출.',
  l1='TC-01 탐색 파지 그릇·컵 각 10회 ≥9, 빈 구역 `EMPTY_ZONE` 5/5, 낙하 0, 두 개 파지 0 · TC-02 툴 픽업/반납 각 10회, 안전 높이 · **TC-05 안착 놓기 정위치 5 + 2 mm 오프셋 5 ≥9/10, 한도 초과 `SEAT_FAIL`** · TC-09 팔레트 6칸 각 5회 ≥9, 걸림 → `RACK_JAM` 후퇴. 전부 녹화',
- sched='9/18 B~C CELL-01 기구, C ENV-02·V-01·V-05 → 9/19 A **V-20 노드 뼈대 확인**·CELL-04 티칭, B V-06·V-08, B~C F1-01 → 9/19 C~9/20 A **F1-02 탐색 파지**·V-14, A F1-03 툴, B F1-04 적재, B~C **UT-F1** → 9/21 C **INT-12b 주도** → 9/22 A INT-13 참여, B~C L3 → 9/23 L4',
+ sched='9/18 B~C CELL-01 기구, C ENV-02·V-01·V-05 → 9/19 A V-20(참여)·CELL-04 티칭, B V-06·V-08, B~C F1-01 → 9/19 C~9/20 A **F1-02 탐색 파지**·V-14, A F1-03 툴, B F1-04 적재, B~C **UT-F1** → 9/21 C **INT-12b 주도** → 9/22 A INT-13 참여, B~C L3 → 9/23 L4',
  deep='''- **탐색 파지를 가장 깊게**: 탐색점 배치(중심 → 십자 → 대각), 접촉 하강이 겹친 용기 높이에 어떻게 적응하는지, 폭으로 빈손/정상/두 개 파지를 가르는 표, 실패 시 놓고 올라가는 안전 순서, `attempts`·`offset` 기록이 KPI가 되는 이유.
 - **`trans()`·Pallet**: 기준점 1개 + 오프셋으로 탐색점·팔레트 칸 6개를 만드는 계산 예시. 팔레트를 옮겨도 기준점만 재티칭.
 - **팔레트 삽입**: 지정 각도 자세 만들기, 순응제어 + 삽입력 감시, 걸림 판정(힘↑ & 깊이 미달).
@@ -100,13 +100,13 @@ ROLES={
  req='''1. **역할·요구사항 분석**: 산출물, 하지 않는 것의 경계, 인터페이스(제공/사용) 표
 2. **환경 준비 점검**: 내 기능에 추가로 필요한 것만 (실기 IP 192.168.1.100 접속·RG2 DO/DI·TCP·툴 무게 확인 명령)
 3. **STEP 실행 계획**: 구글 드라이브 일정표의 내 taskID(CELL-01, ENV-02, V-01/05/06/08/14/15/16/17/19/20/22, F1-01~05, UT-F1, INT-12b)에 날짜·시간대를 붙여서. 공용 함수 → 티칭 → 탐색 파지 → 툴 → 적재 → TC 순
-4. **초기 코드 골격**: `config/cell.yaml`(프리셋·탐색점·좌표 자리) → `f1_node.py`(pick 탐색 루프·place 안착 놓기·rack_place·tool) → `rig_f1.py`. 안전 3종 포함
+4. **초기 코드 골격**: `config/cell.yaml`(프리셋·탐색점·좌표 자리) → `handling.py`(pick 탐색 루프·place 안착 놓기·rack_place·tool — 평범한 함수) → `rig_f1.py`(`cobot_common.init` → 함수 연속 3회 → `shutdown`). 안전 3종 포함
 5. **주의사항** — 탐색점을 코드에 박기 / 접촉 하강에 최대 깊이 없음 / 폭 판정 없이 성공 처리 / 두 개 파지 미검출 / 힘만으로 삽입 성공 판정 / 티칭 후 제어권 안 풀고 브링업 / `dance` Real 실행'''),
 'F2':dict(file='F2_민범진_프롬프트.md',name='민범진',title='F2 무게·털기·헹굼 + flow_node (통합 리더)',
  one='**무게로 잔반을 판정하고 털어내는 폐루프**, 헹굼·물털기 모션, 그리고 전체 공정을 **구역 계획대로 엮고 실패를 복구하는 flow_node**. L3·L4 통합 리더.',
- tasks='''- **9/18 저녁 최우선**: `mock_f1_f3`(같은 서비스 이름으로 즉시 응답 + 실패 주입) — flow 개발의 전제. `cobot_msgs`는 PM(황인재)이 `docs/interfaces/`에서 복사해 관리하므로 나는 **쓰기만** 한다(필드가 부족하면 인터페이스 변경 이슈로 요청)
-- **검증(V)**: 9/18 저녁 V-02 하중 정밀도. **9/19 오전 V-20**(한석형·박진용과: 세 노드가 SDD §3.2 뼈대로 Virtual의 실제 드라이버에 번갈아 movej, 노드당 연속 3회 — 박진용의 `cobot_common.init`·`spin` PR이 선행)·**V-21 flow 실행 구조**(`/flow/start`는 즉시 응답, 순서 실행은 작업 스레드에서 `client.call()`, 노드는 MultiThreadedExecutor + ReentrantCallbackGroup → 호출을 기다리는 동안 `/flow/state` 2 Hz·stop 수락, mock으로. SDD §5.1, 기능 노드 쪽 원인·해법은 TS-01로 확정). 9/19 오후 V-07 털기 충돌 감지·V-16 파지력·미끄러짐(한석형과)
-- `f2_node` 서비스: `/f2/weigh` `/f2/leftover_loop` `/f2/shake` `/f2/dip`
+ tasks='''- **최우선(9/19 오전)**: ① **`flow_node.py` 메인 뼈대**(SDD §3.2·§5.1): `cobot_common.init('flow_node')` → `io_node()`에 `/flow/start·stop·resume` 서비스·`/flow/state` 2 Hz 타이머·`/flow/event` 발행기(**콜백은 깃발만**) → 메인 스레드가 `start`를 기다렸다가 plan대로 기능 함수를 차례로 호출, 호출 사이마다 `stop` 확인 → 모든 호출은 `Flow.call()` **예외 보호**(예외 → `ROBOT_ERROR` → `safe_retreat` → PAUSED) → Ctrl+C면 `cobot_common.shutdown()` ② **mock 모듈** `mock/mock_f1.py`·`mock_f3.py`: 실제와 **같은 함수 이름·인자**로 즉시 `Result` 반환 + 실패 주입(`flow.mock.fail_on`), `flow.use_mock`으로 전환, 서명은 `cobot_api.check_api()`로 검사. `cobot_api`·`cobot_msgs`는 PM(황인재)이 관리하므로 나는 **쓰기만** 한다(부족하면 인터페이스 변경 이슈)
+- **검증(V)**: 9/18 저녁 V-02 하중 정밀도. **9/19 오전 V-20 주도**(박진용과: 실행 뼈대를 팀 코드로 Virtual 확인 — `cobot_common.init` + 내 `flow_node` 뼈대 + 세 모듈의 빈 함수를 번갈아 2바퀴, 모션 중 `/flow/state` 2 Hz, stop 수락, Ctrl+C 뒤 재실행 정상. PM이 시험 코드로는 확인함: `docs/troubleshooting/ts01_repro/virtual/s4_script.py`). V-21은 구조 변경으로 종료. 9/19 오후 V-07 털기 충돌 감지·V-16 파지력·미끄러짐(한석형과)
+- **함수 모듈 `src/f2_sense_flow/f2_sense_flow/sense.py`** (노드 아님): `weigh(kind)` `leftover_loop(kind, max_rounds)` `shake(mode, count, kind)` `dip(station, count, kind)` — 서명·반환은 `cobot_api` 그대로. `weigh`의 0점 재설정(reset)은 **선택 동작**(응답 상한 3 s, 실패 시 반복 금지 — 내가 쓴 TS-03)
 - 설정: **`config/params.yaml`의 `f2`·`flow` 절 주인**(공용 좌표·속도는 `cell`에서 읽기만). `f2` 절: 빈 용기 기준 무게(그릇·컵), 임계(기본 50 g, 미만은 통과), 평균 횟수, 털기 진폭·속도·횟수(WASTE/RINSE), 담금 깊이·시간
 - 무게: WEIGH 자세 1개 고정, 정지 후 `get_workpiece_weight` N회 평균(차동: 파지 전 0점). 9/18 저녁 V-02 100/200 g 추로 정밀도 실측(±20 g)
 - 잔반 폐루프: 판정 → 잔반통 위 털기 3~5회 → 재측정 → 최대 M회 → 초과 지속 `LEFTOVER_REMAIN`
@@ -114,37 +114,37 @@ ROLES={
 - **강한 파지(9/18 V-17 결과)**: `shake`·`dip`·`leftover_loop`는 시작할 때 `cobot_common.grip_level(kind,'HOLD')`로 더 꽉 잡고 끝나면 `'NORMAL'`로 되돌린다(요청에 `kind`가 들어온다). 동작 전후 폭을 비교해 변했으면 미끄러진 것 → `GRIP_FAIL`. HOLD 힘 값은 V-16에서 한석형과 찾는다
 - `flow_node`: `config/params.yaml`의 `flow` 절의 구역 계획 `plan: [{RET_B, BOWL, 2}, {RET_C, CUP, 2}]` 대로 F1→F2→F3→F2→F1 호출, 상태 머신(SDD §5.1, `EMPTY_ZONE`→다음 구역), 실패 정책, `/flow/state` 2 Hz(target 포함), `/flow/event`, `records.csv`, 소모품 카운트, `start/stop/resume`
 - 겸임: 통합 리더 — L2 INT-12a 주도, L3·L4 **실행** 주도(통합 체크리스트·범위 방어 발동 제안). 일정표·문서·`cobot_msgs`·런치·노션 업로드·제출은 PM(황인재) 담당이므로 진척 보고만 전달''',
- not_='파지·이송·적재 동작(F1), 닦기 힘제어(F3), HMI 화면(F4). 다른 노드 코드를 대신 만들지 않는다 — mock으로 대체.',
- out='`src/f2_sense_flow/f2_node.py` `flow_node.py` `mock/mock_f1_f3.py` `logger.py` · `config/params.yaml`의 `f2`·`flow` 절 · `records.csv` 스키마',
- rig='100/200 g 추, 대용품 용기 4·빈 용기 4, 잔반통, 빈 수조. F1 없이 손으로 용기를 쥐여주고 서비스만 호출. flow는 mock으로.',
+ not_='파지·이송·적재 동작(F1), 닦기 힘제어(F3), HMI 화면(F4). 다른 기능 코드를 대신 만들지 않는다 — mock 모듈로 대체.',
+ out='`src/f2_sense_flow/f2_sense_flow/sense.py` `flow.py` `flow_node.py` `mock/mock_f1.py` `mock/mock_f3.py` `logger.py` · `test/rig_f2.py` · `config/params.yaml`의 `f2`·`flow` 절 · `records.csv` 스키마',
+ rig='100/200 g 추, 대용품 용기 4·빈 용기 4, 잔반통, 빈 수조. F1 없이 손으로 용기를 쥐여주고 `rig_f2.py`에서 내 함수만 호출. flow는 mock 모듈로.',
  l1='TC-03 무게 ±20 g · TC-04 잔반 검출 100%/오판 0 · TC-08 헹굼·물털기 10회 정지 0 · TC-10 mock 실패 주입 5종 정책대로(EMPTY_ZONE → 다음 구역) · TC-12 기록 4행 누락 0. 전부 녹화',
- sched='9/18 B~C CELL-03 수조·대용품(V-11), C INF-03 mock·V-02, C~9/19 C FLOW-01, 9/19 A **V-20**·V-21(flow 실행 구조) → 9/19 B V-07, B~C F2-01 → 9/19 C~9/20 A FLOW-02 기록, A F2-02·UT-FLOW → 9/20 C **UT-F2**·**INT-12a 착수** → 9/21 C INT-12a 마무리·CR-01 → 9/22 B~C **L3 주도** → 9/23 **L4 주도**·동결',
+ sched='9/18 B~C CELL-03 수조·대용품(V-11), C V-02, C~9/19 C FLOW-01(메인 뼈대)·INF-03 mock 모듈, 9/19 A **V-20**(주도) → 9/19 B V-07, B~C F2-01 → 9/19 C~9/20 A FLOW-02 기록, A F2-02·UT-FLOW → 9/20 C **UT-F2**·**INT-12a 착수** → 9/21 C INT-12a 마무리·CR-01 → 9/22 B~C **L3 주도** → 9/23 **L4 주도**·동결',
  deep='''- **하중 측정을 가장 깊게**: `reset_workpiece_weight` → 정지 → `get_workpiece_weight` 절차, 관절 토크 기반이라 자세·가감속에 민감한 이유, 평균·차동으로 ±20 g를 만드는 법, 50 g 임계와 "미만은 통과"의 근거.
 - **상태 머신**: 전이표(SDD §5.1)를 코드 구조(딕셔너리 + 핸들러)로, PAUSED에서 이전 상태 복귀, 구역 count·EMPTY_ZONE 처리, 어떤 실패에서도 툴 반납.
-- **mock 설계**: 같은 서비스 이름으로 즉시 응답 + 파라미터로 실패 주입 → TC-10.
+- **mock 설계**: 같은 함수 이름·인자로 즉시 `Result` 반환 + 설정으로 실패 주입 → TC-10. 전부 mock이면 `cobot_common.init(robot=False)`로 드라이버 없이 돈다.
 - **통합 운영**: L2→L3→L4 체크리스트, 범위 방어표 발동 조건(결정은 PM·팀장과 브리핑에서).''',
  req='''1. **역할·요구사항 분석**: 산출물, 하지 않는 것의 경계, 인터페이스(제공/사용) 표
 2. **환경 준비 점검**: `cobot_msgs` 빌드 확인(`git pull && cbc`), mock 실행 명령
 3. **STEP 실행 계획**: 구글 드라이브 일정표의 내 taskID(CELL-03, INF-03, V-02/07/16/20/21, FLOW-01/02, F2-01/02, UT-FLOW, UT-F2, INT-12a, INT-3a/3b, INT-4a~d)에 날짜·시간대를 붙여서
-4. **초기 코드 골격**: `mock_f1_f3.py` → `flow_node.py`(상태 머신·plan·정책·state/event 발행) → `f2_node.py`(weigh·leftover_loop·shake·dip) → `logger.py`
+4. **초기 코드 골격**: `mock/mock_f1.py`·`mock_f3.py` → `flow_node.py`(메인 뼈대·통신 노드·예외 보호) + `flow.py`(상태 머신·plan·정책) → `sense.py`(weigh·leftover_loop·shake·dip) → `logger.py`
 5. **주의사항** — mock이 늦어 flow·HMI가 대기 / flow가 F1·F3 로직을 품음 / 힘·무게를 Virtual에서 검증했다고 믿음 / EMPTY_ZONE 후 다음 구역으로 안 넘어감 / stop 중 서비스 호출 이어감 / 기록 누락'''),
 'F3':dict(file='F3_박진용_프롬프트.md',name='박진용',title='F3 접촉 닦기 (스펀지 고정틀·수세미 툴·수세미 솔) + cobot_common 공용 로봇 함수 + 안전 파라미터',
  one='용기를 **스펀지 홈에 안착**시키고(안 맞으면 Move Periodic으로 찾고), **툴을 쥔 채 일정한 힘으로 안쪽을 닦는** 동작. 프로젝트에서 가장 어렵고 가장 티 나는 기능. 안전 파라미터 소유.',
- tasks='''- `f3_node` 서비스: `/f3/soap` `/f3/wipe_bowl` `/f3/wipe_cup` (그릇·컵 닦는 동작이 달라 서비스 분리). 안착은 F1 `/f1/place`가 한다(9/18 결정, `/f3/seat` 삭제) — 나는 "용기가 홈에 안착돼 있고 툴을 쥔 상태"에서 시작
+ tasks='''- **함수 모듈 `src/f3_wipe/f3_wipe/wipe.py`** (노드 아님): `soap(count)` `wipe_bowl()` `wipe_cup()` — 서명·반환은 `cobot_api`(`WipeBowlResult` 등) 그대로(그릇·컵 닦는 동작이 달라 함수 분리). 안착은 F1 `place`가 한다(9/18 결정) — 나는 "용기가 홈에 안착돼 있고 툴을 쥔 상태"에서 시작
 - 설정: **`config/params.yaml`의 `f3` 절 주인**(공용 좌표·힘 상한은 `cell`에서 읽기만): 세제 담금 깊이·시간, 그릇 닦기 목표 힘 3~5 N·상한 10 N·나선 반지름·회전수·시간, 컵 회전 각·스트로크·횟수
 - 공용 함수는 F1의 탐색 파지·안착 놓기·팔레트 삽입과 내 닦기가 **같이 쓴다** → 함수 시그니처를 먼저 정해 채널에 공유하고(SDD §3.1), V-03·V-04 결과로 힘 함수를 다듬는다
 - `soap`: 툴 든 채 세제 수조 담금 N회(모션만)
 - `wipe_bowl`: 홈 중심 상공 → 힘제어(툴 Z, 목표 힘) → r1→r2 나선 `turns`회 → 힘 로그 저장 → OFF → 후퇴. **힘 상한·타임아웃 초과 즉시 후퇴**
 - `wipe_cup`: 컵 중심 → 삽입 깊이(힘 감시) → J6 ±180° + Z 스트로크 반복 → 후퇴
-- **9/18 저녁(재료 없이 할 수 있는 것)**: ① **V-03 힘제어 중 XY 이동 가능 여부**(로봇 슬롯: 민범진 V-02 다음. 아무 스펀지 + 그릇으로. 결과가 닦기 설계를 정한다) ② **`cobot_common` 전체 작성(INF-02 + INF-02b, 최우선 — 남들이 이걸로 개발)**: **`bootstrap.py`의 `init(node)`·`spin(node)`부터**(내가 찾은 TS-01의 해법. 🚨 1차 수정안처럼 기능 노드 자신을 `DR_init.__dsr__node`에 넣으면 **두 번째 호출부터 멈춘다** — PM 재현 `docs/troubleshooting/ts01_repro/run2.sh`. `init`이 **DSR 전용 노드**를 따로 만들고 `spin`은 기능 노드를 자체 MultiThreadedExecutor로 돌린다. 완료 기준: Virtual에서 서비스 콜백 안 movej **연속 3회** 응답. 이 PR이 9/19 오전 V-20과 세 사람 노드 뼈대의 선행) · `force_reached()`(`check_force_condition == 0` 래퍼) · `move_to(station, carrying)` `move_rel` `grip(width, force)→width` **`grip_level(kind, 'NORMAL'|'HOLD')`**(털기·헹굼용 강한 파지 전환, 방법은 V-23: 강사 배포 `onrobot_rg_control`이 힘 0~40 N을 명령마다 받음) `release()` `weigh(n)` `force_on/off` `contact_down(max_depth, limit)` `periodic_search` `safe_retreat` + `config.py`(config/ 폴더 로더). 좌표 값은 한석형의 `cell.yaml`을 읽기만 한다. 두산 API를 직접 부르는 곳은 이 패키지뿐 ③ SAFE-01 안전 파라미터 표·위험요소/안전대책·예외 리스트 ④ 그릇·컵 치수 측정과 스펀지 홈 커팅 도면·홀더 위치 결정
+- **9/18 저녁(재료 없이 할 수 있는 것)**: ① **V-03 힘제어 중 XY 이동 가능 여부**(로봇 슬롯: 민범진 V-02 다음. 아무 스펀지 + 그릇으로. 결과가 닦기 설계를 정한다) ② **`cobot_common` 전체 작성(INF-02 + INF-02b, 최우선 — 남들이 이걸로 개발)**: **`bootstrap.py`의 `init(name, robot=True)`·`io_node()`·`cfg()`·`shutdown()`부터**(SDD §3.1·§3.2 — 내가 찾은 TS-01의 최종 해법은 구조 변경이다. `init`이 ① **DSR 전용 노드**를 만들어 `DR_init.__dsr__node`에 넣은 뒤 `DSR_ROBOT2`를 import ② **통신 노드**를 만들어 백그라운드 실행기 스레드로 돌림(그리퍼 폭 `OnRobotRGInput` 구독·`/onrobot/sendCommand` 클라이언트 포함 — `grip()`은 저장된 최신 폭을 읽는다) ③ 설정 로드. `spin()`은 필요 없다. PM의 시험 코드 `docs/troubleshooting/ts01_repro/virtual/s4_script.py`가 뼈대다. 완료 기준: Virtual에서 `rig` 스크립트로 `move_to` **연속 3회** + Ctrl+C 뒤 재실행 정상. 이 PR이 9/19 오전 V-20과 세 사람 작업의 선행) · **V-24**(이동 함수를 `amovej`/`amovel` + `check_motion` 폴링으로 만들어 stop 깃발·타임아웃이면 `stop()` — 동작 중 소프트 정지, Virtual) · `force_reached()`(`check_force_condition == 0` 래퍼) · `move_to(station, carrying)` `move_rel` `grip(width, force)→width` **`grip_level(kind, 'NORMAL'|'HOLD')`**(털기·헹굼용 강한 파지 전환, 방법은 V-23: 강사 배포 `onrobot_rg_control`이 힘 0~40 N을 명령마다 받음) `release()` `weigh(n)` `force_on/off` `contact_down(max_depth, limit)` `periodic_search` `safe_retreat` + `config.py`(config/ 폴더 로더). 좌표 값은 한석형의 `cell.yaml`을 읽기만 한다. 두산 API를 직접 부르는 곳은 이 패키지뿐 ③ SAFE-01 안전 파라미터 표·위험요소/안전대책·예외 리스트 ④ 그릇·컵 치수 측정과 스펀지 홈 커팅 도면·홀더 위치 결정
 - **기구(9/19 오전, 재료 도착 후)**: 대형 스펀지에 그릇·컵 홈 커팅(여유 1~2 mm, V-12), 툴 홀더 2종, 수세미 손잡이(형상 파지), 고정틀 작업대 고정
 - **9/19 오후 검증**: V-04 periodic 탐색 안착(한석형과), V-10 컵 솔 삽입 깊이, **V-15 재파지 폭 인식(한석형과)**, **V-18 툴 파지 안정성**(닦는 힘에서 툴이 밀리거나 돌지 않는가)
 - 겸임: 안전 파라미터(속도·충돌 감도·힘 상한·수조 배치) 소유, SAFE-01 위험요소·안전대책·예외/오류 리스트(9/18 저녁 작성 → 노션 업로드)''',
- not_='파지·이송·툴 픽업 동작 자체(F1 `/f1/tool`을 flow가 호출, 나는 툴을 쥔 상태에서 시작), 무게 판정(F2), 흐름 순서(flow), HMI.',
- out='`src/cobot_common/robot.py`·`config.py` · `src/f3_wipe/f3_node.py` · `config/params.yaml`의 `f3` 절 · `src/f3_wipe/test/rig_f3.py` · 힘 로그 `force_*.csv` · 스펀지 고정틀·툴 홀더·수세미 손잡이 · 안전 파라미터 표',
- rig='스펀지 홈에 그릇·컵을 손으로 놓고, 툴을 그리퍼에 손으로 쥐여준 뒤 서비스만 호출. F1 없이 개발 가능.',
+ not_='파지·이송·툴 픽업 동작 자체(F1 `tool()`을 flow가 호출, 나는 툴을 쥔 상태에서 시작), 무게 판정(F2), 흐름 순서(flow), HMI.',
+ out='`src/cobot_common/cobot_common/bootstrap.py`·`robot.py`·`config.py` · `src/f3_wipe/f3_wipe/wipe.py` · `config/params.yaml`의 `f3` 절 · `src/f3_wipe/test/rig_f3.py` · 힘 로그 `force_*.csv` · 스펀지 고정틀·툴 홀더·수세미 손잡이 · 안전 파라미터 표',
+ rig='스펀지 홈에 그릇·컵을 손으로 놓고, 툴을 그리퍼에 손으로 쥐여준 뒤 `rig_f3.py`에서 내 함수만 호출. F1 없이 개발 가능.',
  l1='TC-06 그릇 닦기 10회 목표 ±2 N·상한 초과 0·강제 초과 시 후퇴 · TC-07 컵 닦기 10회 정상. 전부 녹화',
- sched='9/18 C **V-03**·**INF-02/02b cobot_common**(`init`·`spin` 먼저, 9/19 오전까지)·9/19 A **V-20**·SAFE-01·치수 측정·커팅 도면 → 9/19 A CELL-02 고정틀·홀더(재료 도착)·V-12, B **V-04·V-10·V-15·V-18**, C F3-02 wipe_bowl 착수 → 9/20 A~B F3-02 wipe_bowl, B F3-03 soap·wipe_cup·**UT-F3** → 9/21 C~9/22 A **INT-13 주도** → 9/22 L3 → 9/23 L4 실패 주입',
+ sched='9/18 C **V-03**·**INF-02/02b cobot_common**(`init`·통신 노드 먼저, 9/19 오전까지)·9/19 A **V-20·V-24**·SAFE-01·치수 측정·커팅 도면 → 9/19 A CELL-02 고정틀·홀더(재료 도착)·V-12, B **V-04·V-10·V-15·V-18**, C F3-02 wipe_bowl 착수 → 9/20 A~B F3-02 wipe_bowl, B F3-03 soap·wipe_cup·**UT-F3** → 9/21 C~9/22 A **INT-13 주도** → 9/22 L3 → 9/23 L4 실패 주입',
  deep='''- **힘제어를 가장 깊게**: `task_compliance_ctrl`·`set_desired_force`가 무엇을 하는지, 툴 좌표계 Z로 힘을 걸며 XY로 움직이는 구조(V-03 결과에 따라 대안), 목표 3~5 N·상한 10 N의 근거, `check_force_condition`으로 후퇴 트리거, `release_force` 순서.
 - **안착 판정과 탐색**: 깊이 + 힘 AND 조건, Move Periodic 진폭·주기·시간 한도, 접촉 조건 감시로 "들어갔다"를 아는 법.
 - **힘 로그**: `get_tool_force` 샘플링 → CSV → 발표 그래프.
@@ -152,7 +152,7 @@ ROLES={
  req='''1. **역할·요구사항 분석**: 산출물, 하지 않는 것의 경계, 인터페이스(제공/사용) 표
 2. **환경 준비 점검**: 힘제어 API 사용 조건(TCP·툴 무게 설정), Virtual에 힘이 없음을 전제로 한 검증 계획
 3. **STEP 실행 계획**: 구글 드라이브 일정표의 내 taskID(CELL-02, V-12, V-03/04/10, F3-01~03, UT-F3, SAFE-01, INT-13)에 날짜·시간대를 붙여서
-4. **초기 코드 골격**: `config/params.yaml`의 `f3` 절 → `f3_node.py`(soap·wipe_bowl·wipe_cup, 힘 상한·후퇴·타임아웃 공통 래핑) → `rig_f3.py` → 힘 로그 저장기
+4. **초기 코드 골격**: `config/params.yaml`의 `f3` 절 → `wipe.py`(soap·wipe_bowl·wipe_cup — 평범한 함수, 힘 상한·후퇴·타임아웃 공통 래핑) → `rig_f3.py` → 힘 로그 저장기
 5. **주의사항** — 힘제어를 이동 전체에 켬 / 힘만으로 안착 성공 판정 / 나선을 깊이 기준으로 짬(스펀지 눌림) / 후퇴 없이 예외만 던짐 / 컵 삽입 깊이에 힘 감시 없음 / 툴 없이 wipe 시작'''),
 'F4':dict(file='F4_황인재_프롬프트.md',name='황인재',title='F4 시스템 모니터 — 웹 HMI (FastAPI + rclpy + SQLite) + PM·KPI·영상·아키텍처 그림',
  one='사람이 **시작·정지·재개**하고 **단계·수량·소모품·연결·오류·이력**을 보는 웹 화면. 웹은 처음이지만 도전한다. 로봇 없이 **가짜 상태 발행기**로 먼저 완성하고, L2에서 mock flow, L3에서 실제 flow(PC-A)에 PC-B로 꽂는다.',
@@ -164,7 +164,7 @@ ROLES={
 - 설정: **`config/params.yaml`의 `hmi` 절 주인**: 포트 8000, 갱신 2 Hz, 끊김 판정 2 s, DB 경로(상대)
 - 9/19 A ENV-03/V-09 PC 2대 통신 확인(민범진과), A~B ARCH-01 아키텍처 draw.io 최종 + 노션 산출물 등록. 9/22 A NOTE-02 HMI 화면 gif 노션 업로드, F4-05 KPI 스크립트(records/SQLite → 성공률·사이클 타임·탐색 시도)
 - 추석: 시연 영상 편집(1분 이내), PPT(강사 5장 양식), 발표 대본 보조
-- **PM 겸 인터페이스·런치 관리**: `cobot_msgs` 정본(`docs/interfaces/` → `src/cobot_msgs/` 복사·빌드 확인, 변경은 회의·이슈 후), `config` 골격(`cell.yaml` + `params.yaml`)과 `prewash_bringup` 런치 2종(`prewash.launch.py`·`prewash_mock.launch.py`), F4-00 HMI 설계 초안(화면 구성·REST/WS·필요 필드) → 9/19 저녁 DSN-03에서 확정, 9/22 NOTE-01 노션에 노드 구조·인터페이스 정의서 업로드
+- **PM 겸 인터페이스·런치 관리**: **`cobot_api`**(기능 함수 약속 — ID·코드·`Result`·함수 서명, `contracts.py`)와 `cobot_msgs` v3.0(메시지 2개, `docs/interfaces/` → 복사·빌드 확인) 정본, 변경은 회의·이슈 후. 런치는 `flow_node` 프로세스 1개(`use_mock` 인자), `config` 골격(`cell.yaml` + `params.yaml`)과 `prewash_bringup` 런치 2종(`prewash.launch.py`·`prewash_mock.launch.py`), F4-00 HMI 설계 초안(화면 구성·REST/WS·필요 필드) → 9/19 저녁 DSN-03에서 확정, 9/22 NOTE-01 노션에 노드 구조·인터페이스 정의서 업로드
 - 겸임: **PM** — 구글 시트 일정표 갱신(진행·상태·완료 목록·변경이력, 매일 저녁), 팀원 진척 보고 취합, 문서 정본·노션 조별 페이지·강사 DM 창구, 제출(SUB-01, 9/30 11시 전, 파일명 규칙), PR 승인(`/pr-review`). 통합 실행 주도는 민범진''',
  not_='흐름 순서·복구 판단(flow), 로봇 동작·힘 판정(F1~F3), 칸 배정 알고리즘. HMI는 **보여주고 전달만** 한다.',
  out='`src/f4_hmi/app.py` `db.py` `static/index.html` `fake_state_pub.py` · `config/params.yaml`의 `hmi` 절 · `kpi.py` · `src/cobot_msgs/` · `src/prewash_bringup/launch/*.py` · `config/` 골격 · 아키텍처 `.drawio` · 회의록 · 시연 영상·PPT',
@@ -206,7 +206,7 @@ for k,r in ROLES.items():
 | 0-3 | GitHub 초대 수락 확인, 토큰 생성(`https://github.com/settings/tokens`, classic, repo) | 가이드 1-2 | 토큰 보관 완료(값은 안 보여 줌) |
 | 0-4 | 저장소 clone `~/rokey9_pjt1/rokey_pjt01_ws`, `.bashrc`에 `PREWASH_WS` | 가이드 ② | `git remote -v`, `echo $PREWASH_WS` |
 | 0-5 | PC 환경: ROS 2 Jazzy → `ws_dsr` 클론·빌드 → DRCF → PYTHONPATH(DR_init) → `.bashrc` 별칭 → `sodvir` → `cbc` | 환경설정 문서 1장~11장 | 문서 맨 아래 **최종 완료 체크리스트** 전부 ✅ (= 일정표 ENV-01) |
-| 0-6 | 읽을 문서를 네가 요약: AGENTS.md 절대 규칙 12개, IRD에서 **내 기능의 서비스**, CONTRIBUTING §0~2 | AGENTS·IRD·CONTRIBUTING | 내가 "이해했다" |
+| 0-6 | 읽을 문서를 네가 요약: AGENTS.md 절대 규칙 12개, IRD에서 **내 기능의 함수(F4는 `/flow/*` 인터페이스)** · SDD §3.2 실행 뼈대, CONTRIBUTING §0~2 | AGENTS·IRD·CONTRIBUTING | 내가 "이해했다" |
 | 0-7 | 첫 PR 실습: 브랜치 → `docs/test_logs/YYYYMMDD_ENV-01_이름.md` → 커밋 → push → PR(Reviewer **hwang-injae**, 본문 승인 조건 표) | 가이드 ④-2 | PR 링크 |
 | 0-8 | "온보딩 완료" 선언 → §1 내 역할로 넘어가 **규칙 1의 첫 응답(읽은 파일 → 역할 → 인터페이스 표 → STEP 계획)** 을 낸다 | — | STEP 계획 승인 |
 

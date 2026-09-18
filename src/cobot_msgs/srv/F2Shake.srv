@@ -1,8 +1,0 @@
-# 털기(WASTE: 잔반통 위) · 물 털기(RINSE: 헹굼 수조 위). 진폭·속도·주기는 config/params.yaml(f2 절).
-# 시작할 때 용기를 "강한 파지(HOLD)"로 더 꽉 잡고, 끝나면 "보통 파지(NORMAL)"로 되돌린다 → kind 가 필요하다.
-string mode     # WASTE / RINSE
-uint8 count
-string kind     # BOWL / CUP  (강한 파지 힘을 cell.yaml presets 에서 고르기 위해)
----
-bool ok
-string code     # OK / GRIP_FAIL(털다가 폭이 변함 = 미끄러짐) / ROBOT_ERROR

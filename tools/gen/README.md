@@ -21,7 +21,9 @@ python3 tools/gen/gen_todo.py ../_upload/prewash_담당별_할일.xlsx
 PM이 구글 시트에서 직접 고친 내용(행 추가·날짜 이동·상태)을 그대로 둔 채 몇 개 셀·행만 바꿀 때 쓴다. `gen_sched.py`로 다시 만들면 PM의 수정이 사라지므로, 9/18 이후 일정 변경은 이 방식으로 한다.
 
 ```bash
-python3 tools/gen/patch_20260918_ts01.py ../_upload/prewash_일정표_TS01반영.xlsx
+python3 tools/gen/patch_20260918_s4.py ../_upload/prewash_일정표_구조변경반영.xlsx   # 최신 (구조 변경 DSN-02b)
 ```
 
 지금 시트를 내려받아 변경만 얹은 xlsx를 만든다. 구글 시트에서 `파일 > 가져오기 > 업로드 > 스프레드시트 바꾸기`. 내려받은 뒤에 시트를 고쳤다면 다시 실행한다. 새 변경은 `patch_날짜_이름.py`를 복사해 만든다(`Book.from_live` → `sheet().find/set/insert` → `save`).
+
+패치는 Time Line·상세·변경이력을 고친 뒤 **`할일_*` 시트를 고친 Time Line에서 다시 채운다**(`xlsx_patch.rebuild_todo` + `gen_todo.person_entries`). 그래서 할 일 시트의 ✓ 표시는 Time Line의 상태(완료)에서 나온다 — 할 일 시트에 손으로 찍은 체크는 다음 패치 때 사라진다. 적용한 패치: `patch_20260918_ts01.py`(TS-01) → `patch_20260918_s4.py`(구조 변경).

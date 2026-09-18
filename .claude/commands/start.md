@@ -10,7 +10,7 @@
 2. GitHub 초대 수락 여부(사용자 확인) · 토큰 생성 안내(`https://github.com/settings/tokens`, classic, repo)
 3. 저장소 위치 확인: 현재 폴더가 clone된 `rokey_pjt01_ws`인지(`git remote -v`), `.bashrc`의 `PREWASH_WS`
 4. PC 환경: 환경설정 문서 순서대로 — ROS 2 Jazzy, ws_dsr 클론·빌드, DRCF 에뮬레이터, PYTHONPATH(DR_init), `.bashrc` 별칭, `sodvir` Virtual 브링업, `cbc` 빌드. 문서의 "최종 완료 체크리스트"를 하나씩 확인
-5. 읽을 문서를 네가 요약해 준다: AGENTS.md(확정값·절대 규칙 12개), docs/02 IRD(이 사람 기능의 서비스만), CONTRIBUTING §0~2
+5. 읽을 문서를 네가 요약해 준다: AGENTS.md(확정값·절대 규칙 12개), docs/02 IRD(이 사람 기능의 함수만) · docs/03 SDD §3.2(실행 뼈대 규약), CONTRIBUTING §0~2
 6. 첫 PR 실습(가이드 ④-2): 브랜치 생성 → `docs/test_logs/YYYYMMDD_ENV-01_이름.md` 작성 → 커밋 → push → PR 만드는 화면 순서 안내(Reviewer hwang-injae)
 7. `python3 tools/sched.py <담당 약자 S/M/P/H>` 로 이 사람의 일정표 행을 보여 주고 오늘·내일 할 taskID를 짚어 준다.
 8. 마지막으로 "이제 `/f1` `/f2` `/f3` `/f4` 중 내 기능 명령을 치면 개인 프롬프트로 작업이 시작된다"고 안내

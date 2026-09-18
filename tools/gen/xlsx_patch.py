@@ -88,3 +88,76 @@ class Book:
         for n,sh in s.sheets.items(): s.files[s.paths[n]]=sh.xml().encode()
         with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED) as z:
             for n in s.z.namelist(): z.writestr(n,s.files[n])
+
+
+# ---------------------------------------------------------------- 공용 도우미
+GANTT = dict(zip(['9/18', '9/19', '9/20', '9/21', '9/22', '9/23', '9/24~28', '9/29', '9/30'],
+                 [('G', 'H', 'I'), ('J', 'K', 'L'), ('M', 'N', 'O'), ('P', 'Q', 'R'), ('S', 'T', 'U'),
+                  ('V', 'W', 'X'), ('Y', 'Z', 'AA'), ('AB', 'AC', 'AD'), ('AE', 'AF', 'AG')]))
+PART = {'오전': 0, '오후': 1, '저녁': 2}
+
+
+def gantt_col(day, part):
+    return GANTT[day][PART[part]]
+
+
+def new_timeline_row(sheet, like_row, slots, **cells):
+    """like_row 의 서식을 복제해 새 Time Line 행을 만든다. slots=[('9/19','오전'), …] 칸에만 색을 칠한다."""
+    gcols = [c for cs in GANTT.values() for c in cs]
+    fill = next((like_row.style(c) for c in gcols if like_row.style(c) != like_row.style('AG')), None)
+    blank = like_row.style('AG') if like_row.style('AG') != fill else '3'
+    # AG(9/30 저녁)가 색칸인 행은 드물다. 빈칸 서식은 색이 없는 칸에서 가져온다
+    styles = [like_row.style(c) for c in gcols]
+    blank = max(set(styles), key=styles.count)
+    n = like_row.clone()
+    for c in gcols:
+        n.set(c, style=blank)
+    for d, p in slots:
+        n.set(gantt_col(d, p), style=fill)
+    for c, v in cells.items():
+        n.set(c, v)
+    return n
+
+
+def rebuild_todo(book, entries_fn, people):
+    """할일_* 시트를 Time Line 의 현재 내용으로 다시 채운다(시트가 있을 때만). 서식은 그 시트의 기존 행에서 복제."""
+    for name, L in people:
+        if name not in book.paths:
+            continue
+        s = book.sheet(name)
+        h = s.find('A', '언제')
+        body = [r for r in s.rows[h + 1:] if not s.is_empty(r)]
+        tx = lambda r, c: s.text(r, c).strip()
+        t_day = next(r for r in body if not tx(r, 'C') and not tx(r, 'B') and tx(r, 'A'))
+        items = [r for r in body if tx(r, 'B') in ('☐', '☑')]
+        pick = lambda cond: next((r for r in items if cond(r)), None)
+        t_mine = pick(lambda r: tx(r, 'F') in ('담당', '공동') and tx(r, 'J') != '완료' and not tx(r, 'G')) or items[0]
+        t_other = pick(lambda r: tx(r, 'F') not in ('담당', '공동') and tx(r, 'J') != '완료' and not tx(r, 'G')) or t_mine
+        t_done = pick(lambda r: tx(r, 'J') == '완료') or t_other
+        t_robot = pick(lambda r: tx(r, 'G') == 'R' and tx(r, 'J') != '완료')
+        robot_style = t_robot.style('G') if t_robot else t_mine.style('G')
+        entries, summary = entries_fn(L)
+        # 기존 내용 행과 그 병합을 지운다
+        dead = set(id(r) for r in s.rows[h + 1:])
+        s.merges = [m for m in s.merges if id(m[1]) not in dead]
+        n_old = len(s.rows)
+        s.rows = s.rows[:h + 1]
+        for kind, e in entries:
+            if kind == 'day':
+                r = t_day.clone()
+                for c in 'ABCDEFGHIJ':
+                    r.set(c, e if c == 'A' else None)
+                s.rows.append(r); s.merges.append(('A', r, 'J', r))
+            else:
+                r = (t_done if e['done'] else t_mine if e['mine'] else t_other).clone()
+                vals = [e['when'], e['check'], e['id'], e['easy'], e['task'], e['role'], e['robot'], e['crit'], e['where'], e['status']]
+                for c, v in zip('ABCDEFGHIJ', vals):
+                    r.set(c, v)
+                if e['robot'] and not e['done']:
+                    r.set('G', 'R', style=robot_style)
+                elif not e['done']:
+                    r.set('G', e['robot'], style=(t_mine if e['mine'] else t_other).style('F'))
+                s.rows.append(r)
+        while len(s.rows) < n_old:
+            s.rows.append(Row('', {}))
+        s.rows[2].set('A', summary)

@@ -8,7 +8,7 @@
 ## 처음 들어온 사람은 이 순서로
 0. **[docs/00_팀원_시작가이드.md](docs/00_팀원_시작가이드.md)** — GitHub 토큰·clone·환경·에이전트 연결·매일 git 흐름을 순서대로 (GitHub 처음이면 여기부터)
 1. **[AGENTS.md](AGENTS.md)** — 확정값·시나리오·역할·절대 규칙. 에이전트에게도 이 파일을 준다
-2. **[docs/02_인터페이스_IRD.md](docs/02_인터페이스_IRD.md)** — 노드 간 계약 (혼자 바꾸지 않는다)
+2. **[docs/02_인터페이스_IRD.md](docs/02_인터페이스_IRD.md)** — 기능 함수·메시지 약속 (혼자 바꾸지 않는다)
 3. **[docs/setup/M0609_환경설정.md](docs/setup/M0609_환경설정.md)** — 내 PC 환경 (GPU 유무 공통)
 4. **[docs/prompts/](docs/prompts/)** — 내 프롬프트 (아래 "에이전트 사용법")
 5. **[CONTRIBUTING.md](CONTRIBUTING.md)** — 브랜치·커밋·PR·개발 흐름·안전
@@ -18,7 +18,7 @@
 |---|---|
 | [docs/00_팀원_시작가이드.md](docs/00_팀원_시작가이드.md) | 팀원 온보딩: 토큰·clone·환경·에이전트 연결·git 흐름·자주 나는 문제 |
 | [docs/01_요구사항_BR-SR.md](docs/01_요구사항_BR-SR.md) | 비즈니스·시스템 요구 (BR·FR·NFR·SR·IR·TR·AC·평가기준 대응·추적표) |
-| [docs/02_인터페이스_IRD.md](docs/02_인터페이스_IRD.md) + [docs/interfaces/](docs/interfaces/) | 인터페이스 정본 (srv·msg 파일) |
+| [docs/02_인터페이스_IRD.md](docs/02_인터페이스_IRD.md) + [docs/interfaces/](docs/interfaces/) | 인터페이스 정본 — 기능 함수 약속은 [`src/cobot_api`](src/cobot_api/cobot_api/contracts.py), 메시지는 `docs/interfaces/*.msg` |
 | [docs/03_설계_SDD.md](docs/03_설계_SDD.md) | 설계 (PC 2대 아키텍처·네트워크·통신 표·노드·상태 머신·YAML·오류·안전) + **§9 테스트 계획**(사전 검증 V·TC·INT·실패 주입·녹화 규칙·범위 방어) + 강사 산출물 매핑 |
 | **일정표 (구글 시트, 실시간 정본)** — 터미널에서 `python3 tools/sched.py [담당|taskID]` 로 조회 — [일정표(구글 시트)](https://docs.google.com/spreadsheets/d/1ikTAYTa8bgZofF_3RgP5jDoOipSZBPB1/edit?usp=sharing) | 강사 일정·마일스톤·로봇 슬롯·작업 목록(색 간트)·규칙·변경이력. 저장소에는 두지 않는다 |
 | [docs/images/](docs/images/) | 시스템 아키텍처(PC 단위, `.svg` + 편집용 `.drawio`) · 설계도 · 워크셀 |
@@ -29,12 +29,12 @@
 | `class_doc/` | 협동로봇 강의 PDF |
 
 ## 역할 (기능 단위)
-| 기능 | 담당 | 노드 |
+| 기능 | 담당 | 패키지 |
 |---|---|---|
 | F1 파지·이송·적재 + 좌표 | 한석형 | `f1_handling` · 좌표 계산·티칭(`config/cell.yaml`) |
-| F2 무게·털기·헹굼 + 흐름 | 민범진 | `f2_sense_flow` (`f2_node`, `flow_node`, `mock_f1_f3`) · 통합 리더 |
+| F2 무게·털기·헹굼 + 흐름 | 민범진 | `f2_sense_flow` (함수 `sense.py` · **메인 프로그램 `flow_node`** · mock 모듈) · 통합 리더 |
 | F3 접촉 닦기 + 공용 로봇 함수 | 박진용 | `f3_wipe` · **`cobot_common`**(이동·그리퍼·무게·힘 함수 + 설정 로더) · 안전 파라미터 |
-| F4 시스템 모니터(웹 HMI) + **PM** | 황인재 | `f4_hmi` (FastAPI + SQLite) · `cobot_msgs` 정본 · `prewash_bringup` · 일정표·문서 |
+| F4 시스템 모니터(웹 HMI) + **PM** | 황인재 | `f4_hmi` (FastAPI + SQLite) · `cobot_api`·`cobot_msgs` 정본 · `prewash_bringup` · 일정표·문서 |
 
 ## 에이전트 사용법
 | 담당 | 프롬프트 |
@@ -57,7 +57,7 @@
 rokey_pjt01_ws/        ← clone 폴더 (= 우리 ROS 2 워크스페이스). 위치는 자유, `.bashrc`의 PREWASH_WS 로 지정
 ├── AGENTS.md CLAUDE.md README.md CONTRIBUTING.md
 ├── docs/              문서·인터페이스 정본·이미지·프롬프트·환경설정
-├── src/               우리 ROS 2 패키지 7개 (cobot_msgs cobot_common f1_handling f2_sense_flow f3_wipe f4_hmi prewash_bringup)
+├── src/               우리 ROS 2 패키지 8개 (cobot_api cobot_msgs cobot_common f1_handling f2_sense_flow f3_wipe f4_hmi prewash_bringup)
 └── build/ install/ log/   (.gitignore)
 ```
 

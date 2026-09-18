@@ -8,7 +8,7 @@
 | 관련 문서 | [02_인터페이스_IRD.md](02_인터페이스_IRD.md) · [03_설계_SDD.md](03_설계_SDD.md)(§9 테스트 계획) · 일정표(구글 드라이브 xlsx) |
 | 일정 | 개발 9/18(금)~9/23(수) · 9/21(월) 중간점검 · 추석 9/24~28 로봇 불가 · 9/29(화) 강사 시연 · **9/30(수) 발표** |
 
-**문서 경계**: 이 문서는 "왜 필요한가(BR)", "무엇을 해야 하는가(FR·NFR)", "얼마나 잘 해야 하는가(SR·TR)"를 정한다. 노드 간 계약은 IRD, 노드 구성·상태 머신·좌표·오류 처리·시험 절차는 SDD, 일정은 구글 드라이브 일정표가 정한다. 강사 Notion "Business Requirements" 양식(BR/SR/FR/NFR/IR/TR + 추적표)을 따른다.
+**문서 경계**: 이 문서는 "왜 필요한가(BR)", "무엇을 해야 하는가(FR·NFR)", "얼마나 잘 해야 하는가(SR·TR)"를 정한다. 기능 사이의 약속(함수·메시지)은 IRD, 실행 구조·상태 머신·좌표·오류 처리·시험 절차는 SDD, 일정은 구글 드라이브 일정표가 정한다. 강사 Notion "Business Requirements" 양식(BR/SR/FR/NFR/IR/TR + 추적표)을 따른다.
 
 ---
 
@@ -35,7 +35,7 @@
 |---|---|---|---|
 | F1 | 파지·이송·적재 | 한석형 | 반납 구역 안을 **탐색하며** 그릇·컵을 집고(파지 폭으로 확인), 스테이션 간 이송하고, **스펀지 홈에 안착 놓기(어긋나면 탐색 보정)**, 툴을 픽업·반납하고, 팔레트의 정해진 칸·각도로 적재한다. |
 | F2 | 무게·털기·헹굼 + 흐름 | 민범진 | 무게로 잔반 판정 → 잔반통 위 털기 → 재측정 폐루프, 헹굼 담금·물 털기, 그리고 전체 공정 순서·실패 복구(`flow_node`). |
-| F3 | 접촉 닦기 + 공용 로봇 함수(`cobot_common`) | 박진용 | 수세미 툴(그릇)·수세미 솔(컵)로 일정한 힘으로 **안쪽만** 닦기(동작이 달라 서비스 분리), 세제 담금 모션, 스펀지 고정틀 제작. |
+| F3 | 접촉 닦기 + 공용 로봇 함수(`cobot_common`) | 박진용 | 수세미 툴(그릇)·수세미 솔(컵)로 일정한 힘으로 **안쪽만** 닦기(동작이 달라 함수 분리), 세제 담금 모션, 스펀지 고정틀 제작. |
 | F4 | 시스템 모니터(웹 HMI) + PM | 황인재 | 웹 화면에서 시작·정지·재개·소프트 정지, 단계·수량·소모품·연결 상태·오류 로그·이력 표시, SQLite 기록. |
 
 ---
@@ -49,7 +49,7 @@
 | **S3 연속** | 시작 1회로 **그릇 2개 → 컵 2개**를 순서대로 처리, 실패 시 재시도·격리 후 계속 | 전 용기 처리 또는 격리, HMI 완료 표시 |
 
 ### 포함
-- M0609 + RG2 단일 셀, ROS 2 Jazzy 노드 5개(f1·f2·f3·flow·hmi_bridge)와 공용 메시지·공용 로봇 함수, **PC 2대**(로봇 제어 PC + HMI PC)
+- M0609 + RG2 단일 셀, ROS 2 Jazzy **노드 2개**(`flow_node` 메인 프로그램 · `hmi_bridge`)와 **기능 패키지 3개**(f1·f2·f3 — 노드가 아니라 flow_node가 부르는 파이썬 함수), 공용 메시지·함수 약속·공용 로봇 함수, **PC 2대**(로봇 제어 PC + HMI PC)
 - 용기 **그릇 1규격 2개 + 컵 1규격 2개**. 종류는 **반납 구역**으로 결정(그릇 구역 / 컵 구역). 구역 안의 위치는 일정하지 않고 겹쳐 있을 수 있다 → **탐색 파지**
 - 로봇 하중 측정(`get_workpiece_weight`)으로 잔반 판정, 털기 재측정 폐루프
 - 스펀지 고정틀(용기 모양 홈) 안착과 Move Periodic 탐색 보정
@@ -109,7 +109,7 @@
 | NFR-01 | 안전성 | 모든 접촉 동작(탐색 하강·닦기·안착·적재)에 힘 상한·후퇴·타임아웃. 첫 실기 저속 20~30%. | 닦기 10 N · 안착 15 N · 삽입 15 N · 탐색 하강 10 N (설정) |
 | NFR-02 | 성능 | 용기 1개 사이클 90 s 이내 목표(탐색 포함). | ≤ 90 s [팀 목표] |
 | NFR-03 | 지속성 | 개별 용기 실패가 전체 운영을 멈추지 않는다(격리 후 계속, 오류 시 재개). | 실패 주입 4종 복구 |
-| NFR-04 | 단순성 | 노드 5개 + 공용 패키지 2개 이내. 기능 추가보다 종단 간 동작 우선. 9/23 동결. | |
+| NFR-04 | 단순성 | 노드 2개 + 기능 패키지 3개 + 공용 패키지 3개(`cobot_common`·`cobot_api`·`cobot_msgs`) 이내. 로봇 명령을 내는 곳은 `flow_node` 메인 스레드 하나(9/18 구조 변경, TS-01). 기능 추가보다 종단 간 동작 우선. 9/23 동결. | |
 | NFR-05 | 독립 시험 | F1~F4 각각 단독 리그·mock으로 독립 실행. 로봇 없이 흐름·HMI 검증. | |
 | NFR-06 | 설정 분리 | 좌표·힘·무게·횟수·속도·탐색점은 코드가 아닌 YAML. | 하드코딩 0 |
 | NFR-07 | 일관성 | 종류·구역·칸·스테이션·실패 코드 문자열은 ROS·기록·HMI 전 계층 동일. | |
@@ -139,7 +139,7 @@
 | 그리퍼 | OnRobot RG2 (0~110 mm, 3~40 N, 폭 피드백). DO1/DO2 잡기·놓기, DI1/DI2 완료 신호. 설정 웹 192.168.1.1. 핑거에 미끄럼방지 패드 |
 | 툴 설정 | TCP 1종(RG2), 툴 무게 2종(빈 그리퍼 / 수세미 툴 파지) |
 | PC | Ubuntu 24.04 · ROS 2 Jazzy · Python 3.12 · GPU 불필요. 개발 4대(각자 Virtual/mock), 통합 실행 PC-A(로봇) + PC-B(HMI) |
-| 소프트웨어 | `doosan-robot2`(dsr_msgs2) · `DSR_ROBOT2` API · `m0609_rg2_bringup` · 우리 워크스페이스 `rokey_pjt01_ws` (cobot_msgs, cobot_common, f1_handling, f2_sense_flow, f3_wipe, f4_hmi, prewash_bringup) · FastAPI + WebSocket + SQLite |
+| 소프트웨어 | `doosan-robot2`(dsr_msgs2) · `DSR_ROBOT2` API · `m0609_rg2_bringup` · 우리 워크스페이스 `rokey_pjt01_ws` (cobot_msgs, cobot_api, cobot_common, f1_handling, f2_sense_flow, f3_wipe, f4_hmi, prewash_bringup) · FastAPI + WebSocket + SQLite |
 | 사용 로봇 기능 | movej/movel/amovel, trans, 사용자 좌표계, get_workpiece_weight, get_tool_force, check_force_condition, task_compliance_ctrl, set_desired_force, move_periodic, set_digital_output/get_digital_input, mwait, stop |
 | 네트워크 | PC-A ↔ 컨트롤러 TCP 12345(DDS 아님, 유선 192.168.1.x). PC-A ↔ PC-B DDS, `ROS_DOMAIN_ID=60`, 같은 스위치. HMI `http://<PC-B>:8000` |
 | 시뮬레이션 | DRCF Virtual: 궤적·시퀀스만. **힘·무게·접촉 없음** → mock으로 대체, 임계값은 실기 |
@@ -161,19 +161,19 @@
 | SR-11 | 헹굼 담금(깊이·시간) → 물 털기(진폭·횟수). 충돌 감지 정지 0. | 10회 정지 0 |
 | SR-12 | 팔레트 칸 ID로 지정 각도 삽입, 마지막 30 mm 순응 + 삽입력 감시, 걸림 시 후퇴·재시도 1회. | 적재 10회 ≥9, 낙하 0 |
 | SR-13 | 칸 사용 상태를 flow가 관리, 만재 시 `RACK_FULL`. | 만재 시나리오 1회 |
-| SR-14 | `flow_node`는 시작 명령으로 구역 계획대로 F1→F2→F3→F2→F1 서비스를 호출하고, 실패 코드별 정책(재시도/격리/정지)으로 계속 또는 정지, 재개로 이어서 처리. | 실패 주입 4종 정책대로 |
-| SR-15 | HMI: 버튼 → 서비스 1 s 이내, 상태 2 Hz 갱신, 표시 지연 ≤1 s, 로봇 없이 fake 발행기로 동작. 연결 끊김 표시. | 지연 ≤1 s |
+| SR-14 | `flow_node`는 시작 명령으로 구역 계획대로 F1→F2→F3→F2→F1 **기능 함수**를 차례로 호출하고(같은 프로세스, 메인 스레드), 실패 코드별 정책(재시도/격리/정지)으로 계속 또는 정지, 재개로 이어서 처리. | 실패 주입 4종 정책대로 |
+| SR-15 | HMI: 버튼 → `/flow/*` 서비스 1 s 이내, 상태 2 Hz 갱신, 표시 지연 ≤1 s, 로봇 없이 fake 발행기로 동작. 연결 끊김 표시. | 지연 ≤1 s |
 | SR-16 | 용기별 기록 행을 CSV(PC-A)와 SQLite(PC-B)에 남긴다. | 4행 누락 0 |
 
 ### 5.4 인터페이스 요구 (IR) — 정본은 [02_인터페이스_IRD.md](02_인터페이스_IRD.md)
 | ID | 인터페이스 | 요약 |
 |---|---|---|
-| IR-01 | F1 서비스 | `pick(zone)`, `place`(스펀지 홈이면 안착 놓기), `move_to`, `tool`, `rack_place` — 반환 `ok, code, width_mm, attempts` |
-| IR-02 | F2 서비스 | `weigh`, `leftover_loop`, `shake`, `dip` — 반환 `ok, code, weight_g` |
-| IR-03 | F3 서비스 | `soap`, `wipe_bowl`, `wipe_cup`(그릇·컵 동작이 달라 분리) — 반환 `ok, code, force_log_path`. 안착은 F1 `place`가 담당 |
+| IR-01 | F1 함수 (`f1_handling.handling`) | `pick(zone)`, `place`(스펀지 홈이면 안착 놓기), `move_to`, `tool`, `rack_place` — 반환 `ok, code, width_mm, attempts` |
+| IR-02 | F2 함수 (`f2_sense_flow.sense`) | `weigh`, `leftover_loop`, `shake`, `dip` — 반환 `ok, code, weight_g` |
+| IR-03 | F3 함수 (`f3_wipe.wipe`) | `soap`, `wipe_bowl`, `wipe_cup`(그릇·컵 동작이 달라 분리) — 반환 `ok, code, force_log_path`. 안착은 F1 `place`가 담당 |
 | IR-04 | flow ↔ HMI | `start/stop/resume`(Trigger), `/flow/state`, `/flow/event`, REST/WS 브리지 |
 | IR-05 | 공통 ID | `BOWL`/`CUP`/`SPONGE`/`BRUSH`, 구역 `RET_B`/`RET_C`, 칸 `RACK_B1..2`/`RACK_C1..4`, 스테이션, 실패 코드 |
-| IR-06 | 로봇 API | `cobot_common` 공용 함수만 사용, DSR API 직접 호출 금지 |
+| IR-06 | 로봇 API | `cobot_common` 공용 함수만 사용, DSR API 직접 호출 금지. 두산 함수는 **메인 스레드에서만**(SDD §3.2). 기능 함수의 이름·인자·반환·코드는 `cobot_api`가 정본 |
 | IR-07 | 설정 파일 | `src/cobot_common/config/`의 **파일 2개**: 공용 **`cell.yaml`**(좌표·속도·힘 상한·프리셋, 주인 한석형) + **`params.yaml`**(`f1` `f2` `f3` `flow` `hmi` 절, 자기 절만 수정). 로더가 하나의 설정으로 합침 |
 
 ### 5.5 검증 매트릭스 (TR)

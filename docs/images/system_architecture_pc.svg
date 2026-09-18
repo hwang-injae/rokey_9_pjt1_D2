@@ -1,34 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1760" height="1040" viewBox="0 0 1760 1040" font-family="Noto Sans CJK KR, NanumGothic, Malgun Gothic, Apple SD Gothic Neo, sans-serif" font-size="12">
 <rect width="1760" height="1040" fill="#ffffff"/>
 <defs><marker id="ar" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker><marker id="arb" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1155aa"/></marker></defs>
-<text x="40" y="34" font-size="21" font-weight="bold">PreWash-Cell 시스템 아키텍처 (PC 단위) — 노드 □ · 토픽 ◯ · 화살표 라벨 = 서비스/메시지 타입</text>
-<text x="40" y="54" font-size="11" fill="#555">9/18 DSN-01 회의 반영: PC 2대 · 노드 5개 · flow_node만 호출 · wipe 분리 · seat/home 삭제 · 설정은 config/ 한 폴더.   미확정(DSN-03): 반납 구역 방식 · HMI 설계 · FlowState 필드</text>
+<text x="40" y="34" font-size="21" font-weight="bold">PreWash-Cell 시스템 아키텍처 (PC 단위) — 노드 □ · 토픽 ◯ · 패키지(함수) ┄ · 화살표 라벨 = 서비스/메시지 타입/함수</text>
+<text x="40" y="54" font-size="11" fill="#555">9/18 구조 변경(DSN-02b): 노드 2개 · f1·f2·f3는 flow_node가 부르는 파이썬 함수 · 로봇 명령은 메인 스레드 하나</text>
 <rect x="40" y="84" width="1060" height="880" rx="8" fill="none" stroke="#222222" stroke-width="2"/>
 <text x="52" y="104" font-size="13" font-weight="bold">PC-A  로봇 제어 PC   ·  Ubuntu 24.04 · ROS 2 Jazzy · ROS_DOMAIN_ID=60 · 유선 192.168.1.x</text>
 <rect x="1440" y="84" width="290" height="420" rx="8" fill="none" stroke="#222222" stroke-width="2"/>
 <text x="1452" y="104" font-size="13" font-weight="bold">PC-B  HMI PC  · DOMAIN 60</text>
 <rect x="1160" y="560" width="570" height="404" rx="8" fill="none" stroke="#222222" stroke-width="2"/>
 <text x="1172" y="580" font-size="13" font-weight="bold">로봇 셀</text>
-<rect x="430" y="124" width="260" height="70" fill="#D9EAD3" stroke="#6AA84F" stroke-width="1.8"/>
-<text x="560.0" y="148.0" text-anchor="middle" font-size="13" font-weight="bold" fill="#111">flow_node</text>
-<text x="560.0" y="163.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">f2_sense_flow · 민범진</text>
-<text x="560.0" y="178.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">유일한 호출자 · 상태 머신</text>
-<rect x="70" y="360" width="280" height="84" fill="#CFE2F3" stroke="#3D85C6" stroke-width="1.8"/>
-<text x="210.0" y="391.0" text-anchor="middle" font-size="13" font-weight="bold" fill="#111">f1_node</text>
-<text x="210.0" y="406.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">f1_handling · 한석형</text>
+<rect x="395" y="124" width="330" height="70" fill="#D9EAD3" stroke="#6AA84F" stroke-width="1.8"/>
+<text x="560.0" y="148.0" text-anchor="middle" font-size="13" font-weight="bold" fill="#111">flow_node   (메인 프로그램 · 프로세스 1개)</text>
+<text x="560.0" y="163.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">f2_sense_flow · 민범진 · 유일한 호출자 · 상태 머신</text>
+<text x="560.0" y="178.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">메인 스레드 = 순서 실행  /  통신 노드 스레드 = /flow/* · 상태 2 Hz</text>
+<rect x="70" y="360" width="280" height="84" rx="4" fill="#CFE2F3" stroke="#3D85C6" stroke-width="1.4" stroke-dasharray="6,4"/>
+<text x="210.0" y="391.0" text-anchor="middle" font-size="13" font-weight="bold" fill="#111">f1_handling.handling   (함수 모듈 · 노드 아님)</text>
+<text x="210.0" y="406.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">한석형</text>
 <text x="210.0" y="421.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">탐색 파지 · 안착 놓기 · 이송 · 툴 · 팔레트 적재</text>
-<rect x="420" y="360" width="280" height="84" fill="#D9EAD3" stroke="#6AA84F" stroke-width="1.8"/>
-<text x="560.0" y="391.0" text-anchor="middle" font-size="13" font-weight="bold" fill="#111">f2_node</text>
-<text x="560.0" y="406.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">f2_sense_flow · 민범진</text>
+<rect x="420" y="360" width="280" height="84" rx="4" fill="#D9EAD3" stroke="#6AA84F" stroke-width="1.4" stroke-dasharray="6,4"/>
+<text x="560.0" y="391.0" text-anchor="middle" font-size="13" font-weight="bold" fill="#111">f2_sense_flow.sense   (함수 모듈 · 노드 아님)</text>
+<text x="560.0" y="406.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">민범진</text>
 <text x="560.0" y="421.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">무게 · 잔반 폐루프 · 털기 · 헹굼</text>
-<rect x="770" y="360" width="280" height="84" fill="#FCE5CD" stroke="#E69138" stroke-width="1.8"/>
-<text x="910.0" y="391.0" text-anchor="middle" font-size="13" font-weight="bold" fill="#111">f3_node</text>
-<text x="910.0" y="406.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">f3_wipe · 박진용</text>
+<rect x="770" y="360" width="280" height="84" rx="4" fill="#FCE5CD" stroke="#E69138" stroke-width="1.4" stroke-dasharray="6,4"/>
+<text x="910.0" y="391.0" text-anchor="middle" font-size="13" font-weight="bold" fill="#111">f3_wipe.wipe   (함수 모듈 · 노드 아님)</text>
+<text x="910.0" y="406.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">박진용</text>
 <text x="910.0" y="421.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">세제 담금 · 그릇 닦기 · 컵 닦기</text>
 <rect x="400" y="690" width="320" height="78" fill="#EFEFEF" stroke="#666666" stroke-width="1.8"/>
 <text x="560.0" y="718.0" text-anchor="middle" font-size="13" font-weight="bold" fill="#111">dsr_controller2  (/dsr01)</text>
 <text x="560.0" y="733.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">두산 드라이버 · ws_dsr (수정 안 함)</text>
 <text x="560.0" y="748.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">m0609_rg2_bringup bringup.launch.py</text>
+<rect x="770" y="800" width="290" height="70" fill="#EFEFEF" stroke="#666666" stroke-width="1.8"/>
+<text x="915.0" y="824.0" text-anchor="middle" font-size="13" font-weight="bold" fill="#111">OnRobotRGControllerServer</text>
+<text x="915.0" y="839.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">그리퍼 드라이버 · ws_dsr (강사 배포)</text>
+<text x="915.0" y="854.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">명령 srv · 현재 폭 topic</text>
 <rect x="110" y="830" width="190" height="48" fill="#EFEFEF" stroke="#666666" stroke-width="1.8"/>
 <text x="205.0" y="858.0" text-anchor="middle" font-size="13" font-weight="bold" fill="#111">rviz2 · 모니터링 (선택)</text>
 <rect x="1465" y="150" width="240" height="96" fill="#D9D2E9" stroke="#8E7CC3" stroke-width="1.8"/>
@@ -47,8 +51,8 @@
 <text x="1585.0" y="786.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">폭 피드백 0~110 mm</text>
 <text x="1585.0" y="801.0" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">설정 웹 192.168.1.1</text>
 <rect x="70" y="502" width="980" height="84" rx="4" fill="#F7F7F7" stroke="#777777" stroke-width="1.4" stroke-dasharray="6,4"/>
-<text x="560.0" y="525.5" text-anchor="middle" font-size="13" font-weight="bold" fill="#111">cobot_common  (라이브러리 — 노드 아님 · 박진용)</text>
-<text x="560.0" y="540.5" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">bootstrap.py: init(node) · spin(node) — 기능 노드 프로세스마다 DSR 전용 노드(&lt;노드&gt;_dsr) 1개 + 자체 실행기. rclpy.spin() 금지 (TS-01, SDD §3.2)</text>
+<text x="560.0" y="525.5" text-anchor="middle" font-size="13" font-weight="bold" fill="#111">cobot_common  (라이브러리 — 노드 아님 · 박진용)      +      cobot_api  (기능 함수 약속: ID · 코드 · Result · 함수 서명 — PM)</text>
+<text x="560.0" y="540.5" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">bootstrap.py: init(name) → DSR 전용 노드(flow_node_dsr) + 통신 노드(백그라운드 실행기) · shutdown()   🚨 두산 함수는 메인 스레드에서만 (TS-01 · SDD §3.2)</text>
 <text x="560.0" y="555.5" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">robot.py: move_to · move_rel · grip · grip_level · release · weigh · force_on/off · force_reached · contact_down · periodic_search · safe_retreat</text>
 <text x="560.0" y="570.5" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#111">config.py → config/cell.yaml (공용 좌표·속도·프리셋 · 한석형) + config/params.yaml (f1 · f2 · f3 · flow · hmi 절 — 자기 절만 수정)</text>
 <path d="M130,136 a90.0,8 0 0,0 180,0 a90.0,8 0 0,0 -180,0 v40 a90.0,8 0 0,0 180,0 v-40" fill="#EFEFEF" stroke="#666666" stroke-width="1.2"/>
@@ -66,7 +70,7 @@
 <text x="1265.0" y="229.0" text-anchor="middle" font-size="13" font-weight="bold" fill="#111">/flow/event</text>
 <ellipse cx="205.0" cy="729.0" rx="115.0" ry="29.0" fill="#FFF2CC" stroke="#BF9000" stroke-width="1.6"/>
 <text x="205.0" y="733.0" text-anchor="middle" font-size="13" font-weight="bold" fill="#111">/dsr01/joint_states</text>
-<rect x="1140" y="300" width="280" height="214" rx="4" fill="#F7F7F7" stroke="#777777" stroke-width="1.4" stroke-dasharray="6,4"/>
+<rect x="1140" y="300" width="280" height="232" rx="4" fill="#F7F7F7" stroke="#777777" stroke-width="1.4" stroke-dasharray="6,4"/>
 <text x="1152" y="320" font-size="13" font-weight="bold">범례</text>
 <text x="1152" y="337" font-size="11" font-weight="normal"></text>
 <text x="1152" y="354" font-size="11" font-weight="normal">□ 사각형 = 노드</text>
@@ -75,19 +79,22 @@
 <text x="1152" y="405" font-size="11" font-weight="normal">     라벨 = 서비스 이름 : 타입</text>
 <text x="1152" y="422" font-size="11" font-weight="normal">⇢ 점선 화살표 = 토픽 publish / subscribe</text>
 <text x="1152" y="439" font-size="11" font-weight="normal">     라벨 = 메시지 타입</text>
-<text x="1152" y="456" font-size="11" font-weight="normal">┄ 점선 상자 = 라이브러리(노드 아님)</text>
-<text x="1152" y="473" font-size="11" font-weight="normal">━ 굵은 선 = 네트워크·물리 연결</text>
-<text x="1152" y="490" font-size="11" font-weight="normal">색: 파랑 F1 · 초록 F2 · 주황 F3 · 보라 F4 · 회색 외부</text>
-<polyline points="480,194 480,222 210,222 210,360" fill="none" stroke="#333" stroke-width="1.6" marker-end="url(#ar)"/>
-<polyline points="560,194 560,360" fill="none" stroke="#333" stroke-width="1.6" marker-end="url(#ar)"/>
-<polyline points="640,194 640,222 910,222 910,360" fill="none" stroke="#333" stroke-width="1.6" marker-end="url(#ar)"/>
+<text x="1152" y="456" font-size="11" font-weight="normal">┄ 점선 상자 = 파이썬 패키지·함수(노드 아님)</text>
+<text x="1152" y="473" font-size="11" font-weight="normal">→ 회색 가는 화살표 = 파이썬 함수 호출</text>
+<text x="1152" y="490" font-size="11" font-weight="normal">━ 굵은 선 = 네트워크·물리 연결</text>
+<text x="1152" y="507" font-size="11" font-weight="normal">색: 파랑 F1 · 초록 F2 · 주황 F3 · 보라 F4 · 회색 외부</text>
+<polyline points="480,194 480,222 210,222 210,360" fill="none" stroke="#888" stroke-width="1.2" marker-end="url(#ar)"/>
+<polyline points="560,194 560,360" fill="none" stroke="#888" stroke-width="1.2" marker-end="url(#ar)"/>
+<polyline points="640,194 640,222 910,222 910,360" fill="none" stroke="#888" stroke-width="1.2" marker-end="url(#ar)"/>
 <polyline points="210,444 210,502" fill="none" stroke="#888" stroke-width="1.2" marker-end="url(#ar)"/>
 <polyline points="560,444 560,502" fill="none" stroke="#888" stroke-width="1.2" marker-end="url(#ar)"/>
 <polyline points="910,444 910,502" fill="none" stroke="#888" stroke-width="1.2" marker-end="url(#ar)"/>
 <polyline points="560,586 560,690" fill="none" stroke="#333" stroke-width="1.6" marker-end="url(#ar)"/>
-<polyline points="430,156 310,156" fill="none" stroke="#888" stroke-width="1.2" marker-end="url(#ar)"/>
-<polyline points="690,135 1140,135" fill="none" stroke="#333" stroke-width="1.5" stroke-dasharray="7,4" marker-end="url(#ar)"/>
-<polyline points="690,178 1112,178 1112,225 1140,225" fill="none" stroke="#333" stroke-width="1.5" stroke-dasharray="7,4" marker-end="url(#ar)"/>
+<polyline points="960,586 960,800" fill="none" stroke="#333" stroke-width="1.6" marker-end="url(#ar)"/>
+<polyline points="1060,835 1440,835 1440,805 1470,805" fill="none" stroke="#1155aa" stroke-width="3" marker-end="url(#arb)"/>
+<polyline points="395,156 310,156" fill="none" stroke="#888" stroke-width="1.2" marker-end="url(#ar)"/>
+<polyline points="725,135 1140,135" fill="none" stroke="#333" stroke-width="1.5" stroke-dasharray="7,4" marker-end="url(#ar)"/>
+<polyline points="725,178 1112,178 1112,225 1140,225" fill="none" stroke="#333" stroke-width="1.5" stroke-dasharray="7,4" marker-end="url(#ar)"/>
 <polyline points="1390,135 1428,135 1428,180 1465,180" fill="none" stroke="#333" stroke-width="1.5" stroke-dasharray="7,4" marker-end="url(#ar)"/>
 <polyline points="1390,225 1465,225" fill="none" stroke="#333" stroke-width="1.5" stroke-dasharray="7,4" marker-end="url(#ar)"/>
 <polyline points="1690,150 1690,70 560,70 560,124" fill="none" stroke="#333" stroke-width="1.6" marker-end="url(#ar)"/>
@@ -97,38 +104,43 @@
 <polyline points="1430,650 1470,650" fill="none" stroke="#1155aa" stroke-width="3" marker-end="url(#arb)"/>
 <polyline points="1430,685 1450,685 1450,782 1470,782" fill="none" stroke="#1155aa" stroke-width="3" marker-end="url(#arb)"/>
 <polyline points="1585,246 1585,280" fill="none" stroke="#888" stroke-width="1.2" marker-end="url(#ar)"/>
-<rect x="71.85" y="249.0" width="276.3" height="84" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
-<text x="210" y="262.0" text-anchor="middle" font-size="10" font-weight="bold" fill="#222">서비스 호출  flow_node → f1_node</text>
-<text x="210" y="275.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">/f1/pick : cobot_msgs/srv/F1Pick</text>
-<text x="210" y="288.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">/f1/place : cobot_msgs/srv/F1Place</text>
-<text x="210" y="301.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">/f1/move_to : cobot_msgs/srv/F1MoveTo</text>
-<text x="210" y="314.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">/f1/tool : cobot_msgs/srv/F1Tool</text>
-<text x="210" y="327.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">/f1/rack_place : cobot_msgs/srv/F1RackPlace</text>
-<rect x="403.55" y="255.5" width="312.9" height="71" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
-<text x="560" y="268.5" text-anchor="middle" font-size="10" font-weight="bold" fill="#222">서비스 호출  flow_node → f2_node</text>
-<text x="560" y="281.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">/f2/weigh : cobot_msgs/srv/F2Weigh</text>
-<text x="560" y="294.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">/f2/leftover_loop : cobot_msgs/srv/F2LeftoverLoop</text>
-<text x="560" y="307.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">/f2/shake : cobot_msgs/srv/F2Shake</text>
-<text x="560" y="320.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">/f2/dip : cobot_msgs/srv/F2Dip</text>
-<rect x="777.95" y="262.0" width="264.1" height="58" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
-<text x="910" y="275.0" text-anchor="middle" font-size="10" font-weight="bold" fill="#222">서비스 호출  flow_node → f3_node</text>
-<text x="910" y="288.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">/f3/soap : cobot_msgs/srv/F3Soap</text>
-<text x="910" y="301.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">/f3/wipe_bowl : cobot_msgs/srv/F3WipeBowl</text>
-<text x="910" y="314.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">/f3/wipe_cup : cobot_msgs/srv/F3WipeCup</text>
+<rect x="93.2" y="249.0" width="233.6" height="84" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
+<text x="210" y="262.0" text-anchor="middle" font-size="10" font-weight="bold" fill="#222">파이썬 함수 호출 (같은 프로세스 · 메인 스레드)</text>
+<text x="210" y="275.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">pick(zone_id, kind) → PickResult</text>
+<text x="210" y="288.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">place(station) → PlaceResult</text>
+<text x="210" y="301.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">move_to(station, carrying) → Result</text>
+<text x="210" y="314.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">tool(tool, action) → ToolResult</text>
+<text x="210" y="327.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">rack_place(rack_slot, kind) → Result</text>
+<rect x="406.6" y="255.5" width="306.79999999999995" height="71" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
+<text x="560" y="268.5" text-anchor="middle" font-size="10" font-weight="bold" fill="#222">파이썬 함수 호출</text>
+<text x="560" y="281.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">weigh(kind) → WeighResult</text>
+<text x="560" y="294.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">leftover_loop(kind, max_rounds) → LeftoverResult</text>
+<text x="560" y="307.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">shake(mode, count, kind) → Result</text>
+<text x="560" y="320.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">dip(station, count, kind) → Result</text>
+<rect x="817.6" y="255.5" width="184.79999999999998" height="71" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
+<text x="910" y="268.5" text-anchor="middle" font-size="10" font-weight="bold" fill="#222">파이썬 함수 호출</text>
+<text x="910" y="281.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">soap(count) → Result</text>
+<text x="910" y="294.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">wipe_bowl() → WipeBowlResult</text>
+<text x="910" y="307.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">wipe_cup() → WipeCupResult</text>
+<text x="910" y="320.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">(반환 타입은 cobot_api)</text>
 <rect x="498.1" y="467.5" width="123.8" height="19" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
 <text x="560" y="480.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">파이썬 함수 호출 (import)</text>
-<rect x="427.5" y="596.5" width="685.0" height="71" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
-<text x="770" y="609.5" text-anchor="middle" font-size="10" font-weight="bold" fill="#222">서비스 호출  (DSR_ROBOT2 API 내부)  cobot_common → dsr_controller2</text>
-<text x="770" y="622.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">/dsr01/motion/move_joint · move_line : dsr_msgs2/srv/MoveJoint · MoveLine</text>
-<text x="770" y="635.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">/dsr01/force/task_compliance_ctrl · set_desired_force · release_force · get_workpiece_weight : dsr_msgs2/srv/…</text>
-<text x="770" y="648.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">/dsr01/io/set_ctrl_box_digital_output · get_ctrl_box_digital_input : dsr_msgs2/srv/…  (RG2 DO1/DO2 · DI1/DI2)</text>
-<text x="770" y="661.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">※ 정확한 이름·타입은 두산 ROS 2 매뉴얼(jazzy)로 확인 후 확정</text>
+<rect x="366.95000000000005" y="611.0" width="386.09999999999997" height="58" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
+<text x="560" y="624.0" text-anchor="middle" font-size="10" font-weight="bold" fill="#222">서비스 호출 (DSR_ROBOT2 API 내부)  flow_node_dsr → dsr_controller2</text>
+<text x="560" y="637.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">/dsr01/dsr_controller2/motion/move_joint · move_line</text>
+<text x="560" y="650.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">/dsr01/dsr_controller2/force/task_compliance_ctrl</text>
+<text x="560" y="663.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">· set_desired_force · get_workpiece_weight  (dsr_msgs2/srv/…)</text>
+<rect x="864.55" y="684.0" width="190.89999999999998" height="32" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
+<text x="960" y="697.0" text-anchor="middle" font-size="10" font-weight="bold" fill="#222">/onrobot/sendCommand (srv)</text>
+<text x="960" y="710.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">OnRobotRGInput (topic · 현재 폭)</text>
+<rect x="1131.0" y="842.5" width="258.0" height="19" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
+<text x="1260" y="855.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">Modbus TCP · RG2 Compute Box 192.168.1.1</text>
 <rect x="344.7" y="134.5" width="50.599999999999994" height="19" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
 <text x="370" y="147.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">CSV 기록</text>
-<rect x="782.95" y="112.5" width="264.1" height="19" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
-<text x="915" y="125.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">publish · cobot_msgs/msg/FlowState · 2 Hz</text>
-<rect x="761.85" y="155.5" width="276.3" height="19" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
-<text x="900" y="168.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">publish · cobot_msgs/msg/FlowEvent · 용기당 1건</text>
+<rect x="797.95" y="112.5" width="264.1" height="19" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
+<text x="930" y="125.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">publish · cobot_msgs/msg/FlowState · 2 Hz</text>
+<rect x="776.85" y="155.5" width="276.3" height="19" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
+<text x="915" y="168.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">publish · cobot_msgs/msg/FlowEvent · 용기당 1건</text>
 <rect x="1393.55" y="110.5" width="68.9" height="19" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
 <text x="1428" y="123.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">subscribe</text>
 <rect x="1393.55" y="230.5" width="68.9" height="19" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
@@ -143,5 +155,5 @@
 <text x="925" y="749.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">두산 전용 TCP 12345 (DDS 아님) · 유선 192.168.1.x</text>
 <rect x="1271.15" y="720.5" width="117.69999999999999" height="19" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
 <text x="1330" y="733.5" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">DO1/DO2 · DI1/DI2</text>
-<text x="40" y="998" font-size="11" fill="#555">개발 중에는 mock_f1_f3(민범진)이 /f1/* · /f3/* 서비스를, fake_state_pub(황인재)이 /flow/state · /flow/event 를 같은 이름으로 대신 제공한다 → 로봇·남의 코드 없이 개발.   PC-A ↔ PC-B 는 같은 스위치의 DDS(멀티캐스트).</text>
+<text x="40" y="998" font-size="11" fill="#555">개발 중에는 mock 모듈(f2_sense_flow.mock — 같은 함수 이름, 민범진)이 f1·f3 함수를, fake_state_pub(황인재)이 /flow/state · /flow/event 를 대신한다 → 로봇·남의 코드 없이 개발.   각자 단독 시험은 rig_f*.py.   PC-A ↔ PC-B 는 같은 스위치의 DDS.</text>
 </svg>

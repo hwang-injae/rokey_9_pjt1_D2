@@ -1,31 +1,17 @@
 cmake_minimum_required(VERSION 3.8)
 project(cobot_msgs)
 
-# 메시지·서비스 정의만 담는 패키지다. 노드 코드는 각 기능 패키지에 둔다.
+# 메시지 정의만 담는 패키지다. 기능 함수의 약속(인자·반환·코드)은 cobot_api 에 있다.
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(builtin_interfaces REQUIRED)   # FlowState/FlowEvent 의 stamp
 
-# IRD v2.1 §3~7 (9/18 DSN-01: wipe 분리 · seat 삭제 · place 응답 offset_mm) · 정본은 docs/interfaces/ (파일 내용은 그대로 복사한 것)
+# IRD v3.0 (9/18 구조 변경: 기능 사이 호출은 서비스가 아니라 파이썬 함수 → srv 12개 삭제, 함수 약속은 cobot_api 패키지)
+# 정본은 docs/interfaces/ (파일 내용은 그대로 복사한 것)
 rosidl_generate_interfaces(${PROJECT_NAME}
-  # --- msg 2 (flow → HMI) ---
+  # --- msg 2 (flow_node → HMI) ---
   "msg/FlowState.msg"
   "msg/FlowEvent.msg"
-  # --- srv 5 : F1 파지·이송·적재 (한석형) ---
-  "srv/F1Pick.srv"
-  "srv/F1Place.srv"
-  "srv/F1MoveTo.srv"
-  "srv/F1Tool.srv"
-  "srv/F1RackPlace.srv"
-  # --- srv 4 : F2 무게·털기·헹굼 (민범진) ---
-  "srv/F2Weigh.srv"
-  "srv/F2LeftoverLoop.srv"
-  "srv/F2Shake.srv"
-  "srv/F2Dip.srv"
-  # --- srv 3 : F3 접촉 닦기 (박진용) — 안착은 F1Place 가 담당 ---
-  "srv/F3Soap.srv"
-  "srv/F3WipeBowl.srv"
-  "srv/F3WipeCup.srv"
   DEPENDENCIES builtin_interfaces
 )
 
