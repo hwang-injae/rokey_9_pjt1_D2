@@ -19,7 +19,13 @@ HEAD_SHA=$(git rev-parse --short "pr-$N"); MAIN_SHA=$(git rev-parse --short orig
 echo "  PR head $HEAD_SHA · origin/main $MAIN_SHA"
 
 # 1. main 최신 병합 여부
-if git merge-base --is-ancestor origin/main "pr-$N"; then ok "main 최신($MAIN_SHA)이 PR에 병합되어 있음"; else ng "origin/main 이 PR 브랜치에 없음 → 작성자가 'git merge origin/main' 후 push 해야 함"; fi
+if git merge-base --is-ancestor origin/main "pr-$N"; then ok "main 최신($MAIN_SHA)이 PR에 병합되어 있음"
+else
+  # main이 더 나아간 경우: 충돌 없이 합쳐지면 통과(참고), 충돌이 있으면 실패
+  MT=$(git merge-tree --write-tree "origin/main" "pr-$N" 2>&1); RC=$?
+  if [ $RC -eq 0 ]; then wn "main이 PR 이후에 더 나아갔지만 충돌 없이 합쳐짐 (가능하면 'git merge origin/main' 후 push)"
+  else ng "origin/main 과 충돌 → 작성자가 'git merge origin/main' 으로 충돌을 풀고 push 해야 함"; echo "$MT" | grep -E '^CONFLICT' | head -5 | sed 's/^/     /'; fi
+fi
 
 # 2. 변경 파일
 FILES=$(git diff --name-only "origin/main...pr-$N")

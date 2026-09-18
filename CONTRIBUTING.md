@@ -112,14 +112,14 @@ docs(setup): PYTHONPATH 누락 시 DR_init import 오류 함정 추가
 | **main 병합** | `origin/main` 최신이 PR 브랜치에 포함됨(`git merge origin/main` 후 push) | 거절: "main 병합 후 다시" |
 | **산출물·비밀값** | `build/ install/ log/ *.mp4 rewash.db`·토큰 없음 | 거절 |
 | 참고(거절 아님) | 브랜치·제목 형식, 하드코딩·절대경로 의심, 접촉 동작 안전 3종 단어, 인터페이스 파일 변경, 실기 영향 칸 | 코멘트로 알려주고 다음 PR부터 반영. 단, **로봇을 움직이는 코드에 힘 상한·후퇴·타임아웃이 없으면** 사람이 보고 거절할 수 있다 |
-테스트는 팀원 각자가 책임진다(PR 본문에 무엇을 확인했는지 한 줄). 자동 검사(`tools/pr_check.sh`, Actions)가 위 두 항목을 판정하고, 황인재가 결과를 보고 Approve / Request changes.
+테스트는 팀원 각자가 책임진다(PR 본문에 무엇을 확인했는지 한 줄). 자동 검사(`tools/pr_check.sh`, Actions)가 위 두 항목을 판정하고, 통과하면 **PM 토큰으로 자동 승인·merge** 된다. ❌면 코멘트를 보고 고쳐서 같은 브랜치에 push.
 
 ### 리뷰·merge
 | 항목 | 규칙 |
 |---|---|
-| 필요 승인 | **황인재 1명** (GitHub 규칙: Code Owner 승인 필수). 팀원이 스스로 테스트한 것을 믿고, 승인 전 확인은 §4.1의 **2차 확인**만 한다 |
+| 필요 승인 | **황인재 1명** (GitHub 규칙: Code Owner 승인 필수). **자동**: Actions가 §4.1 검사를 통과하면 PM 토큰으로 승인하고 Squash merge까지 한다(보통 PR 후 2~3분). 보류하려면 제목에 `[hold]` 또는 라벨 `hold` |
 | 응답 시간 | 4시간 안에 코멘트 또는 승인 |
-| Merge 방식 | Squash and merge |
+| Merge 방식 | Squash and merge (자동). 실패하면 황인재가 수동 |
 | Merge 후 | 브랜치 삭제는 팀장 승인 후 (§2) |
 | 리뷰 없이 merge | 실기 중 급한 수정만. merge 후 팀 채널에 알린다 |
 
