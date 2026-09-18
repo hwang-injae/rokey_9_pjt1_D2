@@ -44,11 +44,11 @@
 
 | 에이전트 | 방법 |
 |---|---|
-| **Claude Code** | 저장소(clone한 `rokey_pjt01_ws` 폴더)를 열면 `CLAUDE.md` → `AGENTS.md`를 자동으로 읽는다. 내 프롬프트 파일 내용을 첫 메시지로 붙여넣는다. |
-| **ChatGPT / Gemini(웹)** | 첫 메시지 = 내 프롬프트 전문. 첨부: `AGENTS.md`, `docs/01~03`. 첨부가 안 되면 `AGENTS.md`를 이어서 붙여넣는다. |
+| **Claude Code** | 저장소(clone한 `rokey_pjt01_ws` 폴더)를 열면 `CLAUDE.md` → `AGENTS.md`를 자동으로 읽는다. 슬래시 명령: **`/start 이름`**(온보딩 코치) · **`/f1`~`/f4`**(내 프롬프트로 작업 시작) · **`/daily taskID 설명`**(아침 브랜치) · **`/wrap`**(저녁 커밋·push·PR 초안) · `/pr-review 번호`(황인재용) |
+| **ChatGPT / Gemini(웹)** | 온보딩: `docs/prompts/00_온보딩_코치_프롬프트.md` 전문 + 가이드·환경설정·AGENTS 첨부. 작업: 내 프롬프트 전문 + `AGENTS.md`·`docs/01~03` 첨부(안 되면 프롬프트 부록 A). |
 | **Cursor / Codex / Gemini CLI** | 저장소 루트의 `AGENTS.md`를 자동 인식(도구에 따라 `.cursorrules`·`GEMINI.md`로 복사). 프롬프트는 채팅에 붙여넣기. |
 
-프롬프트의 `______`(이름·수준·GitHub ID)는 붙여넣기 전에 채운다. 모르면 비워두면 에이전트가 질문한다.
+프롬프트마다 맨 위에 **내 도구별 사용법**과 **§0 시작 순서**(git 설정 → 토큰 → clone → PC 환경 → 문서 요약 → 첫 PR → 작업)가 들어 있어, 문서를 전부 주고 프롬프트를 붙여넣으면 에이전트가 순서대로 끌고 간다. `______`(이름·수준·GitHub ID·PC)는 비워 두면 에이전트가 묻는다.
 
 ## 저장소 구조
 ```
