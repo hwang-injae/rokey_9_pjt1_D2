@@ -55,7 +55,7 @@ class WeightReader:
 
         import rclpy
         from rclpy.node import Node
-        from dsr_msgs2.srv import GetWorkpieceWeight, ResetWorkpieceWeight
+        from dsr_msgs2.srv import GetWorkpieceWeight, ResetWorkpieceWeight, GetCurrentPosj
 
         rclpy.init()
         self._rclpy = rclpy
@@ -65,6 +65,12 @@ class WeightReader:
         self._reset = self._node.create_client(ResetWorkpieceWeight, f"{prefix}/reset_workpiece_weight")
         self._GetReq = GetWorkpieceWeight.Request
         self._ResetReq = ResetWorkpieceWeight.Request
+        # 자세 기록용 — 읽기 전용. 없으면 경고만 하고 측정은 계속한다.
+        self._posj = self._node.create_client(GetCurrentPosj, f"/{namespace.strip('/')}/aux_control/get_current_posj")
+        self._PosjReq = GetCurrentPosj.Request
+        if not self._posj.wait_for_service(timeout_sec=1.0):
+            self._node.get_logger().warn("get_current_posj 서비스 없음 — 자세 기록 없이 진행합니다")
+            self._posj = None
         for name, cli in (("get_workpiece_weight", self._get), ("reset_workpiece_weight", self._reset)):
             if not cli.wait_for_service(timeout_sec=timeout_s):
                 raise SystemExit(
@@ -96,6 +102,18 @@ class WeightReader:
             raise RuntimeError(f"측정값이 음수입니다({res.weight}) — 드라이버 오류")
         return float(res.weight)
 
+    def read_posj(self):
+        """현재 관절 각도를 읽는다(도). 못 읽으면 None. 로봇을 움직이지 않는다."""
+        if self.fake:
+            return [0.0, -12.5, 95.3, 0.0, 97.2, 0.0]
+        if self._posj is None:
+            return None
+        try:
+            res = self._call(self._posj, self._PosjReq())
+            return [round(float(v), 2) for v in res.pos] if res.success else None
+        except Exception:
+            return None
+
     def set_fake_base(self, value):
         if self.fake:
             self._fake_base = value
@@ -126,7 +144,7 @@ def describe(values):
 
 def run(args):
     reader = WeightReader(args.ns, args.timeout, fake=args.fake)
-    rows, groups = [], {}
+    rows, groups, poses_seen = [], {}, {}
     total = len(STATES) * args.poses
     step = 0
     try:
@@ -148,6 +166,12 @@ def run(args):
                         print("  ⚠️  그릇이 기울면 대용품이 쏟아집니다. 기울기를 작게.")
                 input("  준비되면 엔터 ▮ ")
 
+                posj = reader.read_posj()
+                posj_txt = "[" + ", ".join(f"{v:g}" for v in posj) + "]" if posj else ""
+                if posj:
+                    print(f"  자세 기록  posj {posj_txt}")
+                poses_seen.setdefault(pose, posj_txt)
+
                 values = []
                 for t in range(1, args.trials + 1):
                     mean, raw = measure_once(reader, args.samples, args.settle)
@@ -157,6 +181,7 @@ def run(args):
                         "state": state_key, "pose": f"P{pose}", "trial": t,
                         "mean_g": round(mean, 2),
                         "raw_g": " ".join(f"{v:.2f}" for v in raw),
+                        "posj": posj_txt,
                     })
                     print(f"    {t:2d}/{args.trials}  {mean:8.2f} g")
 
@@ -168,10 +193,10 @@ def run(args):
         print("\n중단되었습니다. 지금까지 측정한 값은 저장합니다.")
     finally:
         reader.close()
-    return rows, groups
+    return rows, groups, poses_seen
 
 
-def report(groups, args):
+def report(groups, args, poses_seen=None):
     print("\n" + "=" * 62)
     print("  V-02 결과")
     print("=" * 62)
@@ -246,6 +271,11 @@ def report(groups, args):
     if ("empty", poses[0]) in groups:
         print(f"  → f2.yaml  empty_weight_g 실측값(P1): "
               f"{groups[('empty', poses[0])]['mean']:.0f} g")
+    if poses_seen:
+        print("\n  자세 기록 (f2.yaml WEIGH 좌표 후보)")
+        for pose in sorted(poses_seen):
+            if poses_seen[pose]:
+                print(f"    P{pose}  posj {poses_seen[pose]}")
     print("=" * 62)
     return {"worst_sd": worst_sd, "worst_spread": worst_spread,
             "pose_gap": pose_gap, "deltas": deltas}
@@ -254,7 +284,7 @@ def report(groups, args):
 def save_csv(rows, out_path):
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["ts", "state", "pose", "trial", "mean_g", "raw_g"])
+        writer = csv.DictWriter(f, fieldnames=["ts", "state", "pose", "trial", "mean_g", "raw_g", "posj"])
         writer.writeheader()
         writer.writerows(rows)
 
@@ -288,10 +318,10 @@ def main():
     print("  🚨 이 스크립트는 로봇을 움직이지 않습니다. 자세·그리퍼는 직접 조작하세요.")
     print("=" * 62)
 
-    rows, groups = run(args)
+    rows, groups, poses_seen = run(args)
     if rows:
         save_csv(rows, out_path)
-    summary = report(groups, args)
+    summary = report(groups, args, poses_seen)
     if rows:
         try:
             shown = out_path.relative_to(Path.cwd())
