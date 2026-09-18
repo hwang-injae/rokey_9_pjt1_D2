@@ -15,6 +15,15 @@ Closes #
 - [ ] `refactor` 구조 개선 (동작 동일)
 - [ ] `chore` 빌드/설정
 
+## ✅ 승인 조건 (비우면 거절)
+
+| 항목 | 내용 |
+|---|---|
+| taskID / 브랜치 | `F1-02` / `seokhyung/20260919-F1-02-pick-search` |
+| main 병합 | `git merge origin/main` 한 커밋 해시: `_______` (PR 올리기 직전에 병합) |
+| 단위기능 테스트 | TC-__ 결과: __/10 · 영상 `YYYYMMDD_TCxx_기능_담당_시도N.mp4` · 기록 `docs/test_logs/________.md` |
+| 통합 테스트 | mock / 실기(어느 INT) · 결과: |
+
 ## 🤖 실기 영향 (비우지 말 것)
 
 - [ ] **Virtual 모드에서 동작 확인했다**
@@ -49,6 +58,7 @@ soc && ros2 run f1_handling f1_node --ros-args --params-file src/f1_handling/con
 ## 체크리스트
 
 - [ ] `colcon build` 통과 (failed 0)
+- [ ] 위 승인 조건 표를 채움 (main 병합 해시·영상 파일명·통합 테스트)
 - [ ] 수치를 코드에 하드코딩하지 않음 (`config/*.yaml` 로 분리)
 - [ ] 빌드 산출물(`build/ install/ log/ __pycache__/`)이 diff에 없음
 - [ ] 로봇 IP·개인정보를 커밋하지 않음

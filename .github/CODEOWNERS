@@ -1,13 +1,5 @@
 # CODEOWNERS — ReWash-Cell (D그룹 2조)
-# 한석형 @Hanseokhyung · 민범진 @zldzmfoq100-bot · 박진용 @abyssGo · 황인재 @hwang-injae (rokey9c2-lgtm 은 팀 공유 계정, 소유자 아님)
-*                                   @hwang-injae @Hanseokhyung
-/AGENTS.md /CLAUDE.md /README.md /CONTRIBUTING.md /.github/   @hwang-injae @Hanseokhyung
-/docs/02_인터페이스_IRD.md /docs/interfaces/   @zldzmfoq100-bot @Hanseokhyung @abyssGo @hwang-injae   # 인터페이스 정본 — 변경은 4명 확인
-/docs/03_설계_SDD.md                @zldzmfoq100-bot @hwang-injae
-/src/cobot_msgs/                    @zldzmfoq100-bot @Hanseokhyung @abyssGo @hwang-injae   # 변경은 4명 확인
-/src/cobot_common/                  @Hanseokhyung
-/src/f1_handling/                   @Hanseokhyung
-/src/f2_sense_flow/                 @zldzmfoq100-bot
-/src/rewash_bringup/                @zldzmfoq100-bot
-/src/f3_wipe/                       @abyssGo
-/src/f4_hmi/                        @hwang-injae
+# GitHub 규칙 "Require review from Code Owners" 와 함께 쓴다 → 여기 적힌 사람의 승인만 PR merge 조건을 만족한다.
+# 팀 결정(9/18): 승인은 황인재 1명. 에이전트가 먼저 규칙·main 병합·통합 테스트를 검토(CONTRIBUTING §4.1)한 뒤 승인/거절.
+# (참고) 코드 담당: cobot_common·f1_handling 한석형 @Hanseokhyung / f2_sense_flow·cobot_msgs·rewash_bringup 민범진 @zldzmfoq100-bot / f3_wipe 박진용 @abyssGo / f4_hmi 황인재
+*   @hwang-injae

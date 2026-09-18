@@ -65,7 +65,7 @@ HMI 시작 1회 → 반납 구역 계획 순서(그릇 구역 2개 → 컵 구�
 - 패키지는 `src/` 아래, 노드 1개 = 기능 1개, 서비스는 `ok(bool)+code(string)` 반환, 코드 문자열은 IRD §2 그대로.
 - 로그 `get_logger()`, `print()` 금지. 상태 머신은 전이표를 주석·문서에. 실패는 예외가 아니라 `code`로 보고. 어떤 실패에서도 **툴은 홀더에 반납, 로봇은 안전 높이**.
 - 한국어 문서·주석, 영문 식별자. 커밋 `<타입>(<스코프>): <제목>` 타입 10종(`feat fix refactor style docs test chore remove perf ci`), 브랜치 `{이름}/{YYYYMMDD}-{taskID}-{설명}`.
-- **개발 흐름**: 단위기능 완성 → **단위기능 테스트(항상, 녹화 `YYYYMMDD_TCxx_기능_담당_시도N.mp4`)** → `main` pull → 통합 테스트 → `main`에 PR(다른 팀원 아무나 1명 승인이면 merge). 주기적으로 `git fetch`, 작업 브랜치는 **하루 1회 이상 push**.
+- **개발 흐름**: 단위기능 완성 → **단위기능 테스트(항상, 녹화 `YYYYMMDD_TCxx_기능_담당_시도N.mp4`)** → `main` pull → 통합 테스트 → `main`에 PR → 에이전트 검토(`/pr-review`) → **황인재 승인**이면 merge. 주기적으로 `git fetch`, 작업 브랜치는 **하루 1회 이상 push**.
 
 ## 5. 환경 함정 (자세한 건 `docs/setup/M0609_환경설정.md`)
 | 증상 | 해결 |

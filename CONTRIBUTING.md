@@ -16,7 +16,7 @@ git checkout -b seokhyung/20260919-F1-02-pick-search             # ② 브랜치
 git add <바꾼 파일만>
 git commit -m "feat(f1): pick 탐색 파지 — 접촉 하강·폭 판정·재탐색"
 git push -u origin seokhyung/20260919-F1-02-pick-search          # ③ 하루 1회 이상 push
-# ④ main pull → 통합 테스트 → GitHub에서 PR → 다른 팀원 아무나 1명 승인 → Squash merge
+# ④ main pull → 통합 테스트 → GitHub에서 PR (Reviewer: hwang-injae) → 에이전트 검토 → 황인재 승인 → Squash merge
 ```
 
 **🚨 `main`에 직접 push 금지. 예외 없음.**
@@ -44,7 +44,7 @@ git push -u origin seokhyung/20260919-F1-02-pick-search          # ③ 하루 1�
 ### 고정 브랜치
 | 브랜치 | 용도 | 규칙 |
 |---|---|---|
-| `main` | 언제나 **동작하는** 상태 | PR + **다른 팀원 아무나 1명 승인**이면 merge. 직접 push 금지 |
+| `main` | 언제나 **동작하는** 상태 | PR + **황인재 승인**(에이전트 사전 검토: 규칙·main 병합·통합 테스트 확인)이면 merge. 직접 push 금지(GitHub 규칙으로 차단) |
 | `integration` (선택) | L2~L4 통합 시험용 | 9/20 저녁부터 사용. 여기서 통과한 것만 `main` PR |
 
 ### 브랜치 삭제
@@ -106,10 +106,23 @@ docs(setup): PYTHONPATH 누락 시 DR_init import 오류 함정 추가
 ### 제목·본문
 제목은 커밋 규칙과 같다(`feat(f1): …`). 본문은 `.github/PULL_REQUEST_TEMPLATE.md`가 채워진다. **"실기 영향" 칸을 비우지 말 것.** 단위 테스트 영상 파일명을 적는다.
 
+### 4.1 승인 전 자동 검토 (에이전트 — `tools/pr_check.sh <PR번호>` + `/pr-review`)
+| 검토 항목 | 통과 기준 | 실패 시 |
+|---|---|---|
+| main 병합 | `origin/main` 최신이 PR 브랜치에 포함됨(`git merge origin/main` 후 push) | 거절: "main 병합 후 다시" |
+| 통합 테스트 | PR 본문에 통합 테스트 결과(mock 또는 실기)와 단위 테스트 영상 파일명, `docs/test_logs/` 기록 | 거절 |
+| 브랜치·커밋 | `{이름}/{YYYYMMDD}-{taskID}-{설명}`, 타입 10종 | 거절(이름은 새 브랜치로) |
+| 산출물 | `build/ install/ log/ *.mp4 rewash.db` 없음 | 거절 |
+| 하드코딩·경로 | 코드에 좌표·힘·횟수 숫자 없음(YAML), 절대경로 없음 | 거절 |
+| 안전 | 접촉 동작 추가 시 힘 상한·후퇴·타임아웃 3종 | 거절 |
+| 인터페이스 | `docs/interfaces/`·`cobot_msgs` 변경 시 인터페이스 변경 이슈 링크 + 4명 확인 | 거절 |
+| 실기 영향 칸 | PR 템플릿 "실기 영향" 채움 | 거절 |
+검토 결과는 PR 코멘트로 남기고(통과/실패 항목), 통과면 황인재가 Approve, 실패면 Request changes.
+
 ### 리뷰·merge
 | 항목 | 규칙 |
 |---|---|
-| 필요 승인 | **다른 팀원 아무나 1명** (인터페이스가 맞닿는 사람이면 더 좋음) |
+| 필요 승인 | **황인재 1명** (GitHub 규칙: Code Owner 승인 필수). 승인 전에 에이전트가 §4.1 검토표로 확인하고 결과를 PR 코멘트로 남긴다. 팀원 코멘트는 환영하지만 승인 권한은 없음 |
 | 응답 시간 | 4시간 안에 코멘트 또는 승인 |
 | Merge 방식 | Squash and merge |
 | Merge 후 | 브랜치 삭제는 팀장 승인 후 (§2) |
