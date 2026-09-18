@@ -28,8 +28,9 @@ N('ctrl',1190,620,240,80,['M0609 컨트롤러','192.168.1.100 · TCP 12345','Dar
 N('arm',1470,620,230,60,['M0609 협동로봇','6축 · 6 kg · 관절 토크 센서'],'ext')
 N('rg2',1470,740,230,84,['OnRobot RG2 그리퍼','폭 피드백 0~110 mm','설정 웹 192.168.1.1'],'ext')
 # ---------- 라이브러리·데이터·빈칸 ----------
-N('common',70,510,980,66,['cobot_common  (라이브러리 — 노드 아님 · 박진용)',
-   'robot.py: move_to · move_rel · grip · release · weigh · force_on/off · contact_down · periodic_search · safe_retreat',
+N('common',70,502,980,84,['cobot_common  (라이브러리 — 노드 아님 · 박진용)',
+   'bootstrap.py: init(node) · spin(node) — 기능 노드 프로세스마다 DSR 전용 노드(<노드>_dsr) 1개 + 자체 실행기. rclpy.spin() 금지 (TS-01, SDD §3.2)',
+   'robot.py: move_to · move_rel · grip · grip_level · release · weigh · force_on/off · force_reached · contact_down · periodic_search · safe_retreat',
    'config.py → config/cell.yaml (공용 좌표·속도·프리셋 · 한석형) + config/params.yaml (f1 · f2 · f3 · flow · hmi 절 — 자기 절만 수정)'],'lib','lib')
 N('csv',130,128,180,56,['records.csv','용기당 1행 (PC-A 로컬)'],'ext','data')
 N('web',1465,280,240,200,['웹 서버 · 브라우저 · DB','','(비워 둠)','황인재가 설계한 뒤','회의에서 함께 채운다'],'todo','todo')
@@ -47,10 +48,10 @@ E('flow','f2',[(560,194),(560,360)],
   ['서비스 호출  flow_node → f2_node','/f2/weigh : cobot_msgs/srv/F2Weigh','/f2/leftover_loop : cobot_msgs/srv/F2LeftoverLoop','/f2/shake : cobot_msgs/srv/F2Shake','/f2/dip : cobot_msgs/srv/F2Dip'],(560,291))
 E('flow','f3',[(640,194),(640,222),(910,222),(910,360)],
   ['서비스 호출  flow_node → f3_node','/f3/soap : cobot_msgs/srv/F3Soap','/f3/wipe_bowl : cobot_msgs/srv/F3WipeBowl','/f3/wipe_cup : cobot_msgs/srv/F3WipeCup'],(910,291))
-E('f1','common',[(210,444),(210,510)],None,None,'call')
-E('f2','common',[(560,444),(560,510)],['파이썬 함수 호출 (import)'],(560,477),'call')
-E('f3','common',[(910,444),(910,510)],None,None,'call')
-E('common','dsr',[(560,576),(560,690)],
+E('f1','common',[(210,444),(210,502)],None,None,'call')
+E('f2','common',[(560,444),(560,502)],['파이썬 함수 호출 (import)'],(560,477),'call')
+E('f3','common',[(910,444),(910,502)],None,None,'call')
+E('common','dsr',[(560,586),(560,690)],
   ['서비스 호출  (DSR_ROBOT2 API 내부)  cobot_common → dsr_controller2','/dsr01/motion/move_joint · move_line : dsr_msgs2/srv/MoveJoint · MoveLine','/dsr01/force/task_compliance_ctrl · set_desired_force · release_force · get_workpiece_weight : dsr_msgs2/srv/…','/dsr01/io/set_ctrl_box_digital_output · get_ctrl_box_digital_input : dsr_msgs2/srv/…  (RG2 DO1/DO2 · DI1/DI2)','※ 정확한 이름·타입은 두산 ROS 2 매뉴얼(jazzy)로 확인 후 확정'],(770,632))
 E('flow','csv',[(430,156),(310,156)],['CSV 기록'],(370,144),'call')
 E('flow','t_state',[(690,135),(1140,135)],['publish · cobot_msgs/msg/FlowState · 2 Hz'],(915,122),'topic')

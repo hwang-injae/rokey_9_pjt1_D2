@@ -24,6 +24,7 @@
 | [docs/images/](docs/images/) | 시스템 아키텍처(PC 단위, `.svg` + 편집용 `.drawio`) · 설계도 · 워크셀 |
 | [docs/setup/M0609_환경설정.md](docs/setup/M0609_환경설정.md) | PC 환경 설정 (ws_dsr + rokey_pjt01_ws, 별칭, 함정) |
 | [docs/meetings/](docs/meetings/) | 회의록 (결정·미결·후속 작업) |
+| [docs/troubleshooting/](docs/troubleshooting/) | 트러블슈팅 기록 (증상·원인·해결·재발 방지) — TS-01 두산 API 초기화·실행기 교착 |
 | [docs/ref/](docs/ref/) | 법규·산업 조사, 브리핑 자료, 팀원 제안서, (일정 양식은 드라이브 일정표에 반영됨) |
 | `class_doc/` | 협동로봇 강의 PDF |
 

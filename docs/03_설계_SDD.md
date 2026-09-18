@@ -57,7 +57,7 @@ PC-A ↔ 컨트롤러는 두산 전용 TCP(DDS 아님). PC-A ↔ PC-B는 ROS 2 D
 | 패키지 | 노드 | 담당 | 소유 설정 | PC |
 |---|---|---|---|---|
 | `f1_handling` | `f1_node` | 한석형 | `config/cell.yaml`과 `config/params.yaml`의 `f1` 절 | A |
-| `cobot_common` | (라이브러리) 두산 API를 감싼 공용 로봇 함수 모음 + **설정 로더·`config/cell.yaml`·`params.yaml`** | **박진용**(함수 전체·로더) · 좌표 값(`cell.yaml`)은 한석형 | 두 파일 | A·B |
+| `cobot_common` | (라이브러리) 두산 API를 감싼 공용 로봇 함수 모음 + **노드 초기화·실행(`init`·`spin`, §3.2)** + **설정 로더·`config/cell.yaml`·`params.yaml`** | **박진용**(함수 전체·로더) · 좌표 값(`cell.yaml`)은 한석형 | 두 파일 | A·B |
 | `f2_sense_flow` | `f2_node`, `flow_node` | 민범진 | `f2`·`flow` 절 | A |
 | `cobot_msgs` | (srv 12 · msg 2, IRD 정본) | **황인재(PM)** — `docs/interfaces/`를 그대로 복사해 관리 | IRD | A·B |
 | `f3_wipe` | `f3_node` | 박진용 | `f3` 절 | A |
@@ -69,6 +69,7 @@ PC-A ↔ 컨트롤러는 두산 전용 TCP(DDS 아님). PC-A ↔ PC-B는 ROS 2 D
 |---|---|
 | 흐름 제어를 flow_node 하나로 집중 | 노드 간 호출이 얽히면 통합이 불가. 기능 노드는 서비스 제공자로만 |
 | 기능 단위 노드 분할 | 4명 동시 개발. 각 기능이 단독 리그에서 시험 가능 |
+| 기능 노드마다 **DSR 전용 노드 분리 + 자체 실행기** | 두산 API는 명령마다 자기가 실행기를 돌려 응답을 기다린다. 서비스 콜백 안에서 그대로 쓰면 교착하고, 기능 노드 자신을 넘기면 첫 명령 뒤 실행기에서 빠진다([TS-01](troubleshooting/TS-01_두산API_초기화_실행기_교착.md)). `cobot_common.init`·`spin`이 이를 감춘다(§3.2) |
 | 서비스(동기) 사용, 액션 미사용 | 각 동작이 짧고(≤30 s) 취소 요구가 없음. 정지는 flow가 다음 호출을 안 하는 방식 |
 | 종류 = 반납 구역, 위치는 탐색 | 비전 없이 종류 판별을 없애고, 위치·겹침은 **접촉 하강 + 파지 폭**으로 흡수 |
 | 물리 인계 위치 고정 | F1이 놓은 자리에서 F3 시작 → 단독 시험은 손으로 놓기만 하면 됨 |
@@ -106,7 +107,7 @@ rokey_pjt01_ws/                ← 저장소 루트 (rokey_9_pjt1_D2)
 ├── docs/                      문서·인터페이스 정본·이미지
 ├── src/
 │   ├── cobot_msgs/            srv·msg (IRD 정본)
-│   ├── cobot_common/          robot.py (move/grip/force/weigh 공용 함수) · config.py (로더) · config/cell.yaml (공용) · config/params.yaml (기능별 절)
+│   ├── cobot_common/          bootstrap.py (init·spin — 두산 API 초기화·실행기, §3.2) · robot.py (move/grip/force/weigh 공용 함수) · config.py (로더) · config/cell.yaml (공용) · config/params.yaml (기능별 절)
 │   ├── f1_handling/           f1_node.py · test/rig_f1.py
 │   ├── f2_sense_flow/         f2_node.py · flow_node.py · mock/mock_f1_f3.py · logger.py
 │   ├── f3_wipe/               f3_node.py · test/rig_f3.py
@@ -119,6 +120,8 @@ rokey_pjt01_ws/                ← 저장소 루트 (rokey_9_pjt1_D2)
 ### 3.1 `cobot_common` 공용 로봇 함수 (담당 박진용 — 9/18 F1 부담 분산. 좌표 값은 한석형의 `cell.yaml`)
 | 함수 | 내용 |
 |---|---|
+| **`init(node)`** | 기능 노드 `__init__` **맨 앞**에서 한 번. DSR 전용 노드(`<노드이름>_dsr`, ns `dsr01`)를 만들어 `DR_init.__dsr__node`에 넣은 **뒤에** `DSR_ROBOT2`를 import한다. 이걸 안 부르면 노드가 뜨자마자 죽는다(TS-01 A) |
+| **`spin(node)`** | `main()`에서 `rclpy.spin(node)` **대신**. 기능 노드를 자체 `MultiThreadedExecutor`로 돌린다. `rclpy.spin()`은 전역 실행기를 써서 두산 API와 부딪힌다(TS-01 B) |
 | `move_to(station, carrying)` | 안전 높이 경유 movej/movel, carrying이면 속도 상한 |
 | `move_rel(dx, dy, dz, frame)` | 기준점 대비 상대 이동(탐색점 이동용) |
 | `grip(width, force) → width` | RG2 파지(목표 폭·힘) + 완료 대기 + 폭 피드백. 강사 배포 `onrobot_rg_control`(Modbus)은 힘(0~40 N)·폭을 명령마다 지정할 수 있고 현재 폭·파지 감지 비트를 돌려준다 |
@@ -126,9 +129,50 @@ rokey_pjt01_ws/                ← 저장소 루트 (rokey_9_pjt1_D2)
 | `release()` | |
 | `weigh(n) → g` | reset → 정지 → get_workpiece_weight n회 평균 |
 | `force_on(axis, target, limit)` / `force_off()` | task_compliance_ctrl + set_desired_force |
-| `contact_down(max_depth, limit) → depth, force` | amovel 하강 + check_force_condition + stop (탐색 파지·안착·삽입 공용) |
+| `force_reached(axis, min, max) → bool` | `check_force_condition(...) == 0`을 감싼 것. 🚨 실제 두산 함수는 **만족 `0` / 아니면 `-1`**을 돌려준다(DRL 매뉴얼의 True/False와 다름). `if check_force_condition():`으로 쓰면 판정이 뒤집힌다(TS-01 D) |
+| `contact_down(max_depth, limit) → depth, force` | amovel 하강 + `force_reached` 감시 + stop (탐색 파지·안착·삽입 공용) |
 | `periodic_search(amp, period, duration)` | Move Periodic |
 | `safe_retreat()` | 툴 Z 후퇴 → 안전 높이 |
+
+### 3.2 노드 뼈대 규약 (f1·f2·f3 공통 — 9/18 [TS-01](troubleshooting/TS-01_두산API_초기화_실행기_교착.md))
+두산 API(`DSR_ROBOT2`)는 혼자 도는 스크립트를 전제로 만들어져서, 서비스 콜백 안에서 그대로 쓰면 **노드가 뜨자마자 죽거나 첫 로봇 명령에서 영원히 멈춘다.** 아래 뼈대를 그대로 쓴다.
+
+```python
+import rclpy
+from rclpy.node import Node
+import cobot_common
+from cobot_msgs.srv import F3WipeBowl
+
+class F3Node(Node):
+    def __init__(self):
+        super().__init__('f3_node')
+        cobot_common.init(self)            # ① 맨 앞. create_service 보다 먼저
+        self.cfg = cobot_common.config.load()   # cfg['cell'] + cfg['f3'] (§4.3)
+        self.create_service(F3WipeBowl, '/f3/wipe_bowl', self.on_wipe_bowl)   # ② 기본 콜백 그룹 그대로
+
+    def on_wipe_bowl(self, req, res):
+        ...                                 # ③ 로봇 동작은 cobot_common 함수로만
+        return res
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = F3Node()
+    try:
+        cobot_common.spin(node)            # ④ rclpy.spin(node) 금지
+    finally:
+        node.destroy_node(); rclpy.shutdown()
+```
+
+| 규칙 | 이유 |
+|---|---|
+| ① `cobot_common.init(self)`를 `__init__` 맨 앞에서 | 두산 API는 import되는 순간 노드를 읽어 고정한다. 공용 모듈 맨 위에서 `from DSR_ROBOT2 import …`를 쓰지 않는다(`cobot_common` 내부도 `init` 뒤에 import) |
+| ② 서비스는 **기본 콜백 그룹**(한 번에 하나) 그대로. 타이머·상태 발행이 필요하면 **별도 콜백 그룹** | 로봇은 하나다. 한 노드 안에서 동작이 겹치면 안 된다. 타이머를 같은 그룹에 두면 모션 중 멈춘다 |
+| ③ 기능 노드는 `DSR_ROBOT2`를 직접 import하지 않는다 | 규칙 5. 초기화 순서·반환값 함정을 한 곳에서만 다룬다 |
+| ④ `rclpy.spin()`·`rclpy.spin_once()`·`rclpy.spin_until_future_complete()`를 기능 노드 코드에서 쓰지 않는다 | 전역 실행기를 두산 API와 같이 쓰게 되어 교착한다 |
+| ⑤ `DR_init.__dsr__node`에 **기능 노드 자신을 넣지 않는다** | 첫 로봇 명령 뒤 노드가 실행기에서 빠져 **두 번째 서비스 호출부터 응답이 없다**(한 번만 부르는 시험은 통과해 버린다) |
+| ⑥ 서비스 시험은 **연속 3회 이상** 호출 | 위 ⑤ 같은 결함은 첫 호출에서 보이지 않는다 |
+
+`flow_node`·`hmi_bridge`는 두산 API를 쓰지 않으므로 `init`이 필요 없다. flow의 실행 구조는 §5.1.
 
 ---
 
@@ -258,6 +302,7 @@ stateDiagram-v2
 ```
 - 각 전이에서 `/flow/state` 발행(2 Hz 타이머 + 전이 즉시), 용기 종료 시 `/flow/event` + CSV 1행.
 - `stop`은 현재 서비스 완료 후 다음 호출을 보류. 하드웨어 비상정지는 로봇 E-Stop.
+- **실행 구조**(TS-01): `/flow/start`는 **즉시 응답**하고 순서 실행은 **작업 스레드**에서 한다. 작업 스레드는 `client.call()`(동기)로 기능 노드를 부르고 호출 사이마다 stop 플래그를 본다. 노드는 `MultiThreadedExecutor`로 돌리고 상태 타이머·`start/stop/resume` 서비스·클라이언트는 `ReentrantCallbackGroup`에 둔다. 서비스 콜백 안에서 다른 서비스를 동기 호출하고 기다리지 않는다(교착). 가짜 드라이버 실험에서 모션 중 상태 2 Hz 유지·stop 즉시 수락을 확인했다 → mock으로 재확인은 V-21.
 - 어떤 실패에서도 **툴은 홀더에 반납**(flow가 `tool(RETURN)` 호출), 로봇은 안전 높이.
 
 ### 5.2 f1_node (한석형)
@@ -387,12 +432,14 @@ return EMPTY_ZONE (attempts = max_attempts)
 | V-17 | **컵 옆면 파지** — ✅ **9/18 검증 완료**: 옆면 파지로 집기·이송 가능. 단, 털기·헹굼처럼 흔드는 동작에서는 더 강한 파지가 필요 → 파지 힘 2단계(`NORMAL`/`HOLD`) 도입 | S | 완료 | 집기·이송 안정 | — |
 | V-18 | **툴 파지 안정성** — 닦는 힘(3~5 N)이 걸릴 때 수세미 툴·솔이 그리퍼 안에서 밀리거나 돌지 않는가 | P | 9/19 B | 닦기 1회 후 툴 자세 변화 없음 | 손잡이 형상(각·홈) 보강, 파지력 상향 |
 | V-19 | **도달 범위·특이점** — 모든 스테이션(반납 구역·WEIGH·WASTE·스펀지 홈·홀더·수조·팔레트 6칸·격리)에 안전 높이 경유로 도달 가능한가 | S | 9/19 A(티칭과 함께) | 전 지점 도달, 특이점·관절 한계 경고 0 | 워크셀 재배치 |
-| V-20 | **여러 노드의 두산 API 동시 사용** — f1·f2·f3 세 프로세스가 각각 DSR API를 초기화해 같은 드라이버에 순차 명령을 보낼 수 있는가(Virtual) | S·M | 9/18 C | 세 노드에서 번갈아 movej 성공 | 로봇 명령을 한 노드(robot 서버)로 모으고 나머지는 서비스로 요청 |
-| V-21 | **서비스 콜백 안 장시간 모션** — 수 초~수십 초 걸리는 모션을 서비스 콜백에서 실행할 때 rclpy 실행기가 막히지 않는가(콜백 그룹·MultiThreadedExecutor) | M | 9/19 A(mock) | flow가 응답을 받고 `/flow/state` 2 Hz 유지 | 액션으로 전환 또는 모션 스레드 분리 |
+| V-20 | **여러 노드의 두산 API 동시 사용** — f1·f2·f3 세 프로세스가 §3.2 뼈대(`cobot_common.init`·`spin`, DSR 전용 노드 각 1개)로 같은 드라이버에 순차 명령을 보낼 수 있는가(Virtual, 실제 `dsr_controller2`) | S·M·P | 9/19 A | 세 노드에서 번갈아 movej, **노드당 연속 3회** 성공 | 로봇 명령을 한 노드(robot 서버)로 모으고 나머지는 서비스로 요청 |
+| V-21 | **서비스 콜백 안 장시간 모션** — ① 기능 노드: 9/18 박진용·PM이 원인·해법 확정([TS-01](troubleshooting/TS-01_두산API_초기화_실행기_교착.md), 가짜 드라이버) → Virtual 재확인은 V-20 ② **flow_node**: 작업 스레드 + 동기 호출 구조(§5.1)에서 호출을 기다리는 동안 상태 발행·stop이 살아 있는가(mock) | P(①) · M(②) | ① 9/18 완료 · ② 9/19 A(mock) | flow가 응답을 **연속 3회** 받고 `/flow/state` 2 Hz 유지, 모션 중 stop 수락 | 액션으로 전환 또는 모션 스레드 분리 |
 | V-23 | **파지 힘 전환 방법** — 쥔 상태에서 힘만 올려 다시 파지(`grip_level`)가 되는가. `onrobot_rg_control`(Modbus)로 힘 지정이 되는지, DO1/DO2 방식이면 RG2 웹의 프리셋 2종으로 나눌지 | P·S | 9/19 A | 쥔 채 NORMAL→HOLD→NORMAL 전환 10회, 낙하 0 | 처음부터 HOLD 힘으로만 파지(힘 1단계) |
 | V-22 | **티칭 좌표 재현 오차** — YAML 좌표를 ROS에서 재현했을 때 티칭 위치와의 차이 | S | 9/19 A | ≤ 2 mm | 사용자 좌표계·TCP 설정 재확인 |
 
 ### 9.3 L1 단위기능 테스트 케이스
+**공통 규칙(TS-01)**: 서비스는 한 번이 아니라 **연속 3회 이상** 불러서 시험한다. "첫 번째만 되는" 결함은 한 번 호출로는 보이지 않는다.
+
 | TC | 기능 | SR | 리그(손으로 준비) | 절차 | 통과 기준 | 담당 |
 |---|---|---|---|---|---|---|
 | TC-01 | F1 탐색 파지 | SR-01·02 | 반납 구역에 그릇 2개를 **겹쳐/어긋나게** 배치, 컵 2개 동일, 빈 구역 1회 | `pick(RET_B)` 10회, `pick(RET_C)` 10회, 빈 구역 5회 | 각 ≥9/10, 빈 구역 `EMPTY_ZONE` 5/5, 낙하 0, 두 개 파지 0 | 한석형 |
@@ -477,6 +524,7 @@ soc && ros2 launch prewash_bringup prewash_mock.launch.py
 | **재파지 파지 폭 인식(V-15)** — 스펀지 홈의 용기를 다시 잡을 때 폭으로 판정 가능한가 | 한석형·박진용 | 9/19 오후 |
 | **HMI 설계 초안(F4-00)** → `FlowState`·`FlowEvent` 필드 확정 | 황인재 | 9/19 오전 |
 | **실패 코드·정책, YAML 키 규칙** 팀 확인 — DSN-03 | 전원 | 9/19 저녁 |
+| **노드 뼈대(§3.2)를 Virtual의 실제 드라이버로 재확인(V-20)** — 세 노드 번갈아, 노드당 연속 3회 | 한석형·민범진·박진용 | 9/19 오전 |
 | 하중 측정 정밀도(V-02) | 민범진 | 9/18 |
 | 힘제어 중 XY 이동(V-03) | 박진용 | 9/19 |
 | PC 2대 통신(V-09) | 황인재·민범진 | 9/19 |

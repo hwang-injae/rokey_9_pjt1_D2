@@ -63,6 +63,7 @@ HMI 시작 1회 → 반납 구역 계획 순서(그릇 구역 2개 → 컵 구�
 
 ## 4. 코드·개발 흐름 규칙
 - 패키지는 `src/` 아래, 노드 1개 = 기능 1개, 서비스는 `ok(bool)+code(string)` 반환, 코드 문자열은 IRD §2 그대로.
+- 🚨 **기능 노드(f1·f2·f3) 뼈대는 SDD §3.2 그대로**: `__init__` 맨 앞에서 `cobot_common.init(self)`, `main()`은 `cobot_common.spin(node)`. `rclpy.spin()` 금지, `DSR_ROBOT2` 직접 import 금지, 서비스는 기본 콜백 그룹 그대로. 이유는 `docs/troubleshooting/TS-01_…md`. 서비스 시험은 **연속 3회 이상** 호출.
 - 로그 `get_logger()`, `print()` 금지. 상태 머신은 전이표를 주석·문서에. 실패는 예외가 아니라 `code`로 보고. 어떤 실패에서도 **툴은 홀더에 반납, 로봇은 안전 높이**.
 - 한국어 문서·주석, 영문 식별자. 커밋 `<타입>(<스코프>): <제목>` 타입 10종(`feat fix refactor style docs test chore remove perf ci`), 브랜치 `{이름}/{YYYYMMDD}-{taskID}-{설명}`.
 - **개발 흐름**: 단위기능 완성 → **단위기능 테스트(TC가 있는 작업은 항상; 로봇이 움직이면 녹화 권장 `YYYYMMDD_TCxx_기능_담당_시도N.mp4`)** → `main` pull → 통합 테스트 → `main`에 PR → Actions 자동 검사(main 충돌·산출물) 통과 시 **자동 승인·merge**(보류는 제목 `[hold]`). 주기적으로 `git fetch`, 작업 브랜치는 **하루 1회 이상 push**.
@@ -76,6 +77,9 @@ HMI 시작 1회 → 반납 구역 계획 순서(그릇 구역 2개 → 컵 구�
 | `colcon-argcomplete` 오류 | colcon은 시스템 설치, venv는 HMI 전용 |
 | 토픽이 2개만 보임 | 지난 프로젝트 Fast DDS 화이트리스트 주석 처리 |
 | 팀원 노드 안 보임 | `ROS_DOMAIN_ID` 양쪽 60, 같은 스위치. 안 되면 Discovery Server |
+| 노드가 뜨자마자 `'NoneType' object has no attribute 'create_client'` | `DSR_ROBOT2`를 노드 세팅 전에 import함 → `cobot_common.init(self)`를 맨 앞에서(SDD §3.2, TS-01) |
+| 서비스 콜백에서 첫 로봇 명령이 안 끝남 / `Executor is already spinning` / **두 번째 호출부터 응답 없음** | `rclpy.spin()`을 썼거나 기능 노드 자신을 두산 API에 넘김 → `cobot_common.spin(node)` + DSR 전용 노드(TS-01). 멈춘 노드를 Ctrl+C로 죽였으면 브링업도 다시 |
+| 힘 판정이 반대로 동작 | `check_force_condition`은 **만족 `0` / 아니면 `-1`**(DRL 매뉴얼과 다름) → `cobot_common.force_reached()` 사용. 두산 함수 반환값은 설치된 `DSR_ROBOT2.py`에서 확인 |
 | 두산 패키지가 두 곳에 | 우리 `src/`에 두산 패키지를 복사하지 않는다. source 순서 ws_dsr → rokey_pjt01_ws |
 Virtual에는 **힘·무게·접촉이 없다** → 로직은 Virtual/mock, 임계값은 실기.
 

@@ -6,8 +6,8 @@ def colnum(c):
     n=0
     for ch in c: n=n*26+ord(ch)-64
     return n
-def load():
-    d=urllib.request.urlopen(f'https://docs.google.com/spreadsheets/d/{SID}/export?format=xlsx',timeout=40).read()
+def load(path=None):
+    d=open(path,'rb').read() if path else urllib.request.urlopen(f'https://docs.google.com/spreadsheets/d/{SID}/export?format=xlsx',timeout=40).read()
     z=zipfile.ZipFile(io.BytesIO(d))
     ss=[''.join(t.text or '' for t in si.iter('{%s}t'%NS['m'])) for si in ET.fromstring(z.read('xl/sharedStrings.xml')).findall('m:si',NS)]
     st=ET.fromstring(z.read('xl/styles.xml'))

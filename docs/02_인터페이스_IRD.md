@@ -3,7 +3,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 ID | IRD-PREWASH-001 · v2.0 (2026-09-18) |
+| 문서 ID | IRD-PREWASH-001 · v2.1 (2026-09-18) — `cobot_msgs` v2.1과 같은 내용 |
 | 확정 상태 | **9/18 DSN-01 회의**: §1 원칙(flow만 호출)·F1↔F3 경계(툴 픽업 F1 / 세제 담금 F3)·PC 2대 · 닦기 서비스 분리(`wipe_bowl`/`wipe_cup`) · **`/f3/seat` 삭제 → `/f1/place`가 안착 놓기** · **`/f1/home` 삭제 → `move_to(HOME)`** · **설정은 `config/cell.yaml`(공용) + `config/params.yaml`(기능별 절) 2개** = ✅ 확정. **🟡 미확정**: §2 반납 구역·`EMPTY_ZONE`, §3 `/f1/pick` 탐색·재파지(V-15 검증 후), §6~7 HMI·`FlowState`/`FlowEvent` 필드(F4-00 설계 후), §8 실패 정책, §9 YAML 키 규칙 → **9/19 DSN-03**에서 결정. [회의록](meetings/20260918_DSN-01_아키텍처_인터페이스.md) |
 | 상위 | [01_요구사항_BR-SR.md](01_요구사항_BR-SR.md) §5.4 |
 | 정본 파일 | [interfaces/](interfaces/) 의 `*.srv` `*.msg` — 이 문서와 파일이 다르면 **파일이 정본** |
@@ -17,7 +17,7 @@
 1. 기능 노드(f1·f2·f3)는 **서비스 제공자**다. 부르는 쪽은 `flow_node` 하나뿐이다. 기능 노드끼리는 서로 부르지 않는다.
 2. 모든 서비스는 `ok(bool)` + `code(string)`를 반환한다. `ok=false`면 `code`에 실패 코드.
 3. 물리 인계는 **정해진 스테이션 위치**로만 한다. F1이 놓은 자리에서 F3가 시작한다. 그래서 각 노드는 용기를 손으로 놓아 두고 단독으로 시험할 수 있다.
-4. 로봇 API는 `cobot_common`(두산 API를 감싼 공용 로봇 함수 모음)만 쓴다. 각 노드가 DSR API를 직접 부르지 않는다.
+4. 로봇 API는 `cobot_common`(두산 API를 감싼 공용 로봇 함수 모음)만 쓴다. 각 노드가 DSR API를 직접 부르지 않는다. 기능 노드는 `cobot_common.init(self)`·`cobot_common.spin(node)` 뼈대(SDD §3.2)를 쓴다 — 서비스 콜백 안에서 두산 API를 그대로 쓰면 교착한다([TS-01](troubleshooting/TS-01_두산API_초기화_실행기_교착.md)). **서비스·메시지 정의는 이 문제로 바뀌지 않았다.**
 5. 모든 ID는 아래 §2 문자열을 그대로 쓴다(대문자, ROS·YAML·기록·HMI 동일).
 
 ## 2. 공통 ID (IR-05)
@@ -113,7 +113,7 @@ plan (config/params.yaml(flow 절)): [ {zone: RET_B, kind: BOWL, count: 2}, {zon
 구역마다 count 회 또는 EMPTY_ZONE 까지 반복:
 BOWL: pick(RET_B) → move_to(WEIGH) → leftover_loop → place(SPONGE_BED_B)   ← 안착 놓기(순응 하강·탐색, 실패 SEAT_FAIL)
       → tool(SPONGE,PICK) → soap(2~3) → wipe_bowl → tool(SPONGE,RETURN)
-      → pick 대신 place 역순: move_to(SPONGE_BED_B)에서 그릇 재파지(프리셋 위치) → dip(RINSE) → shake(RINSE)
+      → pick(SPONGE_BED_B)   ← 홈에 놓인 그릇 재파지(고정 위치, 탐색점 1개) → dip(RINSE) → shake(RINSE)
       → rack_place(RACK_Bn) → move_to(HOME)
 CUP : 동일, SPONGE_BED_C · tool(BRUSH) · wipe_cup · RACK_Cn
 ```
@@ -144,5 +144,5 @@ CUP : 동일, SPONGE_BED_C · tool(BRUSH) · wipe_cup · RACK_Cn
 키 이름 규칙은 SDD §4.3.
 
 ## 10. 시험용 가짜 노드
-- `mock_f1_f3`: 같은 서비스 이름으로 즉시 `ok=true` 응답, 파라미터로 실패 코드 주입(`mock.fail_on: ["seat:SEAT_FAIL"]`) — flow 개발용, 민범진 제공
+- `mock_f1_f3`: 같은 서비스 이름으로 즉시 `ok=true` 응답, 파라미터로 실패 코드 주입(`mock.fail_on: ["place:SEAT_FAIL"]`) — flow 개발용, 민범진 제공
 - `fake_state_pub`: `/flow/state`·`/flow/event`를 시나리오대로 발행 — HMI 개발용, 황인재 제작
