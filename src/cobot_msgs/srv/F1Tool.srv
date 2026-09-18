@@ -1,0 +1,6 @@
+string tool
+string action
+---
+bool ok
+string code
+float32 width_mm

@@ -1,0 +1,5 @@
+string station
+bool carrying
+---
+bool ok
+string code
