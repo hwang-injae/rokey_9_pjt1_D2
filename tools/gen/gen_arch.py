@@ -31,7 +31,7 @@ N('rg2',1470,740,230,84,['OnRobot RG2 그리퍼','폭 피드백 0~110 mm','설�
 # ---------- 라이브러리·데이터·빈칸 ----------
 N('common',70,502,980,84,['cobot_common  (라이브러리 — 노드 아님 · 박진용)      +      cobot_api  (기능 함수 약속: ID · 코드 · Result · 함수 서명 — PM)',
    'bootstrap.py: init(name) → DSR 전용 노드(flow_node_dsr) + 통신 노드(백그라운드 실행기) · shutdown()   🚨 두산 함수는 메인 스레드에서만 (TS-01 · SDD §3.2)',
-   'robot.py: move_to · move_rel · grip · grip_level · release · weigh · force_on/off · force_reached · contact_down · periodic_search · safe_retreat',
+   'motion.py·weigh.py·force.py: move_to · move_rel · grip · grip_level · release · weigh · force_on/off · force_reached · contact_down · periodic_search · safe_retreat',
    'config.py → config/cell.yaml (공용 좌표·속도·프리셋 · 한석형) + config/params.yaml (f1 · f2 · f3 · flow · hmi 절 — 자기 절만 수정)'],'lib','lib')
 N('csv',130,128,180,56,['records.csv','용기당 1행 (PC-A 로컬)'],'ext','data')
 N('web',1465,280,240,200,['웹 서버 · 브라우저 · DB','','(비워 둠)','황인재가 설계한 뒤','회의에서 함께 채운다'],'todo','todo')

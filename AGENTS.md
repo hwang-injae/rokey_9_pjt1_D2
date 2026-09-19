@@ -46,7 +46,7 @@ HMI 시작 1회 → 반납 구역 계획 순서(그릇 구역 2개 → 컵 구�
 | **F4 시스템 모니터(웹 HMI) + PM** | **황인재** | `f4_hmi/hmi_bridge` (FastAPI + rclpy + SQLite) + `fake_state_pub` · **`cobot_api`(함수 약속)·`cobot_msgs`(메시지) 정본 관리** · `prewash_bringup` 런치 · `config/` 골격 | REST `/api/*` · WS `/ws/state` | `config/params.yaml`의 `hmi` 절 |
 겸임: 팀장·실기 슬롯·기구·**좌표(티칭·`cell.yaml`)**·브랜치 삭제 승인 = 한석형 / 통합 리더(L3·L4 실행 주도) = 민범진 / 안전 파라미터·`cobot_common` 패키지 정리·리뷰 = 박진용 / **PM(일정표·문서·인터페이스 정본(`docs/interfaces`→`cobot_msgs`)·런치·제출·강사 창구·PR 승인)**·영상·발표·아키텍처 그림 = 황인재
 
-**`cobot_common` 분담(9/19)**: `bootstrap.py`(init·io_node·cfg·shutdown)·`config.py` = 황인재 / 기본 이동·그리퍼(move_to·move_rel·grip·grip_level·release) = 한석형 / `weigh` = 민범진 / 힘 함수(force_on/off·force_reached·contact_down·periodic_search·safe_retreat) + **패키지 정리·리뷰** = 박진용. 남의 함수가 아직 없으면 같은 이름의 임시 stub으로 먼저 짠다.
+**`cobot_common` 분담(9/19) — 사람별 파일, 자기 파일만 고친다**: `bootstrap.py`(init·io_node·cfg·shutdown)·`config.py`·`__init__.py`(재수출) = 황인재 / `motion.py` 기본 이동·그리퍼(move_to·move_rel·grip·grip_level·release) = 한석형 / `weigh.py` `weigh` = 민범진 / `force.py` 힘 함수(force_on/off·force_reached·contact_down·periodic_search·safe_retreat) + **패키지 정리·리뷰** = 박진용. 부르는 쪽은 그대로 `import cobot_common as cc` → `cc.move_to()`. 남의 함수가 아직 없으면 같은 이름의 임시 stub으로 먼저 짠다.
 
 **동시 개발 약속**: 부르는 쪽은 `flow_node` 하나뿐이고, 기능 패키지끼리는 서로 import하지 않는다. 각 기능은 정해진 위치에서 시작·끝나므로 용기를 손으로 놓고 `rig_f*.py`로 혼자 시험할 수 있다. 로봇 없이도 mock 모듈(`f2_sense_flow.mock`)·`fake_state_pub`으로 flow·HMI를 만든다.
 통합 순서: **구현 → 사전 검증(V) → L1 단위기능 테스트(녹화) → L2 단위기능 통합 → L3 셀 통합 → L4 전체 통합** (`docs/03_설계_SDD.md` §9)
