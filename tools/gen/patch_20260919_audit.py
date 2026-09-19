@@ -47,12 +47,14 @@ EDIT = {
  'V-16': dict(owner='M(S)', note='R · F2-01 shake 의 첫 단계로(V-07 과 한 세션) · 찾은 HOLD 값은 한석형이 cell.yaml 프리셋에 반영', slots=S('9/20 오전')),
  'V-15': dict(owner='S(P)', note='R · 티칭 2차·기구 고정 뒤 · F1-05 의 첫 단계로'),
  'V-04': dict(owner='S(P)', note='R · 티칭 2차·기구 고정 뒤 · F1-05 의 첫 단계로 · periodic_search(INF-02b)는 박진용이 제공·참여'),
+ 'V-05': dict(task='V-05 그리퍼 드라이버 연결 확인 — /onrobot/sendCommand 응답 + 현재 폭을 읽을 경로 확정 (강사 배포 드라이버는 OnRobotRGInput 토픽을 발행하지 않는다 → /onrobot_joint_states 관절각을 폭으로 환산 등. DO/DI 배선 방식은 예비)',
+              crit='명령 → 동작 → 폭 값(mm)이 코드에서 읽힘', note='R · V-01 과 한 세션 · 🚨 9/19 확인: 드라이버가 내는 것은 JointState 뿐 → 폭 경로를 여기서 정해 INF-02 grip 에 반영, 결과는 DSN-03 에서 공유(IRD·SDD 수정)'),
  'V-24': dict(owner='H', task='V-24 (선택) 동작 중 소프트 정지·타임아웃 — 비동기 이동(amovej/amovel) + check_motion 폴링 + motion/move_stop 서비스(DSR_ROBOT2 에 stop 함수 없음). shutdown() 의 정지 명령이 모션 중에 먹는지도 확인. 메인 스레드에서만(Virtual)',
               note='선택 과제(시간 남을 때만): 안 되면 정지는 기능 함수 사이로만, 움직이는 중 Ctrl+C 는 "브링업 재시작 필요" 로그(현재 기본) · 급한 정지는 E-Stop'),
  'INT-4b': dict(owner='M(P)'),
- 'ENV-04': dict(task='구조 변경 적용 — git pull → build·install·log 삭제 후 cbc → 작업 브랜치에 main 병합 → 에이전트에 AGENTS·IRD v3.0·SDD §3.2 재학습 · 프롬프트 파일 교체 · 🚨 .bashrc 도메인 격리(개인 번호 61~64 + LOCALHOST, solo/team60 별칭)',
-                crit='ros2 interface list 에 cobot_msgs 가 msg 2개만 · python3 -c "import cobot_api" 성공 · 프롬프트 교체 완료 · rosinfo 가 내 번호(61~64) + LOCALHOST',
-                note='옛 빌드가 남으면 삭제된 서비스 타입이 계속 보인다 · 도메인 격리는 안전 규칙(AGENTS §3 규칙 13): 같은 망·같은 도메인이면 내 movej 가 남의 Virtual·실기에도 간다 · 환경설정 문서 §9'),
+ 'ENV-04': dict(task='구조 변경 적용 — git pull → build·install·log 삭제 후 cbc → 작업 브랜치에 main 병합 → 에이전트에 AGENTS·IRD v3.0·SDD §3.2 재학습 · 프롬프트 파일 교체 · 🚨 .bashrc 에 격리 한 줄(ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST) + solo/team60 별칭',
+                crit='ros2 interface list 에 cobot_msgs 가 msg 2개만 · python3 -c "import cobot_api" 성공 · 프롬프트 교체 완료 · rosinfo 가 ROS_DOMAIN_ID=60 · RANGE=LOCALHOST',
+                note='옛 빌드가 남으면 삭제된 서비스 타입이 계속 보인다 · 격리는 안전 규칙(AGENTS §3 규칙 13): 같은 망에서 서로 보이면 내 movej 가 남의 Virtual·실기에도 간다(도메인 번호는 60 그대로) · 환경설정 문서 §9'),
  # --- 부하·로봇 슬롯
  'UT-F1': dict(note='R · 함수별 TC 는 구현 직후 바로 수행, 이 칸은 남은 TC·녹화 마무리 · 9/21 저녁은 F1-04 에 집중', slots=S('9/22 오전')),
  'UT-FLOW': dict(note='로봇 불필요 · 9/21 저녁은 UT-F2(로봇)에 집중', slots=S('9/22 오전')),
@@ -68,7 +70,7 @@ EDIT = {
  'V-02': dict(task='V-02 하중 측정 정밀도 — 100/200 g 추 10회'),
  'TS-01': dict(task='TS-01 두산 API 초기화 누락·서비스 콜백 안 로봇 명령 교착 — 원인·재현·구조 5종 Virtual 비교 → 구조 변경으로 종결(DSN-02b)'),
  'DSN-03': dict(task='2차 회의 — 반납 구역 방식(V-01 결과)·HMI 설계(F4-00)·실패 코드·정책·YAML 키 규칙 + 구조 변경 후속(모니터·기록 노드 추가 여부, /cell/force·/cell/grip_width 토픽, V-20 결과, '
-                     '공용 함수 분담·사람별 파일 확인) + 9/21 저녁 로봇 순서(S·P·M) + 도메인 격리 규칙·Ctrl+C 주인(결정 기록 S1~S4) 확인',
+                     '공용 함수 분담·사람별 파일 확인) + 9/21 저녁 로봇 순서(S·P·M) + 격리 규칙(LOCALHOST)·Ctrl+C 주인(결정 기록 S1~S4) 확인',
                 deliv='docs/meetings/20260919_결정기록_DSN-03.md'),
  'DOC-05': dict(deliv='docs v3.x, 노션'),
  'BRF': dict(deliv='노션 진행률 · 당일 로봇 순서'),
@@ -115,7 +117,7 @@ RULES = {       # B 열 글자 → C 열 새 글
 }
 NEW_RULES = [
  ('담당 표기', 'A(B) · A,B', 'A(B) = A 가 주도하고 B 는 참여. A,B = 같은 이름의 작업을 각자 자기 몫만 따로 한다(예 PKG-01). 한 가지 일을 둘이 같이 할 때는 반드시 주도(참여)로 적어 주인을 한 명으로 한다. 팀(구역)은 주도자의 기능을 따른다. 단 공용 패키지(cobot_common·config·런치·mock) 작업은 주도자와 상관없이 전원 구역의 "계약"에 모은다'),
- ('🚨 도메인', '기본 격리 · 60 은 통합 때만', 'Virtual·rig·mock 시험과 혼자 하는 실기 시험은 격리 상태(solo = 개인 도메인 61~64 + LOCALHOST)에서만. 팀 도메인 60(team60)은 PC-A↔PC-B 통합(ENV-03·INT-4·L3·L4·리허설·시연) 때만 켜고 끝나면 solo. 로봇을 움직이기 전에 rosinfo 로 확인 (AGENTS §3 규칙 13)'),
+ ('🚨 격리', '기본 LOCALHOST · team60 은 통합 때만', 'Virtual·rig·mock 시험과 혼자 하는 실기 시험은 격리 상태(solo = ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST, 도메인은 60 그대로)에서만. team60(서로 보이게 풀기)은 PC-A↔PC-B 통합(ENV-03·INT-4·L3·L4·리허설·시연) 때만 켜고 끝나면 solo. 로봇을 움직이기 전에 rosinfo 로 확인 (AGENTS §3 규칙 13)'),
  ('공용 파일', 'cobot_common · config', 'cobot_common 은 사람별 파일: bootstrap.py·config.py·__init__.py = H / motion.py = S / force.py = P / weigh.py = M (부르는 쪽은 그대로 cc.함수()). config/cell.yaml 은 한석형 혼자, params.yaml 은 자기 절만'),
 ]
 HISTORY = ['4.3', '점검', 'V-04·15·16·20·22·23·24, ENV-03, CELL-04, INT-4b, INT-13p(삭제), INF-02·02a·02b·02c·03·04, F1-01, F2-01, F3-02·03, V-10, F4-01·03, UT-F1·FLOW, CR-01, 마일스톤·로봇 슬롯·규칙·완료 목록·할일',
@@ -128,9 +130,12 @@ HISTORY = ['4.3', '점검', 'V-04·15·16·20·22·23·24, ENV-03, CELL-04, INT-
 HISTORY2 = ['4.4', '점검', 'INF-02·02a·02b·02c', 'cobot_common 네 행을 전원 구역 "계약"에 선행 순서로 모음(02a bootstrap → 02 motion → 02b force → 02c weigh). INF-02b 가 F3 구역에 떨어져 있어 전원 구역에서는 a·c 만 보였다. 제목에 1/4~4/4 와 파일 이름. 공용 패키지 작업은 전원 구역에 둔다는 규칙 추가',
             '팀원 보고: cobot_common 일정이 흩어져 있고 순서가 선행 관계와 반대', 'S,M,P,H']
 
-HISTORY3 = ['4.5', '안전·기준', 'ENV-04, INF-02a, V-20, V-24, DSN-03, 규칙', '🚨 도메인 격리: 기본은 개인 도메인(61~64) + LOCALHOST, 팀 도메인 60 은 PC 여러 대 통합 때만(team60 → solo). ENV-04 에 .bashrc 격리 설정 추가. '
-            'Ctrl+C 는 cobot_common.init() 이 단독 처리, flow_node·rig 는 try/finally 만. INF-02a·V-20 기준을 "멈춰 있을 때 Ctrl+C"로, 움직이는 중 정지(move_stop)는 V-24 로. INF-02a 의 세 파일은 함수 이름만 있는 뼈대',
-            'F4 점검 보고(9/19): 모든 PC 가 도메인 60·서비스 이름 /dsr01 공통 → 시험 명령이 남의 Virtual·실기에 전달될 수 있음. DSR_ROBOT2 에 정지 함수 없음, rclpy 기본 SIGINT 가 컨텍스트를 먼저 닫음', 'S,M,P,H']
+HISTORY3 = ['4.5', '안전·기준', 'ENV-04, INF-02a, V-05, V-20, V-24, DSN-03, 규칙', '🚨 기본 격리: 도메인은 60 그대로, .bashrc 에 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST 한 줄. PC 여러 대 통합 때만 그 터미널에서 team60 → 끝나면 solo. ENV-04 에 .bashrc 격리 설정 추가. '
+            'Ctrl+C 는 cobot_common.init() 이 단독 처리, flow_node·rig 는 try/finally 만. INF-02a·V-20 기준을 "멈춰 있을 때 Ctrl+C"로, 움직이는 중 정지(move_stop)는 V-24 로. INF-02a 의 세 파일은 함수 이름만 있는 뼈대. V-05: 그리퍼 드라이버가 OnRobotRGInput 을 발행하지 않으므로 현재 폭을 읽을 경로를 V-05 에서 확정',
+            'F4 점검 보고(9/19): 모든 PC 가 도메인 60·서비스 이름 /dsr01 공통 → 시험 명령이 남의 Virtual·실기에 전달될 수 있음(로봇에 물린 PC 도 와이파이로는 이어져 있다). DSR_ROBOT2 에 정지 함수 없음, rclpy 기본 SIGINT 가 컨텍스트를 먼저 닫음', 'S,M,P,H']
+
+HISTORY4 = ['4.6', '안전·단순화', 'ENV-04, 규칙 🚨 격리, DSN-03', '격리 방식을 단순하게: 개인 도메인 번호(61~64)는 나누지 않는다. 도메인은 전원 60 그대로, .bashrc 에 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST 한 줄 + solo/team60 별칭. PC 여러 대 통합 때만 team60',
+            'PM 결정(9/19): 로봇에 랜선으로 붙는 PC 는 1대뿐이지만 그 PC 도 와이파이로는 다른 PC 와 이어져 있어 DDS 로는 명령이 들어온다 → 격리는 유지하되 번호 관리의 번거로움은 없앤다', 'S,M,P,H']
 
 
 def main(out):
@@ -206,17 +211,19 @@ def main(out):
     for r in ru.rows:
         key = ru.text(r, 'B').strip()
         if key in RULES and ru.text(r, 'A').strip() in ('마감', '정본'): r.set('C', RULES[key])
-    ru.rows[0].set('A', '운영 규칙 (PreWash-Cell 일정표 v4.5)')
+    ru.rows[0].set('A', '운영 규칙 (PreWash-Cell 일정표 v4.6)')
+    if has(ru, 'A', '🚨 도메인'):                          # v4.5 의 규칙 이름(개인 도메인 번호 방식) → v4.6 에서 '🚨 격리'(LOCALHOST 한 줄)로
+        ru.rows[ru.find('A', '🚨 도메인')].set('A', '🚨 격리')
     for rule in NEW_RULES:
         if has(ru, 'A', rule[0]):
-            ru.rows[ru.find('A', rule[0])].set('C', rule[2])
+            r_ = ru.rows[ru.find('A', rule[0])]; r_.set('B', rule[1]); r_.set('C', rule[2])
         else:
             k = ru.first_empty(); n = ru.rows[k - 1].clone()
             for c, v in zip('ABC', rule): n.set(c, v)
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
@@ -262,4 +269,4 @@ def report(rows):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1] if len(sys.argv) > 1 else 'prewash_일정표_0919d.xlsx')
+    main(sys.argv[1] if len(sys.argv) > 1 else 'prewash_일정표_0919e.xlsx')
