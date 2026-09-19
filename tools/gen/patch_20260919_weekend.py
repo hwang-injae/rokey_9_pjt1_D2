@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v6.0'
+VERSION = 'v6.1'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -106,6 +106,41 @@ PROGRESS = {
 for _tid, _e in PROGRESS.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/20 재계획 (황인재 지시: 좌표 작업 지연으로 쌓인 일 정리)
+# 원칙: ① 한석형의 오늘 오전은 좌표 마무리(CELL-04·CELL-01·V-19)만 ② F1 사슬을 반 칸씩 뒤로 — 좌표 없이 되는 남의 일은 그대로
+#       ③ 한석형 몫을 덜어 준다: V-22 → 황인재(motion.py 주인이 실기에서 확인) · V-20 → 황인재(bootstrap 주인, Virtual) · V-16 은 민범진 단독
+#       ④ 동결(9/23 저녁)은 그대로 — 밀리면 SDD §9.9 범위 방어(컵 e2e·실패 주입 4종 → 2종·4개 연속 → 2개)
+WHY = '9/20 재계획: 좌표 작업(CELL-04)이 9/20 오전까지 이어져'
+REPLAN_0920 = {
+ 'CELL-04':  dict(owner='S', note_add='9/20 재계획: 9/19 민범진 참여, 9/20 오전 컵 쪽은 한석형 단독(민범진은 그리퍼 세션이 먼저)'),
+ 'CELL-04b': dict(slots=S('9/20 오후'), note_add=WHY + ' 오전 → 9/20 오후 첫 순서(박진용 참여 — F3-02 가 SPONGE_BED_B 를 기다린다)'),
+ 'V-22':     dict(owner='H(S)', slots=S('9/20 오후'), note_add=WHY + ' 한석형 → **황인재 주도**(motion.py 주인이 실기에서 YAML 좌표 재현을 확인한다, 한석형은 좌표 제공·입회) · 티칭 2차 뒤에'),
+ 'V-20':     dict(owner='H(M)', slots=S('9/19 오후', '9/20 오후'), note_add='9/20 재계획: 민범진 → **황인재 주도**(bootstrap 주인 · Virtual 환경이 이미 있음) — 민범진의 9/20 오전 8건을 덜어 준다'),
+ 'V-16':     dict(owner='M', note_add='9/20 재계획: 한석형 참여 제외 — 찾은 HOLD 값만 한석형에게 전달(cell.yaml 프리셋)'),
+ 'F1-01':    dict(slots=S('9/20 오후'), note_add=WHY + ' 오전 → 9/20 오후(티칭 2차 뒤) · 그릇 좌표로 먼저'),
+ 'F1-02':    dict(slots=S('9/21 저녁'), note_add=WHY + ' 9/20 오후 → **9/21 저녁**(로봇 1시간 교대의 한석형 순서) · 코드는 9/20 오후~9/21 에 Virtual 로 미리'),
+ 'V-14':     dict(slots=S('9/21 저녁'), note_add=WHY + ' F1-02 와 함께 9/21 저녁'),
+ 'V-04':     dict(slots=S('9/22 오전'), note_add=WHY + ' 9/21 저녁 → 9/22 오전'),
+ 'V-15':     dict(slots=S('9/22 오전'), note_add=WHY + ' 9/21 저녁 → 9/22 오전'),
+ 'F1-05':    dict(slots=S('9/22 오전'), note_add=WHY + ' 9/21 저녁 → 9/22 오전(박진용 참여)'),
+ 'V-08':     dict(slots=S('9/22 오후'), note_add=WHY + ' 9/22 오전 → 오후'),
+ 'F1-03':    dict(slots=S('9/22 오후'), note_add=WHY + ' 9/22 오전 → 오후'),
+ 'V-06':     dict(slots=S('9/22 저녁'), note_add=WHY + ' 9/22 오후 → 저녁'),
+ 'F1-04':    dict(slots=S('9/22 저녁'), note_add=WHY + ' 9/22 오후 → 저녁'),
+ 'UT-F1':    dict(slots=S('9/22 저녁', '9/23 오전'), note_add=WHY + ' L1 의 F1 분은 9/22 저녁~9/23 오전 첫 순서(함수별 TC 는 구현 직후 바로)'),
+ 'INT-12b':  dict(slots=S('9/23 오전'), note_add=WHY + ' rack_place(F1-04)가 9/22 저녁이라 9/23 오전으로'),
+ 'INT-3a':   dict(slots=S('9/23 오후'), note_add='9/20 재계획: L2 가 9/23 오전까지라 그릇 e2e 는 9/23 오후'),
+ 'INT-3b':   dict(slots=S('9/23 오후', '9/23 저녁'), note_add='9/20 재계획: 🛡 범위 방어 1순위 — 밀리면 컵 e2e 는 1회로 줄이거나 도전 과제로'),
+ 'INT-4a':   dict(slots=S('9/23 저녁'), note_add='9/20 재계획: 9/23 오후 → 저녁 · 🛡 밀리면 4개 연속 → 2개'),
+ 'FIX-01':   dict(slots=S('9/23 오후', '9/23 저녁')),
+ 'F3-02':    dict(note_add='9/20 재계획: 셀 좌표(SPONGE_BED_B)는 9/20 오후 티칭 2차 뒤에 나온다 — 그 전에는 V-03 rig 좌표로 만든다'),
+ 'FLOW-01':  dict(slots=S('9/19 오전', '9/19 오후', '9/22 오후'), note_add='9/20 재계획: 남은 것(격리 마무리 동작)은 로봇이 필요 없어 비어 있는 9/22 오후로 — 9/20 오전 민범진 7건을 덜어 준다(L2 9/22 저녁 전까지면 된다) · ✅ 9/20 황인재 확정: 격리 마무리 순서 = 툴 반납 → 용기를 ISOLATE 에 놓기 → HOME · ROBOT_ERROR = 그 자리 정지 + PAUSED + 사람이 복구(SDD §7)'),
+ 'DSN-03':   dict(status='완료', note_add='✅ 9/20 아침 황인재: B7(격리 순서·ROBOT_ERROR)·B11(move_joint_rel)·B12(mock_f2) 승인, 티칭 자세 규칙 확정 → 급한 안건 종료. 보류 안건은 필요할 때'),
+ 'DSN-04':   dict(prog='0.9', note_add='9/20: B7·B11·B12·티칭 자세 규칙을 IRD §10·SDD §5.3·§7·회의록에 반영 → 남은 것: contracts.py pick docstring(황인재)·cell.yaml zones/presets 주석(한석형)'),
+}
+for _tid, _e in REPLAN_0920.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 팀(구역) 이동: id → (새 팀, 이 ID 행 바로 뒤에 둔다) — 이미 그 구역에 있으면 PM 이 정한 행 순서를 건드리지 않는다
 MOVE = {'V-01': ('F2·flow', 'V-02'), 'V-05': ('F2·flow', 'V-01'), 'V-23': ('F2·flow', 'V-05')}
 EASY = {
@@ -145,6 +180,19 @@ SLOT = {        # 로봇 슬롯 표 (A 열 → {열: 글})
  '9/23 수': {'B': 'INT-13 잔여 — G3(L2) → INT-3a·INT-3b L3(M 실행, 전원)', 'C': 'INT-3b·FIX-01 — G4(L3) → INT-4a 연속 처리',
              'D': 'INT-4b 실패 주입 · INT-4c 측정 → INT-4d 영상·동결 (G5)'},
 }
+GATE['G1 리그·검증']['C'] = '티칭 1차(9/20 오전 마무리)·2차(9/20 오후), 기구 완성(✅ 9/19), 공용 함수(cobot_common: motion·gripper·force·weigh) ✅ 전부 main(9/19), 실행 뼈대 확인(V-20), 설계를 정하는 검증(V-01·02·03·05·23) 결과 확보'
+GATE['G2 L1']['C'] = 'UT-F2·F3·FLOW 통과 + 녹화 (함수별 TC 는 구현 직후 바로 수행) + 코드리뷰 CR-01 · 🚨 **F1(UT-F1)은 좌표 지연으로 9/22 저녁~9/23 오전 첫 순서** · UT-F4 는 9/22 저녁'
+GATE['G3 L2']['C'] = 'INT-12a·13·4 는 9/22 저녁 시작, **INT-12b 는 9/23 오전**(rack_place 가 9/22 저녁) — flow_node + use_mock. 노션 업로드는 9/22'
+GATE['G4 L3']['C'] = '그릇 1개 end-to-end + HMI 3회 연속이 먼저, 컵 1개는 이어서(🛡 밀리면 컵은 1회 또는 도전 과제)'
+SLOT['9/20 일'] = {'B': '1시간씩 교대: 그리퍼 세션 V-05·V-23·V-01 → V-02(M) / V-03 → V-18·F3-02(P) / **좌표 마무리 CELL-04(컵 쪽)·CELL-01 → V-19(S)** · 로봇 불필요: CELL-03 배치(M)·DSN-04·F4-00(H)',
+                   'C': '1시간씩 교대: **CELL-04b 티칭 2차(S·P) → V-22(H·S) → F1-01(S)** / F3-02(P) / V-07·V-16 → F2-01(M) — 18시 마감 · 로봇 불필요: V-20 Virtual(H)·gripper.py 수정(M)·F4-01·F4-02·MID-01·ARCH-01(H)',
+                   'D': '🚫 교육장 마감(주말 18시) — 일정 없음'}
+SLOT['9/21 월']['D'] = '1시간씩 교대: **F1-02 pick + V-14(S)** / V-10 → F3-03(P) / F2-01·F2-02(M) · 로봇 불필요: INT-4·V-13·ENV-03·F4-02(H·M)'
+SLOT['9/22 화'] = {'B': '**V-04·V-15 → F1-05 안착(S, P 참여)** / F3-03 마무리(P) / UT-F2(M) · 로봇 불필요: UT-FLOW·FLOW-02(M)·CR-01(전원)·F4-03·노션 업로드(H)',
+                   'C': '**F1-03·V-08(S)** / UT-F3(P) / UT-F2 잔여(M) — G2(L1) 마감(F1 제외) · 로봇 불필요: F4-03·F4-04·NOTE-02(H)',
+                   'D': '**F1-04·V-06 → UT-F1(S)** / L2: INT-12a(M·S) → INT-13(P·S)'}
+SLOT['9/23 수'] = {'B': 'UT-F1 잔여 → **INT-12b(S·M)** · INT-13 잔여 — G3(L2)', 'C': 'INT-3a 그릇 e2e → INT-3b 컵 e2e · FIX-01 — G4(L3)',
+                   'D': 'INT-4a 연속 처리 → INT-4b 실패 주입 · INT-4c 측정 → INT-4d 영상·동결 (G5) · 🛡 범위 방어: 4개 → 2개, 실패 주입 4종 → 2종'}
 RULES = {       # (A 열, B 열 글자) → (새 B, 새 C)
  ('마감', '9/22(화) 오전'): ('9/22(화) 오후', 'L1 단위기능 테스트(UT-F1·F2·F3·FLOW) 통과 — 함수별 TC 는 구현 직후 바로 수행. UT-F4 는 9/22 저녁. 미통과 기능은 범위 방어표대로 축소 · 코드리뷰(CR-01) · 노션에 노드 구조·HMI 화면·안전 자료 업로드 · GitHub 최신'),
  ('마감', '9/22(화) 저녁'): ('9/23(수) 오전', 'L2 단위기능 통합 완료 (flow_node 에서 실행, 나머지 기능은 use_mock) — 9/22 저녁 시작'),
@@ -173,6 +221,8 @@ HISTORY10 = ['v5.9', '일정', 'CELL-04, V-19, F1-01', '티칭 1차(CELL-04)는 
              '황인재 확인 9/19 17:50', 'S']
 HISTORY11 = ['v6.0', '일정', 'CELL-04, V-19, CELL-03, CELL-01', '9/20 아침 황인재 확인: 좌표 작업은 9/20 오전에 끝낸다 · V-19 는 좌표가 끝난 뒤(9/20 오전) · CELL-03 은 9/20 오전으로 · CELL-01 은 좌표 측정과 함께 진행 중 · 티칭 자세 = 기능의 시작 자세로 확정',
              '황인재 9/20', 'S,M']
+HISTORY12 = ['v6.1', '재계획', 'CELL-04b, V-22, V-20, V-16, F1-01~05, V-04·06·08·14·15, UT-F1, INT-12b, INT-3a·3b·4a, DSN-03', '좌표 작업 지연에 따른 재계획(황인재 지시): ① 9/20 오전 한석형은 좌표 마무리만 ② F1 사슬을 반 칸씩 뒤로(F1-01 9/20 오후 · F1-02 9/21 저녁 · F1-05 9/22 오전 · F1-03 9/22 오후 · F1-04·UT-F1 9/22 저녁~9/23 오전 · INT-12b 9/23 오전) ③ 한석형 몫 덜기: V-22·V-20 → 황인재 주도, V-16 민범진 단독 ④ L3·L4 는 9/23 오후·저녁, 동결 그대로 — 밀리면 범위 방어 ⑤ DSN-03 완료(B7·B11·B12 승인)',
+             '황인재 9/20 (좌표 지연)', 'S,M,P,H']
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -258,7 +308,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)

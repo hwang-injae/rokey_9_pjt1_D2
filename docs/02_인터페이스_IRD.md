@@ -152,6 +152,6 @@ f1.pick('RET_B', 'BOWL') → f1.move_to('WEIGH', True) → f2.leftover_loop('BOW
 왜 2개인가: ① 공용 값(좌표·속도·프리셋)은 한 곳, 주인 한 명 — F1의 `place`와 F3의 `wipe_bowl`이 같은 `cell.yaml`을 읽으므로 값이 갈라질 수 없다. ② 나머지는 한 파일에서 한눈에 — 절이 떨어져 있어 git이 자동으로 합친다. 규칙은 하나, **자기 절만 고친다.** ③ 코드는 `cobot_common.config.load()`가 두 파일을 읽어 하나의 설정(`cfg['cell']`, `cfg['f3']` …)으로 합쳐 준다. 키 이름 규칙은 SDD §4.3.
 
 ## 10. 시험용 가짜 구현
-- **`f2_sense_flow.mock.mock_f1` · `mock_f3`**: 실제 모듈과 **같은 함수 이름·같은 인자**로 즉시 `Result(ok=True)`를 돌려주고, 설정으로 실패 코드를 주입한다(`flow.mock.fail_on: ["place:SEAT_FAIL"]`). flow는 `params.yaml`의 `flow.use_mock: [f1, f3]`로 어느 쪽을 import할지 고른다. 전부 mock이면 두산 드라이버 없이 돈다 — flow·HMI 개발용, 민범진 제공. 서명 일치는 `cobot_api.check_api(mock_f1, F1Api)`로 검사한다.
+- **`f2_sense_flow.mock.mock_f1` · `mock_f2` · `mock_f3`**(✅ `mock_f2` 추가 — 황인재 9/20, 코드는 PR #8부터 있었다): 실제 모듈과 **같은 함수 이름·같은 인자**로 즉시 `Result(ok=True)`를 돌려주고, 설정으로 실패 코드를 주입한다(`flow.mock.fail_on: ["place:SEAT_FAIL"]`). flow는 `params.yaml`의 `flow.use_mock: [f1, f3]`로 어느 쪽을 import할지 고른다. 전부 mock이면 두산 드라이버 없이 돈다 — flow·HMI 개발용, 민범진 제공. 서명 일치는 `cobot_api.check_api(mock_f1, F1Api)`로 검사한다.
 - **`fake_state_pub`**: `/flow/state`·`/flow/event`를 시나리오대로 발행 — HMI 개발용, 황인재 제작.
 - **단독 시험 스크립트** `rig_f1.py`·`rig_f2.py`·`rig_f3.py`: `cobot_common.init('rig_f1')` 뒤 자기 함수만 직접 부른다(SDD §3.2). 용기·툴은 손으로 놓아 준다.
