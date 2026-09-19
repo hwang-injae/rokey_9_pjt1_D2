@@ -379,11 +379,16 @@ return EMPTY_ZONE (attempts = 슬롯 수)
 좌표는 전부 `config/cell.yaml`. 티칭: Dart Platform으로 자세 → 좌표 읽기 → YAML → ROS 재현 → 🚨 제어권 해제.
 
 ### 5.3 f2_sense_flow — `sense.py` (민범진)
-- `weigh`: `move_to(WEIGH)` → 0.5 s 정지 → `cobot_common.weigh(n)`. 0점 재설정은 선택 동작(TS-03) — 판정은 `측정값 − 빈 용기 기준값`이라 고정 옵셋이 상쇄된다.
+> 🟡 **스테이션 티칭 자세와 `move_to`의 "남은 높이" 규칙 (PM 제안 9/19 — 민범진 질문에 대한 답, 9/20 브리핑에서 확인)**
+> - **스테이션의 티칭 자세 = 그 기능이 동작을 시작하는 자세**다(바닥·수면이 아니다). `WEIGH` = 무게를 재는 자세, `WASTE` = 잔반통 **위에서 터는 자세**, `RINSE`·`SOAP` = 수조 **위에서 담그기를 시작하는 자세**.
+> - `up = cc.move_to(station, carrying)`의 `up`은 "`move_to`가 안전 높이 때문에 못 내려간 만큼"일 뿐이다. 기능 함수는 `up > 0`이면 `cc.move_rel(0, 0, -up, 'BASE')`로 **먼저 티칭 자세까지 내려간 뒤**, 자기 값(`depth_mm` 등)을 **티칭 자세 기준**으로 쓴다 → `safe_z_mm`을 바꿔도 동작이 달라지지 않는다.
+> - 가능하면 `WEIGH`·`WASTE`·`RINSE`·`SOAP`은 **안전 높이 이상에서 티칭**한다(`up = 0`이 되어 코드가 단순해진다). 무게는 높이와 무관하므로 `WEIGH`는 내려갈 이유가 없다 — 다만 빈 용기 기준값과 **같은 자세**여야 옵셋이 상쇄된다.
+> - 끝난 뒤 올라오는 것은 다음 `move_to`가 한다(안전 높이보다 낮으면 먼저 곧게 위로). 물·용기가 걸릴 수 있는 `dip`만 내려간 만큼 직접 올라온 뒤 다음으로 간다.
+- `weigh`: `up = move_to(WEIGH)`(`up > 0`이면 그만큼 하강) → 0.5 s 정지 → `cobot_common.weigh(n)`. 0점 재설정은 선택 동작(TS-03) — 판정은 `측정값 − 빈 용기 기준값`이라 고정 옵셋이 상쇄된다.
 - `leftover_loop`: `weigh` → 판정(임계 50 g, 미만은 OK) → `move_to(WASTE)` → `shake(WASTE)` → `weigh` … 최대 `max_rounds`.
 - **강한 파지**: `shake`·`dip`(과 이를 부르는 `leftover_loop`)는 시작할 때 `grip_level(kind,'HOLD')`, 끝날 때 `grip_level(kind,'NORMAL')`. 동작 전후 폭을 비교해 변했으면(미끄러짐) `GRIP_FAIL`.
-- `shake`: J5/J6 관절 왕복(Move Periodic 또는 movej 왕복). 충돌 감지 오작동 시 진폭 축소(V-07).
-- `dip`: 수조 상공 → `depth_mm` 하강 → `hold_s` → 상승.
+- `shake`: 티칭 자세(잔반통·수조 **위**)에서 J5/J6 관절 왕복 — `cc.move_joint_rel(joint, ±amp, time_s=…)`. 🚨 `time_s`는 **한 번 움직이는 구간의 시간**이다(가운데 → 끝 = `period_s/4`, 끝 → 반대쪽 끝 = `period_s/2`) — `period_s`를 그대로 넘기면 4배 느려진다. 평균 속도가 `cell.motion.vel_joint_max_deg_s × vel_scale`을 넘으면 자동으로 느려진다(#16). 충돌 감지 오작동 시 진폭 축소(V-07).
+- `dip`: 티칭 자세(수조 위, 담그기 시작 자세)까지 → **그 자세에서** `depth_mm` 하강 → `hold_s` → `depth_mm` 상승. `depth_mm`은 수조 깊이 − 용기 높이보다 작아야 한다(값은 V-07에서, 물 없이 모션만).
 
 ### 5.4 f3_wipe — `wipe.py` (박진용)
 - `soap`: 툴 든 채 SOAP 수조 담금 `count`회.
