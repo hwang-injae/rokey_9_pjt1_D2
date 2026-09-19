@@ -120,6 +120,11 @@ class Flow:
         # DONE 을 화면에 보여 주는 시간. /flow/state 주기(state_pub_hz)보다 길어야 한 번은 잡힌다
         self.done_hold_s = self._num('done_hold_s', 1.0, float)
         self.step_delay_s = self._num('step_delay_s', 0.0, float)
+        # /flow/state 발행 주기. 0·음수면 타이머를 만들 수 없다(1/0) → 기본값으로 되돌린다
+        self.state_pub_hz = self._num('state_pub_hz', 2.0, float)
+        if self.state_pub_hz <= 0:
+            self.log.warn(f'flow.state_pub_hz 가 {self.state_pub_hz} 다 — 0 보다 커야 한다 → 2.0 으로 본다')
+            self.state_pub_hz = 2.0
 
         # ── 상태 (flow_node 가 2 Hz 로 읽어 /flow/state 로 내보낸다) ──
         self.step = 'IDLE'
@@ -185,7 +190,14 @@ class Flow:
 
     # ────────────────────────────────── 상태 스냅샷
     def snapshot(self):
-        """flow_node 가 FlowState 메시지로 옮겨 담을 값 모음."""
+        """flow_node 가 FlowState 메시지로 옮겨 담을 값 모음.
+
+        🟡 락이 없다. 통신 스레드가 읽는 동안 메인 스레드가 값을 바꿀 수 있어,
+           한 스냅샷 안에서 step 과 카운터가 서로 다른 순간의 값일 수 있다.
+           파이썬 속성 읽기는 원자적이라 깨진 값은 안 나오고, 2 Hz 로 다시 보내므로
+           0.5 초 안에 맞춰진다. 표시용이라 그대로 둔다(락을 잡으면 통신 스레드가
+           메인 스레드의 로봇 동작을 기다리게 되어 더 나쁘다).
+        """
         return dict(
             step=self.step, kind=self.kind, zone_id=self.zone_id,
             done_bowl=self.done_bowl, done_cup=self.done_cup, isolated=self.isolated,
@@ -206,7 +218,10 @@ class Flow:
             fn(*args)
             return True
         except Exception as e:                # noqa: BLE001 — 무엇이 터지든 셀을 멈추면 안 된다
-            self.log.error(f'{what} 실패 — {e!r}')
+            try:
+                self.log.error(f'{what} 실패 — {e!r}')
+            except Exception:                 # noqa: BLE001 — 로그가 터져도 통로는 안 샌다
+                pass
             return False
 
     def _retreat(self):

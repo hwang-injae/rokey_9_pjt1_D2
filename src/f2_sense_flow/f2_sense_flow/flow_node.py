@@ -26,7 +26,9 @@ Ctrl+C 는 cobot_common.init() 이 단독으로 맡는다 (SDD §3.1, PR #3).
    프로세스 안의 두 노드(flow_node · flow_node_dsr)에 모두 걸려 이름이 같아진다.
 """
 import functools
-import logging
+import traceback
+
+import rclpy.logging
 
 import cobot_common as cc
 from cobot_common import config as cc_config
@@ -78,9 +80,8 @@ class Io:
         self.state_pub = node.create_publisher(FlowState, '/flow/state', 10)
         self.event_pub = node.create_publisher(FlowEvent, '/flow/event', 10)
 
-        rate_hz = flow.cfg.get('state_pub_hz', 2.0)
-        node.create_timer(1.0 / rate_hz, self._on_state_timer)
-        self.rate_hz = rate_hz
+        self.rate_hz = flow.state_pub_hz          # Flow 가 이미 검증했다(0·음수·문자열 → 2.0)
+        node.create_timer(1.0 / self.rate_hz, self._on_state_timer)
 
     # ────────────────────────────────── 서비스 콜백 (깃발만!)
     @safe_cb('/flow/start')
@@ -131,6 +132,11 @@ def main():
     #    기능이 전부 가짜면 두산 드라이버 없이 돈다 → 브링업 없이 flow·HMI 개발 가능
     cfg = cc_config.load()
     use_mock = cfg.get('flow', {}).get('use_mock') or []
+    if isinstance(use_mock, str):
+        # 🚨 YAML 에 use_mock: "f1,f3" 처럼 문자열로 적으면 set() 이 글자 단위가 되어
+        #    'f1' in use_mock 이 부분문자열 매칭으로 조용히 틀린 선택을 한다
+        use_mock = cc_config.parse_use_mock(use_mock)
+    use_mock = [m for m in use_mock if m in FEATURES]
     robot = not set(FEATURES) <= set(use_mock)
 
     cc.init('flow_node', robot=robot)                # ① 맨 앞에서 한 번 (SDD §3.2)
@@ -157,7 +163,9 @@ def main():
     except Exception:                                # noqa: BLE001
         # 여기까지 온 예외는 flow 의 보호를 모두 지나온 것이다(설정·초기화·구조 문제).
         # 트레이스백을 그대로 남겨 원인을 알 수 있게 하고, 정리는 finally 가 한다.
-        logging.getLogger('flow_node').exception('flow_node 를 계속할 수 없다')
+        # 노드를 못 쓸 수도 있는 자리라 rclpy 의 이름 있는 로거를 쓴다(AGENTS §4: print 금지).
+        rclpy.logging.get_logger('flow_node').error(
+            'flow_node 를 계속할 수 없다\n' + traceback.format_exc())
         raise
     finally:
         cc.shutdown()                                # ⑦ 어떤 경우에도 정리
