@@ -71,7 +71,7 @@ HMI 시작 1회 → 반납 구역 계획 순서(그릇 구역 2개 → 컵 구�
 - 🚨 **실행 뼈대는 SDD §3.2 그대로**: 기능(f1·f2·f3)은 노드가 아니라 **평범한 함수**(`cobot_api`의 서명 그대로, 반환은 `Result`). 프로그램 맨 앞에서 `cobot_common.init(name)` 한 번, 끝낼 때 `cobot_common.shutdown()`. 기능 함수 안에서 노드를 만들거나 `rclpy.init`·`rclpy.spin*`을 부르지 않는다. `DSR_ROBOT2` 직접 import 금지. 통신 노드의 콜백은 값 저장·깃발만. 이유는 `docs/troubleshooting/TS-01_…md`. 시험은 같은 함수를 **연속 3회 이상**.
 - 로그 `get_logger()`, `print()` 금지. 상태 머신은 전이표를 주석·문서에. 실패는 예외가 아니라 `code`로 보고. 어떤 실패에서도 **툴은 홀더에 반납, 로봇은 안전 높이**.
 - 한국어 문서·주석, 영문 식별자. 커밋 `<타입>(<스코프>): <제목>` 타입 10종(`feat fix refactor style docs test chore remove perf ci`), 브랜치 `{이름}/{YYYYMMDD}-{taskID}-{설명}`.
-- **개발 흐름**: 단위기능 완성 → **단위기능 테스트(TC가 있는 작업은 항상; 로봇이 움직이면 녹화 권장 `YYYYMMDD_TCxx_기능_담당_시도N.mp4`)** → `main` pull → 통합 테스트 → `main`에 PR → Actions 자동 검사(main 충돌·산출물) → **문서만 바뀐 PR은 자동 승인·merge / 코드·설정·도구·인터페이스 정본이 포함된 PR은 PM 에이전트가 전부 읽고 PM(황인재) 확인 뒤 merge**(보류는 제목 `[hold]`). 주기적으로 `git fetch`, 작업 브랜치는 **하루 1회 이상 push**.
+- **개발 흐름**: 단위기능 완성 → **단위기능 테스트(TC가 있는 작업은 항상; 로봇이 움직이면 녹화 권장 `YYYYMMDD_TCxx_기능_담당_시도N.mp4`)** → `main` pull → 통합 테스트 → `main`에 PR → Actions 자동 검사(main 충돌·산출물) → **문서만 바뀐 PR은 자동 승인·merge / 코드·설정·도구·인터페이스 정본이 포함된 PR은 PM 에이전트가 전부 읽고 승인·merge 또는 거절**(황인재 위임)(보류는 제목 `[hold]`). 주기적으로 `git fetch`, 작업 브랜치는 **하루 1회 이상 push**.
 
 ## 5. 환경 함정 (자세한 건 `docs/setup/M0609_환경설정.md`)
 | 증상 | 해결 |

@@ -26,7 +26,7 @@ EDIT = {
  'INF-02a': dict(task='cobot_common 1/4 · bootstrap.py(선행) — init(name, robot)·io_node·cfg·shutdown + config.py 로더 + __init__.py(함수 재수출)·함수 이름만 있는 뼈대 motion.py·force.py·weigh.py + Ctrl+C 처리 (Virtual 에서 돌려 본 ts01_repro/virtual/s4_script.py 를 옮겨 적는다)',
                  deliv='src/cobot_common/cobot_common/bootstrap.py, config.py, __init__.py, 뼈대 motion.py·force.py·weigh.py(SDD §3.1 함수 이름·인자 + NotImplementedError), package.xml·setup.py',
                  crit='격리 상태(solo)의 Virtual 에서 rig 스크립트로 movej 연속 3회 + 통신 노드 타이머 2 Hz + 멈춰 있을 때 Ctrl+C → 깨끗이 종료·재실행 정상 (움직이는 중 Ctrl+C 는 최선 시도 — V-24)',
-                 note='🚨 최우선 — V-20·FLOW-01·런치·모든 rig 스크립트가 기다린다 · 뼈대 파일 3개를 같이 올려 S·P·M 이 자기 파일만 채운다 · 세 파일은 맨 위에서 DSR_ROBOT2 를 import 하지 않는다(통로는 PR 본문에) · Ctrl+C 는 init() 이 단독으로 맡는다 · 정지 명령(move_stop) 조사로 PR 을 늦추지 않는다'),
+                 note='✅ PR #3 merge(9/19) — git pull → cbc 후 S·P·M 은 자기 파일(motion·force·weigh)만 채운다 · 두산 함수는 함수 안에서 from .bootstrap import dsr → dsr().movej(...) (맨 위 DSR_ROBOT2 import 금지) · 구독은 자기 파일의 setup_io(node) · Ctrl+C 는 init() 이 단독 · Virtual 에서 모션 중 Ctrl+C 정지 확인(실기는 V-24)'),
  'INF-02b': dict(task='cobot_common 3/4 · force.py — 힘 함수 force_on/off·force_reached·contact_down·periodic_search·safe_retreat + 패키지 정리·리뷰(네 사람이 나눠 쓴 함수의 일관성)',
                  deliv='src/cobot_common/cobot_common/force.py', note='F1-02(9/20 오전)가 contact_down 을 기다린다 · Virtual에는 힘이 없으므로 호출 순서만, 값은 V-03 · 자기 파일(force.py)만 고친다 · 이동이 필요한 곳(safe_retreat 등)은 motion.py 가 나오기 전까지 임시 stub'),
  'INF-02c': dict(task='cobot_common 4/4 · weigh.py — weigh(n, reset=False) 저수준 측정 · V-02 측정 도구에서 이식 (reset 은 선택 동작·응답 상한 3 s·실패 시 반복 금지, TS-03)',
@@ -77,6 +77,8 @@ EDIT = {
  'DOC-06': dict(deliv='발표', crit='20분 안에 발표 + QnA 대응'),
  'WRAP-01': dict(deliv='정리 체크', crit='로봇 설정 초기화 · 자리 원상 복구'),
 }
+# 상태 갱신: id → (상태, 진행)
+STATUS = {'INF-02a': ('완료', '1.0')}     # PR #3 merge (9/19 12:22)
 # 팀(구역) 이동: id → (새 팀, 이 ID 행 바로 뒤에 둔다)
 MOVE = {'INF-02': ('전원', 'INF-02a'), 'INF-02b': ('전원', 'INF-02'),      # cobot_common 네 행은 한곳에: 02a(선행) → 02 → 02b → 02c
         'V-23': ('F1', 'V-05'), 'V-04': ('F1', 'V-15'), 'V-16': ('F2·flow', 'V-07'), 'V-24': ('F4', 'F4-03'), 'SAFE-01': ('전원', 'NOTE-01'), 'V-21': ('전원', 'TS-01')}
@@ -116,7 +118,7 @@ RULES = {       # B 열 글자 → C 열 새 글
  '이 파일(구글 드라이브)': '일정표 정본은 구글 공유 드라이브의 이 xlsx. 테스트 기준(TC·INT·V)은 저장소 docs/03_설계_SDD.md §9. 완료 행은 Time Line 에 남기고 완료 목록 시트에 복사된다(패치가 자동으로 채운다)',
 }
 RULES_A = {     # A 열 글자 → C 열 새 글
- '개발 흐름': '단위기능 완성 → 단위기능 테스트(TC 있는 작업) → main pull → 통합 테스트 → main PR → Actions 자동 검사(main 충돌·산출물). 문서만 바뀐 PR 은 자동 승인·merge, 코드·설정·도구·인터페이스 정본이 포함된 PR 은 PM 에이전트가 전부 읽고 황인재 확인 뒤 merge(보류는 제목 [hold]). 로봇 움직이는 테스트는 녹화 권장 YYYYMMDD_TCxx_기능_담당_시도N.mp4',
+ '개발 흐름': '단위기능 완성 → 단위기능 테스트(TC 있는 작업) → main pull → 통합 테스트 → main PR → Actions 자동 검사(main 충돌·산출물). 문서만 바뀐 PR 은 자동 승인·merge, 코드·설정·도구·인터페이스 정본이 포함된 PR 은 PM 에이전트가 전부 읽고 승인·merge 또는 거절(황인재 위임, 보류는 제목 [hold]). 로봇 움직이는 테스트는 녹화 권장 YYYYMMDD_TCxx_기능_담당_시도N.mp4',
 }
 NEW_RULES = [
  ('담당 표기', 'A(B) · A,B', 'A(B) = A 가 주도하고 B 는 참여. A,B = 같은 이름의 작업을 각자 자기 몫만 따로 한다(예 PKG-01). 한 가지 일을 둘이 같이 할 때는 반드시 주도(참여)로 적어 주인을 한 명으로 한다. 팀(구역)은 주도자의 기능을 따른다. 단 공용 패키지(cobot_common·config·런치·mock) 작업은 주도자와 상관없이 전원 구역의 "계약"에 모은다'),
@@ -142,6 +144,9 @@ HISTORY4 = ['4.6', '안전·단순화', 'ENV-04, 규칙 🚨 격리, DSN-03', '�
 
 HISTORY5 = ['4.7', 'PR 흐름', '규칙(개발 흐름)', 'PR 승인 방식 변경: 문서만 바뀐 PR 은 지금처럼 자동 승인·merge, 코드·설정·도구·인터페이스 정본이 포함된 PR 은 PM 에이전트가 바뀐 것을 전부 읽고 황인재 확인 뒤 merge',
             '9/19 확인: 기계 검사(main 충돌·산출물)만 통과하면 19초 만에 자동 merge 되어 로봇을 움직이는 코드가 아무도 읽지 않은 채 main 에 들어갈 수 있었다', 'S,M,P,H']
+
+HISTORY6 = ['4.8', '진행·PR', 'INF-02a, 규칙(개발 흐름)', 'INF-02a 완료(PR #3 merge, 9/19 12:22): cobot_common 실행 뼈대 + 사람별 뼈대 파일 → S·P·M 이 자기 파일을 채울 수 있다. PR 검토는 PM 에이전트가 직접 승인·merge 또는 거절(황인재 위임)',
+            'PR #3 검토·merge · 황인재 지시(개인 브랜치 → main PR 은 PM 에이전트가 검토 후 승인/거절)', 'S,M,P,H']
 
 
 def main(out):
@@ -179,6 +184,8 @@ def main(out):
             q = d.rows[d.find('A', tid)]
             for c, k in (('C', 'task'), ('D', 'owner'), ('E', 'deliv'), ('F', 'crit'), ('G', 'note')):
                 if k in e: q.set(c, e[k])
+    for tid, (st, pg) in STATUS.items():
+        r = tl.rows[tl.find(ID, tid)]; r.set('F', st); r.set('E', pg)
     # 2) 완료 행은 진행 1.0
     for r in tl.rows:
         if tl.text(r, 'F').strip() == '완료' and tl.text(r, ID).strip(): r.set('E', '1.0')
@@ -219,7 +226,7 @@ def main(out):
         if key in RULES and ru.text(r, 'A').strip() in ('마감', '정본'): r.set('C', RULES[key])
     for r in ru.rows:
         if ru.text(r, 'A').strip() in RULES_A: r.set('C', RULES_A[ru.text(r, 'A').strip()])
-    ru.rows[0].set('A', '운영 규칙 (PreWash-Cell 일정표 v4.7)')
+    ru.rows[0].set('A', '운영 규칙 (PreWash-Cell 일정표 v4.8)')
     if has(ru, 'A', '🚨 도메인'):                          # v4.5 의 규칙 이름(개인 도메인 번호 방식) → v4.6 에서 '🚨 격리'(LOCALHOST 한 줄)로
         ru.rows[ru.find('A', '🚨 도메인')].set('A', '🚨 격리')
     for rule in NEW_RULES:
@@ -231,7 +238,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
@@ -277,4 +284,4 @@ def report(rows):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1] if len(sys.argv) > 1 else 'prewash_일정표_0919f.xlsx')
+    main(sys.argv[1] if len(sys.argv) > 1 else 'prewash_일정표_0919g.xlsx')
