@@ -39,6 +39,9 @@ def main():
     a = ap.parse_args()
 
     if a.which == 'empty':
+        if a.no_robot:
+            sys.exit('empty 는 실기에서만 됩니다 — 무게는 진짜 로봇의 하중 센서에서만 나옵니다.\n'
+                     '  sod && sodreal   (브링업)  →  soc  →  이 명령에서 --no-robot 을 빼고 다시')
         return _measure_empty(a)
 
     problems = check_api(sense, F2Api)               # 약속과 어긋나면 로봇을 켜기 전에 멈춘다
@@ -74,16 +77,24 @@ def _measure_empty(a):
        티칭이 끝나면 WEIGH 자세에서 다시 재는 것이 정확하다.
        브링업을 다시 했으면(다른 세션) 값이 달라질 수 있으니 시연 날 아침에 다시 잰다.
     """
-    cc.init('rig_f2', robot=not a.no_robot)
+    cc.init('rig_f2', robot=True)
     log = cc.io_node().get_logger()
     try:
         samples = cc.cfg()['f2']['weigh_samples']
         log.info(f'빈 {a.kind} 을(를) 그리퍼에 물린 상태에서 {a.n}회 잰다 (회당 {samples} 표본)')
         got = []
         for i in range(a.n):
-            g = cc.weigh(samples)                    # 내 cobot_common/weigh.py
+            try:
+                g = cc.weigh(samples)                # 내 cobot_common/weigh.py
+            except Exception as e:                   # noqa: BLE001 — 무엇이 잘못됐는지 사람이 알게
+                log.error(f'  {i + 1}/{a.n}  측정 실패 — {e}')
+                log.error('  확인: 브링업(sodreal)이 떠 있나 · 티치펜던트 제어권을 놨나 · robotmode 가 1 인가')
+                continue
             got.append(g)
             log.info(f'  {i + 1}/{a.n}  {g:.1f} g')
+        if not got:
+            log.error('한 번도 재지 못했습니다 — 위 확인 항목을 보세요')
+            return
         got.sort()
         mid = got[len(got) // 2] if len(got) % 2 else (got[len(got) // 2 - 1] + got[len(got) // 2]) / 2
         log.info(f'중앙값 {mid:.1f} g  (폭 {max(got) - min(got):.1f} g)')
