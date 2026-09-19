@@ -10,7 +10,8 @@
 🚨 엔터를 누른 뒤에는 키보드에서 손을 떼고 한 손은 E-Stop, 눈은 로봇. 속도는 vel_scale 0.3(바꾸려면 PREWASH_VEL_SCALE).
 
 흐름: HOME → 빠른 접근(approach_down_mm) → contact_down(바닥 찾기, 못 찾으면 힘제어 없이 중단)
-      → 닿은 채 제자리 누르기 3·4·5 N → 누른 채 바닥에서 8자 문지르기(move_periodic) → 후퇴 → HOME
+      → 닿은 채 제자리 누르기 → 누른 채 손목을 ±scrub_deg 로 비틀며 중심에서 나선으로 넓혀 가기
+      → 옆 힘이 (가운데에서 배운 마찰 + wall_margin_n) 을 넘으면 벽 → 그 반지름 − margin 으로 벽 따라 2바퀴 → 후퇴 → HOME
 힘은 닿은 채 켠다(cell.force.force_mode ABS: 목표 = 실제 누르는 힘). 9/19 1차에 3 mm 위(공중)에서 상대 모드로 켰더니
 3 s 안에 바닥까지 못 내려가 공중에서 8자를 그렸다 → 방식 변경.
 누르는 힘 = 공중에서 잰 기준값 대비 Fz 변화. 어느 순간이든 limit_n 을 넘으면 즉시 힘 해제 → 후퇴.
@@ -58,8 +59,102 @@ class Run:
             raise RuntimeError(f'movel(Z {dz:+.1f} mm) 실패')
 
     def zero(self):
-        """공중에서 Fz 기준값을 잡는다(툴 무게·옵셋 제거)."""
-        self.baseline = statistics.mean(cc.read_force()[2] for _ in range(5))
+        """공중에서 Fz·Fx·Fy 기준값을 잡는다(툴 무게·옵셋 제거)."""
+        fs = [cc.read_force() for _ in range(5)]
+        self.baseline = statistics.mean(f[2] for f in fs)
+        self.fx0 = statistics.mean(f[0] for f in fs)
+        self.fy0 = statistics.mean(f[1] for f in fs)
+
+    # ------------------------------------------------------------ 나선 문지르기 · 벽 찾기 · 벽 따라 돌기
+    def scrub_to(self, x, y):
+        """중심 기준 (x, y) 로 한 걸음(BASE 상대 이동) → 손목을 ±scrub_deg 로 번갈아 비튼다(TOOL Z 회전).
+
+        순응 중 관절 이동(movej) 금지라 둘 다 직교 이동. 비튼 누적 각은 self.rz 에 두고 끝나면 되돌린다.
+        한 걸음마다 힘을 읽어 기록하고 (누르는 힘, 옆 힘) 을 돌려준다.
+        """
+        p, d, s = self.p, self.d, cc.cfg()['run']['vel_scale']
+        vel = [p['scrub_lin_vel_mm_s'] * s, p['scrub_rot_vel_deg_s'] * s]
+        acc = [p['scrub_lin_acc_mm_s2'], p['scrub_rot_acc_deg_s2']]
+        dx, dy = x - self.x, y - self.y
+        if abs(dx) > 1e-6 or abs(dy) > 1e-6:
+            if d.movel([dx, dy, 0.0, 0.0, 0.0, 0.0], vel=vel, acc=acc, ref=d.DR_BASE, mod=d.DR_MV_MOD_REL) != 0:
+                raise RuntimeError('movel(나선 한 걸음) 실패')
+            self.x, self.y = x, y
+        rz = p['scrub_deg'] * self.twist
+        if d.movel([0.0, 0.0, 0.0, 0.0, 0.0, rz - self.rz], vel=vel, acc=acc, ref=d.DR_TOOL, mod=d.DR_MV_MOD_REL) != 0:
+            raise RuntimeError('movel(손목 비틀기) 실패')
+        self.rz, self.twist = rz, -self.twist
+        return self.check('scrub')
+
+    def check(self, phase):
+        """힘 한 번 읽기 → 기록 · 누르는 힘/옆 힘 상한 검사 → (press, lateral)."""
+        p = self.p
+        f = cc.read_force()
+        press = abs(f[2] - self.baseline)
+        lateral = ((f[0] - self.fx0) ** 2 + (f[1] - self.fy0) ** 2) ** 0.5
+        self.rows.append([phase, round(time.monotonic() - self.t0, 3), f[0], f[1], f[2], round(press, 3), p['wipe_target_n']])
+        if press > p['limit_n']:
+            raise cc.ForceLimitError(f'{phase}: 누르는 힘 {press:.1f} N > {p["limit_n"]} N')
+        if lateral > p['lateral_max_n']:
+            raise cc.ForceLimitError(f'{phase}: 옆 힘 {lateral:.1f} N > {p["lateral_max_n"]} N (벽을 세게 밀었다)')
+        return press, lateral
+
+    def spiral_find_wall(self):
+        """중심에서 아르키메데스 나선(r = pitch·θ/2π)으로 넓혀 가며 문지른다. 벽이면 (반지름, 각도) · 못 찾으면 None."""
+        import math
+        p = self.p
+        self.x = self.y = self.rz = 0.0
+        self.twist = 1
+        theta, fric, hits, presses = 0.0, [], 0, []
+        start = time.monotonic()
+        while True:
+            r = p['spiral_pitch_mm'] * theta / (2 * math.pi)
+            if r > p['spiral_r_max_mm']:
+                self.log.error(f'반지름 {p["spiral_r_max_mm"]} mm 까지 벽을 못 찾았다')
+                return None
+            if time.monotonic() - start > p['scrub_timeout_s']:
+                raise cc.MotionTimeout('나선 문지르기 시간 초과')
+            press, lat = self.scrub_to(r * math.cos(theta), r * math.sin(theta))
+            presses.append(press)
+            if r <= p['friction_learn_r_mm']:
+                fric.append(lat)                                         # 벽이 없는 가운데에서 마찰 크기를 배운다
+            else:
+                limit = max(fric) + p['wall_margin_n'] if fric else p['wall_margin_n']
+                hits = hits + 1 if lat > limit else 0
+                if hits >= p['wall_confirm']:
+                    self.log.info(f'  벽: 반지름 {r:.1f} mm · 각 {math.degrees(theta):.0f}° · 옆 힘 {lat:.1f} N '
+                                  f'(마찰 최대 {max(fric) if fric else 0:.1f} + {p["wall_margin_n"]} N)')
+                    self.result('spiral', p['wipe_target_n'], presses[len(fric):] or presses)
+                    return r, theta
+            theta += p['scrub_step_mm'] / max(r, p['scrub_step_mm'])  # 호 길이가 약 scrub_step_mm 가 되게
+
+    def circle_wall(self, r_hit, theta0):
+        """벽을 만난 반지름 − circle_margin_mm 로 circle_turns 바퀴, 손목을 비틀며 벽을 따라 문지른다."""
+        import math
+        p = self.p
+        rc = r_hit - p['circle_margin_mm']
+        n = max(8, int(2 * math.pi * rc / p['scrub_step_mm']))
+        presses, lats = [], []
+        start = time.monotonic()
+        self.scrub_to(rc * math.cos(theta0), rc * math.sin(theta0))      # 벽에서 margin 만큼 안쪽으로
+        for k in range(1, int(n * p['circle_turns']) + 1):
+            if time.monotonic() - start > p['scrub_timeout_s']:
+                raise cc.MotionTimeout('벽 따라 돌기 시간 초과')
+            th = theta0 + 2 * math.pi * k / n
+            press, lat = self.scrub_to(rc * math.cos(th), rc * math.sin(th))
+            presses.append(press)
+            lats.append(lat)
+        self.log.info(f'  벽 따라 {p["circle_turns"]}바퀴: 반지름 {rc:.1f} mm · '
+                      f'옆 힘 평균 {statistics.mean(lats):.1f} · 최대 {max(lats):.1f} N')
+        self.result('circle', p['wipe_target_n'], presses)
+
+    def untwist(self):
+        """비튼 손목을 0 으로 되돌린다(공중에서)."""
+        if abs(getattr(self, 'rz', 0.0)) > 1e-6:
+            p, d, s = self.p, self.d, cc.cfg()['run']['vel_scale']
+            d.movel([0.0, 0.0, 0.0, 0.0, 0.0, -self.rz], vel=[p['scrub_lin_vel_mm_s'] * s, p['scrub_rot_vel_deg_s'] * s],
+                    acc=[p['scrub_lin_acc_mm_s2'], p['scrub_rot_acc_deg_s2']], ref=d.DR_TOOL, mod=d.DR_MV_MOD_REL)
+            self.rz = 0.0
 
     def sample(self, phase, target, seconds=None, until_motion=False):
         """seconds 동안 또는 비동기 동작이 끝날 때까지 힘을 기록. limit_n 넘으면 ForceLimitError."""
@@ -172,15 +267,14 @@ def main() -> int:
             run.sample(f'press_{target:g}N', target, seconds=p['press_hold_s'])
             cc.force_off()
 
-        log.info('② 누른 채 바닥에서 8자 문지르기')
+        log.info('② 손목을 비틀며 나선으로 넓혀 가다 벽을 찾고 → 벽 따라 돌기')
         run.press_on(p['wipe_target_n'])
         run.sample('wipe_settle', p['wipe_target_n'], seconds=p['settle_s'] * 2)
-        amp, per = float(p['circle_amp_mm']), float(p['circle_period_s'])
-        d.amove_periodic(amp=[amp, amp, 0.0, 0.0, 0.0, 0.0], period=[per, per * 2, 0.0, 0.0, 0.0, 0.0],
-                         repeat=int(p['circle_repeat']), ref=d.DR_TOOL)
-        run.sample('wipe_periodic', p['wipe_target_n'], until_motion=True)
+        wall = run.spiral_find_wall()
+        if wall is not None:
+            run.circle_wall(*wall)
         cc.force_off()
-        code = 0 if all(r[6] for r in run.results) or virtual else 1
+        code = 0 if wall is not None else 1
     except KeyboardInterrupt:
         log.warning('Ctrl+C — 정지 명령을 보내고 끝낸다')
         code = 130
@@ -195,7 +289,7 @@ def main() -> int:
                           '    soc && python3 src/cobot_common/test/release_force.py --home   (E-Stop 에 손)')
             else:
                 for what, step in (('힘·순응 끄기', cc.force_off), ('동작 끝 대기', lambda: dsr().mwait()),
-                                   ('안전 높이로', cc.safe_retreat),
+                                   ('안전 높이로', cc.safe_retreat), ('손목 되돌리기', run.untwist),
                                    ('HOME', lambda: dsr().movej(p['home_posj'],
                                                                 vel=p['home_vel_deg_s'] * cc.cfg()['run']['vel_scale'],
                                                                 acc=p['home_acc_deg_s2']))):

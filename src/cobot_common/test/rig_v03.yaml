@@ -12,14 +12,27 @@ approach_vel_mm_s: 50.0           # × vel_scale
 approach_acc_mm_s2: 100.0
 contact_max_depth_mm: 50.0        # 빠른 접근 뒤 천천히 찾는 거리 (여유 30 mm + 20 mm)
 contact_limit_n: 3.0              # 이 힘에 닿으면 "바닥 찾음"
-press_targets_n: [3.0, 4.0, 5.0]  # 제자리 누르기 목표 (FR-08 3~5 N)
+press_targets_n: [4.0]            # 제자리 누르기 목표 (9/19 2회차: ABS 모드에서 목표 3·4·5 → 실제 1.6·2.0·2.2 N — 튜닝은 F3-02)
 press_hold_s: 3.0
 wipe_target_n: 4.0                # 문지르는 동안 목표 힘
 limit_n: 10.0                     # 이 힘을 넘으면 즉시 힘 해제 (NFR-01 닦기 10 N)
 tol_n: 2.0                        # 통과 기준: 평균이 목표 ±2 N (SR-08)
 settle_s: 1.0                     # 힘을 건 뒤 안정될 때까지 기다림 (평가에서 뺌)
-circle_amp_mm: 5.0                # 바닥 8자 문지르기 move_periodic X·Y 진폭 (그릇 안 여유 약 27 mm)
-circle_period_s: 2.0              # X 주기 (Y = 2배 → 8자)
-circle_repeat: 2
 sample_s: 0.05                    # 힘 기록 주기
 log_dir: logs/v03                 # 힘 로그 CSV (실행 위치 기준 상대경로)
+# ── 나선 문지르기 · 벽 찾기 · 벽 따라 돌기 (9/19 방식 확정: 8자 대신) ──
+scrub_deg: 20.0                   # 손목 좌우 비틀기 각 (툴 Z 회전, ±)
+scrub_step_mm: 5.0                # 나선·원 위 한 걸음 (호 길이)
+scrub_lin_vel_mm_s: 20.0          # × vel_scale
+scrub_rot_vel_deg_s: 60.0         # × vel_scale
+scrub_lin_acc_mm_s2: 100.0
+scrub_rot_acc_deg_s2: 120.0
+spiral_pitch_mm: 10.0             # 한 바퀴에 넓어지는 반지름 (솔 끝 Ø50~60 보다 작게 → 빈틈 없이)
+spiral_r_max_mm: 40.0             # 여기까지 벽이 없으면 중단 (그릇 안 여유 약 27 mm)
+friction_learn_r_mm: 8.0          # 이 반지름 안에서 문지름 마찰(옆 힘) 크기를 배운다
+wall_margin_n: 4.0                # 마찰 최대 + 이 값 넘는 옆 힘 = 벽
+wall_confirm: 2                   # 연속 이 횟수면 벽 확정
+circle_margin_mm: 2.0             # 벽 따라 도는 반지름 = 벽 만난 반지름 − 이 값
+circle_turns: 2
+lateral_max_n: 12.0               # 옆 힘 절대 상한 — 넘으면 즉시 중단
+scrub_timeout_s: 300.0            # 나선·원 각각의 시간 상한
