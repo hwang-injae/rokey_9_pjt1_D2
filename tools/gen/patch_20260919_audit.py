@@ -34,7 +34,7 @@ EDIT = {
  'PKG-01': dict(note='V-20 의 재료 · cobot_common 없이도 작성 가능 · 30분 · ✅ F3(박진용) PR #4 merge(9/19) · F1(한석형)·F2(민범진) 남음'),
  'CELL-02a': dict(note='로봇 불필요 · ✅ 용기·툴 실측 기록 docs/test_logs/20260918_CELL-02a_용기치수측정.md (PR #4) — 그릇 외경 114 mm > RG2 최대 폭 110 mm(테두리 파지) · 수세미 중심 이동 한계 10 mm → DSN-03 안건 · 남은 것: 홈 커팅 도면·툴 홀더 위치'),
  'INF-04': dict(task='config 골격 — params.yaml(f1·f2·f3·flow·hmi 절) + cell.yaml 키 골격만(값·파일 주인은 한석형) + prewash_bringup 런치 2종(flow_node 1개 실행 · use_mock 인자)',
-                note='오전은 INF-02a 하나만 → 오후로 · cell.yaml 에 티칭 값이 이미 있으면 건드리지 않는다 · 기동 확인은 V-20 에서', slots=S('9/19 오후')),
+                note='✅ PR #5 merge(9/19) — cell.yaml 은 키 골격만(값 null 67개, 한석형이 채운다) · params.yaml f3 절은 박진용 초안 · 런치 인자는 환경변수로(PREWASH_USE_MOCK·PREWASH_VEL_SCALE → cc.cfg()) · flow_node 에 -r __node 금지 · 기동 확인은 V-20 에서', slots=S('9/19 오후')),
  'INF-03': dict(note='로봇 없이 flow 개발 · 오전은 FLOW-01 메인 뼈대 먼저, mock 은 저녁', slots=S('9/19 저녁')),
  'F1-01': dict(task='f1.move_to(station, carrying) + 일반 place — cobot_common.move_to 를 감싼 기능 함수(Result 반환). 좌표·프리셋 값은 CELL-04 에서 적은 cell.yaml 을 읽기만 한다',
                deliv='handling.py', note='R · INF-02(S)와 같은 흐름'),
@@ -72,7 +72,7 @@ EDIT = {
  'V-02': dict(task='V-02 하중 측정 정밀도 — 100/200 g 추 10회'),
  'TS-01': dict(task='TS-01 두산 API 초기화 누락·서비스 콜백 안 로봇 명령 교착 — 원인·재현·구조 5종 Virtual 비교 → 구조 변경으로 종결(DSN-02b)'),
  'DSN-03': dict(task='2차 회의 — 반납 구역 방식(V-01 결과)·HMI 설계(F4-00)·실패 코드·정책·YAML 키 규칙 + 구조 변경 후속(모니터·기록 노드 추가 여부, /cell/force·/cell/grip_width 토픽, V-20 결과, '
-                     '공용 함수 분담·사람별 파일 확인) + 9/21 저녁 로봇 순서(S·P·M) + 격리 규칙(LOCALHOST)·Ctrl+C 주인(결정 기록 S1~S4) 확인 + 그릇 파지 방식(외경 114 mm > RG2 110 mm, CELL-02a 실측)·정지 방식 DR_QSTOP 확인',
+                     '공용 함수 분담·사람별 파일 확인) + 9/21 저녁 로봇 순서(S·P·M) + 격리 규칙(LOCALHOST)·Ctrl+C 주인(결정 기록 S1~S4) 확인 + 그릇 파지 방식(외경 114 mm > RG2 110 mm, CELL-02a 실측)·정지 방식 DR_QSTOP 확인 + 실기에서 rig 를 손으로 돌릴 때 vel_scale 기본값(지금 1.0)·flow.leftover_max_rounds 키 추가 여부',
                 deliv='docs/meetings/20260919_결정기록_DSN-03.md'),
  'DOC-05': dict(deliv='docs v3.x, 노션'),
  'BRF': dict(deliv='노션 진행률 · 당일 로봇 순서'),
@@ -81,6 +81,7 @@ EDIT = {
 }
 # 상태 갱신: id → (상태, 진행)
 STATUS = {'INF-02a': ('완료', '1.0'),      # PR #3 merge (9/19 12:22)
+          'INF-04': ('완료', '1.0'),        # PR #5 merge (9/19 13:34)
           'PKG-01': ('진행 중', '0.33'),    # F3 골격 PR #4 merge (9/19 12:39) · F1·F2 남음
           'CELL-02a': ('진행 중', '0.5')}   # 용기·툴 실측 기록 merge(PR #4) · 홈 도면·홀더 위치 남음
 # 팀(구역) 이동: id → (새 팀, 이 ID 행 바로 뒤에 둔다)
@@ -157,6 +158,9 @@ HISTORY7 = ['4.9', '진행', 'PKG-01, CELL-02a, DSN-03', 'PKG-01 F3 골격(PR #4
 
 HISTORY8 = ['4.10', 'PM 수정 반영', 'CELL-04, PKG-01, INF-02, INF-02b, 로봇 슬롯, 할일', 'PM 이 시트에서 옮긴 것을 나머지 시트에 맞춤: CELL-04 티칭 1차 9/19 오전~오후 · PKG-01 9/19 오후 · INF-02(motion)·INF-02b(force) 9/20 오전. 로봇 슬롯 9/19·9/20 문구와 할일 4장 갱신',
             '티칭 1차가 오후까지 이어짐(PM 직접 수정, 9/19 13시)', 'S,M,P']
+
+HISTORY9 = ['4.11', '진행', 'INF-04, DSN-03', 'INF-04 완료(PR #5 merge, 9/19 13:34): config 골격(cell.yaml 키만·params.yaml 절) + prewash_bringup 런치 2종. 런치 인자는 환경변수로 cfg 에 얹힌다. DSN-03 안건에 vel_scale 기본값·leftover_max_rounds 추가',
+            'PR #5 검토·merge (황인재 F4 세션)', 'S,M,P,H']
 
 
 def main(out):
@@ -241,7 +245,7 @@ def main(out):
         if key in RULES and ru.text(r, 'A').strip() in ('마감', '정본'): r.set('C', RULES[key])
     for r in ru.rows:
         if ru.text(r, 'A').strip() in RULES_A: r.set('C', RULES_A[ru.text(r, 'A').strip()])
-    ru.rows[0].set('A', '운영 규칙 (PreWash-Cell 일정표 v4.10)')
+    ru.rows[0].set('A', '운영 규칙 (PreWash-Cell 일정표 v4.11)')
     if has(ru, 'A', '🚨 도메인'):                          # v4.5 의 규칙 이름(개인 도메인 번호 방식) → v4.6 에서 '🚨 격리'(LOCALHOST 한 줄)로
         ru.rows[ru.find('A', '🚨 도메인')].set('A', '🚨 격리')
     for rule in NEW_RULES:
@@ -253,7 +257,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
@@ -299,4 +303,4 @@ def report(rows):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1] if len(sys.argv) > 1 else 'prewash_일정표_0919i.xlsx')
+    main(sys.argv[1] if len(sys.argv) > 1 else 'prewash_일정표_0919j.xlsx')
