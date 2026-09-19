@@ -199,13 +199,23 @@ def _call_setup_io(node):
 
 
 def _spin_io():
+    """통신 노드 실행기를 돌린다. 콜백 하나가 예외를 내도 **스레드는 죽지 않는다** — 로그를 남기고 계속 돈다.
+
+    rclpy 실행기는 콜백 예외를 spin() 밖으로 다시 던진다. 여기서 끝내 버리면 프로세스는 살아 있는데
+    /flow/state 가 멈추고 start·stop·resume 이 응답하지 않는다(메인 스레드는 로봇을 계속 움직이는데 정지 버튼이 안 먹는다).
+    """
+    import traceback
     from rclpy.executors import ExternalShutdownException
-    try:
-        _executor.spin()
-    except ExternalShutdownException:
-        pass
-    except Exception as e:          # 콜백 예외로 통신 노드가 조용히 죽는 것을 막는다
-        _log().error(f'통신 노드 실행기가 멈췄다: {e!r}')
+    executor = _executor                    # shutdown() 이 전역을 None 으로 바꿔도 이 스레드는 자기 것을 본다
+    while True:
+        try:
+            executor.spin()                 # 정상 반환 = executor.shutdown() 또는 컨텍스트 종료
+            return
+        except ExternalShutdownException:
+            return
+        except Exception:                   # 콜백 안에서 난 예외 — 그 콜백 1회만 버리고 나머지는 계속 돈다
+            _log().error('통신 노드 콜백에서 예외가 났다(통신 노드는 계속 돈다). 콜백은 값 저장·깃발만 하게 고친다:\n'
+                         + traceback.format_exc(limit=6))
 
 
 def _send_stop():
