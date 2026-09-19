@@ -14,7 +14,7 @@ git fetch origin && git checkout main && git pull origin main   # ① 항상 최
 git checkout -b seokhyung/20260919-F1-02-pick-search             # ② 브랜치 {이름}/{YYYYMMDD}-{taskID}-{설명}
 # 작업 → 단위기능 테스트(녹화) …
 git add <바꾼 파일만>
-git commit -m "feat(f1): pick 탐색 파지 — 접촉 하강·폭 판정·재탐색"
+git commit -m "feat(f1): pick 고정 슬롯 파지 — 접촉 하강·폭 판정·빈 슬롯 넘기기"
 git push -u origin seokhyung/20260919-F1-02-pick-search          # ③ 하루 1회 이상 push
 # ④ main pull → 통합 테스트 → GitHub에서 PR (Reviewer: hwang-injae) → 에이전트 검토 → 황인재 승인 → Squash merge
 ```
@@ -84,7 +84,7 @@ git push -u origin seokhyung/20260919-F1-02-pick-search          # ③ 하루 1�
 
 ### 예시
 ```
-feat(f1): pick 탐색 파지 — 탐색점 순회·접촉 하강·폭 판정·EMPTY_ZONE
+feat(f1): pick 고정 슬롯 파지 — 슬롯 순회·접촉 하강·폭 판정·EMPTY_ZONE
 fix(f1): place 안착 탐색 한도 초과 시 SEAT_FAIL 미반환 수정
 fix(flow): EMPTY_ZONE 후 다음 구역으로 넘어가지 않는 문제 수정
 docs(setup): PYTHONPATH 누락 시 DR_init import 오류 함정 추가
