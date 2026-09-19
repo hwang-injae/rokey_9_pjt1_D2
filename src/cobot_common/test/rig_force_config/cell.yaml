@@ -1,0 +1,15 @@
+# rig_force.py 전용 시험 설정 — 🚨 Virtual 시험 값. 팀 cell.yaml(한석형) 이 아니다.
+# 키 이름은 cell.yaml 에 제안한 것과 같다(force.py 머리말). 실기 값은 V-03 결과로 한석형 cell.yaml 에 들어간다.
+cell:
+  limits:
+    safe_z_mm: 0.0              # rig 가 시작 높이로 덮어쓴다(시험 전용)
+    timeout_s: 20.0             # 접촉 동작 한 번의 시간 상한
+  force:
+    compliance_stx: [3000, 3000, 500, 200, 200, 200]   # 순응 강성 N/m · Nm/rad (X·Y·Z 0~20000, 회전 0~400) — Z 를 부드럽게
+    contact_step_mm: 2.0        # contact_down 한 단계
+    contact_vel_mm_s: 10.0      # 한 단계 이동 속도
+    contact_acc_mm_s2: 50.0
+    retreat_vel_mm_s: 50.0      # safe_retreat 속도
+    retreat_acc_mm_s2: 100.0
+    force_max_n: 20.0           # 어떤 호출도 넘을 수 없는 절대 상한
+    search_y_period_ratio: 2.0  # periodic_search Y 주기 = X 주기 × 이 값
