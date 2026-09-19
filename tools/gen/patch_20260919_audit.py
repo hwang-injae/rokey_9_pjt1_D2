@@ -115,6 +115,9 @@ RULES = {       # B 열 글자 → C 열 새 글
  '9/22(화) 오전': 'L1 단위기능 테스트(UT-F1·F2·F3·FLOW) 통과 — 함수별 TC 는 구현 직후 바로 수행. UT-F4 는 9/22 오후. 미통과 기능은 범위 방어표대로 축소 · 코드리뷰(CR-01) · 노션에 노드 구조·HMI 화면·안전 자료 업로드 · GitHub 최신',
  '이 파일(구글 드라이브)': '일정표 정본은 구글 공유 드라이브의 이 xlsx. 테스트 기준(TC·INT·V)은 저장소 docs/03_설계_SDD.md §9. 완료 행은 Time Line 에 남기고 완료 목록 시트에 복사된다(패치가 자동으로 채운다)',
 }
+RULES_A = {     # A 열 글자 → C 열 새 글
+ '개발 흐름': '단위기능 완성 → 단위기능 테스트(TC 있는 작업) → main pull → 통합 테스트 → main PR → Actions 자동 검사(main 충돌·산출물). 문서만 바뀐 PR 은 자동 승인·merge, 코드·설정·도구·인터페이스 정본이 포함된 PR 은 PM 에이전트가 전부 읽고 황인재 확인 뒤 merge(보류는 제목 [hold]). 로봇 움직이는 테스트는 녹화 권장 YYYYMMDD_TCxx_기능_담당_시도N.mp4',
+}
 NEW_RULES = [
  ('담당 표기', 'A(B) · A,B', 'A(B) = A 가 주도하고 B 는 참여. A,B = 같은 이름의 작업을 각자 자기 몫만 따로 한다(예 PKG-01). 한 가지 일을 둘이 같이 할 때는 반드시 주도(참여)로 적어 주인을 한 명으로 한다. 팀(구역)은 주도자의 기능을 따른다. 단 공용 패키지(cobot_common·config·런치·mock) 작업은 주도자와 상관없이 전원 구역의 "계약"에 모은다'),
  ('🚨 격리', '기본 LOCALHOST · team60 은 통합 때만', 'Virtual·rig·mock 시험과 혼자 하는 실기 시험은 격리 상태(solo = ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST, 도메인은 60 그대로)에서만. team60(서로 보이게 풀기)은 PC-A↔PC-B 통합(ENV-03·INT-4·L3·L4·리허설·시연) 때만 켜고 끝나면 solo. 로봇을 움직이기 전에 rosinfo 로 확인 (AGENTS §3 규칙 13)'),
@@ -136,6 +139,9 @@ HISTORY3 = ['4.5', '안전·기준', 'ENV-04, INF-02a, V-05, V-20, V-24, DSN-03,
 
 HISTORY4 = ['4.6', '안전·단순화', 'ENV-04, 규칙 🚨 격리, DSN-03', '격리 방식을 단순하게: 개인 도메인 번호(61~64)는 나누지 않는다. 도메인은 전원 60 그대로, .bashrc 에 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST 한 줄 + solo/team60 별칭. PC 여러 대 통합 때만 team60',
             'PM 결정(9/19): 로봇에 랜선으로 붙는 PC 는 1대뿐이지만 그 PC 도 와이파이로는 다른 PC 와 이어져 있어 DDS 로는 명령이 들어온다 → 격리는 유지하되 번호 관리의 번거로움은 없앤다', 'S,M,P,H']
+
+HISTORY5 = ['4.7', 'PR 흐름', '규칙(개발 흐름)', 'PR 승인 방식 변경: 문서만 바뀐 PR 은 지금처럼 자동 승인·merge, 코드·설정·도구·인터페이스 정본이 포함된 PR 은 PM 에이전트가 바뀐 것을 전부 읽고 황인재 확인 뒤 merge',
+            '9/19 확인: 기계 검사(main 충돌·산출물)만 통과하면 19초 만에 자동 merge 되어 로봇을 움직이는 코드가 아무도 읽지 않은 채 main 에 들어갈 수 있었다', 'S,M,P,H']
 
 
 def main(out):
@@ -211,7 +217,9 @@ def main(out):
     for r in ru.rows:
         key = ru.text(r, 'B').strip()
         if key in RULES and ru.text(r, 'A').strip() in ('마감', '정본'): r.set('C', RULES[key])
-    ru.rows[0].set('A', '운영 규칙 (PreWash-Cell 일정표 v4.6)')
+    for r in ru.rows:
+        if ru.text(r, 'A').strip() in RULES_A: r.set('C', RULES_A[ru.text(r, 'A').strip()])
+    ru.rows[0].set('A', '운영 규칙 (PreWash-Cell 일정표 v4.7)')
     if has(ru, 'A', '🚨 도메인'):                          # v4.5 의 규칙 이름(개인 도메인 번호 방식) → v4.6 에서 '🚨 격리'(LOCALHOST 한 줄)로
         ru.rows[ru.find('A', '🚨 도메인')].set('A', '🚨 격리')
     for rule in NEW_RULES:
@@ -223,7 +231,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
@@ -269,4 +277,4 @@ def report(rows):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1] if len(sys.argv) > 1 else 'prewash_일정표_0919e.xlsx')
+    main(sys.argv[1] if len(sys.argv) > 1 else 'prewash_일정표_0919f.xlsx')
