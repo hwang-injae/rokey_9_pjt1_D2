@@ -1,6 +1,9 @@
 # rig_v03.py 시험 값 — V-03 힘제어 중 XY 이동 (솔로 그릇 안쪽 바닥 누르며 문지르기)
 # 🟡 approach_down_mm 은 현장 실측(솔 끝 → 그릇 안쪽 바닥 거리 − 30 mm)으로 채운다. 비어 있으면 실기에서 실행 거부.
 home_posj: [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]   # HOME (실기 확인: X 367.5 · Y 8.0 · Z 215.0, 그릇 중심이 바로 아래)
+expected_tool: Tool Weight           # 컨트롤러에 설정돼 있어야 할 툴 무게 이름 — 다르면 실행 거부 (9/19 2회차: 브링업 재시작 뒤 '' 로 비어 있었음)
+expected_tcp: GripperDA_v1           # TCP 이름 — 다르면 실행 거부
+air_force_max_n: 3.0              # 공중에서 |Fz| 가 이보다 크면 툴 무게 설정이 틀린 것 → 실행 거부
 home_vel_deg_s: 20
 home_acc_deg_s2: 20
 approach_down_mm: 52.0            # 9/19 실측: 솔 끝 → 그릇 안쪽 바닥 82 mm − 여유 30 mm (그리퍼 끝 → 솔 끝 95 mm, 솔 끝 Ø50~60)

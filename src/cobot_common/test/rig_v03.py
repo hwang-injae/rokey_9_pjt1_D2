@@ -131,8 +131,20 @@ def main() -> int:
         if approach is None:
             log.error('rig_v03.yaml 의 approach_down_mm 이 비어 있다 → (솔 끝 → 그릇 바닥 실측) − 30 mm 를 넣는다')
             return 2
+        tool, tcp = d.get_tool(), d.get_tcp()
         log.info(f"{'Virtual(흐름만 — 힘 판정은 의미 없음)' if virtual else '실기'} · vel_scale {cc.cfg()['run']['vel_scale']:g} "
-                 f'· 툴 {d.get_tool()!r} · TCP {d.get_tcp()!r} · 접근 {approach:.0f} mm')
+                 f'· 툴 {tool!r} · TCP {tcp!r} · 접근 {approach:.0f} mm')
+        if not virtual and (tool != p['expected_tool'] or tcp != p['expected_tcp']):
+            log.error(f"툴·TCP 설정이 다르다(기대 {p['expected_tool']!r} · {p['expected_tcp']!r}) → 실행 거부. 설정:\n"
+                      f"    ros2 service call /dsr01/dsr_controller2/tool/set_current_tool dsr_msgs2/srv/SetCurrentTool "
+                      f"\"{{name: '{p['expected_tool']}'}}\"\n"
+                      f"    ros2 service call /dsr01/dsr_controller2/tcp/set_current_tcp dsr_msgs2/srv/SetCurrentTcp "
+                      f"\"{{name: '{p['expected_tcp']}'}}\"")
+            return 2
+        air = abs(statistics.mean(cc.read_force()[2] for _ in range(5)))
+        if not virtual and air > p['air_force_max_n']:
+            log.error(f"로봇이 멈춰 있는데 |Fz| {air:.1f} N > {p['air_force_max_n']} N → 툴 무게 설정이 틀렸다(무게가 외력으로 잡힘). 실행 거부")
+            return 2
         input('준비되면 엔터 → 이후 키보드에서 손을 떼고 E-Stop 에 손을 둔다 ')
 
         run = Run(d, p, log)
@@ -144,6 +156,9 @@ def main() -> int:
 
         run.zero()                                                       # 공중 기준값 (닿기 전)
         log.info(f'공중 Fz 기준값 {run.baseline:.2f} N')
+        if not virtual and abs(run.baseline) > p['air_force_max_n']:
+            log.error(f'접근 뒤 공중 |Fz| {abs(run.baseline):.1f} N 가 크다 → 툴 무게·접촉 확인. 힘제어 없이 중단')
+            return 1
         depth, f = cc.contact_down(p['contact_max_depth_mm'], p['contact_limit_n'])
         contacted = depth < p['contact_max_depth_mm'] - 0.5
         log.info(f'contact_down: 깊이 {depth:.1f} mm · |Fz| {f:.1f} N · {"바닥 찾음" if contacted else "못 찾음"} · 바닥 Z {run.z():.1f}')
