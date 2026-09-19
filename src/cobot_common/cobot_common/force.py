@@ -10,7 +10,7 @@
 - 숫자는 인자로 받거나 cfg()['cell'] 에서 읽는다(AGENTS 규칙 6). 키가 없거나 비어 있으면(null) 로봇을 움직이지 않고 KeyError.
     cell.limits : safe_z_mm · timeout_s
     cell.force  : compliance_stx · contact_step_mm · contact_vel_mm_s · contact_acc_mm_s2 ·
-                  retreat_vel_mm_s · retreat_acc_mm_s2 · force_max_n · search_y_period_ratio
+                  retreat_vel_mm_s · retreat_acc_mm_s2 · force_max_n · search_y_period_ratio   (🟡 추가 요청 이슈 #7)
 - 실행 인자 cfg()['run']['vel_scale'](0 초과 1 이하, 첫 실기 0.3)를 이동 속도에 곱한다 — 하강·후퇴 속도, 탐색은 주기를 나눠 느리게.
 - 실패는 예외다: ForceLimitError(힘 상한) · MotionTimeout(시간 초과) · RuntimeError(두산 함수가 -1).
   기능 함수(f1·f3)가 받아서 FORCE_LIMIT · TIMEOUT · ROBOT_ERROR 코드로 바꾸고, 후퇴는 safe_retreat().
@@ -176,7 +176,7 @@ def _move_rel(dx, dy, dz, frame, *, vel_mm_s, acc_mm_s2):
 
     contact_down·safe_retreat 의 이동은 전부 여기를 거친다 → 나중에 `from .motion import move_rel` 한 줄로 바꾼다.
     vel_mm_s·acc_mm_s2 는 SDD §3.1 의 move_rel 에 없는 선택 인자다 — 접촉 하강을 느리게 하려고 붙였고,
-    한석형에게 move_rel 에 같은 이름의 선택 인자를 요청했다(🔔 SDD §3.1 표 변경 → PM 공유).
+    move_rel 에 같은 이름의 선택 인자를 요청했다(인터페이스 변경 요청 이슈 #7).
     """
     d = dsr()
     refs = {'BASE': d.DR_BASE, 'TOOL': d.DR_TOOL}
