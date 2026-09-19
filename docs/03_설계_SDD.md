@@ -550,7 +550,7 @@ soc && python3 src/f3_wipe/test/rig_f3.py
 ## 11. 확인 중
 | 항목 | 담당 | 기한 |
 |---|---|---|
-| `/dsr01/*` 서비스 정확한 이름·필드 | 한석형 | 9/19 |
+| 두산 서비스 접두사는 `/dsr01/dsr_controller2/`로 확인(9/18 Virtual). 힘·하중·IO 서비스의 필드는 `cobot_common` 작성 중 확인 | 박진용 | 9/19 |
 | 탐색점 간격·최대 횟수(V-14) | 한석형 | 9/20 |
 | **반납 구역 방식(구역+탐색 vs 고정 슬롯)** — DSN-03 | 전원 | 9/19 저녁 |
 | **재파지 파지 폭 인식(V-15)** — 스펀지 홈의 용기를 다시 잡을 때 폭으로 판정 가능한가 | 한석형·박진용 | 9/19 오후 |
@@ -578,4 +578,4 @@ soc && python3 src/f3_wipe/test/rig_f3.py
 | Business Requirements | [01_요구사항_BR-SR.md](01_요구사항_BR-SR.md) |
 
 ## 13. 일정표 (정본: 구글 드라이브)
-일정표 `prewash_개발일정_v2.xlsx`는 **구글 공유 드라이브**에서 팀이 함께 관리한다([일정표(구글 시트)](https://docs.google.com/spreadsheets/d/1ikTAYTa8bgZofF_3RgP5jDoOipSZBPB1/edit?usp=sharing)). 시트: Time Line(팀별 색 간트) · 상세(산출물·완료기준) · 마일스톤·로봇 슬롯(강사 일정·마감·로봇 슬롯·제출 규칙) · 완료 목록 · 규칙 · 변경이력. 갱신은 PM(황인재)만(진행·상태·변경이력). 저장소에는 사본을 두지 않는다.
+일정표는 **구글 시트**가 정본이다([일정표(구글 시트)](https://docs.google.com/spreadsheets/d/1ikTAYTa8bgZofF_3RgP5jDoOipSZBPB1/edit?usp=sharing)). 시트: Time Line(팀별 색 간트) · 상세(산출물·완료기준) · 마일스톤·로봇 슬롯(강사 일정·마감·로봇 슬롯·제출 규칙) · 완료 목록 · 규칙 · 변경이력. + 담당별 `할일_이름` 4장(Time Line에서 자동으로 뽑은 쉬운 말 체크리스트). 갱신은 PM(황인재)만(진행·상태·변경이력). 저장소에는 사본을 두지 않는다. 구조·작업 변경은 `tools/gen/xlsx_patch.py` 방식으로 현재 시트 위에 얹는다(`tools/gen/README.md`).

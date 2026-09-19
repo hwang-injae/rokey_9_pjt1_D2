@@ -55,11 +55,11 @@ ros2 service call /dsr01/dsr_controller2/force/get_workpiece_weight ...  # 응�
 
 ## 5. 재발 방지
 1. **`reset` 을 반복 호출하지 않는다.** 실패하면 그 뒤로는 부르지 않는다 — 반복하면 컨트롤러가 계속 막힌다.
-2. `f2_node` 의 `weigh` 구현 시 `reset` 은 **선택 동작**으로 두고, 응답 시간 상한(3초 권장)과 실패 시 계속 진행 경로를 반드시 넣는다.
+2. `f2_sense_flow/sense.py` 의 `weigh()` 구현 시 `reset` 은 **선택 동작**으로 두고, 응답 시간 상한(3초 권장)과 실패 시 계속 진행 경로를 반드시 넣는다.
 3. 막혔을 때 복구: 브링업 `Ctrl+C` → `killdrcf` → `sodreal`.
 4. 명령성 서비스(`set_*`, `reset_*`, `move*`)는 제어권이 필요할 수 있다. 조회성(`get_*`)과 구분해서 다룬다.
 
 ## 6. 남은 확인
 - [ ] 제어권을 ROS 가 확실히 가진 상태에서 `reset_workpiece_weight` 가 정상 반환되는가
 - [ ] 제어권이 ROS 에 있을 때 **직접교시가 되는가** (안 되면 자세를 바꿔가며 측정하는 절차 자체를 바꿔야 한다)
-- [ ] SDD §3.1 `weigh(n) = reset → 정지 → get n회 평균` 정의를 유지할지, `reset` 을 선택으로 바꿀지 → 인터페이스 변경은 아니지만 **설계 문구 조정이 필요하면 이슈로**
+- [x] SDD §3.1 `weigh` 정의 → **`weigh(n, reset=False)`: reset 은 선택 동작(응답 상한 3 s, 실패 시 반복 금지)** 으로 반영(9/18 PM, IRD v3.0 §4 · SDD v3.0 §3.1·§5.3). 인터페이스(함수 서명 `weigh(kind)`)는 그대로

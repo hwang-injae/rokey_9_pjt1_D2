@@ -127,7 +127,7 @@ ROLES={
 2. **환경 준비 점검**: `cobot_msgs` 빌드 확인(`git pull && cbc`), mock 실행 명령
 3. **STEP 실행 계획**: 구글 드라이브 일정표의 내 taskID(CELL-03, INF-03, V-02/07/16/20/21, FLOW-01/02, F2-01/02, UT-FLOW, UT-F2, INT-12a, INT-3a/3b, INT-4a~d)에 날짜·시간대를 붙여서
 4. **초기 코드 골격**: `mock/mock_f1.py`·`mock_f3.py` → `flow_node.py`(메인 뼈대·통신 노드·예외 보호) + `flow.py`(상태 머신·plan·정책) → `sense.py`(weigh·leftover_loop·shake·dip) → `logger.py`
-5. **주의사항** — mock이 늦어 flow·HMI가 대기 / flow가 F1·F3 로직을 품음 / 힘·무게를 Virtual에서 검증했다고 믿음 / EMPTY_ZONE 후 다음 구역으로 안 넘어감 / stop 중 서비스 호출 이어감 / 기록 누락'''),
+5. **주의사항** — mock이 늦어 flow·HMI가 대기 / flow가 F1·F3 로직을 품음 / 힘·무게를 Virtual에서 검증했다고 믿음 / EMPTY_ZONE 후 다음 구역으로 안 넘어감 / stop 깃발을 안 보고 다음 함수를 호출 / 통신 노드 콜백에서 로봇 함수를 부름 / 기능 함수 호출을 예외 보호 없이 직접 부름 / 기록 누락'''),
 'F3':dict(file='F3_박진용_프롬프트.md',name='박진용',title='F3 접촉 닦기 (스펀지 고정틀·수세미 툴·수세미 솔) + cobot_common 공용 로봇 함수 + 안전 파라미터',
  one='용기를 **스펀지 홈에 안착**시키고(안 맞으면 Move Periodic으로 찾고), **툴을 쥔 채 일정한 힘으로 안쪽을 닦는** 동작. 프로젝트에서 가장 어렵고 가장 티 나는 기능. 안전 파라미터 소유.',
  tasks='''- **함수 모듈 `src/f3_wipe/f3_wipe/wipe.py`** (노드 아님): `soap(count)` `wipe_bowl()` `wipe_cup()` — 서명·반환은 `cobot_api`(`WipeBowlResult` 등) 그대로(그릇·컵 닦는 동작이 달라 함수 분리). 안착은 F1 `place`가 한다(9/18 결정) — 나는 "용기가 홈에 안착돼 있고 툴을 쥔 상태"에서 시작
@@ -167,10 +167,10 @@ ROLES={
 - **PM 겸 인터페이스·런치 관리**: **`cobot_api`**(기능 함수 약속 — ID·코드·`Result`·함수 서명, `contracts.py`)와 `cobot_msgs` v3.0(메시지 2개, `docs/interfaces/` → 복사·빌드 확인) 정본, 변경은 회의·이슈 후. 런치는 `flow_node` 프로세스 1개(`use_mock` 인자), `config` 골격(`cell.yaml` + `params.yaml`)과 `prewash_bringup` 런치 2종(`prewash.launch.py`·`prewash_mock.launch.py`), F4-00 HMI 설계 초안(화면 구성·REST/WS·필요 필드) → 9/19 저녁 DSN-03에서 확정, 9/22 NOTE-01 노션에 노드 구조·인터페이스 정의서 업로드
 - 겸임: **PM** — 구글 시트 일정표 갱신(진행·상태·완료 목록·변경이력, 매일 저녁), 팀원 진척 보고 취합, 문서 정본·노션 조별 페이지·강사 DM 창구, 제출(SUB-01, 9/30 11시 전, 파일명 규칙), PR 승인(`/pr-review`). 통합 실행 주도는 민범진''',
  not_='흐름 순서·복구 판단(flow), 로봇 동작·힘 판정(F1~F3), 칸 배정 알고리즘. HMI는 **보여주고 전달만** 한다.',
- out='`src/f4_hmi/app.py` `db.py` `static/index.html` `fake_state_pub.py` · `config/params.yaml`의 `hmi` 절 · `kpi.py` · `src/cobot_msgs/` · `src/prewash_bringup/launch/*.py` · `config/` 골격 · 아키텍처 `.drawio` · 회의록 · 시연 영상·PPT',
+ out='`src/f4_hmi/app.py` `db.py` `static/index.html` `fake_state_pub.py` · `config/params.yaml`의 `hmi` 절 · `kpi.py` · `src/cobot_api/` · `src/cobot_msgs/` · `src/prewash_bringup/launch/*.py` · `config/` 골격 · 아키텍처 `.drawio` · 회의록 · 시연 영상·PPT',
  rig='로봇·flow 없이 `fake_state_pub.py` + `app.py`만. 브라우저에서 확인. PC-B에서는 `cobot_msgs` + `f4_hmi`만 빌드.',
  l1='TC-11 버튼 → 서비스 호출 ≤1 s, 상태 표시 지연 ≤1 s, fake 시나리오(정상·격리·오류·재개·EMPTY_ZONE) 전부 표시, 끊김 표시 · TC-12 SQLite 4행(민범진과) · V-13 브라우저 start → mock flow 반응 · INT-4 mock flow 연결. 녹화',
- sched='9/18 C F4-00 HMI 설계 초안·F4-01 fake pub·골격·INF-01b msgs v2.1·INF-04 config 골격·런치 → 9/19 A ENV-03 통신, A~B F4-02 브리지·버튼·ARCH-01, C~9/20 B F4-03 화면 → 9/20 A V-13, B F4-04 SQLite, C **UT-F4** → 9/21 C **INT-4** → 9/19 C DSN-03 회의·DSN-04 반영 → 9/22 A NOTE-01·NOTE-02·F4-05 KPI, B~C L3 HMI(PC-B) → 9/23 INT-4c 측정·영상 촬영 → 추석 영상 편집·PPT',
+ sched='9/18 C F4-00 HMI 설계 초안·F4-01 fake pub·골격·INF-01b `cobot_msgs` v3.0·`cobot_api`(완료)·INF-04 config 골격·런치(`flow_node` 1개 실행) → 9/19 A ENV-03 통신, A~B F4-02 브리지·버튼·ARCH-01, C~9/20 B F4-03 화면 → 9/20 A V-13, B F4-04 SQLite, C **UT-F4** → 9/21 C **INT-4** → 9/19 C DSN-03 회의·DSN-04 반영 → 9/22 A NOTE-01·NOTE-02·F4-05 KPI, B~C L3 HMI(PC-B) → 9/23 INT-4c 측정·영상 촬영 → 추석 영상 편집·PPT',
  deep='''- **ROS ↔ 웹 연결을 가장 깊게**: `rclpy.spin()`과 uvicorn 이벤트 루프를 같이 돌리는 법(스레드 + 큐), 서비스 호출을 요청 스레드에서 블로킹 없이, WebSocket으로 상태를 밀어주는 구조를 코드 골격으로. 웹이 처음이므로 HTTP·WebSocket·JSON을 한 줄씩 풀어서.
 - **SQLite**: 표 2개 스키마, INSERT/SELECT 최소 코드, 파일 경로는 상대경로.
 - **가짜 발행기**: 실제 `FlowState`·`FlowEvent` 필드 그대로(target·attempts 포함), 시나리오 yaml로 순서·타이밍·실패 코드 재생.
