@@ -3,7 +3,7 @@
 home_posj: [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]   # HOME (실기 확인: X 367.5 · Y 8.0 · Z 215.0, 그릇 중심이 바로 아래)
 home_vel_deg_s: 20
 home_acc_deg_s2: 20
-approach_down_mm:                 # 🟡 실측 − 30 mm (예: 솔 끝 → 바닥 150 mm 면 120)
+approach_down_mm: 52.0            # 9/19 실측: 솔 끝 → 그릇 안쪽 바닥 82 mm − 여유 30 mm (그리퍼 끝 → 솔 끝 95 mm, 솔 끝 Ø50~60)
 virtual_approach_down_mm: 120.0   # Virtual 흐름 확인용
 approach_vel_mm_s: 50.0           # × vel_scale
 approach_acc_mm_s2: 100.0
