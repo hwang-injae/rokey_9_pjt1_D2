@@ -78,11 +78,10 @@ class Run:
         vel = [p['scrub_lin_vel_mm_s'] * s, p['scrub_rot_vel_deg_s'] * s]
         acc = [p['scrub_lin_acc_mm_s2'], p['scrub_rot_acc_deg_s2']]
         dx, dy = x - self.x, y - self.y
-        a, b, c = (math.radians(v) for v in d.get_current_posx(ref=d.DR_BASE)[0][3:6])
-        ca, sa, cb, cc_, sc = math.cos(a), math.sin(a), math.cos(b), math.cos(c), math.sin(c)
-        # R = Rz(a)·Ry(b)·Rz(c) 의 1·2열 = 툴 X·Y 축(BASE 기준). 툴 이동 = Rᵀ·(dx, dy, 0)
-        tx = (ca * cb * cc_ - sa * sc) * dx + (sa * cb * cc_ + ca * sc) * dy
-        ty = (-ca * cb * sc - sa * cc_) * dx + (-sa * cb * sc + ca * cc_) * dy
+        r11, r21, r12, r22 = self.R0                                     # 시작 때 툴 X·Y 축(BASE 기준) — 매 걸음 조회하지 않는다
+        t0x, t0y = r11 * dx + r21 * dy, r12 * dx + r22 * dy              # R0ᵀ·(dx, dy)
+        q = math.radians(self.rz)                                        # 지금까지 비튼 만큼 툴 축이 돌아가 있다 → Rz(−rz) 로 되돌림
+        tx, ty = math.cos(q) * t0x + math.sin(q) * t0y, -math.sin(q) * t0x + math.cos(q) * t0y
         rz = p['scrub_deg'] * self.twist
         if d.movel([tx, ty, 0.0, 0.0, 0.0, rz - self.rz], vel=vel, acc=acc, ref=d.DR_TOOL, mod=d.DR_MV_MOD_REL) != 0:
             raise RuntimeError('movel(한 걸음 + 손목 비틀기) 실패')
@@ -90,18 +89,35 @@ class Run:
         self.rz, self.twist = rz, -self.twist
         return self.check('scrub')
 
+    def set_frame(self):
+        """지금 툴 자세(A·B·C, ZYZ)로 R0 = Rz(a)·Ry(b)·Rz(c) 의 X·Y 열을 한 번 계산해 둔다(손목 0° 기준)."""
+        import math
+        a, b, c = (math.radians(v) for v in self.d.get_current_posx(ref=self.d.DR_BASE)[0][3:6])
+        ca, sa, cb, cc_, sc = math.cos(a), math.sin(a), math.cos(b), math.cos(c), math.sin(c)
+        self.R0 = (ca * cb * cc_ - sa * sc, sa * cb * cc_ + ca * sc,     # 툴 X 축 (BASE x, y)
+                   -ca * cb * sc - sa * cc_, -sa * cb * sc + ca * cc_)   # 툴 Y 축 (BASE x, y)
+
     def check(self, phase):
-        """힘 한 번 읽기 → 기록 · 누르는 힘/옆 힘 상한 검사 → (press, lateral)."""
+        """힘 한 번 읽기 → 기록 · 누르는 힘/옆 힘 상한 검사 → (press, lateral, radial).
+
+        radial = 옆 힘을 지금 위치의 반지름 방향(중심 → 솔)으로 투영한 크기. 문지름 마찰은 주로 진행 방향(둘레)이라
+        반지름 성분이 작고, 벽은 솔을 반지름 방향으로 되민다 → 벽 판정은 radial 로 한다(9/19 3회차: 옆 힘 전체로는 못 찾음).
+        """
+        import math
         p = self.p
         f = cc.read_force()
         press = abs(f[2] - self.baseline)
-        lateral = ((f[0] - self.fx0) ** 2 + (f[1] - self.fy0) ** 2) ** 0.5
-        self.rows.append([phase, round(time.monotonic() - self.t0, 3), f[0], f[1], f[2], round(press, 3), p['wipe_target_n']])
+        lx, ly = f[0] - self.fx0, f[1] - self.fy0
+        lateral = math.hypot(lx, ly)
+        r = math.hypot(self.x, self.y)
+        radial = abs(lx * self.x / r + ly * self.y / r) if r > 1e-6 else 0.0
+        self.rows.append([phase, round(time.monotonic() - self.t0, 3), f[0], f[1], f[2], round(press, 3), p['wipe_target_n'],
+                          round(self.x, 2), round(self.y, 2), round(radial, 3)])
         if press > p['limit_n']:
             raise cc.ForceLimitError(f'{phase}: 누르는 힘 {press:.1f} N > {p["limit_n"]} N')
         if lateral > p['lateral_max_n']:
             raise cc.ForceLimitError(f'{phase}: 옆 힘 {lateral:.1f} N > {p["lateral_max_n"]} N (벽을 세게 밀었다)')
-        return press, lateral
+        return press, lateral, radial
 
     def spiral_find_wall(self):
         """중심에서 아르키메데스 나선(r = pitch·θ/2π)으로 넓혀 가며 문지른다. 벽이면 (반지름, 각도) · 못 찾으면 None."""
@@ -109,6 +125,7 @@ class Run:
         p = self.p
         self.x = self.y = self.rz = 0.0
         self.twist = 1
+        self.set_frame()
         theta, fric, hits, presses = 0.0, [], 0, []
         start = time.monotonic()
         while True:
@@ -118,16 +135,17 @@ class Run:
                 return None
             if time.monotonic() - start > p['scrub_timeout_s']:
                 raise cc.MotionTimeout('나선 문지르기 시간 초과')
-            press, lat = self.scrub_to(r * math.cos(theta), r * math.sin(theta))
+            press, lat, rad = self.scrub_to(r * math.cos(theta), r * math.sin(theta))
             presses.append(press)
             if r <= p['friction_learn_r_mm']:
-                fric.append(lat)                                         # 벽이 없는 가운데에서 마찰 크기를 배운다
+                if r > p['scrub_step_mm']:
+                    fric.append(rad)                                     # 벽이 없는 가운데에서 반지름 방향 마찰 크기를 배운다
             else:
-                limit = max(fric) + p['wall_margin_n'] if fric else p['wall_margin_n']
-                hits = hits + 1 if lat > limit else 0
+                limit = (max(fric) if fric else 0.0) + p['wall_margin_n']
+                hits = hits + 1 if rad > limit else 0
                 if hits >= p['wall_confirm']:
-                    self.log.info(f'  벽: 반지름 {r:.1f} mm · 각 {math.degrees(theta):.0f}° · 옆 힘 {lat:.1f} N '
-                                  f'(마찰 최대 {max(fric) if fric else 0:.1f} + {p["wall_margin_n"]} N)')
+                    self.log.info(f'  벽: 반지름 {r:.1f} mm · 각 {math.degrees(theta):.0f}° · 반지름 방향 힘 {rad:.1f} N '
+                                  f'(가운데 최대 {max(fric) if fric else 0:.1f} + {p["wall_margin_n"]} N) · 옆 힘 {lat:.1f} N')
                     self.result('spiral', p['wipe_target_n'], presses[len(fric):] or presses)
                     return r, theta
             theta += p['scrub_step_mm'] / max(r, p['scrub_step_mm'])  # 호 길이가 약 scrub_step_mm 가 되게
@@ -145,7 +163,7 @@ class Run:
             if time.monotonic() - start > p['scrub_timeout_s']:
                 raise cc.MotionTimeout('벽 따라 돌기 시간 초과')
             th = theta0 + 2 * math.pi * k / n
-            press, lat = self.scrub_to(rc * math.cos(th), rc * math.sin(th))
+            press, lat, _ = self.scrub_to(rc * math.cos(th), rc * math.sin(th))
             presses.append(press)
             lats.append(lat)
         self.log.info(f'  벽 따라 {p["circle_turns"]}바퀴: 반지름 {rc:.1f} mm · '
@@ -169,7 +187,7 @@ class Run:
             f = cc.read_force()
             press = abs(f[2] - self.baseline)
             now = time.monotonic()
-            self.rows.append([phase, round(now - self.t0, 3), f[0], f[1], f[2], round(press, 3), target])
+            self.rows.append([phase, round(now - self.t0, 3), f[0], f[1], f[2], round(press, 3), target, '', '', ''])
             if now - start >= p['settle_s']:
                 vals.append(press)
             if press > p['limit_n']:
@@ -204,7 +222,7 @@ class Run:
         path = os.path.join(self.p['log_dir'], time.strftime('v03_%Y%m%d_%H%M%S.csv'))
         with open(path, 'w', newline='') as f:
             w = csv.writer(f)
-            w.writerow(['phase', 't', 'fx', 'fy', 'fz', 'press_n', 'target'])
+            w.writerow(['phase', 't', 'fx', 'fy', 'fz', 'press_n', 'target', 'x_mm', 'y_mm', 'radial_n'])
             w.writerows(self.rows)
         return path
 
