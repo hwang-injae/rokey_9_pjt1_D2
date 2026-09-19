@@ -10,7 +10,8 @@
 - 숫자는 인자로 받거나 cfg()['cell'] 에서 읽는다(AGENTS 규칙 6). 키가 없거나 비어 있으면(null) 로봇을 움직이지 않고 KeyError.
     cell.limits : safe_z_mm · timeout_s
     cell.force  : compliance_stx · contact_step_mm · contact_vel_mm_s · contact_acc_mm_s2 ·
-                  retreat_vel_mm_s · retreat_acc_mm_s2 · force_max_n · search_y_period_ratio   (🟡 추가 요청 이슈 #7)
+                  retreat_vel_mm_s · retreat_acc_mm_s2 · force_max_n · search_y_period_ratio · force_mode(ABS/REL)
+                  (🟡 추가 요청 이슈 #7)
 - 실행 인자 cfg()['run']['vel_scale'](0 초과 1 이하, 첫 실기 0.3)를 이동 속도에 곱한다 — 하강·후퇴 속도, 탐색은 주기를 나눠 느리게.
 - 실패는 예외다: ForceLimitError(힘 상한) · MotionTimeout(시간 초과) · RuntimeError(두산 함수가 -1).
   기능 함수(f1·f3)가 받아서 FORCE_LIMIT · TIMEOUT · ROBOT_ERROR 코드로 바꾸고, 후퇴는 safe_retreat().
@@ -41,13 +42,21 @@ class MotionTimeout(RuntimeError):
 
 # ------------------------------------------------------------------ 공개 함수
 def force_on(axis, target, limit):
-    """순응 ON(강성 cell.force.compliance_stx) → 목표 힘 ON(−axis 방향으로 target N 누름, 상대 모드)."""
+    """순응 ON(강성 cell.force.compliance_stx) → 목표 힘 ON(−axis 방향으로 target N 누름).
+
+    모드는 cell.force.force_mode: 'ABS'(목표 = 실제로 누르는 힘 — 이미 닿은 채 켤 때) /
+    'REL'(켜는 순간의 힘 + target — 공중에서 켤 때. 닿은 채 켜면 그만큼 더 누른다). 9/19 V-03 1차: 공중(3 mm 위)에서 REL 로
+    켜니 3 s 안에 바닥까지 내려가지 못함 → 닿은 채 ABS 로 시험.
+    """
     i = _axis_index(axis)
     _check_force_args(target=target, limit=limit)
     if target >= limit:
         raise ValueError(f'force_on: target {target} N 이 limit {limit} N 보다 작아야 한다')
     d = dsr()
     stx = _force_cfg('compliance_stx')
+    mode = _force_cfg('force_mode')
+    if mode not in ('ABS', 'REL'):
+        raise ValueError(f"cell.force.force_mode={mode!r} — 'ABS'·'REL' 중 하나")
     d.mwait()                                              # 비동기 이동 중 순응 ON 은 2.1903
     _ok(d.task_compliance_ctrl(stx), 'task_compliance_ctrl')
     _state['compliance'] = True
@@ -56,7 +65,8 @@ def force_on(axis, target, limit):
     fd[i] = -float(target)
     direction[i] = 1
     try:
-        _ok(d.set_desired_force(fd, direction, mod=d.DR_FC_MOD_REL), 'set_desired_force')
+        _ok(d.set_desired_force(fd, direction, mod=d.DR_FC_MOD_ABS if mode == 'ABS' else d.DR_FC_MOD_REL),
+            'set_desired_force')
     except BaseException:
         force_off()
         raise

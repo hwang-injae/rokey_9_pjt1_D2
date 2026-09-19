@@ -13,3 +13,4 @@ cell:
     retreat_acc_mm_s2: 100.0
     force_max_n: 15.0           # 어떤 순간에도 넘으면 안 되는 절대 상한 (닦기 상한 10 N 위)
     search_y_period_ratio: 2.0
+    force_mode: ABS             # 닿은 채 켠다 → 목표 = 실제 누르는 힘 (9/19 V-03 1차: 공중에서 REL 로 켜니 바닥까지 못 내려감)

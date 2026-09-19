@@ -13,3 +13,4 @@ cell:
     retreat_acc_mm_s2: 100.0
     force_max_n: 20.0           # 어떤 호출도 넘을 수 없는 절대 상한
     search_y_period_ratio: 2.0  # periodic_search Y 주기 = X 주기 × 이 값
+    force_mode: REL             # 힘 모드 — Virtual 흐름 확인용(힘 없음)

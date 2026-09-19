@@ -15,7 +15,7 @@ CFG = {'cell': {
     'limits': {'safe_z_mm': 300.0, 'timeout_s': 10.0},
     'force': {'compliance_stx': [3000, 3000, 500, 200, 200, 200], 'contact_step_mm': 2.0,
               'contact_vel_mm_s': 10.0, 'contact_acc_mm_s2': 50.0, 'retreat_vel_mm_s': 50.0,
-              'retreat_acc_mm_s2': 100.0, 'force_max_n': 20.0, 'search_y_period_ratio': 2.0},
+              'retreat_acc_mm_s2': 100.0, 'force_max_n': 20.0, 'search_y_period_ratio': 2.0, 'force_mode': 'REL'},
 }}
 
 
@@ -24,7 +24,7 @@ class FakeDsr:
     DR_BASE, DR_TOOL = 0, 1
     DR_AXIS_X, DR_AXIS_Y, DR_AXIS_Z = 0, 1, 2
     DR_COND_NONE = -10000
-    DR_FC_MOD_REL = 1
+    DR_FC_MOD_ABS, DR_FC_MOD_REL = 0, 1
     DR_MV_MOD_REL = 1
 
     def __init__(self, z=400.0, surface_z=None, k_n_per_mm=2.0, fail=()):
@@ -109,6 +109,20 @@ def test_force_on_order_and_direction(robot):
     assert d.calls == ['mwait', 'task_compliance_ctrl', 'set_desired_force']     # 이동 끝 → 순응 → 힘
     assert d.fd == [0.0, 0.0, -4.0, 0.0, 0.0, 0.0] and d.dir == [0, 0, 1, 0, 0, 0]   # −Z 로 누름
     assert d.fmod == d.DR_FC_MOD_REL and d.stx == CFG['cell']['force']['compliance_stx']
+
+
+def test_force_on_abs_mode_and_bad_mode(robot):
+    cfg = copy.deepcopy(CFG)
+    cfg['cell']['force']['force_mode'] = 'ABS'                                 # 닿은 채 켤 때
+    d = robot(cfg=cfg)
+    force.force_on('z', 4.0, 10.0)
+    assert d.fmod == 0                                                          # DR_FC_MOD_ABS
+    force.force_off()
+    cfg['cell']['force']['force_mode'] = 'abs'
+    d = robot(cfg=cfg)
+    with pytest.raises(ValueError, match='force_mode'):
+        force.force_on('z', 4.0, 10.0)
+    assert d.calls == []                                                        # 틀린 모드면 움직이지 않음
 
 
 @pytest.mark.parametrize('target,limit', [(10.0, 10.0), (12.0, 10.0), (0.0, 10.0), (4.0, 25.0), (-1.0, 10.0)])

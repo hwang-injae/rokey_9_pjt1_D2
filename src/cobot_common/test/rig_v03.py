@@ -10,9 +10,12 @@
 🚨 엔터를 누른 뒤에는 키보드에서 손을 떼고 한 손은 E-Stop, 눈은 로봇. 속도는 vel_scale 0.3(바꾸려면 PREWASH_VEL_SCALE).
 
 흐름: HOME → 빠른 접근(approach_down_mm) → contact_down(바닥 찾기, 못 찾으면 힘제어 없이 중단)
-      → backoff 로 살짝 들고 → 제자리 누르기 3·4·5 N → 누른 채 문지르기(move_periodic 8자 → move_spiral) → 후퇴 → HOME
-힘은 상대 모드라, 이미 눌린 채 켜면 목표만큼 더 누른다 → 매번 backoff 로 공중에서 켜고 3 mm 만 내려가 닿게 한다.
+      → 닿은 채 제자리 누르기 3·4·5 N → 누른 채 바닥에서 8자 문지르기(move_periodic) → 후퇴 → HOME
+힘은 닿은 채 켠다(cell.force.force_mode ABS: 목표 = 실제 누르는 힘). 9/19 1차에 3 mm 위(공중)에서 상대 모드로 켰더니
+3 s 안에 바닥까지 못 내려가 공중에서 8자를 그렸다 → 방식 변경.
 누르는 힘 = 공중에서 잰 기준값 대비 Fz 변화. 어느 순간이든 limit_n 을 넘으면 즉시 힘 해제 → 후퇴.
+🚨 두산 API 의 DR_Error 는 생기는 순간 rclpy.shutdown() 을 부른다 → 이 프로세스로는 힘·순응을 못 끈다.
+   그때는 화면 안내대로 release_force.py(--home) 를 새로 실행한다.
 설정은 같은 폴더의 rig_v03_config/(시험 전용 cell.yaml) · rig_v03.yaml. 힘 로그는 log_dir 에 CSV.
 종료 코드 0(통과) / 1(실패·중단) / 2(실행 거부) / 130(Ctrl+C).
 """
@@ -94,13 +97,8 @@ class Run:
         self.log.info(f'  {phase}: 목표 {target:.1f} N · 평균 {mean:.2f} · 흔들림 {sd:.2f} · 최대 {mx:.2f} N · {"OK" if ok else "FAIL"}')
 
     def press_on(self, target):
-        """backoff 로 든 공중에서 힘제어를 켠다 → 3 mm 내려가 닿는다."""
-        self.zero()
+        """닿은 채 힘제어를 켠다 (force_mode ABS → 목표 = 실제 누르는 힘)."""
         cc.force_on('z', target, self.p['limit_n'])
-
-    def lift(self):
-        cc.force_off()
-        self.move_z(self.p['backoff_mm'], self.p['approach_vel_mm_s'], self.p['approach_acc_mm_s2'])
 
     def save(self):
         os.makedirs(self.p['log_dir'], exist_ok=True)
@@ -144,49 +142,52 @@ def main() -> int:
         log.info(f'HOME Z {z_home:.1f} → 빠른 접근 {approach:.0f} mm')
         run.move_z(-approach, p['approach_vel_mm_s'], p['approach_acc_mm_s2'])
 
-        run.zero()
+        run.zero()                                                       # 공중 기준값 (닿기 전)
+        log.info(f'공중 Fz 기준값 {run.baseline:.2f} N')
         depth, f = cc.contact_down(p['contact_max_depth_mm'], p['contact_limit_n'])
         contacted = depth < p['contact_max_depth_mm'] - 0.5
         log.info(f'contact_down: 깊이 {depth:.1f} mm · |Fz| {f:.1f} N · {"바닥 찾음" if contacted else "못 찾음"} · 바닥 Z {run.z():.1f}')
         if not contacted and not virtual:
             log.error('바닥을 못 찾았다 → 힘제어를 켜지 않고 중단 (approach_down_mm·그릇 위치 확인)')
             return 1
-        run.move_z(p['backoff_mm'], p['approach_vel_mm_s'], p['approach_acc_mm_s2'])
 
-        log.info('① 제자리 누르기')
+        log.info('① 닿은 채 제자리 누르기')
         for target in p['press_targets_n']:
             run.press_on(target)
             run.sample(f'press_{target:g}N', target, seconds=p['press_hold_s'])
-            run.lift()
+            cc.force_off()
 
-        log.info('② 누른 채 문지르기')
+        log.info('② 누른 채 바닥에서 8자 문지르기')
         run.press_on(p['wipe_target_n'])
         run.sample('wipe_settle', p['wipe_target_n'], seconds=p['settle_s'] * 2)
-        amp, per = p['circle_amp_mm'], p['circle_period_s']
+        amp, per = float(p['circle_amp_mm']), float(p['circle_period_s'])
         d.amove_periodic(amp=[amp, amp, 0.0, 0.0, 0.0, 0.0], period=[per, per * 2, 0.0, 0.0, 0.0, 0.0],
-                         repeat=p['circle_repeat'], ref=d.DR_TOOL)
+                         repeat=int(p['circle_repeat']), ref=d.DR_TOOL)
         run.sample('wipe_periodic', p['wipe_target_n'], until_motion=True)
-        d.amove_spiral(rev=p['spiral_rev'], rmax=p['spiral_rmax_mm'], lmax=0.0, time=p['spiral_time_s'],
-                       axis=d.DR_AXIS_Z, ref=d.DR_TOOL)
-        run.sample('wipe_spiral', p['wipe_target_n'], until_motion=True)
         cc.force_off()
         code = 0 if all(r[6] for r in run.results) or virtual else 1
-    except (cc.ForceLimitError, cc.MotionTimeout, RuntimeError, ValueError, KeyError) as e:
-        log.error(f'중단: {type(e).__name__}: {e}')
-        code = 1
     except KeyboardInterrupt:
         log.warning('Ctrl+C — 정지 명령을 보내고 끝낸다')
         code = 130
+    except Exception as e:                                               # 두산 DR_Error 포함 — 무엇이든 멈추고 정리
+        log.error(f'중단: {type(e).__name__}: {e}')
+        code = 1
     finally:
-        try:
-            if code != 130 and run is not None:                          # 로봇을 움직이기 시작한 경우에만 복귀 (거부·Ctrl+C 는 제외)
-                cc.force_off()
-                d = dsr()
-                d.mwait()                                                # 비동기 동작이 남아 있으면 끝난 뒤
-                cc.safe_retreat()
-                d.movej(p['home_posj'], vel=p['home_vel_deg_s'] * cc.cfg()['run']['vel_scale'], acc=p['home_acc_deg_s2'])
-        except Exception as e:                                           # 정리 중 오류는 기록만
-            log.error(f'복귀 중 오류: {e!r} — 로봇 상태를 눈으로 확인한다')
+        import rclpy
+        if code != 130 and run is not None:                              # 로봇을 움직이기 시작한 경우에만 복귀 (거부·Ctrl+C 는 제외)
+            if not rclpy.ok():                                           # DR_Error 가 rclpy.shutdown() 을 불렀다 → 이 프로세스로는 못 끈다
+                log.error('🚨 두산 오류로 ROS 가 꺼졌다 → 힘·순응이 켜진 채일 수 있다. 새 터미널에서 바로:\n'
+                          '    soc && python3 src/cobot_common/test/release_force.py --home   (E-Stop 에 손)')
+            else:
+                for what, step in (('힘·순응 끄기', cc.force_off), ('동작 끝 대기', lambda: dsr().mwait()),
+                                   ('안전 높이로', cc.safe_retreat),
+                                   ('HOME', lambda: dsr().movej(p['home_posj'],
+                                                                vel=p['home_vel_deg_s'] * cc.cfg()['run']['vel_scale'],
+                                                                acc=p['home_acc_deg_s2']))):
+                    try:                                                 # 하나가 실패해도 다음을 시도
+                        step()
+                    except Exception as e:
+                        log.error(f'복귀 — {what} 실패: {e!r} → 눈으로 확인, 필요하면 release_force.py --home')
         if run is not None and run.rows:
             path = run.save()
             log.info(f'힘 로그: {path}')
