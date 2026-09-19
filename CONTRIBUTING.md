@@ -28,6 +28,7 @@ git push -u origin seokhyung/20260919-F1-02-pick-search          # ③ 하루 1�
 단위기능 구현 → 단위기능 테스트(항상, 녹화) → git fetch + main pull(merge) → 통합 테스트 → main에 PR → 1명 승인 → merge
 ```
 - **단위기능 테스트는 건너뛰지 않는다.** 기준은 [docs/03_설계_SDD.md](docs/03_설계_SDD.md) §9.3 (TC-xx). 결과는 `docs/test_logs/YYYYMMDD_TCxx.md`. 메시지 정의·문서·설정처럼 TC가 없는 작업은 PR 본문에 "해당 없음(사유)"라고 적는다.
+- **pytest 파일 이름에는 패키지 이름을 넣는다**: `test_f1_api.py` · `test_f2_api.py` · `test_f3_api.py` 처럼. 서로 다른 패키지에 같은 이름(`test_api.py`)이 있으면 `python3 -m pytest -q src`(한 번에 전부)가 수집 단계에서 깨진다(`ImportPathMismatchError`, 9/19 확인). 이름을 고치기 전까지 전체 시험은 **패키지별로** 돌린다: `python3 -m pytest -q src/<패키지>/test` 또는 `colcon test`.
 - **녹화는 권장(로봇이 움직이는 TC·INT·V는 꼭).** 영상 파일명 `YYYYMMDD_TCxx_기능_담당_시도N.mp4` (예: `20260920_TC01_pick_한석형_시도1.mp4`). 영상은 저장소에 넣지 않고 드라이브·노션 링크를 기록에 적는다. **영상이 PR 승인 조건은 아니다.**
 - 통합 테스트 전에 반드시 최신 `main`을 내 브랜치에 합친다(`git merge main`). 통합이 깨지면 PR을 올리지 않는다.
 - `git fetch`는 수시로, 작업 브랜치 push는 **하루 1회 이상**(퇴근 전). 로컬에만 있는 코드는 없는 코드다.
