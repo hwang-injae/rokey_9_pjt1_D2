@@ -14,7 +14,7 @@ import gen_todo
 
 ID = 'AH'
 VERSION = 'v5.1'
-OUT = 'prewash_일정표_0919o.xlsx'
+OUT = 'prewash_일정표_0919p.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
 # id: dict(task, owner, status, deliv, crit, note, slots) — 없는 키는 그대로 둔다
@@ -28,7 +28,7 @@ EDIT = {
                 note='9/19 분담 변경: 한석형 → 황인재(F4 세션) · Virtual 만으로 완성(로봇 불필요) · 이슈 #7 ② move_rel 속도 선택 인자 · DSN-03 B11 관절 이동 함수 · 박진용 force.py 의 임시 stub _move_rel 을 대체 · 좌표는 cell.yaml(한석형)에서 읽기만',
                 slots=S('9/19 오후', '9/20 오전')),
  'INF-02b': dict(slots=S('9/19 오후', '9/20 오전'), note='force.py 구현·시험은 브랜치에 있음 — V-03(9/20 오전) 전이라도 PR 을 올린다(값은 후속 PR) · F1-02(9/20 오후)가 contact_down 을 기다린다 · 이슈 #7: cell.force 키 골격은 황인재(INF-02), 값은 박진용이 그 절만 PR · move_rel 이 들어오면 임시 stub 삭제'),
- 'INF-02c': dict(slots=S('9/20 오전'), note='R · V-02 와 한 세션(9/19 오후는 티칭이 로봇을 쓴다) · f2.weigh(F2-01)가 이걸 불러 판정한다'),
+ 'INF-02c': dict(status='진행 중', slots=S('9/20 오전'), note='R · ✅ 코드 merge(PR #13, 9/19 — 중앙값·음수 실패값 거르기·reset 선택 동작, pytest 10건) → 남은 것은 9/20 오전 실기 확인(V-02 와 한 세션)과 빈 용기 기준값 측정(rig_f2.py empty) · f2.weigh(F2-01)가 이걸 불러 판정한다'),
  'DSN-03': dict(task='2차 회의 안건 — **회의 없이 PM 이 결정**(9/19): 반납 구역 = 고정 슬롯 · 그릇 = 옆면(벽) 세로 파지 · 그리퍼 폭 경로 · 이슈 #7 수락 · 9/19 선결정 확정. 나머지는 보류', status='진행 중', slots=S('9/19 오후'),
                crit='급한 안건 결정 + 팀 공지', note='시간 부족으로 회의를 열지 못함 → PM 결정 후 공지, 이의는 9/20 브리핑 · 결정 표 docs/meetings/20260919_결정기록_DSN-03.md · 확인 중: 실패 정책 마무리 순서(B7)·move_joint_rel(B11)·mock_f2(B12) · 보류: YAML 키·/cell 토픽·HMI 설계·정지 방식·rig 속도·C1~C5'),
  'DSN-04': dict(slots=S('9/20 오전')),

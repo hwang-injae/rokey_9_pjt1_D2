@@ -139,7 +139,7 @@ rokey_pjt01_ws/                ← 저장소 루트 (rokey_9_pjt1_D2)
 | `grip_level(kind, level)` | [M] 파지 힘 2단계 전환: `NORMAL`(집기·이송) ↔ `HOLD`(털기·담금·물 털기, 더 꽉). 같은 폭 목표로 힘만 바꿔 다시 파지, 전환 후 폭 재확인(방법은 V-23) |
 | `release()` | [M] 그리퍼 열기 |
 | `grip_width() → mm` | [M] 현재 폭 읽기(박진용 F3 요청 — 닦는 중 툴이 밀렸는지 감시, ✅ 9/19 PM 결정). 경로: **강사 드라이버의 관절각 → 폭 환산이 먼저**(V-05에서 오차 ≤ 2 mm 확인), 안 되면 Compute Box XML-RPC를 읽기부터([제안서](ref/20260919_제안_RG2_폭_힘_경로.md)). 그리퍼 함수는 새 파일 `gripper.py` |
-| `weigh(n, reset=False) → g` | [M] 정지 → `get_workpiece_weight` n회 평균. `reset`(0점 재설정)은 **선택 동작**: 응답 상한 3 s, 실패하면 다시 부르지 않고 계속 진행([TS-03](troubleshooting/TS-03_하중_reset_제어권_교착.md)) |
+| `weigh(n, reset=False) → g` | [M] 정지 → `get_workpiece_weight` n회의 **중앙값**(튄 값에 끌려가지 않게 — V-02 폭 40.8 g) · 실패값(음수 -1)은 버리고, 전부 실패면 예외(기능 함수가 `ROBOT_ERROR`로 변환) · 구현 #13. `reset`(0점 재설정)은 **선택 동작**: 응답 상한 3 s, 실패하면 다시 부르지 않고 계속 진행([TS-03](troubleshooting/TS-03_하중_reset_제어권_교착.md)) |
 | `force_on(axis, target, limit)` / `force_off()` | [P] task_compliance_ctrl + set_desired_force |
 | `force_reached(axis, min, max) → bool` | [P] `check_force_condition(...) == 0`을 감싼 것. 🚨 실제 두산 함수는 **만족 `0` / 아니면 `-1`**을 돌려준다(DRL 매뉴얼의 True/False와 다름). `if check_force_condition():`으로 쓰면 판정이 뒤집힌다(TS-01 D) |
 | `read_force() → [fx, fy, fz, mx, my, mz]` · 예외 `ForceLimitError` · `MotionTimeout` | [P] 이슈 #7 요청(✅ 9/19 PM 수락). 힘 로그·`/cell/force`·상한 판정용 원시 힘 값. **공용 힘 함수는 실패를 예외로 알리고, 기능 함수(f1·f3)가 받아서 `FORCE_LIMIT`·`TIMEOUT` 코드로 바꾼다**(flow까지 새어 나오면 `ROBOT_ERROR`). 힘 함수가 읽는 공용 값은 `cell.yaml`의 `cell.force` 절(순응 강성·접촉 하강 단계·속도·후퇴 속도·절대 상한 `force_max_n` 등 8개 키 — 골격은 황인재, 값은 박진용이 그 절만 PR) |
