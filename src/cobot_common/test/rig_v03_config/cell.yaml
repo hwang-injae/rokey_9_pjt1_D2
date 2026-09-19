@@ -15,7 +15,7 @@ cell:
     contact_step_mm: 2.0        # contact_down 한 단계 (× Z 강성 500 N/m ≈ 1 N)
     contact_vel_mm_s: 20.0      # × vel_scale 0.3 = 6 mm/s (4회차: 더 빠르게)
     contact_acc_mm_s2: 50.0
-    retreat_vel_mm_s: 50.0      # × 0.3 = 15 mm/s
-    retreat_acc_mm_s2: 100.0
+    retreat_vel_mm_s: 100.0     # × 0.3 = 30 mm/s (9/19 저녁: 복귀 2배)
+    retreat_acc_mm_s2: 200.0
     force_max_n: 15.0           # 어떤 순간에도 넘으면 안 되는 절대 상한 (닦기 상한 10 N 위)
     search_y_period_ratio: 2.0
