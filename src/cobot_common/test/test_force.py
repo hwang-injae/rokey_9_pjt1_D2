@@ -216,8 +216,10 @@ def test_safe_retreat_goes_straight_up_to_safe_z(robot):
     force.force_on('z', 4.0, 10.0)
     force.safe_retreat()
     assert d.calls[-3:] == ['release_force', 'release_compliance_ctrl', 'movel']  # 끄고 → 올린다
-    assert d.last_movel['pos'][:3] == [100.0, 50.0, 300.0]                      # X·Y 그대로, Z 만 safe_z
-    assert d.last_movel['mod'] == 0 and d.last_movel['vel'] == 50.0
+    assert d.last_movel['pos'][:3] == [0.0, 0.0, 150.0]                         # move_rel stub: Z 만 +150 (BASE 상대)
+    assert d.pos[:3] == [100.0, 50.0, 300.0]                                    # X·Y 그대로, Z 는 safe_z
+    assert d.last_movel['mod'] == d.DR_MV_MOD_REL and d.last_movel['ref'] == d.DR_BASE
+    assert d.last_movel['vel'] == 50.0
 
 
 def test_safe_retreat_does_nothing_above_safe_z(robot):

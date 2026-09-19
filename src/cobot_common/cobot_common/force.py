@@ -17,6 +17,8 @@
 - 두산 함수는 함수 안에서 dsr() 로 얻는다(메인 스레드 검사 포함). 모듈 맨 위에서 DSR_ROBOT2 를 import 하지 않는다.
 - check_force_condition 은 만족 0 / 아니면 -1 이다(DRL 매뉴얼과 다름, TS-01 증상 D) → force_reached() 만 쓴다.
 - 순응 중에는 관절 이동(movej) 금지 · 비동기 이동 중 순응 ON 금지(오류 2.1903, 중급교육2) → 켜기 전에 mwait().
+- 이동(contact_down 의 한 단계 하강, safe_retreat 의 상승)은 motion.move_rel(한석형) 을 쓴다. 들어오기 전까지는 이 파일의
+  🟡 임시 stub _move_rel 을 거친다(AGENTS §2). 순응·힘제어·move_periodic 처럼 힘 함수 자체의 두산 호출만 dsr() 로 직접 한다.
 """
 import time
 
@@ -130,8 +132,7 @@ def contact_down(max_depth, limit):
             if time.monotonic() - t0 > timeout:
                 raise MotionTimeout(f'contact_down: {timeout} s 안에 접촉·최대 깊이에 닿지 않았다 (깊이 {depth:.1f} mm)')
             dz = min(step, max_depth - depth)
-            _ok(d.movel([0.0, 0.0, -dz, 0.0, 0.0, 0.0], vel=vel, acc=acc, ref=d.DR_BASE, mod=d.DR_MV_MOD_REL),
-                'movel(contact_down)')
+            _move_rel(0.0, 0.0, -dz, 'BASE', vel_mm_s=vel, acc_mm_s2=acc)
     finally:
         force_off()
 
@@ -163,12 +164,26 @@ def safe_retreat():
     vel = _force_cfg('retreat_vel_mm_s') * _vel_scale()
     acc = _force_cfg('retreat_acc_mm_s2')
     force_off()
-    pos, _ = d.get_current_posx(ref=d.DR_BASE)
-    if pos[2] >= safe_z:
+    z = _current_z(d)
+    if z >= safe_z:
         return
-    target = [float(v) for v in pos]
-    target[2] = float(safe_z)
-    _ok(d.movel(target, vel=vel, acc=acc, ref=d.DR_BASE), 'movel(safe_retreat)')
+    _move_rel(0.0, 0.0, float(safe_z) - z, 'BASE', vel_mm_s=vel, acc_mm_s2=acc)
+
+
+# ------------------------------------------------------------------ 🟡 임시 stub (AGENTS §2 — 남의 함수가 아직 없을 때)
+def _move_rel(dx, dy, dz, frame, *, vel_mm_s, acc_mm_s2):
+    """🟡 임시 stub — motion.move_rel(dx, dy, dz, frame)(한석형, INF-02) 과 같은 이름·인자. INF-02 가 들어오면 지운다.
+
+    contact_down·safe_retreat 의 이동은 전부 여기를 거친다 → 나중에 `from .motion import move_rel` 한 줄로 바꾼다.
+    vel_mm_s·acc_mm_s2 는 SDD §3.1 의 move_rel 에 없는 선택 인자다 — 접촉 하강을 느리게 하려고 붙였고,
+    한석형에게 move_rel 에 같은 이름의 선택 인자를 요청했다(🔔 SDD §3.1 표 변경 → PM 공유).
+    """
+    d = dsr()
+    refs = {'BASE': d.DR_BASE, 'TOOL': d.DR_TOOL}
+    if frame not in refs:
+        raise ValueError(f"_move_rel: frame={frame!r} — 'BASE'·'TOOL' 중 하나")
+    _ok(d.movel([float(dx), float(dy), float(dz), 0.0, 0.0, 0.0], vel=vel_mm_s, acc=acc_mm_s2,
+                ref=refs[frame], mod=d.DR_MV_MOD_REL), f'movel(move_rel stub, {frame})')
 
 
 # ------------------------------------------------------------------ 내부
