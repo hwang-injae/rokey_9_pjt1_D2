@@ -1,6 +1,9 @@
 # PR이 올라오거나 갱신될 때마다 tools/pr_check.sh 를 실행한다.
 #  - ❌(main 충돌 / 빌드 산출물·영상·DB·토큰 커밋)가 있으면 체크 실패 + 코멘트 → 작성자가 고쳐 push
-#  - 통과하면 PM(황인재) 토큰으로 자동 승인 후 Squash merge.  제목에 [hold] 가 있거나 라벨 hold 가 붙으면 승인만 하고 merge는 보류
+#  - 통과 + **문서만 바뀐 PR**(docs/ 아래만, 인터페이스 정본 docs/02_*·docs/interfaces/ 제외) → PM(황인재) 토큰으로 자동 승인 후 Squash merge
+#  - 통과 + **코드·설정·도구가 포함된 PR**(src/ · .github/ · tools/ · .claude/ · 루트 문서 · 인터페이스 정본) → 여기서는 승인·merge 하지 않는다(9/19 변경).
+#    PM 에이전트가 바뀐 것을 전부 읽고(.claude/commands/pr-review.md) 황인재에게 보고 → 황인재 확인 뒤 승인·Squash merge
+#  - 제목에 [hold] 가 있거나 라벨 hold 가 붙으면 merge 는 보류
 #  - 필요한 저장소 비밀값: PM_TOKEN (hwang-injae 의 Personal Access Token, repo 권한)
 name: pr_check
 on:
@@ -29,6 +32,9 @@ jobs:
           PR_REF=${{ github.event.pull_request.head.sha }} bash tools/pr_check.sh ${{ github.event.pull_request.number }} > result.txt 2>&1
           echo "code=$?" >> "$GITHUB_OUTPUT"
           cat result.txt
+          # 문서만 바뀐 PR 인가? (docs/ 아래만 + 인터페이스 정본 아님) → review=0 자동 merge / 그 밖 → review=1 PM 에이전트 검토 대기
+          FILES=$(git -c core.quotepath=false diff --name-only "origin/main...${{ github.event.pull_request.head.sha }}")   # 한글 파일명이 따옴표·8진수로 나오지 않게
+          if echo "$FILES" | grep -vE '^docs/' | grep -q . || echo "$FILES" | grep -qE '^docs/(02_|interfaces/)'; then echo "review=1" >> "$GITHUB_OUTPUT"; else echo "review=0" >> "$GITHUB_OUTPUT"; fi
       - name: comment result
         uses: actions/github-script@v7
         with:
@@ -36,16 +42,19 @@ jobs:
             const fs = require('fs');
             const out = fs.readFileSync('result.txt', 'utf8');
             const ok = '${{ steps.run.outputs.code }}' === '0';
+            const review = '${{ steps.run.outputs.review }}' === '1';
             const tail = ok
-              ? '✅ 통과 — PM 토큰으로 자동 승인·merge 됩니다(제목에 `[hold]` 또는 라벨 `hold` 면 승인만). ⚠️ 는 참고 사항입니다.'
+              ? (review
+                  ? '✅ 기계 검사 통과 — **코드·설정·도구(또는 인터페이스 정본)가 포함된 PR** 이라 자동 merge 하지 않습니다. PM 에이전트가 바뀐 것을 전부 읽고 PM(황인재) 확인 뒤 승인·Squash merge 합니다. ⚠️ 는 그때 같이 봅니다.'
+                  : '✅ 통과 — 문서만 바뀐 PR 이라 PM 토큰으로 자동 승인·merge 됩니다(제목에 `[hold]` 또는 라벨 `hold` 면 승인만). ⚠️ 는 참고 사항입니다.')
               : '❌ 가 있으면 고쳐서 **같은 브랜치에 push** 하면 다시 검사됩니다.';
             const body = '## 🤖 PR 자동 검토 (tools/pr_check.sh)\n```\n' + out + '\n```\n' + tail;
             await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body });
       - name: fail on violations
         if: steps.run.outputs.code != '0'
         run: exit 1
-      - name: auto approve and merge (PM token)
-        if: steps.run.outputs.code == '0' && github.event.pull_request.draft == false
+      - name: auto approve and merge — 문서만 바뀐 PR (PM token)
+        if: steps.run.outputs.code == '0' && steps.run.outputs.review == '0' && github.event.pull_request.draft == false
         env:
           GH_TOKEN: ${{ secrets.PM_TOKEN }}
           PR: ${{ github.event.pull_request.number }}

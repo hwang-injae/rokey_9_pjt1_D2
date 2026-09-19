@@ -28,7 +28,7 @@ else
 fi
 
 # 2. 변경 파일
-FILES=$(git diff --name-only "origin/main...pr-$N")
+FILES=$(git -c core.quotepath=false diff --name-only "origin/main...pr-$N")   # 한글 파일명(docs/02_인터페이스…)이 따옴표로 감싸져 아래 ^docs/ 검사를 빠져나가지 않게
 COUNT=$(echo "$FILES" | grep -c . || true)
 echo "  변경 파일 $COUNT 개"; echo "$FILES" | sed 's/^/     /'
 
