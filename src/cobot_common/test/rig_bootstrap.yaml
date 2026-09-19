@@ -1,0 +1,11 @@
+# rig_bootstrap.py 시험 값 — Virtual 전용. 실행 뼈대(init·io_node·shutdown)만 확인하는 값이라 cell.yaml 에 넣지 않는다.
+rounds: 2                         # posj_list 를 몇 바퀴 도는가 (movej 횟수 = rounds × 자세 수, 3회 이상이어야 한다)
+posj_list:                        # 관절 자세 (deg). s4_script.py(9/18 Virtual 확인)와 같은 값
+  - [10.0, 0.0, 90.0, 0.0, 90.0, 0.0]
+  - [20.0, 0.0, 90.0, 0.0, 90.0, 0.0]
+  - [30.0, 0.0, 90.0, 0.0, 90.0, 0.0]
+vel_deg_s: 60
+acc_deg_s2: 60
+timer_hz: 2                       # 통신 노드 타이머 주기 (/flow/state 와 같은 2 Hz)
+timer_tol_hz: 0.2                 # 모션 중 측정 주기 허용 오차
+posj_tol_deg: 0.5                 # 도착 판정 허용 오차 (J1)
