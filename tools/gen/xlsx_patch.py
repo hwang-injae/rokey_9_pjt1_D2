@@ -107,8 +107,9 @@ def new_timeline_row(sheet, like_row, slots, **cells):
     fill = next((like_row.style(c) for c in gcols if like_row.style(c) != like_row.style('AG')), None)
     blank = like_row.style('AG') if like_row.style('AG') != fill else '3'
     # AG(9/30 저녁)가 색칸인 행은 드물다. 빈칸 서식은 색이 없는 칸에서 가져온다
-    styles = [like_row.style(c) for c in gcols]
+    styles = [like_row.style(c) for c in gcols if like_row.style(c) is not None]
     blank = max(set(styles), key=styles.count)
+    fill = next((s for s in styles if s != blank), fill)
     n = like_row.clone()
     for c in gcols:
         n.set(c, style=blank)
@@ -166,7 +167,7 @@ def rebuild_todo(book, entries_fn, people):
 def set_slots(row, slots):
     """기존 Time Line 행의 간트 색 칸을 slots=[('9/20','오전'), …] 로 다시 칠한다(색은 그 행이 쓰던 색)."""
     gcols = [c for cs in GANTT.values() for c in cs]
-    styles = [row.style(c) for c in gcols]
+    styles = [row.style(c) for c in gcols if row.style(c) is not None]
     blank = max(set(styles), key=styles.count)
     fill = next((s for s in styles if s != blank), None)
     if fill is None:

@@ -33,7 +33,7 @@
 |---|---|---|
 | F1 파지·이송·적재 + 좌표 | 한석형 | `f1_handling` · 좌표 계산·티칭(`config/cell.yaml`) |
 | F2 무게·털기·헹굼 + 흐름 | 민범진 | `f2_sense_flow` (함수 `sense.py` · **메인 프로그램 `flow_node`** · mock 모듈) · 통합 리더 |
-| F3 접촉 닦기 + 공용 로봇 함수 | 박진용 | `f3_wipe` · **`cobot_common`**(이동·그리퍼·무게·힘 함수 + 설정 로더) · 안전 파라미터 |
+| F3 접촉 닦기 + 공용 로봇 함수 | 박진용 | `f3_wipe` · **`cobot_common`**의 힘 함수와 패키지 정리·리뷰(공용 함수는 네 사람 분담: 초기화 황인재 · 이동·그리퍼 한석형 · 무게 민범진 · 힘 박진용) · 안전 파라미터 |
 | F4 시스템 모니터(웹 HMI) + **PM** | 황인재 | `f4_hmi` (FastAPI + SQLite) · `cobot_api`·`cobot_msgs` 정본 · `prewash_bringup` · 일정표·문서 |
 
 ## 에이전트 사용법

@@ -20,9 +20,11 @@ python3 tools/gen/gen_todo.py ../_upload/prewash_담당별_할일.xlsx
 PM이 구글 시트에서 직접 고친 내용(행 추가·날짜 이동·상태)을 그대로 둔 채 몇 개 셀·행만 바꿀 때 쓴다. 일정표 정본은 구글 시트이고 PM이 직접 고친다. 초기 업로드용 생성기(`gen_sched.py`)는 9/19에 삭제했다 — 일정 변경은 항상 이 방식으로 한다.
 
 ```bash
-python3 tools/gen/patch_20260919_tasks.py ../_upload/prewash_일정표_0919.xlsx   # 최신 (구조 변경 후속: 새 작업·시험 방법)
+python3 tools/gen/patch_20260919_rebalance.py ../_upload/prewash_일정표_0919.xlsx   # 최신 (구조 변경 후속 + 부하 재배치, 모든 시트 반영)
 ```
 
 지금 시트를 내려받아 변경만 얹은 xlsx를 만든다. 구글 시트에서 `파일 > 가져오기 > 업로드 > 스프레드시트 바꾸기`. 내려받은 뒤에 시트를 고쳤다면 다시 실행한다. 새 변경은 `patch_날짜_이름.py`를 복사해 만든다(`Book.from_live` → `sheet().find/set/insert` → `save`).
 
 패치는 Time Line·상세·변경이력을 고친 뒤 **`할일_*` 시트를 고친 Time Line에서 다시 채운다**(`xlsx_patch.rebuild_todo` + `gen_todo.person_entries`). 그래서 할 일 시트의 ✓ 표시는 Time Line의 상태(완료)에서 나온다 — 할 일 시트에 손으로 찍은 체크는 다음 패치 때 사라진다. `patch_20260918_s4.py`는 9/19에 시트 적용이 끝났다 — 다음 패치를 만들 때 복사해 쓰는 **예시**로 남겨 둔다(다시 실행해도 새 행이 중복되지는 않는다).
+
+`patch_20260919_rebalance.py`는 Time Line·상세뿐 아니라 **마일스톤·로봇 슬롯, 규칙, 변경이력, 완료 목록, 할일_* 4장**을 함께 고친다. 일정을 바꿀 때는 이 파일처럼 모든 시트를 한 번에 맞춘다. 끝에 사람별·칸별 부하 표를 찍어 한 칸 4건을 넘지 않는지 확인한다.

@@ -42,9 +42,11 @@ HMI 시작 1회 → 반납 구역 계획 순서(그릇 구역 2개 → 컵 구�
 |---|---|---|---|---|
 | **F1 파지·이송·적재** | **한석형** | `f1_handling/handling.py` + `test/rig_f1.py` + **좌표 계산·티칭(`config/cell.yaml` 값)** | 함수 `pick`(탐색) `place`(스펀지 홈 **안착 놓기** 포함) `move_to` `tool` `rack_place` | `config/cell.yaml`과 `config/params.yaml`의 `f1` 절 |
 | **F2 무게·털기·헹굼 + 흐름** | **민범진** | `f2_sense_flow/sense.py` + **`flow_node.py`(메인 프로그램)·`flow.py`(상태 머신)** + `mock/mock_f1.py`·`mock_f3.py` + `test/rig_f2.py` | 함수 `weigh` `leftover_loop` `shake` `dip` · ROS `/flow/start|stop|resume` `/flow/state` `/flow/event` | `config/params.yaml`의 `f2`·`flow` 절 |
-| **F3 접촉 닦기 + 공용 로봇 함수** | **박진용** | `f3_wipe/wipe.py` + `test/rig_f3.py` + **`cobot_common`**(두산 API를 감싼 **공용 로봇 함수 모음**: 초기화 `init`·이동·그리퍼·무게·힘 + 설정 로더) | 함수 `soap` `wipe_bowl` `wipe_cup` | `config/params.yaml`의 `f3` 절 |
+| **F3 접촉 닦기 + 공용 로봇 함수** | **박진용** | `f3_wipe/wipe.py` + `test/rig_f3.py` + **`cobot_common`의 힘 함수와 패키지 정리·리뷰**(두산 API를 감싼 **공용 로봇 함수 모음** — 네 사람이 나눠 쓴다, 아래 분담) | 함수 `soap` `wipe_bowl` `wipe_cup` | `config/params.yaml`의 `f3` 절 |
 | **F4 시스템 모니터(웹 HMI) + PM** | **황인재** | `f4_hmi/hmi_bridge` (FastAPI + rclpy + SQLite) + `fake_state_pub` · **`cobot_api`(함수 약속)·`cobot_msgs`(메시지) 정본 관리** · `prewash_bringup` 런치 · `config/` 골격 | REST `/api/*` · WS `/ws/state` | `config/params.yaml`의 `hmi` 절 |
-겸임: 팀장·실기 슬롯·기구·**좌표(티칭·`cell.yaml`)**·브랜치 삭제 승인 = 한석형 / 통합 리더(L3·L4 실행 주도) = 민범진 / 안전 파라미터·**`cobot_common` 전체**(9/18 F1 부담 분산: 한석형은 좌표 계산에 집중) = 박진용 / **PM(일정표·문서·인터페이스 정본(`docs/interfaces`→`cobot_msgs`)·런치·제출·강사 창구·PR 승인)**·영상·발표·아키텍처 그림 = 황인재
+겸임: 팀장·실기 슬롯·기구·**좌표(티칭·`cell.yaml`)**·브랜치 삭제 승인 = 한석형 / 통합 리더(L3·L4 실행 주도) = 민범진 / 안전 파라미터·`cobot_common` 패키지 정리·리뷰 = 박진용 / **PM(일정표·문서·인터페이스 정본(`docs/interfaces`→`cobot_msgs`)·런치·제출·강사 창구·PR 승인)**·영상·발표·아키텍처 그림 = 황인재
+
+**`cobot_common` 분담(9/19)**: `bootstrap.py`(init·io_node·cfg·shutdown)·`config.py` = 황인재 / 기본 이동·그리퍼(move_to·move_rel·grip·grip_level·release) = 한석형 / `weigh` = 민범진 / 힘 함수(force_on/off·force_reached·contact_down·periodic_search·safe_retreat) + **패키지 정리·리뷰** = 박진용. 남의 함수가 아직 없으면 같은 이름의 임시 stub으로 먼저 짠다.
 
 **동시 개발 약속**: 부르는 쪽은 `flow_node` 하나뿐이고, 기능 패키지끼리는 서로 import하지 않는다. 각 기능은 정해진 위치에서 시작·끝나므로 용기를 손으로 놓고 `rig_f*.py`로 혼자 시험할 수 있다. 로봇 없이도 mock 모듈(`f2_sense_flow.mock`)·`fake_state_pub`으로 flow·HMI를 만든다.
 통합 순서: **구현 → 사전 검증(V) → L1 단위기능 테스트(녹화) → L2 단위기능 통합 → L3 셀 통합 → L4 전체 통합** (`docs/03_설계_SDD.md` §9)

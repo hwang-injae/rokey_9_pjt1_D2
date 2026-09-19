@@ -78,7 +78,7 @@ TOOL={
 ROLES={
 'F1':dict(file='F1_한석형_프롬프트.md',name='한석형',title='F1 파지·이송·적재 + 좌표 계산·티칭',
  one='그릇·컵·툴을 **찾아서 잡고·옮기고·놓고·팔레트에 꽂는** 모든 동작. 반납 구역에서 용기가 겹치거나 어긋나 있어도 **탐색 파지**로 집는다. 로봇이 "어디로 어떻게" 움직이는지는 전부 내 일이다.',
- tasks='''- `cobot_common`(공용 로봇 함수)은 **박진용이 작성**한다(9/18 분담 변경 — 나는 좌표 계산·티칭에 집중). 나는 그 함수(`move_to` `move_rel` `grip` `release` `contact_down` `periodic_search` …)를 **쓰기만** 하고, 필요한 함수·인자가 있으면 박진용에게 요청한다. 그때까지는 같은 이름의 임시 stub으로 `handling.py` 로직을 먼저 짠다
+ tasks='''- **`cobot_common` 분담(9/19 재조정)**: 나는 `robot.py`의 **기본 이동·그리퍼 함수 `move_to` `move_rel` `grip` `grip_level` `release`**를 쓴다(INF-02 — V-01·V-22·V-23에서 확인하는 바로 그 동작이고 F1-01과 같은 흐름). `init`·`cfg`·`shutdown`은 황인재, `weigh`는 민범진, 힘 함수(`contact_down` `periodic_search` `force_on/off` `force_reached` `safe_retreat`)와 패키지 정리·리뷰는 박진용. 남의 함수는 **쓰기만** 하고 필요한 인자가 있으면 담당에게 요청한다. 그때까지는 같은 이름의 임시 stub으로 `handling.py` 로직을 먼저 짠다
 - **함수 모듈 `src/f1_handling/f1_handling/handling.py`** (노드 아님): `pick(zone_id, kind)`(탐색 파지) `place(station)`(스펀지 홈이면 **안착 놓기**, 항상 release까지) `move_to(station, carrying)` `tool(tool, action)` `rack_place(rack_slot, kind)` — 서명·반환 타입은 `cobot_api`(`PickResult` 등) 그대로. 복귀는 `move_to('HOME', False)`
 - **안착 놓기 `place(SPONGE_BED_B/C)`** (SDD §5.2): 용기를 쥔 채 홈 상공 → 순응 ON 하강 → 접촉·깊이 판정 → 미달이면 `periodic_search` 중 접촉 조건 감시 → 들어가면 놓고 후퇴(`offset_mm`) / 한도 초과면 들고 후퇴 `SEAT_FAIL`. 힘 관련 공용 함수(`contact_down`·`periodic_search`·`force_on/off`)는 박진용과 같이 다듬는다
 - **탐색 파지 `pick(zone_id, kind)`** (SDD §5.2): 구역 기준점 + `config/cell.yaml`(`zones`) 탐색점 오프셋 순회 → 각 점에서 그리퍼 열기 → `contact_down`(힘 상한·최대 깊이·타임아웃)으로 접촉 높이에 정지(겹친 용기는 위 용기 높이) → `grip` → 폭이 프리셋 ±3 mm면 성공(응답에 `attempts`, `offset`) / ≤5 mm 빈손·폭 초과(두 개 파지)면 놓고 다음 점 → 다 돌면 `EMPTY_ZONE`. `zone_id`가 `SPONGE_BED_*`면 탐색점 1개(고정 재파지)
@@ -92,7 +92,7 @@ ROLES={
  out='`src/f1_handling/f1_handling/handling.py` · `src/cobot_common/config/cell.yaml`·`params.yaml`(`f1` 절) · `src/f1_handling/test/rig_f1.py` · 핑거 패드·반납 구역·팔레트 배치',
  rig='반납 구역에 그릇 2개를 겹쳐/어긋나게, 컵 2개 동일 + 빈 구역 1회. 툴 홀더 2종, 팔레트 모형. 손으로 놓고 `rig_f1.py`에서 내 함수만 호출.',
  l1='TC-01 탐색 파지 그릇·컵 각 10회 ≥9, 빈 구역 `EMPTY_ZONE` 5/5, 낙하 0, 두 개 파지 0 · TC-02 툴 픽업/반납 각 10회, 안전 높이 · **TC-05 안착 놓기 정위치 5 + 2 mm 오프셋 5 ≥9/10, 한도 초과 `SEAT_FAIL`** · TC-09 팔레트 6칸 각 5회 ≥9, 걸림 → `RACK_JAM` 후퇴. 전부 녹화',
- sched='9/18 B~C CELL-01 기구, C ENV-02·V-01·V-05 → 9/19 A V-20(참여)·CELL-04 티칭, B V-06·V-08, B~C F1-01 → 9/19 C~9/20 A **F1-02 탐색 파지**·V-14, A F1-03 툴, B F1-04 적재, B~C **UT-F1** → 9/21 C **INT-12b 주도** → 9/22 A INT-13 참여, B~C L3 → 9/23 L4',
+ sched='9/19 A ENV-04·PKG-01·CELL-01 마무리·**CELL-04 티칭 1차**(V-19·V-22 포함) → B **V-01·V-05·V-23 + INF-02 기본 이동·그리퍼 함수** → C DSN-03·V-16(민범진과)·F1-01 → 9/20 A **CELL-04b 티칭 2차**·**F1-02 탐색 파지**·V-14, B V-04·V-15(박진용과)·F1-05 안착 놓기, C F1-03 툴(V-08 먼저) → 9/21 C F1-04 적재(V-06 먼저)·UT-F1 착수 → 9/22 A **UT-F1 마무리**, B **INT-12b 주도**·INT-12a, C INT-13 참여 → 9/23 L3·L4. 함수별 TC는 구현 직후 바로',
  deep='''- **탐색 파지를 가장 깊게**: 탐색점 배치(중심 → 십자 → 대각), 접촉 하강이 겹친 용기 높이에 어떻게 적응하는지, 폭으로 빈손/정상/두 개 파지를 가르는 표, 실패 시 놓고 올라가는 안전 순서, `attempts`·`offset` 기록이 KPI가 되는 이유.
 - **`trans()`·Pallet**: 기준점 1개 + 오프셋으로 탐색점·팔레트 칸 6개를 만드는 계산 예시. 팔레트를 옮겨도 기준점만 재티칭.
 - **팔레트 삽입**: 지정 각도 자세 만들기, 순응제어 + 삽입력 감시, 걸림 판정(힘↑ & 깊이 미달).
@@ -108,7 +108,7 @@ ROLES={
 - **검증(V)**: 9/18 저녁 V-02 하중 정밀도. **9/19 오전 V-20 주도**(박진용과: 실행 뼈대를 팀 코드로 Virtual 확인 — `cobot_common.init` + 내 `flow_node` 뼈대 + 세 모듈의 빈 함수를 번갈아 2바퀴, 모션 중 `/flow/state` 2 Hz, stop 수락, Ctrl+C 뒤 재실행 정상. PM이 시험 코드로는 확인함: `docs/troubleshooting/ts01_repro/virtual/s4_script.py`). V-21은 구조 변경으로 종료. 9/19 오후 V-07 털기 충돌 감지·V-16 파지력·미끄러짐(한석형과)
 - **함수 모듈 `src/f2_sense_flow/f2_sense_flow/sense.py`** (노드 아님): `weigh(kind)` `leftover_loop(kind, max_rounds)` `shake(mode, count, kind)` `dip(station, count, kind)` — 서명·반환은 `cobot_api` 그대로. `weigh`의 0점 재설정(reset)은 **선택 동작**(응답 상한 3 s, 실패 시 반복 금지 — 내가 쓴 TS-03)
 - 설정: **`config/params.yaml`의 `f2`·`flow` 절 주인**(공용 좌표·속도는 `cell`에서 읽기만). `f2` 절: 빈 용기 기준 무게(그릇·컵), 임계(기본 50 g, 미만은 통과), 평균 횟수, 털기 진폭·속도·횟수(WASTE/RINSE), 담금 깊이·시간
-- 무게: WEIGH 자세 1개 고정, 정지 후 `get_workpiece_weight` N회 평균(차동: 파지 전 0점). 9/18 저녁 V-02 100/200 g 추로 정밀도 실측(±20 g)
+- **`cobot_common.weigh(n, reset=False)`는 내가 쓴다(INF-02c, 9/19 오후 — V-02 측정 도구에서 이식)**. 무게: WEIGH 자세 1개 고정, 정지 후 `get_workpiece_weight` N회 평균(차동: 파지 전 0점). 9/18 저녁 V-02 100/200 g 추로 정밀도 실측(±20 g)
 - 잔반 폐루프: 판정 → 잔반통 위 털기 3~5회 → 재측정 → 최대 M회 → 초과 지속 `LEFTOVER_REMAIN`
 - 털기·물털기: 관절 왕복(J5/J6), 진폭·속도 제한, 9/19 V-07 충돌 감지 정지 0 확인
 - **강한 파지(9/18 V-17 결과)**: `shake`·`dip`·`leftover_loop`는 시작할 때 `cobot_common.grip_level(kind,'HOLD')`로 더 꽉 잡고 끝나면 `'NORMAL'`로 되돌린다(요청에 `kind`가 들어온다). 동작 전후 폭을 비교해 변했으면 미끄러진 것 → `GRIP_FAIL`. HOLD 힘 값은 V-16에서 한석형과 찾는다
@@ -118,7 +118,7 @@ ROLES={
  out='`src/f2_sense_flow/f2_sense_flow/sense.py` `flow.py` `flow_node.py` `mock/mock_f1.py` `mock/mock_f3.py` `logger.py` · `test/rig_f2.py` · `config/params.yaml`의 `f2`·`flow` 절 · `records.csv` 스키마',
  rig='100/200 g 추, 대용품 용기 4·빈 용기 4, 잔반통, 빈 수조. F1 없이 손으로 용기를 쥐여주고 `rig_f2.py`에서 내 함수만 호출. flow는 mock 모듈로.',
  l1='TC-03 무게 ±20 g · TC-04 잔반 검출 100%/오판 0 · TC-08 헹굼·물털기 10회 정지 0 · TC-10 mock 실패 주입 5종 정책대로(EMPTY_ZONE → 다음 구역) · TC-12 기록 4행 누락 0. 전부 녹화',
- sched='9/18 B~C CELL-03 수조·대용품(V-11), C V-02, C~9/19 C FLOW-01(메인 뼈대)·INF-03 mock 모듈, 9/19 A **V-20**(주도) → 9/19 B V-07, B~C F2-01 → 9/19 C~9/20 A FLOW-02 기록, A F2-02·UT-FLOW → 9/20 C **UT-F2**·**INT-12a 착수** → 9/21 C INT-12a 마무리·CR-01 → 9/22 B~C **L3 주도** → 9/23 **L4 주도**·동결',
+ sched='9/19 A ENV-04·PKG-01·CELL-03 수조·**FLOW-01 메인 뼈대(최우선)**·INF-03 mock 모듈 → B V-02 + **INF-02c weigh 이식**·**V-20 주도**(황인재와)·FLOW-01 → C DSN-03·V-16(한석형과)·FLOW-01 → 9/20 A ENV-03(황인재와)·**F2-01**(V-07 먼저), B F2-01·FLOW-02 기록, C F2-02 → 9/21 C **UT-F2**·UT-FLOW → 9/22 B **INT-12a 주도**·INT-12b, C~9/23 A **L3 주도** → 9/23 B~C **L4 주도**·동결',
  deep='''- **하중 측정을 가장 깊게**: `reset_workpiece_weight` → 정지 → `get_workpiece_weight` 절차, 관절 토크 기반이라 자세·가감속에 민감한 이유, 평균·차동으로 ±20 g를 만드는 법, 50 g 임계와 "미만은 통과"의 근거.
 - **상태 머신**: 전이표(SDD §5.1)를 코드 구조(딕셔너리 + 핸들러)로, PAUSED에서 이전 상태 복귀, 구역 count·EMPTY_ZONE 처리, 어떤 실패에서도 툴 반납.
 - **mock 설계**: 같은 함수 이름·인자로 즉시 `Result` 반환 + 설정으로 실패 주입 → TC-10. 전부 mock이면 `cobot_common.init(robot=False)`로 드라이버 없이 돈다.
@@ -136,15 +136,15 @@ ROLES={
 - `soap`: 툴 든 채 세제 수조 담금 N회(모션만)
 - `wipe_bowl`: 홈 중심 상공 → 힘제어(툴 Z, 목표 힘) → r1→r2 나선 `turns`회 → 힘 로그 저장 → OFF → 후퇴. **힘 상한·타임아웃 초과 즉시 후퇴**
 - `wipe_cup`: 컵 중심 → 삽입 깊이(힘 감시) → J6 ±180° + Z 스트로크 반복 → 후퇴
-- **9/18 저녁(재료 없이 할 수 있는 것)**: ① **V-03 힘제어 중 XY 이동 가능 여부**(로봇 슬롯: 민범진 V-02 다음. 아무 스펀지 + 그릇으로. 결과가 닦기 설계를 정한다) ② **`cobot_common` 전체 작성(INF-02 + INF-02b, 최우선 — 남들이 이걸로 개발)**: **`bootstrap.py`의 `init(name, robot=True)`·`io_node()`·`cfg()`·`shutdown()`부터**(SDD §3.1·§3.2 — 내가 찾은 TS-01의 최종 해법은 구조 변경이다. `init`이 ① **DSR 전용 노드**를 만들어 `DR_init.__dsr__node`에 넣은 뒤 `DSR_ROBOT2`를 import ② **통신 노드**를 만들어 백그라운드 실행기 스레드로 돌림(그리퍼 폭 `OnRobotRGInput` 구독·`/onrobot/sendCommand` 클라이언트 포함 — `grip()`은 저장된 최신 폭을 읽는다) ③ 설정 로드. `spin()`은 필요 없다. PM의 시험 코드 `docs/troubleshooting/ts01_repro/virtual/s4_script.py`가 뼈대다. 완료 기준: Virtual에서 `rig` 스크립트로 `move_to` **연속 3회** + Ctrl+C 뒤 재실행 정상. 이 PR이 9/19 오전 V-20과 세 사람 작업의 선행) · **V-24**(이동 함수를 `amovej`/`amovel` + `check_motion` 폴링으로 만들어 stop 깃발·타임아웃이면 `stop()` — 동작 중 소프트 정지, Virtual) · `force_reached()`(`check_force_condition == 0` 래퍼) · `move_to(station, carrying)` `move_rel` `grip(width, force)→width` **`grip_level(kind, 'NORMAL'|'HOLD')`**(털기·헹굼용 강한 파지 전환, 방법은 V-23: 강사 배포 `onrobot_rg_control`이 힘 0~40 N을 명령마다 받음) `release()` `weigh(n)` `force_on/off` `contact_down(max_depth, limit)` `periodic_search` `safe_retreat` + `config.py`(config/ 폴더 로더). 좌표 값은 한석형의 `cell.yaml`을 읽기만 한다. 두산 API를 직접 부르는 곳은 이 패키지뿐 ③ SAFE-01 안전 파라미터 표·위험요소/안전대책·예외 리스트 ④ 그릇·컵 치수 측정과 스펀지 홈 커팅 도면·홀더 위치 결정
+- **9/18 저녁(재료 없이 할 수 있는 것)**: ① **V-03 힘제어 중 XY 이동 가능 여부**(로봇 슬롯: 민범진 V-02 다음. 아무 스펀지 + 그릇으로. 결과가 닦기 설계를 정한다) ② **`cobot_common` 힘 함수(INF-02b, 9/19 오전~오후)**: `force_on(axis, target, limit)`/`force_off()` · `force_reached()`(`check_force_condition == 0` 래퍼 — 실제 반환은 만족 0 / 아니면 -1) · `contact_down(max_depth, limit)→depth, force` · `periodic_search(amp, period, duration)` · `safe_retreat()`. **9/19 분담 재조정**: `bootstrap.py`(init·io_node·cfg·shutdown)는 황인재, 기본 이동·그리퍼는 한석형, `weigh`는 민범진이 쓴다. 나는 힘 함수와 **패키지 정리·리뷰**(네 사람이 나눠 쓴 함수의 이름·인자·단위·안전 3종이 서로 맞는지). 한석형의 F1-02(9/19 저녁~)가 `contact_down`을 기다린다. Virtual에는 힘이 없으므로 호출 순서만 확인하고 값은 V-03에서. V-24(동작 중 소프트 정지)는 황인재가 선택 과제로 가져갔다
 - **기구(9/19 오전, 재료 도착 후)**: 대형 스펀지에 그릇·컵 홈 커팅(여유 1~2 mm, V-12), 툴 홀더 2종, 수세미 손잡이(형상 파지), 고정틀 작업대 고정
 - **9/19 오후 검증**: V-04 periodic 탐색 안착(한석형과), V-10 컵 솔 삽입 깊이, **V-15 재파지 폭 인식(한석형과)**, **V-18 툴 파지 안정성**(닦는 힘에서 툴이 밀리거나 돌지 않는가)
 - 겸임: 안전 파라미터(속도·충돌 감도·힘 상한·수조 배치) 소유, SAFE-01 위험요소·안전대책·예외/오류 리스트(9/18 저녁 작성 → 노션 업로드)''',
  not_='파지·이송·툴 픽업 동작 자체(F1 `tool()`을 flow가 호출, 나는 툴을 쥔 상태에서 시작), 무게 판정(F2), 흐름 순서(flow), HMI.',
- out='`src/cobot_common/cobot_common/bootstrap.py`·`robot.py`·`config.py` · `src/f3_wipe/f3_wipe/wipe.py` · `config/params.yaml`의 `f3` 절 · `src/f3_wipe/test/rig_f3.py` · 힘 로그 `force_*.csv` · 스펀지 고정틀·툴 홀더·수세미 손잡이 · 안전 파라미터 표',
+ out='`src/cobot_common/cobot_common/robot.py`(힘 함수)·패키지 정리 · `src/f3_wipe/f3_wipe/wipe.py` · `config/params.yaml`의 `f3` 절 · `src/f3_wipe/test/rig_f3.py` · 힘 로그 `force_*.csv` · 스펀지 고정틀·툴 홀더·수세미 손잡이 · 안전 파라미터 표',
  rig='스펀지 홈에 그릇·컵을 손으로 놓고, 툴을 그리퍼에 손으로 쥐여준 뒤 `rig_f3.py`에서 내 함수만 호출. F1 없이 개발 가능.',
  l1='TC-06 그릇 닦기 10회 목표 ±2 N·상한 초과 0·강제 초과 시 후퇴 · TC-07 컵 닦기 10회 정상. 전부 녹화',
- sched='9/18 C **V-03**·**INF-02/02b cobot_common**(`init`·통신 노드 먼저, 9/19 오전까지)·9/19 A **V-20·V-24**·SAFE-01·치수 측정·커팅 도면 → 9/19 A CELL-02 고정틀·홀더(재료 도착)·V-12, B **V-04·V-10·V-15·V-18**, C F3-02 wipe_bowl 착수 → 9/20 A~B F3-02 wipe_bowl, B F3-03 soap·wipe_cup·**UT-F3** → 9/21 C~9/22 A **INT-13 주도** → 9/22 L3 → 9/23 L4 실패 주입',
+ sched='9/19 A ENV-04·PKG-01·CELL-02a 치수·도면·**INF-02b 힘 함수**·티칭 1차 참여 → B **CELL-02 기구 제작**(황인재 보조)·V-12·INF-02b 마무리(한석형의 F1-02가 contact_down을 기다린다) → C DSN-03·**V-03** → 9/20 A 티칭 2차 참여·**F3-02 wipe_bowl**(V-18 먼저), B V-04·V-15(한석형과)·F3-02, C F3-02 → 9/21 C F3-03 soap·wipe_cup(V-10 먼저) → 9/22 A **UT-F3**, C **INT-13 주도** → 9/23 L3·L4 실패 주입. `cobot_common` 패키지 정리·리뷰는 계속 내 일',
  deep='''- **힘제어를 가장 깊게**: `task_compliance_ctrl`·`set_desired_force`가 무엇을 하는지, 툴 좌표계 Z로 힘을 걸며 XY로 움직이는 구조(V-03 결과에 따라 대안), 목표 3~5 N·상한 10 N의 근거, `check_force_condition`으로 후퇴 트리거, `release_force` 순서.
 - **안착 판정과 탐색**: 깊이 + 힘 AND 조건, Move Periodic 진폭·주기·시간 한도, 접촉 조건 감시로 "들어갔다"를 아는 법.
 - **힘 로그**: `get_tool_force` 샘플링 → CSV → 발표 그래프.
@@ -164,13 +164,14 @@ ROLES={
 - 설정: **`config/params.yaml`의 `hmi` 절 주인**: 포트 8000, 갱신 2 Hz, 끊김 판정 2 s, DB 경로(상대)
 - 9/19 A ENV-03/V-09 PC 2대 통신 확인(민범진과), A~B ARCH-01 아키텍처 draw.io 최종 + 노션 산출물 등록. 9/22 A NOTE-02 HMI 화면 gif 노션 업로드, F4-05 KPI 스크립트(records/SQLite → 성공률·사이클 타임·탐색 시도)
 - 추석: 시연 영상 편집(1분 이내), PPT(강사 5장 양식), 발표 대본 보조
+- **`cobot_common`의 `bootstrap.py`·`config.py`는 내가 쓴다(INF-02a, 9/19 오전 최우선 — 9/19 분담 재조정)**: `init(name, robot=True)`(DSR 전용 노드 → `DSR_ROBOT2` import → 통신 노드 백그라운드 실행기 → 그리퍼 폭 구독 자리) · `io_node()` · `cfg()` · `shutdown()`. Virtual에서 돌려 본 `docs/troubleshooting/ts01_repro/virtual/s4_script.py`를 옮겨 적는다. 완료 기준: rig 스크립트로 movej 연속 3회 + 타이머 2 Hz + Ctrl+C 뒤 재실행 정상. 추가로 SAFE-01(안전 자료 노션 등록, 값 확인은 박진용)·V-24(선택)·CELL-02 기구 제작 보조도 맡는다
 - **PM 겸 인터페이스·런치 관리**: **`cobot_api`**(기능 함수 약속 — ID·코드·`Result`·함수 서명, `contracts.py`)와 `cobot_msgs` v3.0(메시지 2개, `docs/interfaces/` → 복사·빌드 확인) 정본, 변경은 회의·이슈 후. 런치는 `flow_node` 프로세스 1개(`use_mock` 인자), `config` 골격(`cell.yaml` + `params.yaml`)과 `prewash_bringup` 런치 2종(`prewash.launch.py`·`prewash_mock.launch.py`), F4-00 HMI 설계 초안(화면 구성·REST/WS·필요 필드) → 9/19 저녁 DSN-03에서 확정, 9/22 NOTE-01 노션에 노드 구조·인터페이스 정의서 업로드
 - 겸임: **PM** — 구글 시트 일정표 갱신(진행·상태·완료 목록·변경이력, 매일 저녁), 팀원 진척 보고 취합, 문서 정본·노션 조별 페이지·강사 DM 창구, 제출(SUB-01, 9/30 11시 전, 파일명 규칙), PR 승인(`/pr-review`). 통합 실행 주도는 민범진''',
  not_='흐름 순서·복구 판단(flow), 로봇 동작·힘 판정(F1~F3), 칸 배정 알고리즘. HMI는 **보여주고 전달만** 한다.',
  out='`src/f4_hmi/app.py` `db.py` `static/index.html` `fake_state_pub.py` · `config/params.yaml`의 `hmi` 절 · `kpi.py` · `src/cobot_api/` · `src/cobot_msgs/` · `src/prewash_bringup/launch/*.py` · `config/` 골격 · 아키텍처 `.drawio` · 회의록 · 시연 영상·PPT',
  rig='로봇·flow 없이 `fake_state_pub.py` + `app.py`만. 브라우저에서 확인. PC-B에서는 `cobot_msgs` + `f4_hmi`만 빌드.',
  l1='TC-11 버튼 → 서비스 호출 ≤1 s, 상태 표시 지연 ≤1 s, fake 시나리오(정상·격리·오류·재개·EMPTY_ZONE) 전부 표시, 끊김 표시 · TC-12 SQLite 4행(민범진과) · V-13 브라우저 start → mock flow 반응 · INT-4 mock flow 연결. 녹화',
- sched='9/18 C F4-00 HMI 설계 초안·F4-01 fake pub·골격·INF-01b `cobot_msgs` v3.0·`cobot_api`(완료)·INF-04 config 골격·런치(`flow_node` 1개 실행) → 9/19 A ENV-03 통신, A~B F4-02 브리지·버튼·ARCH-01, C~9/20 B F4-03 화면 → 9/20 A V-13, B F4-04 SQLite, C **UT-F4** → 9/21 C **INT-4** → 9/19 C DSN-03 회의·DSN-04 반영 → 9/22 A NOTE-01·NOTE-02·F4-05 KPI, B~C L3 HMI(PC-B) → 9/23 INT-4c 측정·영상 촬영 → 추석 영상 편집·PPT',
+ sched='9/19 A ENV-04·**INF-02a bootstrap.py(최우선 — 모두가 기다린다)**·INF-04 config 골격·런치 → B **V-20**(민범진과)·F4-00 HMI 설계 초안·CELL-02 기구 제작 보조 → C DSN-03 회의·DSN-04 반영·F4-01 fake pub·골격 → 9/20 A ENV-03 통신·DSN-04·F4-02 브리지·버튼, B F4-02·F4-03·V-24(선택), C F4-03·ARCH-01·MID-01 취합 → 9/21 C **INT-4**·V-13·CR-01 → 9/22 A NOTE-01·NOTE-02·SAFE-01 노션 업로드, B F4-04 SQLite·**UT-F4**, C~9/23 A F4-05 KPI → 9/23 INT-4c 측정·영상 촬영 → 추석 영상 편집·PPT',
  deep='''- **ROS ↔ 웹 연결을 가장 깊게**: `rclpy.spin()`과 uvicorn 이벤트 루프를 같이 돌리는 법(스레드 + 큐), 서비스 호출을 요청 스레드에서 블로킹 없이, WebSocket으로 상태를 밀어주는 구조를 코드 골격으로. 웹이 처음이므로 HTTP·WebSocket·JSON을 한 줄씩 풀어서.
 - **SQLite**: 표 2개 스키마, INSERT/SELECT 최소 코드, 파일 경로는 상대경로.
 - **가짜 발행기**: 실제 `FlowState`·`FlowEvent` 필드 그대로(target·attempts 포함), 시나리오 yaml로 순서·타이밍·실패 코드 재생.
