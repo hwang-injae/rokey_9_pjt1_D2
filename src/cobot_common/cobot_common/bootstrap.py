@@ -78,7 +78,7 @@ def init(name: str, robot: bool = True):
             _init_dsr(name)
         _robot = robot
         _io = rclpy.create_node(name)
-        _call_setup_io(_io)
+        _call_setup_io(_io, robot)
         _executor = SingleThreadedExecutor()
         _executor.add_node(_io)
         _thread = threading.Thread(target=_spin_io, name='cc_io', daemon=True)
@@ -188,14 +188,25 @@ def _init_dsr(name):
     _dsr_mod = DSR_ROBOT2
 
 
-def _call_setup_io(node):
-    """사람별 파일이 통신 노드에 구독·클라이언트를 달 자리. 예: gripper.py 의 setup_io(node) 가 그리퍼 폭을 구독한다."""
+def _call_setup_io(node, robot):
+    """사람별 파일이 통신 노드에 구독·클라이언트를 달 자리. 예: gripper.py 의 setup_io(node) 가 그리퍼 폭을 구독한다.
+
+    robot=True  : 훅이 실패하면 init 도 실패한다 — 실기·Virtual 에서는 빠진 것을 바로 드러내는 편이 안전하다.
+    robot=False : 훅 실패는 경고만 남기고 건너뛴다 — "전부 mock 이면 드라이버 없이 돈다"(SDD §5.1)를 지킨다.
+                  예: 드라이버 워크스페이스(ws_dsr)가 없는 PC 에서는 gripper 훅이 onrobot_rg_msgs 를 못 찾는다.
+    """
     import importlib
     for mod_name in _IO_MODULES:
         mod = importlib.import_module(f'{__package__}.{mod_name}')
         hook = getattr(mod, 'setup_io', None)
-        if callable(hook):
+        if not callable(hook):
+            continue
+        try:
             hook(node)
+        except Exception as e:
+            if robot:
+                raise
+            _log().warn(f'{mod_name}.setup_io 를 건너뛴다(robot=False 라 계속 진행): {e!r}')
 
 
 def _spin_io():

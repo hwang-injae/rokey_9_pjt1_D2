@@ -10,7 +10,9 @@
   <exec_depend>rclpy</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
-  <!-- 두산 드라이버(dsr_msgs2 · DR_init · DSR_ROBOT2)는 강사 배포 ws_dsr 에서 온다(source 순서: ws_dsr → 우리 워크스페이스).
+  <exec_depend>python3-numpy</exec_depend>       <!-- gripper.py: 관절각 → 폭 환산 -->
+  <exec_depend>sensor_msgs</exec_depend>          <!-- gripper.py: JointState 구독 -->
+  <!-- 두산·그리퍼 드라이버(dsr_msgs2 · DR_init · DSR_ROBOT2 · onrobot_rg_msgs)는 강사 배포 ws_dsr 에서 온다(source 순서: ws_dsr → 우리 워크스페이스).
        init(robot=False) 는 드라이버 없이 돌아야 하므로 여기서 의존으로 걸지 않는다. -->
 
   <test_depend>python3-pytest</test_depend>
