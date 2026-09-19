@@ -21,12 +21,12 @@ settle_s: 1.0                     # 힘을 건 뒤 안정될 때까지 기다림
 sample_s: 0.05                    # 힘 기록 주기
 log_dir: logs/v03                 # 힘 로그 CSV (실행 위치 기준 상대경로)
 # ── 나선 문지르기 · 벽 찾기 · 벽 따라 돌기 (9/19 방식 확정: 8자 대신) ──
-scrub_deg: 20.0                   # 손목 좌우 비틀기 각 (툴 Z 회전, ±)
-scrub_step_mm: 8.0                # 나선·원 위 한 걸음 (호 길이) — 걸음마다 손목 한 번 비틀기
-scrub_lin_vel_mm_s: 200.0         # × vel_scale (0.3 → 60 mm/s) — 4회차: 실제 세척 속도에 가깝게
-scrub_rot_vel_deg_s: 400.0        # × vel_scale (0.3 → 120°/s)
-scrub_lin_acc_mm_s2: 600.0
-scrub_rot_acc_deg_s2: 800.0
+scrub_deg: 15.0                   # 손목 좌우 비틀기 각 (툴 Z 회전, ±) — 5회차: 20 → 15 (한 번 비트는 시간 줄이기)
+scrub_step_mm: 10.0               # 나선·원 위 한 걸음 (호 길이) — 걸음마다 손목 한 번 비틀기 (5회차: 8 → 10)
+scrub_lin_vel_mm_s: 300.0         # × vel_scale (0.3 → 90 mm/s) — 5회차: 더 빠르게
+scrub_rot_vel_deg_s: 700.0        # × vel_scale (0.3 → 210°/s, M0609 J6 최대 225°/s 아래) — 9/19 Virtual: 한 걸음 0.63 s 중 대부분이 비틀기
+scrub_lin_acc_mm_s2: 1500.0       # 가속도는 vel_scale 을 곱하지 않는다 — 짧은 걸음은 가속이 시간을 정한다
+scrub_rot_acc_deg_s2: 2500.0
 spiral_pitch_mm: 10.0             # 한 바퀴에 넓어지는 반지름 (솔 끝 Ø50~60 보다 작게 → 빈틈 없이)
 spiral_r_max_mm: 40.0             # 여기까지 벽이 없으면 중단 (그릇 안 여유 약 27 mm)
 friction_learn_r_mm: 15.0         # 이 반지름 안(첫 걸음 제외)에서 반지름 방향 마찰 크기를 배운다 (벽은 약 27 mm)
