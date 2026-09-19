@@ -7,6 +7,7 @@
 | [TS-01](TS-01_두산API_초기화_실행기_교착.md) | 9/18 | 두산 API 초기화 누락·서비스 콜백 안 로봇 명령 교착 | 박진용 | 구조 전체(통합 실행 불가) | **종결** — 구조를 스크립트형으로 변경([DSN-02b](../meetings/20260918_결정기록_구조_인터페이스.md)) |
 | [TS-02](TS-02_실기_브링업_실행권한.md) | 9/18 | 실기 브링업 실패 — `gripper_joint_state_publisher.py` 실행 권한 누락 | 민범진 | 실기 전체(Virtual은 정상이라 안 드러남) | 해결 (1대 확인, 나머지 3대 확인 필요) |
 | [TS-03](TS-03_하중_reset_제어권_교착.md) | 9/18 | `reset_workpiece_weight` 호출 후 컨트롤러 서비스 전체 정지 | 민범진 | F2 weigh·leftover_loop | 회피책 적용, 원인은 추정(제어권) |
+| [TS-04](TS-04_종료처리_실행기스레드_SIGINT.md) | 9/19 | 종료 시 Abort(`terminate called`) · 종료 로그가 `/rosout`에 안 남음 | 민범진 | `cobot_common.init`/`shutdown` 쓰는 모든 프로그램 | **종결** — `bootstrap.py` 에 반영됨(스레드 join · SIGINT 는 init 단독). 환경 함정 3건 함께 기록 |
 
 ## 쓰는 법
 1. 파일 이름 `TS-번호_짧은제목.md`. 위 표에 한 줄 추가.
