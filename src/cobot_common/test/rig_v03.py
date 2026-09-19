@@ -5,6 +5,7 @@
 실행 (저장소 루트, 격리 상태 solo — AGENTS 규칙 13)
     Virtual 흐름 확인 :  sod && sodvir  →  soc && python3 src/cobot_common/test/rig_v03.py
     Virtual + 가짜 벽 :  soc && python3 src/cobot_common/test/rig_v03.py --fake-wall   (나선 → 벽 → 2바퀴 흐름·시간)
+                         그릇 크기를 바꿔 보려면  --fake-wall --fake-bowl-d 200   (안지름 mm)
     실기             :  sod && sodreal →  soc && python3 src/cobot_common/test/rig_v03.py --real
 준비(로봇 정지 상태): 그릇 중심을 HOME 바로 아래에 테이프로 고정 · 솔을 그리퍼에 쥐여 둔다('o' → 넣고 → 'c')
         · rig_v03.yaml 의 approach_down_mm = (솔 끝 → 그릇 안쪽 바닥) − 30 mm
@@ -257,6 +258,8 @@ def main() -> int:
     ap.add_argument('--real', action='store_true', help='실기에서 실행한다 (🚨 E-Stop 담당·격리·저속 확인 뒤)')
     ap.add_argument('--fake-wall', action='store_true',
                     help='Virtual 전용: 그릇 안지름·솔 지름으로 가짜 벽 힘을 넣는다 (실기에서는 거부)')
+    ap.add_argument('--fake-bowl-d', type=float, default=None,
+                    help='Virtual 가짜 그릇 안지름 mm (기본 rig_v03.yaml). 나선 최대 반지름도 벽 + 10 mm 로 늘린다')
     args = ap.parse_args()
     with open(HERE / 'rig_v03.yaml', encoding='utf-8') as f:
         p = yaml.safe_load(f)
@@ -304,9 +307,12 @@ def main() -> int:
 
         run = Run(d, p, log)
         if args.fake_wall:
+            if args.fake_bowl_d is not None:                             # Virtual 전용 — 실기는 위에서 이미 거부
+                p['fake_bowl_inner_d_mm'] = args.fake_bowl_d
             run.fake_wall_r = (p['fake_bowl_inner_d_mm'] - p['fake_brush_d_mm']) / 2
+            p['spiral_r_max_mm'] = max(p['spiral_r_max_mm'], run.fake_wall_r + 10.0)
             log.info(f"가짜 벽: 그릇 안지름 {p['fake_bowl_inner_d_mm']:g} − 솔 지름 {p['fake_brush_d_mm']:g} → "
-                     f'솔 중심 반지름 {run.fake_wall_r:.1f} mm 에서 벽')
+                     f"솔 중심 반지름 {run.fake_wall_r:.1f} mm 에서 벽 · 나선 최대 {p['spiral_r_max_mm']:.1f} mm")
         d.movej(p['home_posj'], vel=p['home_vel_deg_s'] * cc.cfg()['run']['vel_scale'], acc=p['home_acc_deg_s2'])
         z_home = run.z()
         cc.cfg()['cell']['limits']['safe_z_mm'] = z_home                 # 시험 전용: 안전 높이 = HOME
