@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""INF-02a 단독 시험 — 실행 뼈대(cobot_common.init · io_node · cfg · shutdown) 확인. 🚨 Virtual 전용.
+"""INF-02a 단독 시험 — 실행 뼈대(cobot_common.init · io_node · cfg · shutdown) 확인. 🚨 기본은 Virtual 전용(--real 은 저속 키).
 
 실행 (저장소 루트에서)
     터미널 1:  sod && sodvir
@@ -38,9 +38,14 @@ def main() -> int:
     code = 1
     try:
         d = dsr()
-        if d.get_robot_system() != d.ROBOT_SYSTEM_VIRTUAL and not args.real:
+        virtual = d.get_robot_system() == d.ROBOT_SYSTEM_VIRTUAL
+        if not virtual and not args.real:
             log.error('Virtual 이 아니다 → 실행하지 않는다. 실기에서 돌리려면 팀 확인 뒤 --real')
             return 2
+        speed = p['virtual' if virtual else 'real']                 # 실기는 저속 키만 쓴다
+        scale = cc.cfg()['run']['vel_scale']                        # 런치 인자 vel_scale / PREWASH_VEL_SCALE
+        vel, acc = speed['vel_deg_s'] * scale, speed['acc_deg_s2'] * scale
+        log.info(f"{'Virtual' if virtual else '🚨 실기'} · vel {vel:g} deg/s · acc {acc:g} deg/s² (vel_scale {scale:g})")
         log.info(f"설정 확인: cfg() 절 = {sorted(cc.cfg())} · hmi.port = {cc.cfg()['hmi'].get('port')}")
 
         first_tick = len(ticks)
@@ -50,7 +55,7 @@ def main() -> int:
             for posj in p['posj_list']:
                 n += 1
                 t0 = time.monotonic()
-                ret = d.movej(posj, vel=p['vel_deg_s'], acc=p['acc_deg_s2'])
+                ret = d.movej(posj, vel=vel, acc=acc)
                 j1 = d.get_current_posj()[0]
                 ok = ret == 0 and abs(j1 - posj[0]) <= p['posj_tol_deg']
                 bad += 0 if ok else 1

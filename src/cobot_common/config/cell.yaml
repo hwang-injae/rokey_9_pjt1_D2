@@ -1,3 +1,94 @@
-# cell.yaml — 공용 값(좌표·속도·힘 상한·프리셋). 주인 한석형 혼자 고친다. 나머지는 읽기만. (SDD §4.3, IRD §9)
-# INF-02a: 로더가 읽을 수 있게 파일만 만들었다. 키 골격은 INF-04(9/19 오후), 값은 한석형(티칭).
-cell: {}
+# cell.yaml — 여러 기능이 같이 쓰는 값(좌표·속도·힘 상한·프리셋). 🚨 주인 한석형 혼자 고친다. 나머지는 읽기만. (SDD §4.3, IRD §9)
+#
+# INF-04(9/19): **키 골격만** 만들었다. 값은 전부 비어 있다(= null) → 한석형이 티칭(CELL-04·04b)·검증 결과로 채운다.
+#   - 비어 있는 값은 `cobot_common.config.unfilled(cfg)` 로 목록을 볼 수 있고, init() 이 개수를 경고로 알려 준다.
+#   - 키 이름 규칙: 소문자 snake_case + 단위 접미사(_mm _deg _n _g _s _pct). ID 는 IRD §2 대문자 그대로.
+#   - 좌표는 posj(관절 6개, deg) 또는 posx(x y z rx ry rz, mm·deg) 중 하나를 키 이름으로 밝힌다.
+#   - 값 옆 주석에 단위·허용 범위·바꾼 이유(날짜)를 적는다. 예)  safe_z_mm: 150   # 9/19 V-19 도달 범위 확인
+#   - 🟡 표시는 9/19 저녁 DSN-03 에서 방식이 정해진 뒤에 채우는 곳이다.
+cell:
+  limits:                         # 속도·안전 높이·공통 힘 상한·타임아웃  (SDD §4.3 예시: 60 · 30 · 150 · 10 · 15 · 10)
+    vel_free_pct:                 # 빈손 이동 속도 %
+    vel_carry_pct:                # 용기·툴을 들고 이동할 때 속도 %
+    safe_z_mm:                    # 안전 높이
+    contact_limit_n:              # 접촉(탐색 하강·안착) 힘 상한  — NFR-01
+    insert_limit_n:               # 삽입(팔레트·컵 솔) 힘 상한    — NFR-01
+    timeout_s:                    # 접촉 동작 공통 타임아웃
+
+  presets:                        # 종류·툴별 파지. 🟡 그릇은 외경 114 mm > RG2 최대 폭 110 mm 라 지름 방향 파지 불가(CELL-02a §3) → 파지 방식은 DSN-03
+    BOWL:
+      grip_width_mm:              # 파지 목표 폭
+      grip_force_n:               # NORMAL (집기·이송·놓기)
+      hold_force_n:               # HOLD   (털기·담금·물 털기) — V-16·V-23
+      width_tol_mm:               # 폭 판정 허용 오차 — V-01
+      approach_z_mm:              # 접근 높이
+    CUP:                          # 옆면 파지 (9/18 V-17 확인)
+      grip_width_mm:
+      grip_force_n:
+      hold_force_n:
+      width_tol_mm:
+      approach_z_mm:
+    SPONGE:
+      grip_width_mm:
+      grip_force_n:
+      width_tol_mm:
+    BRUSH:
+      grip_width_mm:
+      grip_force_n:
+      width_tol_mm:
+
+  stations:                       # 작업대 위 고정 위치 (IRD §2 station). 스펀지 홈은 아래 beds
+    HOME:        {posj: }         # 안전 자세 — 모든 이동의 시작·끝
+    WEIGH:       {posx: }         # 무게 측정 자세
+    WASTE:       {posx: }         # 잔반통 상공
+    SOAP:        {posx: }         # 세제 수조 상공
+    RINSE:       {posx: }         # 헹굼 수조 상공
+    TOOL_SPONGE: {posx: }         # 수세미 툴 홀더   (티칭 2차 CELL-04b)
+    TOOL_BRUSH:  {posx: }         # 솔 홀더          (티칭 2차 CELL-04b)
+    ISOLATE:     {posx: }         # 격리 구역
+
+  zones:                          # 🟡 반납 구역(탐색 파지) — 방식은 DSN-03 에서 확정
+    RET_B:
+      frame:                      # 사용자 좌표계 이름 (SDD §2: RETURN)
+      origin_posx:                # 구역 기준점
+      search:
+        offsets_mm:               # 탐색점 목록 [[dx, dy], …] — 중심 → 십자 → 대각 순 (V-14)
+        max_attempts:
+        descend_max_mm:
+    RET_C:
+      frame:
+      origin_posx:
+      search:
+        offsets_mm:
+        max_attempts:
+        descend_max_mm:
+
+  beds:                           # 스펀지 홈 (안착 놓기·재파지 위치) — 티칭 2차 CELL-04b
+    SPONGE_BED_B:
+      frame:                      # SDD §2: BED
+      origin_posx:
+      seat:                       # 안착 놓기 파라미터 — V-04
+        approach_z_mm:
+        contact_limit_n:
+        search_amp_mm:
+        search_period_s:
+        search_max_s:
+    SPONGE_BED_C:
+      frame:
+      origin_posx:
+      seat:
+        approach_z_mm:
+        contact_limit_n:
+        search_amp_mm:
+        search_period_s:
+        search_max_s:
+
+  rack:                           # 식기세척기용 팔레트 모형 — 기준점 1 + 칸별 오프셋·각도 (V-06)
+    origin_posx:
+    slots:
+      RACK_B1: {offset_mm: , tilt_deg: }
+      RACK_B2: {offset_mm: , tilt_deg: }
+      RACK_C1: {offset_mm: , tilt_deg: }
+      RACK_C2: {offset_mm: , tilt_deg: }
+      RACK_C3: {offset_mm: , tilt_deg: }
+      RACK_C4: {offset_mm: , tilt_deg: }

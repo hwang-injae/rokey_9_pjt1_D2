@@ -88,7 +88,13 @@ def init(name: str, robot: bool = True):
     except BaseException:
         shutdown()
         raise
-    _log().info(f'init 완료: 통신 노드 {name}' + (f' · DSR 전용 노드 {name}_dsr' if robot else ' · robot=False(드라이버 없음)'))
+    _log().info(f'init 완료: 통신 노드 {name}' + (f' · DSR 전용 노드 {name}_dsr' if robot else ' · robot=False(드라이버 없음)')
+                + f" · vel_scale {_cfg['run']['vel_scale']:g} · use_mock {_cfg['flow'].get('use_mock', [])}")
+    if robot:
+        empty = _config.unfilled(_cfg)
+        if empty:
+            _log().warn(f'설정에 비어 있는 값 {len(empty)}개 (예: {", ".join(empty[:3])} …) — 쓰는 함수에서 None 이 나온다. '
+                        'cell.yaml 은 한석형, params.yaml 은 절 주인이 채운다')
 
 
 def io_node():

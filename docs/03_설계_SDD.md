@@ -280,6 +280,14 @@ hmi: {port: 8000, state_rate_hz: 2, disconnect_after_s: 2.0, db_path: prewash.db
 ```
 좌표·힘·횟수는 전부 여기에 둔다. 코드에 숫자를 쓰지 않는다. 경로는 항상 패키지 기준 상대경로.
 
+**실제 파일(INF-04, PR #5)**: `cell.yaml`은 위 키 골격에 **값이 전부 비어 있다(null)** — 한석형이 티칭·검증 결과로 채운다(비어 있는 키는 `cobot_common.config.unfilled(cc.cfg())`, `init()`이 개수를 경고로 알린다). `params.yaml`의 `f1`·`f2`·`flow` 절은 위 예시 값, **`f3` 절은 박진용 실측 초안**(`wipe_bowl.radius_mm: [2, 9]` · `wipe_cup.insert_depth_mm: 90`, [CELL-02a 기록](test_logs/20260918_CELL-02a_용기치수측정.md))으로 들어갔다. 값의 주인은 각 절 주인이다.
+
+**실행 인자(YAML에 없는 값)** — 런치 인자가 **환경변수**로 넘어와 `cc.cfg()`에 얹힌다. flow가 `init()` **전에** `use_mock`을 보고 `init(robot=False)`를 정해야 해서 ROS 파라미터가 아니다(`cc.cfg()`는 `init()` 전에도 읽힌다).
+| 런치 인자 | 환경변수 | 읽는 곳 | 규칙 |
+|---|---|---|---|
+| `use_mock:="f1,f3"` | `PREWASH_USE_MOCK` | `cc.cfg()['flow']['use_mock']` (YAML 값을 덮어씀) | 빈 값 = `[]` 전부 실제 · 변수가 없으면 YAML 그대로 · 이름은 `f1 f2 f3`만 |
+| `vel_scale:=0.3` | `PREWASH_VEL_SCALE` | `cc.cfg()['run']['vel_scale']` | **0 초과 1 이하**(속도를 낮추는 쪽으로만, 1 초과는 거부) · 없으면 1.0 · 이동 함수(`motion.py`)가 `cell.limits.vel_*_pct`에 곱한다 · rig를 손으로 돌릴 때는 `PREWASH_VEL_SCALE=0.3 python3 …/rig_f1.py` |
+
 **YAML 소유·키 이름 규칙 (🟡 PM 제안 — 9/19 DSN-03에서 확정)**
 | 규칙 | 내용 | 예 |
 |---|---|---|
@@ -548,7 +556,7 @@ soc && ros2 launch prewash_bringup prewash_mock.launch.py
 # 내 기능만 단독 시험 (브링업 뒤)
 soc && python3 src/f3_wipe/test/rig_f3.py
 ```
-런치 인자: `use_mock:="f1,f3"`(빈 값이면 전부 실제), `vel_scale:=0.3`. 첫 실기는 `vel_scale 0.2~0.3`. `flow_node`를 끌 때는 **멈춰 있을 때** Ctrl+C 한 번. 움직이는 중의 Ctrl+C는 정지 명령을 최선으로 시도할 뿐이다(V-24) — 급하면 Ctrl+C가 아니라 **E-Stop**. 움직이는 중에 죽였으면 브링업부터 다시.
+런치 인자: `use_mock:="f1,f3"`(빈 값이면 전부 실제), `vel_scale:=0.3`(실기 런치 기본 0.3, mock 런치 1.0), `hmi:=true`(PC 1대로 돌릴 때 hmi_bridge도 같이). 인자는 환경변수로 프로그램에 간다(§4.3 실행 인자). 첫 실기는 `vel_scale 0.2~0.3`. 🚨 `flow_node`에는 런치에서도 손으로도 **`name=`·`namespace=`·`--ros-args -r __node:=…`를 주지 않는다** — 프로세스 안의 두 노드(`flow_node` · `flow_node_dsr`)에 모두 걸려 이름이 같아진다. 없는 패키지(f2_sense_flow·f4_hmi)는 런치가 경고만 남기고 건너뛴다. `flow_node`를 끌 때는 **멈춰 있을 때** Ctrl+C 한 번. 움직이는 중의 Ctrl+C는 정지 명령을 최선으로 시도할 뿐이다(V-24) — 급하면 Ctrl+C가 아니라 **E-Stop**. 움직이는 중에 죽였으면 브링업부터 다시.
 
 ## 11. 확인 중
 | 항목 | 담당 | 기한 |
