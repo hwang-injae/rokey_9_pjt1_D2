@@ -37,6 +37,8 @@ follow_band_n: 3.0                # 벽 따라가기 목표 = 벽 판정 기준 
 follow_gain_mm_per_n: 0.5         # 목표와의 차이 1 N 당 반지름을 고치는 양
 follow_step_mm: 3.0               # 한 걸음에 반지름을 고치는 최대량
 circle_turns: 2
+circle_reverse: true              # 벽 따라 돌기는 나선과 반대 방향 (같은 방향이면 나선 마지막 바퀴와 겹쳐 안 보임 — 9/19 5회차)
+circle_pause_s: 0.5               # 벽 발견 → 벽 따라 돌기 사이에 벽에 닿은 채 멈추는 시간
 lateral_max_n: 15.0               # 옆 힘 절대 상한 — 넘으면 즉시 중단 (5회차 뒤 12 → 15: 벽 따라가기가 한 걸음 늦게 고치는 여유)
 scrub_timeout_s: 300.0            # 나선·원 각각의 시간 상한
 # ── Virtual 전용 가짜 벽 (--fake-wall) — 힘이 없는 Virtual 에서 나선 → 벽 → 2바퀴 흐름·시간 확인. 실기에서는 거부 ──

@@ -70,7 +70,7 @@ class Run:
         self.fy0 = statistics.mean(f[1] for f in fs)
 
     # ------------------------------------------------------------ 나선 문지르기 · 벽 찾기 · 벽 따라 돌기
-    def scrub_to(self, x, y):
+    def scrub_to(self, x, y, phase='spiral'):
         """중심 기준 (x, y) 로 한 걸음 가면서 **동시에** 손목을 ±scrub_deg 로 비튼다 — movel 한 번(BASE 절대 좌표).
 
         목표 = [중심 X + x, 중심 Y + y, 바닥 Z, A, B, C + 비틀기]. 툴 Z 축 회전은 ZYZ 의 C 에 더하면 된다
@@ -88,7 +88,7 @@ class Run:
             raise RuntimeError('movel(한 걸음 + 손목 비틀기) 실패')
         self.x, self.y = x, y
         self.rz, self.twist = rz, -self.twist
-        return self.check('scrub')
+        return self.check(phase)
 
     def set_frame(self):
         """지금 자세(바닥에 닿은 중심)를 나선·원의 기준으로 기억한다 — 손목 0° 기준."""
@@ -172,18 +172,24 @@ class Run:
           목표 = wall_n(벽 판정 기준) + follow_band_n/2 의 반지름 방향 힘.
           모자라면(벽에서 떨어짐) 바깥으로, 넘으면(너무 밂) 안쪽으로 — 차이 × follow_gain_mm_per_n, 한 번에 follow_step_mm 까지.
         반지름은 spiral_r_max_mm 를 넘지 않는다. 옆 힘 절대 상한(lateral_max_n)은 check() 가 지킨다.
+        🔸 나선과 **반대 방향**으로 돈다(circle_reverse) — 나선 마지막 바퀴와 같은 길을 같은 방향으로 돌면 눈으로 구분이 안 되고
+           (9/19 5회차 "2바퀴를 안 했다"), 반대로 문지르면 벽면을 양방향으로 닦는다. 시작 전에 circle_pause_s 만큼 멈춘다.
         """
         import math
         p = self.p
         r, th, done = r_hit, theta0, 0.0
+        sign = -1.0 if p['circle_reverse'] else 1.0
         presses, lats, rs = [], [], []
+        self.d.mwait()                                                   # 나선 끝 — 벽에 닿은 채 잠깐 멈춤(구분되게)
+        self.sample('wall_pause', p['wipe_target_n'], seconds=p['circle_pause_s'])
+        self.log.info(f'  벽 따라 {p["circle_turns"]}바퀴 시작 — {"반대 방향" if p["circle_reverse"] else "같은 방향"}')
         start = time.monotonic()
         while done < 2 * math.pi * p['circle_turns']:
             if time.monotonic() - start > p['scrub_timeout_s']:
                 raise cc.MotionTimeout('벽 따라 돌기 시간 초과')
             dth = p['scrub_step_mm'] / max(r, p['scrub_step_mm'])
-            th, done = th + dth, done + dth
-            press, lat, rad = self.scrub_to(r * math.cos(th), r * math.sin(th))
+            th, done = th + sign * dth, done + dth
+            press, lat, rad = self.scrub_to(r * math.cos(th), r * math.sin(th), 'wall')
             presses.append(press)
             lats.append(lat)
             rs.append(r)
