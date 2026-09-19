@@ -26,7 +26,9 @@ Ctrl+C 는 cobot_common.init() 이 단독으로 맡는다 (SDD §3.1, PR #3).
    프로세스 안의 두 노드(flow_node · flow_node_dsr)에 모두 걸려 이름이 같아진다.
 """
 import functools
-import logging
+import traceback
+
+import rclpy.logging
 
 import cobot_common as cc
 from cobot_common import config as cc_config
@@ -161,7 +163,9 @@ def main():
     except Exception:                                # noqa: BLE001
         # 여기까지 온 예외는 flow 의 보호를 모두 지나온 것이다(설정·초기화·구조 문제).
         # 트레이스백을 그대로 남겨 원인을 알 수 있게 하고, 정리는 finally 가 한다.
-        logging.getLogger('flow_node').exception('flow_node 를 계속할 수 없다')
+        # 노드를 못 쓸 수도 있는 자리라 rclpy 의 이름 있는 로거를 쓴다(AGENTS §4: print 금지).
+        rclpy.logging.get_logger('flow_node').error(
+            'flow_node 를 계속할 수 없다\n' + traceback.format_exc())
         raise
     finally:
         cc.shutdown()                                # ⑦ 어떤 경우에도 정리
