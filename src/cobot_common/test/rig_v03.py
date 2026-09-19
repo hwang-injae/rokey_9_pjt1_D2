@@ -67,22 +67,26 @@ class Run:
 
     # ------------------------------------------------------------ 나선 문지르기 · 벽 찾기 · 벽 따라 돌기
     def scrub_to(self, x, y):
-        """중심 기준 (x, y) 로 한 걸음(BASE 상대 이동) → 손목을 ±scrub_deg 로 번갈아 비튼다(TOOL Z 회전).
+        """중심 기준 (x, y) 로 한 걸음 가면서 **동시에** 손목을 ±scrub_deg 로 비튼다 — movel 한 번(TOOL 상대 이동).
 
-        순응 중 관절 이동(movej) 금지라 둘 다 직교 이동. 비튼 누적 각은 self.rz 에 두고 끝나면 되돌린다.
+        BASE 의 한 걸음(dx, dy)을 지금 툴 자세(A·B·C, ZYZ)로 툴 좌표에 옮겨 [tx, ty, 0, 0, 0, drz] 로 보낸다.
+        Z 는 힘제어 축이라 0. 순응 중 관절 이동(movej) 금지라 직교 이동만. 누적 비틀기 각은 self.rz 에 두고 끝나면 되돌린다.
         한 걸음마다 힘을 읽어 기록하고 (누르는 힘, 옆 힘) 을 돌려준다.
         """
+        import math
         p, d, s = self.p, self.d, cc.cfg()['run']['vel_scale']
         vel = [p['scrub_lin_vel_mm_s'] * s, p['scrub_rot_vel_deg_s'] * s]
         acc = [p['scrub_lin_acc_mm_s2'], p['scrub_rot_acc_deg_s2']]
         dx, dy = x - self.x, y - self.y
-        if abs(dx) > 1e-6 or abs(dy) > 1e-6:
-            if d.movel([dx, dy, 0.0, 0.0, 0.0, 0.0], vel=vel, acc=acc, ref=d.DR_BASE, mod=d.DR_MV_MOD_REL) != 0:
-                raise RuntimeError('movel(나선 한 걸음) 실패')
-            self.x, self.y = x, y
+        a, b, c = (math.radians(v) for v in d.get_current_posx(ref=d.DR_BASE)[0][3:6])
+        ca, sa, cb, cc_, sc = math.cos(a), math.sin(a), math.cos(b), math.cos(c), math.sin(c)
+        # R = Rz(a)·Ry(b)·Rz(c) 의 1·2열 = 툴 X·Y 축(BASE 기준). 툴 이동 = Rᵀ·(dx, dy, 0)
+        tx = (ca * cb * cc_ - sa * sc) * dx + (sa * cb * cc_ + ca * sc) * dy
+        ty = (-ca * cb * sc - sa * cc_) * dx + (-sa * cb * sc + ca * cc_) * dy
         rz = p['scrub_deg'] * self.twist
-        if d.movel([0.0, 0.0, 0.0, 0.0, 0.0, rz - self.rz], vel=vel, acc=acc, ref=d.DR_TOOL, mod=d.DR_MV_MOD_REL) != 0:
-            raise RuntimeError('movel(손목 비틀기) 실패')
+        if d.movel([tx, ty, 0.0, 0.0, 0.0, rz - self.rz], vel=vel, acc=acc, ref=d.DR_TOOL, mod=d.DR_MV_MOD_REL) != 0:
+            raise RuntimeError('movel(한 걸음 + 손목 비틀기) 실패')
+        self.x, self.y = x, y
         self.rz, self.twist = rz, -self.twist
         return self.check('scrub')
 
@@ -227,6 +231,14 @@ def main() -> int:
             log.error('rig_v03.yaml 의 approach_down_mm 이 비어 있다 → (솔 끝 → 그릇 바닥 실측) − 30 mm 를 넣는다')
             return 2
         tool, tcp = d.get_tool(), d.get_tcp()
+        if not virtual and (tool != p['expected_tool'] or tcp != p['expected_tcp']):
+            # 브링업을 새로 켜면 툴·TCP 가 비어 있다(9/19). 자동 모드에서는 설정이 거부돼 수동 모드로 바꿔 설정하고 되돌린다
+            log.warning(f'툴·TCP 가 {tool!r}·{tcp!r} → {p["expected_tool"]!r}·{p["expected_tcp"]!r} 로 설정한다 (로봇 안 움직임)')
+            d.set_robot_mode(d.ROBOT_MODE_MANUAL)
+            d.set_tool(str(p['expected_tool']))
+            d.set_tcp(str(p['expected_tcp']))
+            d.set_robot_mode(d.ROBOT_MODE_AUTONOMOUS)
+            tool, tcp = d.get_tool(), d.get_tcp()
         log.info(f"{'Virtual(흐름만 — 힘 판정은 의미 없음)' if virtual else '실기'} · vel_scale {cc.cfg()['run']['vel_scale']:g} "
                  f'· 툴 {tool!r} · TCP {tcp!r} · 접근 {approach:.0f} mm')
         if not virtual and (tool != p['expected_tool'] or tcp != p['expected_tcp']):
