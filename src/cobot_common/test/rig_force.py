@@ -70,7 +70,8 @@ def main() -> int:
                 depth_ok = abs(depth - p['contact_max_depth_mm']) <= p['depth_tol_mm']
                 ok = depth_ok and abs(z_end - z_start) <= p['depth_tol_mm']
                 log.info(f'바퀴 {rnd}: Fz {f[2]:.1f} N · force_reached={reached} · contact_down 깊이 {depth:.1f} mm '
-                         f'(|Fz| {fz:.1f} N) · 복귀 Z {z_end:.1f} · {time.monotonic() - t0:.1f} s · {"OK" if ok else "FAIL"}')
+                         f'(|Fz| {fz:.1f} N) · 복귀 Z {z_end:.1f} · {time.monotonic() - t0:.1f} s · '
+                         f'{"OK" if ok else "FAIL"}')
             except (cc.ForceLimitError, cc.MotionTimeout, RuntimeError, ValueError, KeyError) as e:
                 ok = False
                 log.error(f'바퀴 {rnd}: {type(e).__name__}: {e}')
