@@ -78,6 +78,7 @@ HMI 시작 1회 → 반납 구역 계획 순서(그릇 구역 2개 → 컵 구�
 |---|---|
 | `No module named 'DR_init'` | `.bashrc` PYTHONPATH에 `ws_dsr/install/dsr_common2/lib/dsr_common2/imp` |
 | 브링업 조용히 실패 | 포트 12345 잔류 DRCF → `killdrcf` |
+| Virtual 브링업을 하나 더 띄웠더니 먼저 떠 있던 것이 망가짐 | 에뮬레이터는 PC에 하나만 뜬다 → **띄우기 전에 이미 떠 있는지 확인**(`ps`·`docker ps`·포트 12345), 떠 있으면 그대로 쓴다. 에이전트도 사용자가 띄워 둔 브링업을 확인 없이 다시 띄우지 않는다(9/19 실제 사고) |
 | 실기 브링업 거부 | 티치펜던트 제어권 해제, `/dsr01/dsr_controller2/system/set_robot_mode` 확인 |
 | `colcon-argcomplete` 오류 | colcon은 시스템 설치, venv는 HMI 전용 |
 | 토픽이 2개만 보임 | 지난 프로젝트 Fast DDS 화이트리스트 주석 처리 |

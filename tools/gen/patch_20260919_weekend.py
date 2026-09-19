@@ -13,8 +13,8 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v5.3'
-OUT = 'prewash_일정표_0919r.xlsx'
+VERSION = 'v5.4'
+OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
 # id: dict(task, owner, status, deliv, crit, note, slots) — 없는 키는 그대로 둔다
@@ -22,11 +22,11 @@ EDIT = {
  # --- 전원 구역
  'PM-01': dict(slots=S('9/18 저녁', '9/19 오후', '9/20 오후', '9/21 저녁', '9/22 저녁', '9/23 저녁'), note='주말은 교육장 마감(18시) 전에'),
  'PKG-01': dict(owner='H,M,P', note='V-20 의 재료 · ✅ F3(박진용) PR #4 · ✅ F2(민범진) PR #8 · F1 골격은 황인재 F4 세션이 대신 작성(패키지 주인은 한석형 그대로 — 9/19 PM 결정, 한석형은 티칭에 집중) · pytest 파일 이름은 test_f1_api.py'),
- 'INF-02': dict(task='cobot_common 2/4 · motion.py — 이동 함수(저수준) move_to · move_rel(dx,dy,dz,frame,*,vel_mm_s,acc_mm_s2) · move_joint_rel(관절 상대 이동, 털기용) · 속도 = cell.limits × run.vel_scale',
+ 'INF-02': dict(status='완료', task='cobot_common 2/4 · motion.py — 이동 함수(저수준) move_to · move_rel(dx,dy,dz,frame,*,vel_mm_s,acc_mm_s2) · move_joint_rel(관절 상대 이동, 털기용) · 속도 = cell.limits × run.vel_scale',
                 owner='H', deliv='src/cobot_common/cobot_common/motion.py + cell.yaml 의 cell.force 키 골격(값 없음)·test_config 수정',
                 crit='Virtual(격리)에서 move_to·move_rel·move_joint_rel 연속 3회 · 시험용 설정으로 pytest',
-                note='9/19 분담 변경: 한석형 → 황인재(F4 세션) · Virtual 만으로 완성(로봇 불필요) · 이슈 #7 ② move_rel 속도 선택 인자 · DSN-03 B11 관절 이동 함수 · 박진용 force.py 의 임시 stub _move_rel 을 대체 · 좌표는 cell.yaml(한석형)에서 읽기만',
-                slots=S('9/19 오후', '9/20 오전')),
+                note='✅ 9/19 PR #15 merge(예정보다 반나절 빠름) — Virtual rig 3바퀴 30건·pytest 23건 · 🚨 move_to 는 안전 높이 아래로 내려가지 않고 "남은 높이"를 돌려준다(하강은 부르는 쪽이 move_rel/contact_down) · 새 키 cell.motion 4개(100 % 기준 속도) — 값은 한석형, 비어 있으면 이동 함수가 KeyError · 남은 것: move_joint_rel 시간 지정 경로의 속도 상한(실기 전), 사용자 좌표계·RACK_*·회전 포함 상대 이동 · 9/19 분담 변경: 한석형 → 황인재(F4 세션) · Virtual 만으로 완성(로봇 불필요) · 이슈 #7 ② move_rel 속도 선택 인자 · DSN-03 B11 관절 이동 함수 · 박진용 force.py 의 임시 stub _move_rel 을 대체 · 좌표는 cell.yaml(한석형)에서 읽기만',
+                slots=S('9/19 오후')),
  'INF-02b': dict(slots=S('9/19 오후', '9/20 오전'), note='force.py 구현·시험은 브랜치에 있음 — V-03(9/20 오전) 전이라도 PR 을 올린다(값은 후속 PR) · F1-02(9/20 오후)가 contact_down 을 기다린다 · 이슈 #7: cell.force 키 골격은 황인재(INF-02), 값은 박진용이 그 절만 PR · move_rel 이 들어오면 임시 stub 삭제'),
  'INF-02c': dict(status='진행 중', slots=S('9/20 오전'), note='R · ✅ 코드 merge(PR #13, 9/19 — 중앙값·음수 실패값 거르기·reset 선택 동작, pytest 10건) → 남은 것은 9/20 오전 실기 확인(V-02 와 한 세션)과 빈 용기 기준값 측정(rig_f2.py empty) · f2.weigh(F2-01)가 이걸 불러 판정한다'),
  'DSN-03': dict(task='2차 회의 안건 — **회의 없이 PM 이 결정**(9/19): 반납 구역 = 고정 슬롯 · 그릇 = 옆면(벽) 세로 파지 · 그리퍼 폭 경로 · 이슈 #7 수락 · 9/19 선결정 확정. 나머지는 보류', status='진행 중', slots=S('9/19 오후'),
@@ -49,7 +49,7 @@ EDIT = {
  'V-01': dict(owner='M', slots=S('9/20 오전'), crit='상태마다 10회 — 세 범위가 겹치지 않고, 그릇(≈ 2 mm) ↔ 빈손 간격이 흔들림(최대 − 최소)의 2배 이상', note='R · V-05·V-23 과 한 그리퍼 세션(9/20 오전 첫 순서) · 9/19 분담 변경: 한석형 → 민범진 · 🚨 9/19 PM 결정: **그릇은 옆면(벽)을 세로로 파지**(외경 114 mm > RG2 최대 폭 110 mm) — ✅ 9/19 검증: 파지 폭 ≈ 2 mm 이고 빈손과 구분된다(황인재) → **그릇도 폭으로 가른다(무게로 가르지 않음)** · 남은 것: 컵·빈손 포함 10회 기록, 허용 오차를 cell.yaml 에, 드라이버 경로(V-05)에서도 같은 값이 읽히는지 · 그릇 전용 허용 오차를 정하고, grip 의 닫는 목표 폭은 기대 폭보다 작게(같으면 빈손도 성공으로 읽힌다) · 미달이면 핑거 패드를 두껍게 · 결과가 gripper.py grip 과 F1-02 폭 판정값이 된다'),
  'V-05': dict(owner='M', slots=S('9/20 오전'), note='R · 절차는 박진용 제안서 docs/ref/20260919_제안_RG2_폭_힘_경로.md §5(30분): A 드라이버(관절각→폭 환산, 힘 2.5 N 계단) 먼저 → 안 되면 B Compute Box XML-RPC 를 읽기부터 · 9/19 분담 변경: 한석형 → 민범진'),
  'V-23': dict(owner='M', slots=S('9/20 오전'), note='R · V-05 와 한 세션 · grip_level 구현 방법을 정한다(gripper.py) · 9/19 분담 변경: 한석형 → 민범진'),
- 'F1-01': dict(slots=S('9/20 오전'), note='R · motion.py(황인재, 9/20 오전 PR)가 들어온 뒤 · 티칭 2차 세션 뒤에'),
+ 'F1-01': dict(slots=S('9/20 오전'), note='R · ✅ motion.py 는 9/19 에 main 에 들어왔다(#15) → 바로 착수 가능 · 먼저 cell.yaml 의 cell.motion 4개·limits 값을 채워야 cc.move_to 가 움직인다 · cc.move_to 는 상공까지만 가고 남은 높이를 돌려준다 · 티칭 2차 세션 뒤에'),
  'F1-02': dict(task='pick 고정 슬롯 파지 — 구역의 지정 슬롯을 순서대로: 슬롯 상공 → 힘 상한 감시 하강 → 파지 → 폭 판정 · 빈 슬롯이면 다음 슬롯 · 다 비면 EMPTY_ZONE (그릇은 옆면(벽) 세로 파지)', slots=S('9/20 오후'),
                crit='고정 슬롯(그릇 2·컵 2)에서 10회 ≥9 · 빈 슬롯은 다음 슬롯으로', note='R · 9/19 PM 결정: 구역 + 탐색 파지 → **고정 슬롯**(겹친·어긋난 용기 대응 제외) · pick 서명·EMPTY_ZONE·YAML 키는 그대로(offsets_mm = 슬롯 위치) · contact_down(박진용)을 부른다'),
  'V-14': dict(task='V-14 고정 슬롯 파지 성공률 — 그릇 슬롯 2·컵 슬롯 2, 빈 슬롯 포함 (이전: 겹친 용기 탐색 파지)', slots=S('9/20 오후'), crit='≥9/10, 낙하 0, 빈 슬롯은 다음 슬롯으로', note='R · F1-02 의 TC 로 한 흐름'),
@@ -139,6 +139,8 @@ HISTORY3 = ['v5.2', '결정', 'V-01', '그릇의 파지 성공도 파지 폭으�
             'PM 결정 9/19 (실측 확인)', 'S,M']
 HISTORY4 = ['v5.3', '진척', 'V-01', '그릇 옆면 세로 파지 폭 ≈ 2 mm 가 빈손과 구분되는 것을 검증(황인재 9/19). V-01 의 남은 것은 컵·빈손 포함 10회 기록과 허용 오차 값, 드라이버 경로(V-05) 확인',
             '실기 확인 9/19', 'M,S']
+HISTORY5 = ['v5.4', '진척', 'INF-02, F1-01', 'INF-02 motion.py 완료(PR #15, 9/19 — 예정보다 반나절 빠름): move_to 는 상공까지만 + 남은 높이 반환, 새 키 cell.motion 4개(값은 한석형). PR #14(rig_f2 안내) merge. F1-01 은 cell.motion·limits 값이 들어오면 바로 착수 가능',
+            'PR #14·#15 merge', 'H,S,M,P']
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -221,7 +223,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
