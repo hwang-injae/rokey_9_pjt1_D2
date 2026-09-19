@@ -92,7 +92,7 @@ PC-A ↔ 컨트롤러는 두산 전용 TCP(DDS 아님). PC-A ↔ PC-B는 ROS 2 D
 
 | 스테이션 | 위치(확정 시 기입) | 좌표계 | 비고 |
 |---|---|---|---|
-| `RET_B` / `RET_C` 반납 구역 | 로봇 좌측 전방, 각 200×200 mm급 | UC1 `RETURN` | 기준점 1 + 탐색점 오프셋. 용기가 겹치거나 어긋나 있어도 됨 |
+| `RET_B` / `RET_C` 반납 구역 | 로봇 좌측 전방, 각 200×200 mm급 | UC1 `RETURN` | 기준점 1 + **고정 슬롯 2개의 오프셋**. 트레이에 슬롯 자리를 표시하고 용기는 겹치지 않게 하나씩 놓는다(9/19 결정) |
 | `WEIGH` | 잔반통 상공 고정 자세 | base | 측정 자세 1개 |
 | `WASTE` | 잔반통 | base | 털기 진폭 반경 확보 |
 | `SPONGE_BED_B` / `_C` | 스펀지 고정틀 홈 | UC2 `BED` | 작업대 고정. 닦기 후 재파지 위치(고정) |
@@ -133,17 +133,17 @@ rokey_pjt01_ws/                ← 저장소 루트 (rokey_9_pjt1_D2)
 | `shutdown()` | [H] 동작 정지 명령(**최선 시도**) → 실행기 종료 → `rclpy.shutdown()`. 설치된 `DSR_ROBOT2.py`에는 정지 함수가 없어(`stop`·`move_stop` 없음, 9/19 확인) `motion/move_stop` 서비스(`dsr_msgs2/srv/MoveStop`)를 직접 부른다. **Virtual에서는 모션 중에도 먹는 것을 확인**(9/19 INF-02a: 모션 중 Ctrl+C → 0.08 s에 중단, `move_stop` 0.16 s, 브링업 재시작 없이 재실행 정상). 실기 확인은 V-24. 응답이 없으면 "브링업 재시작 필요"를 로그로 남긴다. 정지 방식은 `DR_QSTOP`(Stop Category 2) — 🟡 안전 담당(박진용) 확인, DSN-03 |
 | Ctrl+C(SIGINT) | [H] **`init()`이 단독으로 맡는다.** rclpy의 기본 SIGINT 처리기는 Ctrl+C 때 컨텍스트를 먼저 닫아 버려 `finally`의 정지 명령을 보낼 수 없으므로, `init()`이 그 처리기를 끈다. `flow_node`·`rig_f*.py`는 **`try/finally: cc.shutdown()`만** 쓰고 `signal.signal`을 따로 걸지 않는다 |
 | `move_to(station, carrying)` | [H] 안전 높이 경유 movej/movel, carrying이면 속도 상한. 속도 = `cell.limits.vel_*_pct` × `cfg()['run']['vel_scale']` |
-| `move_rel(dx, dy, dz, frame, *, vel_mm_s=None, acc_mm_s2=None)` | [H] 상대 이동(탐색점 이동·접촉 하강의 한 단계·후퇴). `frame`은 `'BASE'`·`'TOOL'`. 🟡 속도 선택 인자는 [이슈 #7](https://github.com/hwang-injae/rokey_9_pjt1_D2/issues/7) 요청 — 없으면 `cell.limits` 속도, 접촉 하강은 아주 느리게 줘야 한다 |
+| `move_rel(dx, dy, dz, frame, *, vel_mm_s=None, acc_mm_s2=None)` | [H] 상대 이동(슬롯 간 이동·접촉 하강의 한 단계·후퇴). `frame`은 `'BASE'`·`'TOOL'`. 속도 선택 인자는 [이슈 #7](https://github.com/hwang-injae/rokey_9_pjt1_D2/issues/7) 요청(✅ 9/19 PM 수락) — 없으면 `cell.limits` 속도, 접촉 하강은 아주 느리게 줘야 한다 |
 | 🟡 `move_joint_rel(joint, delta_deg, vel_pct=None)` | [H] 관절 하나를 상대 각도만큼(털기·물 털기의 J5/J6 왕복용 — DSN-03 B11, 민범진 요청). 이름·인자는 구현 PR에서 확정 |
 | `grip(width, force) → width` | [M] RG2 파지(목표 폭·힘) + 완료 대기 + 폭 피드백. 강사 배포 `onrobot_rg_control`은 명령을 서비스(`/onrobot/sendCommand`)로 받는다. 🟡 현재 폭: 드라이버(`OnRobotRGControllerServer`)는 `OnRobotRGInput`을 **발행하지 않는다**(9/19 소스 확인: 나가는 것은 `/joint_states`→`/onrobot_joint_states` remap의 `JointState`뿐, 서비스는 `/onrobot/sendCommand`·`/onrobot/pose`·`/onrobot/restartPower`) → **V-05에서 읽는 경로를 정한다**(후보: `/onrobot_joint_states` 관절각 → 폭 환산을 통신 노드가 구독해 저장 — 구독은 `motion.py`의 `setup_io(node)`에 단다). `grip`은 그 값을 읽는다 |
 | `grip_level(kind, level)` | [M] 파지 힘 2단계 전환: `NORMAL`(집기·이송) ↔ `HOLD`(털기·담금·물 털기, 더 꽉). 같은 폭 목표로 힘만 바꿔 다시 파지, 전환 후 폭 재확인(방법은 V-23) |
 | `release()` | [M] 그리퍼 열기 |
-| 🟡 `grip_width() → mm` | [M] 현재 폭 읽기(박진용 F3 요청 — 닦는 중 툴이 밀렸는지 감시). 경로는 V-05에서 확정: 강사 드라이버의 관절각 → 폭 환산이 먼저, 안 되면 Compute Box XML-RPC를 읽기부터([제안서](ref/20260919_제안_RG2_폭_힘_경로.md)). 그리퍼 함수는 새 파일 `gripper.py` |
-| `weigh(n, reset=False) → g` | [M] 정지 → `get_workpiece_weight` n회 평균. `reset`(0점 재설정)은 **선택 동작**: 응답 상한 3 s, 실패하면 다시 부르지 않고 계속 진행([TS-03](troubleshooting/TS-03_하중_reset_제어권_교착.md)) |
+| `grip_width() → mm` | [M] 현재 폭 읽기(박진용 F3 요청 — 닦는 중 툴이 밀렸는지 감시, ✅ 9/19 PM 결정). 경로: **강사 드라이버의 관절각 → 폭 환산이 먼저**(V-05에서 오차 ≤ 2 mm 확인), 안 되면 Compute Box XML-RPC를 읽기부터([제안서](ref/20260919_제안_RG2_폭_힘_경로.md)). 그리퍼 함수는 새 파일 `gripper.py` |
+| `weigh(n, reset=False) → g` | [M] 정지 → `get_workpiece_weight` n회의 **중앙값**(튄 값에 끌려가지 않게 — V-02 폭 40.8 g) · 실패값(음수 -1)은 버리고, 전부 실패면 예외(기능 함수가 `ROBOT_ERROR`로 변환) · 구현 #13. `reset`(0점 재설정)은 **선택 동작**: 응답 상한 3 s, 실패하면 다시 부르지 않고 계속 진행([TS-03](troubleshooting/TS-03_하중_reset_제어권_교착.md)) |
 | `force_on(axis, target, limit)` / `force_off()` | [P] task_compliance_ctrl + set_desired_force |
 | `force_reached(axis, min, max) → bool` | [P] `check_force_condition(...) == 0`을 감싼 것. 🚨 실제 두산 함수는 **만족 `0` / 아니면 `-1`**을 돌려준다(DRL 매뉴얼의 True/False와 다름). `if check_force_condition():`으로 쓰면 판정이 뒤집힌다(TS-01 D) |
-| 🟡 `read_force() → [fx, fy, fz, mx, my, mz]` · 예외 `ForceLimitError` · `MotionTimeout` | [P] 이슈 #7 요청. 힘 로그·`/cell/force`·상한 판정용 원시 힘 값. **공용 힘 함수는 실패를 예외로 알리고, 기능 함수(f1·f3)가 받아서 `FORCE_LIMIT`·`TIMEOUT` 코드로 바꾼다**(flow까지 새어 나오면 `ROBOT_ERROR`). 힘 함수가 읽는 공용 값은 `cell.yaml`의 🟡 `cell.force` 절(순응 강성·접촉 하강 단계·속도·후퇴 속도·절대 상한 `force_max_n` 등 8개 키 — 골격은 황인재, 값은 박진용이 그 절만 PR) |
-| `contact_down(max_depth, limit) → depth, force` | [P] amovel 하강 + `force_reached` 감시 + stop (탐색 파지·안착·삽입 공용) |
+| `read_force() → [fx, fy, fz, mx, my, mz]` · 예외 `ForceLimitError` · `MotionTimeout` | [P] 이슈 #7 요청(✅ 9/19 PM 수락). 힘 로그·`/cell/force`·상한 판정용 원시 힘 값. **공용 힘 함수는 실패를 예외로 알리고, 기능 함수(f1·f3)가 받아서 `FORCE_LIMIT`·`TIMEOUT` 코드로 바꾼다**(flow까지 새어 나오면 `ROBOT_ERROR`). 힘 함수가 읽는 공용 값은 `cell.yaml`의 `cell.force` 절(순응 강성·접촉 하강 단계·속도·후퇴 속도·절대 상한 `force_max_n` 등 8개 키 — 골격은 황인재, 값은 박진용이 그 절만 PR) |
+| `contact_down(max_depth, limit) → depth, force` | [P] amovel 하강 + `force_reached` 감시 + stop (슬롯 파지·안착·삽입 공용) |
 | `periodic_search(amp, period, duration)` | [P] Move Periodic |
 | `safe_retreat()` | [P] 툴 Z 후퇴 → 안전 높이 |
 
@@ -217,7 +217,7 @@ sequenceDiagram
   participant C as f3_wipe 함수
   Note over W,C: 같은 프로세스 · 파이썬 함수 호출 (ROS 통신 아님)
   H->>W: /flow/start (Trigger, 즉시 응답)
-  W->>A: pick('RET_B','BOWL')  — 탐색점 순회·접촉 하강·폭 판정
+  W->>A: pick('RET_B','BOWL')  — 고정 슬롯 순서·접촉 하강·폭 판정
   A-->>W: PickResult(ok, width, attempts, offset)
   W->>A: move_to('WEIGH', True)
   W->>B: leftover_loop('BOWL', 2)
@@ -251,7 +251,7 @@ cell:                                   # 여러 기능이 같이 쓰는 값. �
     SPONGE: {grip_width_mm: 30.0, grip_force_n: 30, width_tol_mm: 2.0}
     BRUSH:  {grip_width_mm: 22.0, grip_force_n: 30, width_tol_mm: 2.0}
   stations: {HOME: {posj: [...]}, WEIGH: {posx: [...]}, WASTE: {...}, SOAP: {...}, RINSE: {...}, TOOL_SPONGE: {...}, TOOL_BRUSH: {...}, ISOLATE: {...}}
-  zones:                                # 반납 구역(탐색 파지) — 방식은 DSN-03에서 확정
+  zones:                                # 반납 구역 — 고정 슬롯(9/19 결정): offsets_mm = 슬롯 위치, max_attempts = 슬롯 수
     RET_B: {frame: RETURN, origin_posx: [...], search: {offsets_mm: [[0,0],[40,0],[-40,0],[0,40],[0,-40]], max_attempts: 5, descend_max_mm: 80}}
     RET_C: {frame: RETURN, origin_posx: [...], search: {offsets_mm: [[0,0],[35,0],[-35,0],[0,35],[0,-35]], max_attempts: 5, descend_max_mm: 100}}
   beds:                                 # 스펀지 홈(안착 놓기·재파지 위치)
@@ -350,22 +350,22 @@ stateDiagram-v2
 - 어떤 실패에서도 **툴은 홀더에 반납**(flow가 `tool(RETURN)` 호출), 로봇은 안전 높이.
 
 ### 5.2 f1_handling — `handling.py` (한석형)
-**pick (탐색 파지)** — 겹치거나 어긋난 용기를 비전 없이 집는 절차:
+**pick (고정 슬롯 파지 — 9/19 PM 결정)** — 반납 구역마다 **지정된 고정 슬롯 2개**에 용기를 겹치지 않게 놓고, 슬롯을 순서대로 집는다(이전 안 "구역 + 탐색 파지: 겹침·어긋남 허용"은 일정 방어로 제외):
 ```
-for i, (dx,dy) in enumerate(zone.search.offsets_mm):        # 탐색점 순서
-    move_to(zone 상공 + (dx,dy), carrying=False)             # 안전 높이
+for i, (dx,dy) in enumerate(zone.search.offsets_mm):        # 슬롯 순서 (offsets_mm = 구역 기준점 대비 슬롯 위치)
+    move_to(슬롯 상공 = zone 기준점 + (dx,dy), carrying=False) # 안전 높이
     release(); 그리퍼 열기(프리셋 폭 + 여유)
-    depth, f = contact_down(descend_max_mm, contact_limit_n) # 접촉(용기 테두리/바닥) 또는 최대 깊이에서 정지
-    → 겹친 용기는 위 용기 높이에서 멈춘다 (높이 적응)
+    depth, f = contact_down(descend_max_mm, contact_limit_n) # 힘 상한 감시 하강 — 접촉 또는 최대 깊이에서 정지
     w = grip(preset.grip_width, preset.grip_force)           # 파지
     if |w - preset.grip_width| <= width_tol:  성공 → 상승 → return ok, w, i+1, (dx,dy)
-    else: release(); safe_retreat()                          # 헛잡음(≤5 mm)·두 개 파지(폭 초과) → 다음 점
-return EMPTY_ZONE (attempts = max_attempts)
+    else: release(); safe_retreat()                          # 빈 슬롯·헛잡음 → 다음 슬롯
+return EMPTY_ZONE (attempts = 슬롯 수)
 ```
-- 탐색점은 구역 기준점 대비 오프셋 목록(`config/cell.yaml`의 `zones`). 처음엔 중심, 그다음 십자·대각 순.
-- 폭 판정: `≤ 5 mm` 빈손, `> width + tol` 두 개 파지 또는 비스듬히 잡힘 → 둘 다 재탐색.
+- 슬롯 위치는 구역 기준점 대비 오프셋 목록(`config/cell.yaml`의 `zones.*.search.offsets_mm`, `max_attempts` = 슬롯 수). **키 이름·`pick` 서명·`EMPTY_ZONE` 코드는 그대로**라 `cobot_api`·flow·mock은 바뀌지 않는다.
+- **그릇은 옆면(벽)을 세로로 파지**한다(외경 114 mm > RG2 최대 폭 110 mm — 지름 파지 불가): 그리퍼를 아래로 향하고 핑거가 그릇 벽의 안팎을 집는다. 슬롯 중심이 아니라 **벽 위**로 가야 하므로 슬롯 오프셋에 벽까지의 거리(반지름 ≈ 55 mm)를 더한 위치를 쓴다(값은 한석형이 `cell.yaml`에). 컵은 옆면 파지(V-17).
+- 폭 판정: 🟡 그릇 벽 파지는 벽 두께(≈ 2 mm + 패드)만큼만 벌어져 빈손과 차이가 작다 → V-01에서 3상태 간격을 확인하고, 간격이 작으면 그릇의 파지 성공은 **바로 다음 단계인 무게(WEIGH)로 확인**한다.
 - 하강은 항상 힘 상한·최대 깊이·타임아웃과 함께(NFR-01).
-- `zone_id`가 `SPONGE_BED_*`면 탐색점 1개(고정 위치 재파지).
+- `zone_id`가 `SPONGE_BED_*`면 슬롯 1개(고정 위치 재파지).
 
 **place (안착 놓기)** — `station`이 `SPONGE_BED_B/C`일 때: 용기를 쥔 채 홈 상공(`cell.beds.*.seat.approach_z_mm`) → `force_on(z)` 순응 하강 → `contact_down`으로 접촉·깊이 판정 → 깊이 미달이면 `periodic_search(amp, period, max_s)` 중 접촉 조건 감시 → 들어가면 `release` → 후퇴(`OK`, `offset_mm`) / 한도 초과면 들고 후퇴(`SEAT_FAIL`). 그 외 station은 상공 → 하강 → 놓기 → 후퇴.
 
@@ -471,7 +471,7 @@ return EMPTY_ZONE (attempts = max_attempts)
 | V-11 | 잔반 대용품 선정(구슬·쌀, ≥100 g, 털면 떨어짐) | 전원 | 9/18 | 확정 | — |
 | V-12 | 스펀지 홈 치수 vs 용기 외경(여유 1~2 mm) | P | 9/19 B (기구 제작 직후) | 둘 다 들어감 | 재커팅 |
 | V-13 | 브라우저 start → mock flow 반응 | H | 9/21 C (INT-4와 한 세션) | PAUSED/재개 반영 | 브리지 스레드 구조 수정 |
-| V-14 | **겹친·어긋난 용기 탐색 파지** 성공률 | S | 9/20 B (F1-02의 TC) | ≥9/10, 낙하 0, 두 개 파지 0 | 탐색점 간격·하강 깊이·폭 허용치 조정 |
+| V-14 | **고정 슬롯 파지** 성공률 — 그릇 슬롯 2·컵 슬롯 2, 빈 슬롯 포함(이전: 겹친·어긋난 용기 탐색 파지) | S | 9/20 B (F1-02의 TC) | ≥9/10, 낙하 0, 빈 슬롯은 다음 슬롯으로 | 슬롯 표시·하강 깊이·폭 허용치 조정 |
 | V-15 | **재파지 파지 폭 인식** — 스펀지 홈에 안착된 그릇·컵을 다시 잡을 때 폭으로 정상·빈손·비스듬히 잡힘이 구분되는가 | S(+P) | 9/21 C (F1-05 첫 단계) | 3상태 간격 ≥ 6 mm | 재파지 위치에 가이드 추가, 또는 폭 대신 하중으로 확인 |
 | V-16 | **강한 파지(HOLD) 값 찾기** — 그릇·컵을 `HOLD` 힘으로 쥐고 털기·물 털기를 할 때 낙하·밀림이 없는 최소 힘(용기가 찌그러지지 않는 범위) | M(+S) | 9/20 B (V-23·gripper.py 뒤, F2-01 shake 첫 단계) | 10회 낙하 0, 전후 폭 변화 ≤ 2 mm | 핑거 패드, 진폭·속도 축소 |
 | V-17 | **컵 옆면 파지** — ✅ **9/18 검증 완료**: 옆면 파지로 집기·이송 가능. 단, 털기·헹굼처럼 흔드는 동작에서는 더 강한 파지가 필요 → 파지 힘 2단계(`NORMAL`/`HOLD`) 도입 | S | 완료 | 집기·이송 안정 | — |
@@ -488,7 +488,7 @@ return EMPTY_ZONE (attempts = max_attempts)
 
 | TC | 기능 | SR | 리그(손으로 준비) | 절차 | 통과 기준 | 담당 |
 |---|---|---|---|---|---|---|
-| TC-01 | F1 탐색 파지 | SR-01·02 | 반납 구역에 그릇 2개를 **겹쳐/어긋나게** 배치, 컵 2개 동일, 빈 구역 1회 | `pick(RET_B)` 10회, `pick(RET_C)` 10회, 빈 구역 5회 | 각 ≥9/10, 빈 구역 `EMPTY_ZONE` 5/5, 낙하 0, 두 개 파지 0 | 한석형 |
+| TC-01 | F1 고정 슬롯 파지 | SR-01·02 | 반납 구역의 **고정 슬롯**에 그릇 2개·컵 2개 배치(빈 슬롯 포함), 빈 구역 1회 | `pick(RET_B)` 10회, `pick(RET_C)` 10회, 빈 구역 5회 | 각 ≥9/10, 빈 구역 `EMPTY_ZONE` 5/5, 낙하 0, 두 개 파지 0 | 한석형 |
 | TC-02 | F1 툴·이송 | SR-03 | 툴 홀더 2종 | `tool PICK/RETURN` 각 10회, `move_to` 전 스테이션 | ≥9/10, 안전 높이 준수 | 한석형 |
 | TC-09 | F1 팔레트 적재 | SR-12·13 | 팔레트 모형, 그릇·컵 | `rack_place` 6칸 각 5회, 걸림 유도 2회 | ≥9/10, 낙하 0, 걸림 → `RACK_JAM` 후퇴 | 한석형 |
 | TC-03 | F2 무게 | SR-04 | 100 g·200 g 추 | `weigh` 각 10회 | ±20 g | 민범진 |
@@ -504,7 +504,7 @@ return EMPTY_ZONE (attempts = max_attempts)
 ### 9.4 L2 단위기능 통합
 | INT | 조합 | 시나리오 단계 | 절차 | 통과 기준 | 주도 |
 |---|---|---|---|---|---|
-| INT-12a | F1 + F2 | 탐색 파지 → 무게 → 털기 | `pick→move_to(WEIGH)→leftover_loop` 5회 | 5회 무개입, 판정 정확 | 민범진 |
+| INT-12a | F1 + F2 | 고정 슬롯 파지 → 무게 → 털기 | `pick→move_to(WEIGH)→leftover_loop` 5회 | 5회 무개입, 판정 정확 | 민범진 |
 | INT-13 | F1 + F3 | 안착 놓기 → 툴 → 세제 → 닦기 → 반납 | `place(안착)→tool→soap→wipe_bowl/wipe_cup→tool` 5회(그릇·컵) | 5회 무개입, 힘 로그 | 박진용 |
 | INT-12b | F1 + F2 | 재파지 → 헹굼 → 물털기 → 적재 | `pick(BED)→dip→shake→rack_place` 5회 | 5회, 낙하 0 | 한석형 |
 | INT-4 | flow + HMI | 시작·정지·재개 | mock에서 실제 HMI(PC-B) 연결 | 버튼 동작·상태 표시 | 황인재 |
@@ -543,7 +543,7 @@ return EMPTY_ZONE (attempts = max_attempts)
 | 9/19 오후 | V-02 무게 정밀도 미달 | 잔반 임계 100 g, 대용품 무겁게 |
 | 9/19 저녁 | V-03 힘제어 중 이동 불가 | 닦기를 "순응 + 위치 2~3 mm 누르기"로 |
 | 9/20 오전 | V-09 PC 통신 불가 | PC-A 1대로 통합 |
-| 9/20 오전 | V-14 탐색 파지 미달 | 탐색점 축소(중심 + 십자 4), 용기 겹침 없이 어긋남만 시연 |
+| 9/20 오후 | V-14 고정 슬롯 파지 미달 | 슬롯을 구역당 1개로(용기 1개씩 시연) · 그릇 폭 판정이 안 되면 무게로 확인 |
 | 9/22 오전 | UT-F1 적재 미통과 | 각도 삽입 → 수직 놓기 |
 | 9/22 오전 | UT-F3 컵 미통과 | 컵 닦기 도전 과제, 그릇만 MVP |
 | 9/22 저녁 | L2 하나라도 미통과 | L3를 9/23 오전 안에 끝내지 못하면 4개 연속 → 2개(그릇1·컵1), 실패 주입 4종 → 2종 |
@@ -568,8 +568,8 @@ soc && python3 src/f3_wipe/test/rig_f3.py
 | 항목 | 담당 | 기한 |
 |---|---|---|
 | 두산 서비스 접두사는 `/dsr01/dsr_controller2/`로 확인(9/18 Virtual). 힘(박진용 `force.py`)·하중(민범진 `weigh.py`)·그리퍼 IO(한석형 `motion.py`) 서비스의 필드는 각자 `cobot_common` 자기 파일을 쓰면서 확인 | 박진용·민범진·한석형 | 9/19 |
-| 탐색점 간격·최대 횟수(V-14) | 한석형 | 9/20 |
-| **반납 구역 방식(구역+탐색 vs 고정 슬롯)** — DSN-03 | 전원 | 9/19 저녁 |
+| 슬롯 위치·그릇 벽 파지 오프셋(V-01·V-14) | 한석형(V-01은 민범진) | 9/20 |
+| ~~반납 구역 방식~~ — ✅ **고정 슬롯**(9/19 PM 결정) · 그릇은 옆면(벽) 세로 파지 | 황인재 | 9/19 완료 |
 | **재파지 파지 폭 인식(V-15)** — 스펀지 홈의 용기를 다시 잡을 때 폭으로 판정 가능한가 | 한석형(+박진용) | 9/20 오후 |
 | **HMI 설계 초안(F4-00)** → `FlowState`·`FlowEvent` 필드 확정 | 황인재 | 9/19 오후 |
 | **실패 코드·정책, YAML 키 규칙** 팀 확인 — DSN-03 | 전원 | 9/19 저녁 |

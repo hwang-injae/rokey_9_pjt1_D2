@@ -47,11 +47,22 @@ def timeline(sheets):
         lab[k]=(day,(sub.get(k,('',0))[0] or '')[:2])
     out=[]; team=''
     WHITE={None,'FFFFFFFF','theme0'}
+    # 열 배경: 작업 행의 80% 이상이 같은 색이면 그 열의 그 색은 작업 칸이 아니라 배경이다
+    # (황인재가 닫힌 칸 — 주말 저녁 — 을 열 전체 연분홍으로 칠해 둔 것, 9/19)
+    body=[r for r in tl[h+2:] if (r.get(idcol,('',None))[0] or '').strip() or (r.get('C',('',None))[0] or '').strip()]
+    bg={}
+    for k in gcols:
+        cnt={}
+        for r in body:
+            f=r.get(k,('',None))[1]
+            if f not in WHITE: cnt[f]=cnt.get(f,0)+1
+        top=max(cnt,key=cnt.get) if cnt else None
+        if top and cnt[top]>=0.8*len(body): bg[k]=top
     for r in tl[h+2:]:
         g=lambda c:(r.get(c,('',None))[0] or '').strip()
         team=g('A') or team
         if not g(idcol) and not g('C'): continue
-        slots=[lab[k] for k in gcols if r.get(k,('',None))[1] not in WHITE]
+        slots=[lab[k] for k in gcols if r.get(k,('',None))[1] not in WHITE and r.get(k,('',None))[1]!=bg.get(k)]
         out.append(dict(team=team,cat=g('B'),task=g('C'),owner=g('D'),prog=g('E'),status=g('F'),id=g(idcol),slots=slots))
     det={}
     for r in sheets.get('상세(산출물·완료기준)',[]):

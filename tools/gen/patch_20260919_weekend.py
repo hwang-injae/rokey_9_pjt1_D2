@@ -13,8 +13,8 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v5.0'
-OUT = 'prewash_일정표_0919n.xlsx'
+VERSION = 'v5.1'
+OUT = 'prewash_일정표_0919p.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
 # id: dict(task, owner, status, deliv, crit, note, slots) — 없는 키는 그대로 둔다
@@ -28,8 +28,9 @@ EDIT = {
                 note='9/19 분담 변경: 한석형 → 황인재(F4 세션) · Virtual 만으로 완성(로봇 불필요) · 이슈 #7 ② move_rel 속도 선택 인자 · DSN-03 B11 관절 이동 함수 · 박진용 force.py 의 임시 stub _move_rel 을 대체 · 좌표는 cell.yaml(한석형)에서 읽기만',
                 slots=S('9/19 오후', '9/20 오전')),
  'INF-02b': dict(slots=S('9/19 오후', '9/20 오전'), note='force.py 구현·시험은 브랜치에 있음 — V-03(9/20 오전) 전이라도 PR 을 올린다(값은 후속 PR) · F1-02(9/20 오후)가 contact_down 을 기다린다 · 이슈 #7: cell.force 키 골격은 황인재(INF-02), 값은 박진용이 그 절만 PR · move_rel 이 들어오면 임시 stub 삭제'),
- 'INF-02c': dict(slots=S('9/20 오전'), note='R · V-02 와 한 세션(9/19 오후는 티칭이 로봇을 쓴다) · f2.weigh(F2-01)가 이걸 불러 판정한다'),
- 'DSN-03': dict(slots=S('9/19 오후'), note='9/19 17:15~18:00 교육장에서(주말 저녁은 교육장이 닫는다) · 안건 문서 docs/meetings/20260919_결정기록_DSN-03.md · HMI 설계(B5)는 F4-00 이 9/20 오전이라 9/20 브리핑에서 확인'),
+ 'INF-02c': dict(status='진행 중', slots=S('9/20 오전'), note='R · ✅ 코드 merge(PR #13, 9/19 — 중앙값·음수 실패값 거르기·reset 선택 동작, pytest 10건) → 남은 것은 9/20 오전 실기 확인(V-02 와 한 세션)과 빈 용기 기준값 측정(rig_f2.py empty) · f2.weigh(F2-01)가 이걸 불러 판정한다'),
+ 'DSN-03': dict(task='2차 회의 안건 — **회의 없이 PM 이 결정**(9/19): 반납 구역 = 고정 슬롯 · 그릇 = 옆면(벽) 세로 파지 · 그리퍼 폭 경로 · 이슈 #7 수락 · 9/19 선결정 확정. 나머지는 보류', status='진행 중', slots=S('9/19 오후'),
+               crit='급한 안건 결정 + 팀 공지', note='시간 부족으로 회의를 열지 못함 → PM 결정 후 공지, 이의는 9/20 브리핑 · 결정 표 docs/meetings/20260919_결정기록_DSN-03.md · 확인 중: 실패 정책 마무리 순서(B7)·move_joint_rel(B11)·mock_f2(B12) · 보류: YAML 키·/cell 토픽·HMI 설계·정지 방식·rig 속도·C1~C5'),
  'DSN-04': dict(slots=S('9/20 오전')),
  'ARCH-01': dict(slots=S('9/20 오후')),
  'MID-01': dict(slots=S('9/20 오후', '9/21 오전'), note='구조 변경 근거 1장 포함(TS-01: 발견→재현→구조 5종 비교→결정) · 각자 자기 기능 1장을 9/20 오후까지 · 주말 저녁 없음'),
@@ -45,12 +46,13 @@ EDIT = {
  # --- F1 (한석형: 티칭·실기·기능 함수)
  'CELL-04': dict(note='R · V-19 를 이 세션 안에서 · 9/19 한석형은 티칭까지만(PM 확인) · 18시 교육장 마감'),
  'V-19': dict(slots=S('9/19 오후')),
- 'V-01': dict(owner='M', slots=S('9/20 오전'), note='R · V-05·V-23 과 한 그리퍼 세션(9/20 오전 첫 순서) · 9/19 분담 변경: 한석형 → 민범진 · 🚨 그릇 외경 114 mm > RG2 최대 폭 110 mm → 테두리 파지 기준으로 잰다(CELL-02a 기록) · 결과가 gripper.py grip 과 F1-02 폭 판정값이 된다'),
+ 'V-01': dict(owner='M', slots=S('9/20 오전'), note='R · V-05·V-23 과 한 그리퍼 세션(9/20 오전 첫 순서) · 9/19 분담 변경: 한석형 → 민범진 · 🚨 9/19 PM 결정: **그릇은 옆면(벽)을 세로로 파지**(외경 114 mm > RG2 최대 폭 110 mm) — 벽 두께만큼만 벌어져 빈손과 폭 차이가 작을 수 있다 → 간격이 6 mm 미만이면 그릇의 파지 성공은 무게(WEIGH)로 확인 · 결과가 gripper.py grip 과 F1-02 폭 판정값이 된다'),
  'V-05': dict(owner='M', slots=S('9/20 오전'), note='R · 절차는 박진용 제안서 docs/ref/20260919_제안_RG2_폭_힘_경로.md §5(30분): A 드라이버(관절각→폭 환산, 힘 2.5 N 계단) 먼저 → 안 되면 B Compute Box XML-RPC 를 읽기부터 · 9/19 분담 변경: 한석형 → 민범진'),
  'V-23': dict(owner='M', slots=S('9/20 오전'), note='R · V-05 와 한 세션 · grip_level 구현 방법을 정한다(gripper.py) · 9/19 분담 변경: 한석형 → 민범진'),
  'F1-01': dict(slots=S('9/20 오전'), note='R · motion.py(황인재, 9/20 오전 PR)가 들어온 뒤 · 티칭 2차 세션 뒤에'),
- 'F1-02': dict(slots=S('9/20 오후')),
- 'V-14': dict(slots=S('9/20 오후'), note='R · F1-02 의 TC 로 한 흐름'),
+ 'F1-02': dict(task='pick 고정 슬롯 파지 — 구역의 지정 슬롯을 순서대로: 슬롯 상공 → 힘 상한 감시 하강 → 파지 → 폭 판정 · 빈 슬롯이면 다음 슬롯 · 다 비면 EMPTY_ZONE (그릇은 옆면(벽) 세로 파지)', slots=S('9/20 오후'),
+               crit='고정 슬롯(그릇 2·컵 2)에서 10회 ≥9 · 빈 슬롯은 다음 슬롯으로', note='R · 9/19 PM 결정: 구역 + 탐색 파지 → **고정 슬롯**(겹친·어긋난 용기 대응 제외) · pick 서명·EMPTY_ZONE·YAML 키는 그대로(offsets_mm = 슬롯 위치) · contact_down(박진용)을 부른다'),
+ 'V-14': dict(task='V-14 고정 슬롯 파지 성공률 — 그릇 슬롯 2·컵 슬롯 2, 빈 슬롯 포함 (이전: 겹친 용기 탐색 파지)', slots=S('9/20 오후'), crit='≥9/10, 낙하 0, 빈 슬롯은 다음 슬롯으로', note='R · F1-02 의 TC 로 한 흐름'),
  'V-15': dict(slots=S('9/21 저녁')), 'V-04': dict(slots=S('9/21 저녁')), 'F1-05': dict(slots=S('9/21 저녁')),
  'F1-03': dict(slots=S('9/22 오전')), 'V-08': dict(slots=S('9/22 오전')),
  'F1-04': dict(slots=S('9/22 오후')), 'V-06': dict(slots=S('9/22 오후')),
@@ -92,7 +94,9 @@ EASY = {
  'V-01': '그리퍼로 그릇·컵을 잡았을 때와 빈손일 때의 "벌어진 폭" 값이 확실히 다른지 잰다. 그릇은 지름(114 mm)이 그리퍼 최대 폭(110 mm)보다 커서 테두리를 잡는 기준으로 잰다',
  'V-05': '그리퍼 드라이버가 제대로 붙었는지, 현재 폭을 어디서 읽을지 정한다(박진용 제안서의 30분 절차): 드라이버의 관절각을 폭으로 바꿔 자로 잰 값과 비교 → 안 맞으면 Compute Box 를 읽기부터',
  'PKG-01': '내 패키지 뼈대를 만든다: 약속(cobot_api)에 적힌 이름·인자 그대로 빈 함수를 만들고, 내 함수만 불러 보는 시험 스크립트 rig 를 만든다. F1 골격은 황인재 세션이 대신 만들어 준다(주인은 한석형)',
- 'DSN-03': '2차 회의(9/19 17:15 교육장, 40분): 안건 문서의 A 확인 · B 결정 · C 일정 · D 요청을 차례로. 주말 저녁은 교육장이 닫아 회의를 오후 끝으로 당겼다',
+ 'DSN-03': '2차 회의 안건을 회의 없이 PM 이 결정했다(시간 부족): 반납 구역은 고정 슬롯, 그릇은 옆면을 세로로 잡기, 그리퍼 폭은 드라이버 방식 먼저, 박진용의 힘 함수 요청 수락. 이의는 9/20 아침 브리핑에서',
+ 'F1-02': '"슬롯에서 집기"(pick)를 만든다: 반납 구역의 정해진 자리(슬롯)를 순서대로 가서, 닿을 때까지 내려가 잡고, 폭으로 성공을 판정한다. 빈 자리면 다음 자리로, 다 비었으면 "구역 비었음". 그릇은 옆면(벽)을 세로로 잡는다',
+ 'V-14': '정해진 자리(슬롯)에 놓인 그릇 2개·컵 2개를 10번 집어 9번 이상 성공하는지 본다. 빈 자리가 있으면 다음 자리로 넘어가는지도',
  'V-24': '(보류) 로봇이 움직이는 도중에도 정지 버튼이 먹게 하는 선택 과제 — 이번 재계획에서 뺐다',
 }
 TITLES = {'할일_한석형': '한석형 — 팀장 · F1 파지·이송·적재 + 좌표 계산·티칭(cell.yaml 값) + 실기 검증',
@@ -129,7 +133,9 @@ RULES = {       # (A 열, B 열 글자) → (새 B, 새 C)
 NEW_RULES = [
  ('공용 파일', 'cobot_common · config', 'cobot_common 은 사람별 파일: bootstrap.py·config.py·__init__.py·motion.py = H / gripper.py·weigh.py = M / force.py = P (부르는 쪽은 그대로 cc.함수()). config/cell.yaml 은 한석형 혼자(단 cell.force 절의 값은 박진용이 그 절만 PR), params.yaml 은 자기 절만'),
 ]
-HISTORY = [VERSION, '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
+HISTORY2 = ['v5.1', '결정', 'DSN-03, F1-02, V-14, V-01', 'DSN-03 회의를 열지 못해 PM 이 결정: 반납 구역 = 고정 슬롯(겹친·어긋난 용기 대응 제외, pick 서명·EMPTY_ZONE·YAML 키는 그대로) · 그릇 = 옆면(벽) 세로 파지(폭 차이가 작으면 무게로 확인) · 그리퍼 폭 경로·이슈 #7 수락 · 9/19 선결정 확정. 나머지 안건은 보류',
+            '시간 부족(교육장 18시 마감) — PM 결정 9/19 16시', 'S,M,P,H']
+HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
            '교육장 주말 운영 시간(18시 마감) · 한석형 티칭 지연 · 이슈 #7·B11·grip_width 요청을 한석형 부담 없이 수락하기 위함 (PM 결정, DSN-03 에서 확인)', 'S,M,P,H']
@@ -211,10 +217,11 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    if not has(h, 'A', HISTORY[0]):
-        k = h.first_empty(); n = h.rows[k - 1].clone()
-        for c, v in zip('ABCDEF', HISTORY): n.set(c, v)
-        h.rows[k] = n
+    for hist in (HISTORY, HISTORY2):
+        if not has(h, 'A', hist[0]):
+            k = h.first_empty(); n = h.rows[k - 1].clone()
+            for c, v in zip('ABCDEF', hist): n.set(c, v)
+            h.rows[k] = n
     # 8) 고친 Time Line 을 다시 읽어 완료 목록·할일 시트를 채운다
     tmp = os.path.join(tempfile.mkdtemp(), 'stage.xlsx'); b.save(tmp)
     rows, det = timeline(load(tmp))
