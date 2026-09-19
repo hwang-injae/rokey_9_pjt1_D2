@@ -67,3 +67,29 @@ def test_shutdown_ends_io_thread_and_allows_reinit():
         assert _wait_until(lambda: len(ticks) >= 3)
     finally:
         cc.shutdown()
+
+
+# ------------------------------------------------------------------ setup_io 훅 실패 (PR #17 뒤 발견)
+def _broken_hook(node):
+    raise ModuleNotFoundError("No module named 'onrobot_rg_msgs'")     # ws_dsr 이 없는 PC 에서 gripper 훅이 내는 오류
+
+
+def test_failing_hook_is_skipped_without_robot(monkeypatch):
+    """robot=False(전부 mock)는 드라이버 워크스페이스 없이도 떠야 한다 — 훅 실패는 경고만."""
+    from cobot_common import gripper
+    monkeypatch.setattr(gripper, 'setup_io', _broken_hook, raising=False)
+    cc.init('test_bootstrap_io_hook', robot=False)
+    ticks = []
+    cc.io_node().create_timer(TICK_S, lambda: ticks.append(1))
+    try:
+        assert _wait_until(lambda: len(ticks) >= 3)
+    finally:
+        cc.shutdown()
+
+
+def test_failing_hook_stops_init_with_robot(monkeypatch):
+    """robot=True 에서는 빠진 것을 바로 드러낸다(조용히 넘어가면 그리퍼 없이 로봇이 움직인다)."""
+    from cobot_common import bootstrap, gripper
+    monkeypatch.setattr(gripper, 'setup_io', _broken_hook, raising=False)
+    with pytest.raises(ModuleNotFoundError):
+        bootstrap._call_setup_io(node=None, robot=True)
