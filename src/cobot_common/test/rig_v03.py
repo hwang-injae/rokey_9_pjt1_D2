@@ -52,6 +52,7 @@ class Run:
         self.baseline = 0.0
         self.t0 = time.monotonic()
         self.fake_wall_r = None                                          # Virtual 가짜 벽 반지름 mm (--fake-wall)
+        self.climb = 0.0                                                 # 바닥에서 올라간 높이 mm (check 가 갱신)
 
     def z(self):
         return self.d.get_current_posx(ref=self.d.DR_BASE)[0][2]
@@ -117,50 +118,67 @@ class Run:
         radial = abs(lx * self.x / r + ly * self.y / r) if r > 1e-6 else 0.0
         now = self.d.get_current_posx(ref=self.d.DR_BASE)[0]             # 실제 위치 — 명령과 얼마나 벌어지는지(이어 붙이기·순응)
         ax, ay = float(now[0]) - self.p0[0], float(now[1]) - self.p0[1]
+        self.climb = float(now[2]) - self.p0[2]                          # 바닥에서 올라간 높이 — 솔이 벽을 타고 오르면 커진다
         # 실제 손목 비틀림: B≈180°(툴이 아래를 봄)에서는 툴 Z 회전이 A − C 로 나타난다 → −Δ(A − C)
         arz = -((float(now[3]) - float(now[5])) - (self.p0[3] - self.p0[5]) + 180.0) % 360.0 + 180.0
         arz = (arz + 180.0) % 360.0 - 180.0
         self.rows.append([phase, round(time.monotonic() - self.t0, 3), f[0], f[1], f[2], round(press, 3), p['wipe_target_n'],
                           round(self.x, 2), round(self.y, 2), round(radial, 3), round(ax, 2), round(ay, 2),
-                          round(arz, 1), round(self.rz, 1)])
+                          round(arz, 1), round(self.rz, 1), round(self.climb, 2)])
         if press > p['limit_n']:
             raise cc.ForceLimitError(f'{phase}: 누르는 힘 {press:.1f} N > {p["limit_n"]} N')
         if lateral > p['lateral_max_n']:
             raise cc.ForceLimitError(f'{phase}: 옆 힘 {lateral:.1f} N > {p["lateral_max_n"]} N (벽을 세게 밀었다)')
         return press, lateral, radial
 
+    def r_max(self):
+        """솔 중심이 갈 수 있는 최대 반지름 = 받을 수 있는 가장 큰 그릇 반지름 − 솔 반지름 + 여유. 그릇 크기를 가정하지 않는다."""
+        p = self.p
+        return p['bowl_r_max_mm'] - p['brush_d_mm'] / 2 + p['r_max_margin_mm']
+
+    def learn_noise(self):
+        """가운데에서 제자리 비틀기 learn_twists 번 — 벽이 없을 때의 옆 힘 크기를 배운다 → 벽 판정 기준 N.
+
+        그릇이 솔만큼 작으면 가운데부터 벽이라 "벽 없는 구간"을 가정할 수 없다 → 옮겨 가지 않고 제자리에서 배운다.
+        기준 = max(배운 최대 + wall_margin_n, wall_min_n) — 움직일 때 마찰(9/19 실기 약 2 N)보다 낮아지지 않게.
+        """
+        p = self.p
+        lats = [self.scrub_to(0.0, 0.0, 'learn')[1] for _ in range(p['learn_twists'])]
+        wall_n = max(max(lats) + p['wall_margin_n'], p['wall_min_n'])
+        self.log.info(f'  제자리 비틀기 {len(lats)}번: 옆 힘 최대 {max(lats):.1f} N → 벽 판정 {wall_n:.1f} N')
+        return wall_n
+
     def spiral_find_wall(self):
         """중심에서 아르키메데스 나선(한 바퀴에 pitch 만큼)으로 넓혀 가며 문지른다. 벽이면 (반지름, 각도, 벽 기준 N) · 못 찾으면 None.
 
-        벽 같은 힘이 한 번 나오면 확정될 때까지 반지름을 더 넓히지 않는다 — 비스듬히 다가가며 벽을 파고들지 않게.
+        그릇 크기는 모른다 — 벽 = 반지름 방향 힘 > 벽 판정 기준, 또는 솔이 climb_max_mm 넘게 올라감(벽을 타고 오름, 안전 판정).
+        벽 같으면 반지름을 더 넓히지 않는다. 나선 반지름 증가는 가운데에서도 한 걸음 약 pitch/2π 이하라 작은 그릇도 세게 밀지 않는다.
         """
         import math
         p = self.p
         self.x = self.y = self.rz = 0.0
         self.twist = 1
         self.set_frame()
-        theta, r, fric, hits, presses = 0.0, 0.0, [], 0, []
+        r_max = self.r_max()
+        wall_n = self.learn_noise()
+        theta, r, hits, presses = 0.0, 0.0, 0, []
         start = time.monotonic()
         while True:
-            if r > p['spiral_r_max_mm']:
-                self.log.error(f'반지름 {p["spiral_r_max_mm"]} mm 까지 벽을 못 찾았다')
+            if r > r_max:
+                self.log.error(f'반지름 {r_max:.1f} mm(가장 큰 그릇 {p["bowl_r_max_mm"]:g} mm 기준)까지 벽을 못 찾았다')
                 return None
             if time.monotonic() - start > p['scrub_timeout_s']:
                 raise cc.MotionTimeout('나선 문지르기 시간 초과')
             press, lat, rad = self.scrub_to(r * math.cos(theta), r * math.sin(theta))
             presses.append(press)
-            if r <= p['friction_learn_r_mm']:
-                if r > p['scrub_step_mm']:
-                    fric.append(rad)                                     # 벽이 없는 가운데에서 반지름 방향 마찰 크기를 배운다
-            else:
-                limit = (max(fric) if fric else 0.0) + p['wall_margin_n']
-                hits = hits + 1 if rad > limit else 0
-                if hits >= p['wall_confirm']:
-                    self.log.info(f'  벽: 반지름 {r:.1f} mm · 각 {math.degrees(theta):.0f}° · 반지름 방향 힘 {rad:.1f} N '
-                                  f'(가운데 최대 {max(fric) if fric else 0:.1f} + {p["wall_margin_n"]} N) · 옆 힘 {lat:.1f} N '
-                                  f'· 나선 {time.monotonic() - start:.1f} s')
-                    self.result('spiral', p['wipe_target_n'], presses[len(fric):] or presses)
-                    return r, theta, limit
+            climbed = self.climb > p['climb_max_mm']
+            hits = hits + 1 if (rad > wall_n or climbed) else 0
+            if hits >= p['wall_confirm']:
+                why = f'솔이 {self.climb:.1f} mm 올라감' if climbed else f'반지름 방향 힘 {rad:.1f} N > {wall_n:.1f} N'
+                self.log.info(f'  벽: 반지름 {r:.1f} mm · 각 {math.degrees(theta):.0f}° · {why} · 옆 힘 {lat:.1f} N '
+                              f'· 나선 {time.monotonic() - start:.1f} s')
+                self.result('spiral', p['wipe_target_n'], presses)
+                return r, theta, wall_n
             dth = p['scrub_step_mm'] / max(r, p['scrub_step_mm'])       # 호 길이가 약 scrub_step_mm 가 되게
             theta += dth
             if hits == 0:                                                # 벽 같으면 반지름을 그대로 두고 한 번 더 본다
@@ -172,7 +190,7 @@ class Run:
         그릇이 HOME 중심에서 조금 어긋나 있어도 벽을 따라가도록, 걸음마다 반지름을 고친다(9/19 5회차: 한쪽 벽만 닿음):
           목표 = wall_n(벽 판정 기준) + follow_band_n/2 의 반지름 방향 힘.
           모자라면(벽에서 떨어짐) 바깥으로, 넘으면(너무 밂) 안쪽으로 — 차이 × follow_gain_mm_per_n, 한 번에 follow_step_mm 까지.
-        반지름은 spiral_r_max_mm 를 넘지 않는다. 옆 힘 절대 상한(lateral_max_n)은 check() 가 지킨다.
+        반지름은 0 ~ r_max(). 솔이 climb_max_mm 넘게 올라가면 안쪽으로. 옆 힘 절대 상한(lateral_max_n)은 check() 가 지킨다.
         🔸 나선과 **반대 방향**으로 돈다(circle_reverse) — 나선 마지막 바퀴와 같은 길을 같은 방향으로 돌면 눈으로 구분이 안 되고
            (9/19 5회차 "2바퀴를 안 했다"), 반대로 문지르면 벽면을 양방향으로 닦는다. 시작 전에 circle_pause_s 만큼 멈춘다.
         """
@@ -195,8 +213,10 @@ class Run:
             lats.append(lat)
             rs.append(r)
             dr = (wall_n + p['follow_band_n'] / 2 - rad) * p['follow_gain_mm_per_n']
+            if self.climb > p['climb_max_mm']:                           # 벽을 타고 오름 → 안쪽으로
+                dr = -p['follow_step_mm']
             dr = max(-p['follow_step_mm'], min(p['follow_step_mm'], dr))
-            r = max(p['scrub_step_mm'], min(p['spiral_r_max_mm'], r + dr))
+            r = max(0.0, min(self.r_max(), r + dr))
         rc = statistics.mean(rs)
         self.log.info(f'  벽 따라 {p["circle_turns"]}바퀴: 반지름 평균 {rc:.1f} (최소 {min(rs):.1f} · 최대 {max(rs):.1f}) mm · '
                       f'옆 힘 평균 {statistics.mean(lats):.1f} · 최대 {max(lats):.1f} N · {time.monotonic() - start:.1f} s')
@@ -212,7 +232,7 @@ class Run:
             press = abs(f[2] - self.baseline)
             now = time.monotonic()
             self.rows.append([phase, round(now - self.t0, 3), f[0], f[1], f[2], round(press, 3), target,
-                              '', '', '', '', '', '', ''])
+                              '', '', '', '', '', '', '', ''])
             if now - start >= p['settle_s']:
                 vals.append(press)
             if press > p['limit_n']:
@@ -248,7 +268,7 @@ class Run:
         with open(path, 'w', newline='') as f:
             w = csv.writer(f)
             w.writerow(['phase', 't', 'fx', 'fy', 'fz', 'press_n', 'target', 'x_mm', 'y_mm', 'radial_n',
-                        'actual_x_mm', 'actual_y_mm', 'actual_rz_deg', 'cmd_rz_deg'])
+                        'actual_x_mm', 'actual_y_mm', 'actual_rz_deg', 'cmd_rz_deg', 'climb_mm'])
             w.writerows(self.rows)
         return path
 
@@ -259,7 +279,7 @@ def main() -> int:
     ap.add_argument('--fake-wall', action='store_true',
                     help='Virtual 전용: 그릇 안지름·솔 지름으로 가짜 벽 힘을 넣는다 (실기에서는 거부)')
     ap.add_argument('--fake-bowl-d', type=float, default=None,
-                    help='Virtual 가짜 그릇 안지름 mm (기본 rig_v03.yaml). 나선 최대 반지름도 벽 + 10 mm 로 늘린다')
+                    help='Virtual 가짜 그릇 안지름 mm (기본 rig_v03.yaml)')
     args = ap.parse_args()
     with open(HERE / 'rig_v03.yaml', encoding='utf-8') as f:
         p = yaml.safe_load(f)
@@ -309,10 +329,9 @@ def main() -> int:
         if args.fake_wall:
             if args.fake_bowl_d is not None:                             # Virtual 전용 — 실기는 위에서 이미 거부
                 p['fake_bowl_inner_d_mm'] = args.fake_bowl_d
-            run.fake_wall_r = (p['fake_bowl_inner_d_mm'] - p['fake_brush_d_mm']) / 2
-            p['spiral_r_max_mm'] = max(p['spiral_r_max_mm'], run.fake_wall_r + 10.0)
-            log.info(f"가짜 벽: 그릇 안지름 {p['fake_bowl_inner_d_mm']:g} − 솔 지름 {p['fake_brush_d_mm']:g} → "
-                     f"솔 중심 반지름 {run.fake_wall_r:.1f} mm 에서 벽 · 나선 최대 {p['spiral_r_max_mm']:.1f} mm")
+            run.fake_wall_r = max(0.0, (p['fake_bowl_inner_d_mm'] - p['brush_d_mm']) / 2)
+            log.info(f"가짜 벽: 그릇 안지름 {p['fake_bowl_inner_d_mm']:g} − 솔 지름 {p['brush_d_mm']:g} → "
+                     f"솔 중심 반지름 {run.fake_wall_r:.1f} mm 에서 벽 · 나선 최대 {run.r_max():.1f} mm")
         d.movej(p['home_posj'], vel=p['home_vel_deg_s'] * cc.cfg()['run']['vel_scale'], acc=p['home_acc_deg_s2'])
         z_home = run.z()
         cc.cfg()['cell']['limits']['safe_z_mm'] = z_home                 # 시험 전용: 안전 높이 = HOME
