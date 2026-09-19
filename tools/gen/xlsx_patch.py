@@ -95,15 +95,31 @@ GANTT = dict(zip(['9/18', '9/19', '9/20', '9/21', '9/22', '9/23', '9/24~28', '9/
                  [('G', 'H', 'I'), ('J', 'K', 'L'), ('M', 'N', 'O'), ('P', 'Q', 'R'), ('S', 'T', 'U'),
                   ('V', 'W', 'X'), ('Y', 'Z', 'AA'), ('AB', 'AC', 'AD'), ('AE', 'AF', 'AG')]))
 PART = {'오전': 0, '오후': 1, '저녁': 2}
+# 닫힌 칸 — 주말(9/19·20) 저녁은 교육장이 18시에 닫아 일정이 없다. 황인재가 시트에서 그 열 전체를 연분홍으로 칠해 두었다(9/19).
+# 그 칠은 작업 칸이 아니라 배경이다: 색을 고를 때 보지 않고, 지우지 않고, 작업을 넣지도 않는다.
+CLOSED = [('9/19', '저녁'), ('9/20', '저녁')]
 
 
 def gantt_col(day, part):
     return GANTT[day][PART[part]]
 
 
+def open_gantt_cols():
+    """작업 칸으로 쓰는 간트 열(닫힌 칸 제외)."""
+    closed = {gantt_col(d, p) for d, p in CLOSED}
+    return [c for cs in GANTT.values() for c in cs if c not in closed]
+
+
+def _check_open(slots):
+    bad = [x for x in slots if tuple(x) in CLOSED]
+    if bad:
+        raise ValueError(f'닫힌 칸에는 작업을 넣지 않는다(교육장 주말 18시 마감): {bad}')
+
+
 def new_timeline_row(sheet, like_row, slots, **cells):
     """like_row 의 서식을 복제해 새 Time Line 행을 만든다. slots=[('9/19','오전'), …] 칸에만 색을 칠한다."""
-    gcols = [c for cs in GANTT.values() for c in cs]
+    _check_open(slots)
+    gcols = open_gantt_cols()
     fill = next((like_row.style(c) for c in gcols if like_row.style(c) != like_row.style('AG')), None)
     blank = like_row.style('AG') if like_row.style('AG') != fill else '3'
     # AG(9/30 저녁)가 색칸인 행은 드물다. 빈칸 서식은 색이 없는 칸에서 가져온다
@@ -166,7 +182,8 @@ def rebuild_todo(book, entries_fn, people):
 
 def set_slots(row, slots):
     """기존 Time Line 행의 간트 색 칸을 slots=[('9/20','오전'), …] 로 다시 칠한다(색은 그 행이 쓰던 색)."""
-    gcols = [c for cs in GANTT.values() for c in cs]
+    _check_open(slots)
+    gcols = open_gantt_cols()
     styles = [row.style(c) for c in gcols if row.style(c) is not None]
     blank = max(set(styles), key=styles.count)
     fill = next((s for s in styles if s != blank), None)
