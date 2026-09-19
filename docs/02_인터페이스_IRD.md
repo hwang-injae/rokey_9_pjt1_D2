@@ -36,7 +36,7 @@
 ## 3. F1 파지·이송·적재 (IR-01) · 한석형 · 모듈 `f1_handling.handling`
 | 함수 | 인자 | 반환 | 비고 |
 |---|---|---|---|
-| `pick(zone_id, kind)` | `RET_B`/`RET_C`/`SPONGE_BED_*`, `BOWL`/`CUP` | `PickResult`: `ok, code, width_mm, attempts, offset_x_mm, offset_y_mm` | **고정 슬롯 파지**: 구역의 슬롯을 정해진 순서로 — 슬롯 상공 → 힘 상한 감시 하강 → 파지 → 폭 판정. 폭 범위 밖(빈 슬롯·헛잡음)이면 놓고 다음 슬롯. 슬롯을 다 돌면 `EMPTY_ZONE`. `attempts` = 시도한 슬롯 수, `offset_*` = 집은 슬롯의 오프셋. **그릇은 옆면(벽)을 세로로 파지**, 컵은 옆면 파지. `SPONGE_BED_*`면 고정 위치 재파지(슬롯 1개) |
+| `pick(zone_id, kind)` | `RET_B`/`RET_C`/`SPONGE_BED_*`, `BOWL`/`CUP` | `PickResult`: `ok, code, width_mm, attempts, offset_x_mm, offset_y_mm` | **고정 슬롯 파지**: 구역의 슬롯을 정해진 순서로 — 슬롯 상공 → 힘 상한 감시 하강 → 파지 → 폭 판정. 폭 범위 밖(빈 슬롯·헛잡음)이면 놓고 다음 슬롯. 슬롯을 다 돌면 `EMPTY_ZONE`. `attempts` = 시도한 슬롯 수, `offset_*` = 집은 슬롯의 오프셋. **그릇은 옆면(벽)을 세로로 파지**, 컵은 **몸통을 통째로 파지**(지름 방향 — 벽을 집지 않는다, 폭 ≈ 컵 지름이라 빈손·그릇과 간격이 충분). `SPONGE_BED_*`면 고정 위치 재파지(슬롯 1개) |
 | `place(station)` | 스테이션 | `PlaceResult`: `ok, code, offset_mm` | 상공 → 하강 → 놓기 → 후퇴. **항상 놓기(release)까지 한다.** **`SPONGE_BED_B/C`면 안착 놓기**: 쥔 채 순응 하강 → 깊이+힘으로 홈에 들어갔는지 판정 → 안 들어가면 Move Periodic 탐색 → 들어가면 놓기 / 한도 초과 → 들고 후퇴 + `SEAT_FAIL` |
 | `move_to(station, carrying)` | 스테이션, `bool` | `Result` | 안전 높이 경유, 들고 있으면 저속. 안전 자세 복귀 = `move_to('HOME', False)` |
 | `tool(tool, action)` | `SPONGE`/`BRUSH`, `PICK`/`RETURN` | `ToolResult`: `ok, code, width_mm` | 홀더에서 툴 픽업·반납. 폭 범위 밖 → `TOOL_FAIL` |

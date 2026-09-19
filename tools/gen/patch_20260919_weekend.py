@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v5.7'
+VERSION = 'v5.8'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -95,7 +95,7 @@ PROGRESS = {
  'INF-02d': dict(prog='0.6'),
  'INF-02b': dict(prog='0.8', note_add='✅ 9/19 17:40 PR #20 merge — force.py(순응·힘제어·접촉 하강·탐색·안전 후퇴·read_force·예외 2종) + pytest 23건 + Virtual rig · 남은 것: cell.force 값 PR(V-03 뒤)·force_off 끝까지 시도·force_on limit 감시 도우미·periodic_search 힘 감시(V-04 전) · (이전 메모) 9/19 17:16 기준(커밋 기록): 브랜치 jinyong/20260919-INF-02b-force-funcs 에 force.py·test_force.py·rig_force (15커밋), PR 은 아직 · motion.move_rel 이 main 에 들어왔으니(#15) 임시 stub 을 지우고 PR'),
  'V-03': dict(prog='0.6', note_add='9/19 오후 실기 4회차까지(커밋 기록 16:04~17:16): 힘제어 중 X·Y 이동 확인, 문지르기 방식 = 손목을 비틀며 나선으로 넓혀 벽을 찾고 벽 따라 2바퀴(8자 삭제) · 남은 것: 결과 문서(docs/test_logs)와 cell.force 값 PR'),
- 'V-01': dict(prog='0.4'),
+ 'V-01': dict(prog='0.7', note_add='✅ 9/19 황인재 확인: 그릇(옆면 세로 파지 ≈ 2 mm)은 빈손과 폭으로 구분된다 · 컵은 벽이 아니라 **몸통을 통째로 파지**(폭 ≈ 컵 지름)라 빈손·그릇과 간격이 충분하다 → 3상태 구분은 사실상 확인됨 · 남은 것: 드라이버 경로(V-05)로 10회씩 기록 + 그릇 전용 허용 오차 값을 cell.yaml 에'),
  'V-05': dict(status='진행 중', prog='0.3', note_add='9/19: 드라이버 소스 분석으로 폭 읽는 경로를 구현(#17 — 관절각 → 폭 환산, 장치가 읽은 0.1 mm 폭과 같다) → 9/20 오전에 실기로 확인(닫힌 쪽 0~5 mm 반복 흔들림 포함), 확정은 그 뒤'),
  'V-20': dict(status='진행 중', prog='0.3', slots=S('9/19 오후', '9/20 오전'), note_add='9/19: cobot_common 실행 뼈대는 Virtual rig_motion 3바퀴·검사 30건으로 확인(#15) → 남은 것: flow_node + 세 모듈을 Virtual 에서 한 번에(로봇 불필요 — 로봇 교대 대기 시간에)'),
  'DSN-03': dict(prog='0.7'),
@@ -165,6 +165,8 @@ HISTORY7 = ['v5.6', '진척', 'PKG-01, V-20, V-03, V-05, V-01, DSN-04, INF-02b·
             'PM-01 9/19 저녁', 'S,M,P,H']
 HISTORY8 = ['v5.7', '진척', 'INF-02b', 'INF-02b force.py merge(PR #20) — 공용 로봇 함수 파일 5개(bootstrap·motion·gripper·weigh·force)가 모두 main 에 들어왔다. F1-02 pick 이 기다리던 contact_down 사용 가능. 남은 것은 cell.force·cell.motion·limits 값과 실기 확인',
             'PR #20 merge', 'P,S,M']
+HISTORY9 = ['v5.8', '진척', 'V-01', 'V-01: 그릇은 빈손과 폭으로 구분됨(검증), 컵은 벽이 아니라 몸통을 통째로 파지해 폭이 충분 — 3상태 구분은 사실상 확인. 남은 것은 드라이버 경로 기록과 허용 오차 값',
+            '황인재 확인 9/19', 'M,S']
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -250,7 +252,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
