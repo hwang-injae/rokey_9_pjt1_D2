@@ -17,7 +17,7 @@
 | 과정 / 팀 | ROKEY 9기 협동1 · **D그룹 2조** (한석형 팀장 · 민범진 · 박진용 · 황인재) |
 | 주제 | **경기장 다회용기 예비세척·식기세척기 팔레트 적재 자동화 셀 (PreWash-Cell)** |
 | 로봇 | 두산 **M0609** 1대 + OnRobot **RG2** · 컨트롤러 IP **192.168.1.100** · TCP 12345 · Dart Platform 2.12.1 · RG2 설정 웹 192.168.1.1 |
-| PC | Ubuntu 24.04 · ROS 2 Jazzy · `ROS_DOMAIN_ID=60`. 개발 4대 각자(Virtual/mock). 통합 실행 **PC-A 로봇 제어 + PC-B HMI** |
+| PC | Ubuntu 24.04 · ROS 2 Jazzy · **기본은 격리**: 개인 도메인(한석형 61 · 민범진 62 · 박진용 63 · 황인재 64) + `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`. 팀 도메인 **`60`은 PC 여러 대가 통신해야 할 때만**(`team60`, 끝나면 `solo`). 개발 4대 각자(Virtual/mock). 통합 실행 **PC-A 로봇 제어 + PC-B HMI** |
 | 워크스페이스 | 두산 드라이버 `~/ws_cobot_pjt/ws_dsr`(강사 배포, 수정 금지) 위에 우리 **`rokey_pjt01_ws`**(= 저장소 루트, `docs/` + `src/`). clone 위치는 자유, `.bashrc`에 `PREWASH_WS`로 지정(예 `~/rokey9_pjt1/rokey_pjt01_ws`) |
 | 비전 | 🚨 **사용 불가** — 판단은 파지 폭·하중 측정·툴 힘·위치 |
 | 용기·기구 | 그릇 1규격 **2개** + 컵 1규격 **2개** · 식기세척기용 팔레트 모형 **그릇 2칸·컵 4칸** · 잔반 대용품은 고형물(물·기름 금지) |
@@ -64,6 +64,7 @@ HMI 시작 1회 → 반납 구역 계획 순서(그릇 구역 2개 → 컵 구�
 10. `main` 직접 push 금지. 브랜치를 함부로 삭제하지 않는다(`main` PR 승인 후 팀장 한석형 승인하에만 삭제).
 11. `dance` 예제를 Real에서 실행하지 않는다. Dart Platform과 ROS 동시 제어 연결 금지. 안전 암호·로봇 계정을 문서·코드에 적지 않는다.
 12. 모르는 값(`______`)을 채워서 진행하지 않는다 — 질문한다.
+13. **Virtual·rig·mock 시험과 혼자 하는 실기 시험은 격리 상태(`solo`)에서만 돌린다.** 모든 PC의 두산 서비스 이름이 `/dsr01/dsr_controller2/*`로 같아서, 같은 망·같은 도메인이면 내 rig의 `movej`가 **남의 Virtual이나 실기 컨트롤러에도 전달된다.** 팀 도메인 60(`team60`)은 PC-A↔PC-B 통합(ENV-03·INT-4·L3·L4·리허설·시연) 때만 켜고, 그동안 다른 PC는 60에 들어오지 않는다. 로봇을 움직이기 전에 `rosinfo`로 확인한다.
 
 ## 4. 코드·개발 흐름 규칙
 - 패키지는 `src/` 아래, 패키지 1개 = 기능 1개, 기능 함수는 `cobot_api`의 `Result`(`ok`+`code`+필드) 반환, ID·코드 문자열은 IRD §2 그대로(`cobot_api` 상수 사용).
@@ -80,7 +81,8 @@ HMI 시작 1회 → 반납 구역 계획 순서(그릇 구역 2개 → 컵 구�
 | 실기 브링업 거부 | 티치펜던트 제어권 해제, `/dsr01/dsr_controller2/system/set_robot_mode` 확인 |
 | `colcon-argcomplete` 오류 | colcon은 시스템 설치, venv는 HMI 전용 |
 | 토픽이 2개만 보임 | 지난 프로젝트 Fast DDS 화이트리스트 주석 처리 |
-| 팀원 노드 안 보임 | `ROS_DOMAIN_ID` 양쪽 60, 같은 스위치. 안 되면 Discovery Server |
+| 팀원 노드 안 보임 (PC-A↔PC-B 통합 때) | 기본이 격리(`solo`)라 안 보이는 게 정상 → 두 PC 모두 `team60`, 같은 스위치. 안 되면 Discovery Server. 끝나면 `solo` |
+| 내가 안 보낸 명령으로 (가상)로봇이 움직임 · 서비스 응답이 뒤섞임 | 다른 PC와 같은 도메인에 있다 → `rosinfo` 확인, `solo`로 격리(§3 규칙 13) |
 | 프로그램이 뜨자마자 `'NoneType' object has no attribute 'create_client'` | `DSR_ROBOT2`를 노드 세팅 전에 import함 → `cobot_common.init(name)`을 맨 앞에서, 직접 import 금지(SDD §3.2, TS-01) |
 | 로봇 명령이 안 끝남 / `Executor is already spinning` / 두 번째 호출부터 응답 없음 | 콜백·타이머·다른 스레드에서 로봇 함수를 불렀다 → **메인 스레드에서만**(SDD §3.2, TS-01). 멈춘 프로그램을 강제로 죽였으면 브링업도 다시 |
 | 실기 브링업이 `gripper_joint_state_publisher.py not found` | 배포본의 실행 권한 누락 → `chmod +x`(TS-02). Virtual에서는 안 드러난다 |
@@ -99,6 +101,7 @@ Virtual에는 **힘·무게·접촉이 없다** → 로직은 Virtual/mock, 임�
 
 ## 7. 자주 쓰는 명령
 ```bash
+rosinfo                                                # 🚨 먼저 확인: 개인 도메인(61~64) + LOCALHOST = 격리. 통합 때만 team60, 끝나면 solo
 sod && sodvir                                          # Virtual 브링업 (실기: sodreal, IP 192.168.1.100)
 cbc                                                    # $PREWASH_WS(rokey_pjt01_ws) 빌드 + source
 ros2 launch prewash_bringup prewash_mock.launch.py       # mock + flow + hmi (로봇 없이)

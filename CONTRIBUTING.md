@@ -1,7 +1,7 @@
 # CONTRIBUTING — D-2팀 협업 규칙
 
 > 저장소: https://github.com/hwang-injae/rokey_9_pjt1_D2 · 팀 노션: [D그룹 2조 협동1](https://app.notion.com/p/D-2-1-f336d4401b6782c49a4a81e00842a32b)
-> 로봇: 두산 M0609 + OnRobot RG2 · ROS 2 Jazzy · `ROS_DOMAIN_ID=60` · **최종 발표 2026-09-30(수)**
+> 로봇: 두산 M0609 + OnRobot RG2 · ROS 2 Jazzy · 기본 격리(개인 도메인 61~64 + LOCALHOST), 팀 도메인 60은 통합 때만 · **최종 발표 2026-09-30(수)**
 >
 > 4명이 2주 안에 로봇 하나를 공유하며 만드는 프로젝트다. 규칙의 목적은 ① 남의 작업을 덮어쓰지 않기 ② 인터페이스 깨지지 않기 ③ 발표 전날 통합 지옥 피하기 세 가지다.
 

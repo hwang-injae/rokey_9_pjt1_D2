@@ -129,7 +129,8 @@ rokey_pjt01_ws/                ← 저장소 루트 (rokey_9_pjt1_D2)
 | **`init(name, robot=True)`** | [H] 프로그램 **맨 앞에서 한 번**(§3.2). ① DSR 전용 노드(`<name>_dsr`, ns `dsr01`)를 만들어 `DR_init.__dsr__node`에 넣은 **뒤에** `DSR_ROBOT2`를 import ② 통신 노드(`<name>`)를 만들어 **백그라운드 실행기 스레드**로 돌림(그리퍼 폭 구독·그리퍼 명령 클라이언트 포함) ③ 설정 로드. `robot=False`면 ①을 건너뛴다(전부 mock일 때 드라이버 없이 실행) |
 | `cfg()` | [H] `init`이 읽어 둔 설정(`config.load()` 결과: `cfg['cell']`, `cfg['f3']` …)을 돌려준다 |
 | `io_node()` | [H] 통신 노드를 돌려준다. flow가 여기에 `/flow/*` 서비스·발행기·타이머를 단다 |
-| `shutdown()` | [H] 동작 정지 명령 → 실행기 종료 → `rclpy.shutdown()`. Ctrl+C 처리기에서도 부른다 |
+| `shutdown()` | [H] 동작 정지 명령(**최선 시도**) → 실행기 종료 → `rclpy.shutdown()`. 설치된 `DSR_ROBOT2.py`에는 정지 함수가 없어(`stop`·`move_stop` 없음, 9/19 확인) `motion/move_stop` 서비스(`dsr_msgs2/srv/MoveStop`)를 직접 부른다. 모션 중에 먹는지는 V-24에서 확인하고, 실패하면 "브링업 재시작 필요"를 로그로 남긴다 |
+| Ctrl+C(SIGINT) | [H] **`init()`이 단독으로 맡는다.** rclpy의 기본 SIGINT 처리기는 Ctrl+C 때 컨텍스트를 먼저 닫아 버려 `finally`의 정지 명령을 보낼 수 없으므로, `init()`이 그 처리기를 끈다. `flow_node`·`rig_f*.py`는 **`try/finally: cc.shutdown()`만** 쓰고 `signal.signal`을 따로 걸지 않는다 |
 | `move_to(station, carrying)` | [S] 안전 높이 경유 movej/movel, carrying이면 속도 상한 |
 | `move_rel(dx, dy, dz, frame)` | [S] 기준점 대비 상대 이동(탐색점 이동용) |
 | `grip(width, force) → width` | [S] RG2 파지(목표 폭·힘) + 완료 대기 + 폭 피드백. 강사 배포 `onrobot_rg_control`은 명령을 서비스로 받고 현재 폭을 토픽으로 낸다 → 폭은 통신 노드가 구독해 최신 값을 저장하고, `grip`은 그 값을 읽는다 |
@@ -331,7 +332,7 @@ stateDiagram-v2
 - **실행 구조**(§3.2): `flow_node.py`의 `main()`이 ① `cobot_common.init('flow_node')` ② 통신 노드(`io_node()`)에 `/flow/start·stop·resume` 서비스, `/flow/state` 2 Hz 타이머, `/flow/event` 발행기를 단다 — **콜백은 깃발(`start`·`stop`·`resume`)만 세운다** ③ 메인 스레드는 `start` 깃발을 기다렸다가 plan대로 기능 함수를 차례로 부르고, **호출 사이마다 `stop` 깃발을 본다.**
 - **예외 보호**: 모든 기능 함수 호출은 한 곳(`Flow.call(fn, *args)`)을 지난다. 예외가 나면 로그를 남기고 `Result.fail(ROBOT_ERROR)`로 바꾼 뒤 `safe_retreat()` → `PAUSED`. 프로세스가 하나라 이 보호가 없으면 함수 하나의 오류가 셀 전체를 멈춘다.
 - **mock 전환**: `params.yaml`의 `flow.use_mock: [f1, f3]`에 있는 기능은 `f2_sense_flow.mock.mock_f1`처럼 같은 함수 이름의 가짜 모듈을 import한다. 전부 mock이면 `cobot_common.init(robot=False)`로 드라이버 없이 돈다.
-- **종료**: `SIGINT`(Ctrl+C) 처리기가 `cobot_common.shutdown()`을 불러 동작 정지 명령을 먼저 보낸다.
+- **종료**: Ctrl+C 처리는 `cobot_common.init()`이 맡는다(§3.1). `flow_node`는 메인 루프를 `try/finally`로 감싸 `cc.shutdown()`만 부르고, 신호 처리기를 따로 걸지 않는다.
 - 어떤 실패에서도 **툴은 홀더에 반납**(flow가 `tool(RETURN)` 호출), 로봇은 안전 높이.
 
 ### 5.2 f1_handling — `handling.py` (한석형)
@@ -450,7 +451,7 @@ return EMPTY_ZONE (attempts = max_attempts)
 | V-06 | 팔레트 칸 삽입 각도·걸림 힘 판정 | S | 9/21 C (F1-04 첫 단계) | 걸림 시 힘 상승 식별 | 각도 삽입 → 수직 놓기 |
 | V-07 | 털기 진폭·속도에서 충돌 감지 오작동 | M | 9/20 A (F2-01 첫 단계) | 10회 정지 0 | 진폭 축소, 관절 왕복 |
 | V-08 | 툴 홀더 픽업·반납 10회 | S | 9/20 C (F1-03 첫 단계) | ≥9/10 | 홀더 깊이·방향 고정 보강 |
-| V-09 | PC-A↔PC-B DDS 통신(DOMAIN 60) | H(+M) | 9/21 C (INT-4와 한 세션) | 토픽·서비스 왕복 | Discovery Server → 안 되면 PC 1대 |
+| V-09 | PC-A↔PC-B DDS 통신(두 PC만 `team60`, 나머지는 `solo`) | H(+M) | 9/21 C (INT-4와 한 세션) | 토픽·서비스 왕복 | Discovery Server → 안 되면 PC 1대 |
 | V-10 | 컵 안쪽 솔 삽입 깊이·충돌 | P | 9/20 C (F3-03 첫 단계) | 정지 0 | 스트로크 축소 |
 | V-11 | 잔반 대용품 선정(구슬·쌀, ≥100 g, 털면 떨어짐) | 전원 | 9/18 | 확정 | — |
 | V-12 | 스펀지 홈 치수 vs 용기 외경(여유 1~2 mm) | P | 9/19 B (기구 제작 직후) | 둘 다 들어감 | 재커팅 |
@@ -465,7 +466,7 @@ return EMPTY_ZONE (attempts = max_attempts)
 | V-21 | ~~서비스 콜백 안 장시간 모션~~ — **종료.** 구조 변경(DSN-02b)으로 서비스 콜백 안에서 로봇을 움직이지 않는다. 원인·재현은 TS-01 | P | 9/18 종료 | — | — |
 | V-23 | **파지 힘 전환 방법** — 쥔 상태에서 힘만 올려 다시 파지(`grip_level`)가 되는가. `onrobot_rg_control`(Modbus)로 힘 지정이 되는지, DO1/DO2 방식이면 RG2 웹의 프리셋 2종으로 나눌지 | S | 9/19 B | 쥔 채 NORMAL→HOLD→NORMAL 전환 10회, 낙하 0 | 처음부터 HOLD 힘으로만 파지(힘 1단계) |
 | V-22 | **티칭 좌표 재현 오차** — YAML 좌표를 ROS에서 재현했을 때 티칭 위치와의 차이 | S | 9/20 A (티칭 2차 세션 안, `move_to`가 생긴 뒤) | ≤ 2 mm | 사용자 좌표계·TCP 설정 재확인 |
-| V-24 | **(선택) 동작 중 소프트 정지·타임아웃** — `move_to`를 비동기 이동(`amovej`/`amovel`) + 짧은 폴링(`check_motion`)으로 만들고, 폴링 중 stop 깃발·타임아웃이면 `stop()`. 전부 메인 스레드 | H | 9/20 B (Virtual, 선택) | 이동 중 stop → 1 s 안에 정지, 이어서 다음 명령 정상 | 정지는 "기능 함수 사이"로만(현재 기본) |
+| V-24 | **(선택) 동작 중 소프트 정지·타임아웃** — `move_to`를 비동기 이동(`amovej`/`amovel`) + 짧은 폴링(`check_motion`)으로 만들고, 폴링 중 stop 깃발·타임아웃이면 정지(`motion/move_stop` 서비스 — 설치된 `DSR_ROBOT2.py`에는 `stop()`이 없다). `shutdown()`의 정지 명령이 모션 중에 먹는지도 여기서 확인. 전부 메인 스레드 | H | 9/20 B (Virtual, 선택) | 이동 중 stop → 1 s 안에 정지, 이어서 다음 명령 정상 | 정지는 "기능 함수 사이"로만(현재 기본) |
 
 ### 9.3 L1 단위기능 테스트 케이스
 **공통 규칙(TS-01)**: 함수는 한 번이 아니라 **연속 3회 이상** 불러서 시험한다. "첫 번째만 되는" 결함은 한 번 호출로는 보이지 않는다.
@@ -546,7 +547,7 @@ soc && ros2 launch prewash_bringup prewash_mock.launch.py
 # 내 기능만 단독 시험 (브링업 뒤)
 soc && python3 src/f3_wipe/test/rig_f3.py
 ```
-런치 인자: `use_mock:="f1,f3"`(빈 값이면 전부 실제), `vel_scale:=0.3`. 첫 실기는 `vel_scale 0.2~0.3`. `flow_node`를 끌 때는 Ctrl+C 한 번(정지 명령을 보내고 끝난다). 움직이는 중에 강제로 죽였으면 브링업부터 다시.
+런치 인자: `use_mock:="f1,f3"`(빈 값이면 전부 실제), `vel_scale:=0.3`. 첫 실기는 `vel_scale 0.2~0.3`. `flow_node`를 끌 때는 **멈춰 있을 때** Ctrl+C 한 번. 움직이는 중의 Ctrl+C는 정지 명령을 최선으로 시도할 뿐이다(V-24) — 급하면 Ctrl+C가 아니라 **E-Stop**. 움직이는 중에 죽였으면 브링업부터 다시.
 
 ## 11. 확인 중
 | 항목 | 담당 | 기한 |

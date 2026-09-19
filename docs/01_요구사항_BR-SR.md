@@ -141,7 +141,7 @@
 | PC | Ubuntu 24.04 · ROS 2 Jazzy · Python 3.12 · GPU 불필요. 개발 4대(각자 Virtual/mock), 통합 실행 PC-A(로봇) + PC-B(HMI) |
 | 소프트웨어 | `doosan-robot2`(dsr_msgs2) · `DSR_ROBOT2` API · `m0609_rg2_bringup` · 우리 워크스페이스 `rokey_pjt01_ws` (cobot_msgs, cobot_api, cobot_common, f1_handling, f2_sense_flow, f3_wipe, f4_hmi, prewash_bringup) · FastAPI + WebSocket + SQLite |
 | 사용 로봇 기능 | movej/movel/amovel, trans, 사용자 좌표계, get_workpiece_weight, get_tool_force, check_force_condition, task_compliance_ctrl, set_desired_force, move_periodic, set_digital_output/get_digital_input, mwait, stop |
-| 네트워크 | PC-A ↔ 컨트롤러 TCP 12345(DDS 아님, 유선 192.168.1.x). PC-A ↔ PC-B DDS, `ROS_DOMAIN_ID=60`, 같은 스위치. HMI `http://<PC-B>:8000` |
+| 네트워크 | PC-A ↔ 컨트롤러 TCP 12345(DDS 아님, 유선 192.168.1.x). PC-A ↔ PC-B DDS, 통합 때만 `ROS_DOMAIN_ID=60`(평소 개발·시험은 개인 도메인 + LOCALHOST로 격리), 같은 스위치. HMI `http://<PC-B>:8000` |
 | 시뮬레이션 | DRCF Virtual: 궤적·시퀀스만. **힘·무게·접촉 없음** → mock으로 대체, 임계값은 실기 |
 | 워크셀 | 반납 구역 2곳(그릇·컵, 각 200×200 mm급, 용기가 겹쳐 놓일 수 있음), 잔반통, 스펀지 고정틀(그릇 홈·컵 홈, 여유 1~2 mm), 툴 홀더 2종, 수조 2개(빈), 팔레트 모형(그릇 2·컵 4), 격리 구역(2개 이상) |
 

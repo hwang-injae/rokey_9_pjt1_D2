@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>cobot_common</name>
+  <version>0.1.0</version>
+  <description>PreWash-Cell 공용 로봇 함수 모음: 두산 API 초기화(init·io_node·cfg·shutdown, SDD §3.2) · 설정 로더 · 이동·그리퍼(motion) · 힘(force) · 무게(weigh). 사람별 파일 — AGENTS.md §2.</description>
+  <maintainer email="il1282113@gmail.com">hwang-injae</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <!-- 두산 드라이버(dsr_msgs2 · DR_init · DSR_ROBOT2)는 강사 배포 ws_dsr 에서 온다(source 순서: ws_dsr → 우리 워크스페이스).
+       init(robot=False) 는 드라이버 없이 돌아야 하므로 여기서 의존으로 걸지 않는다. -->
+
+  <test_depend>python3-pytest</test_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>
