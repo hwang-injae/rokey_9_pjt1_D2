@@ -1,0 +1,26 @@
+# rig_v03.py 시험 값 — V-03 힘제어 중 XY 이동 (솔로 그릇 안쪽 바닥 누르며 문지르기)
+# 🟡 approach_down_mm 은 현장 실측(솔 끝 → 그릇 안쪽 바닥 거리 − 30 mm)으로 채운다. 비어 있으면 실기에서 실행 거부.
+home_posj: [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]   # HOME (실기 확인: X 367.5 · Y 8.0 · Z 215.0, 그릇 중심이 바로 아래)
+home_vel_deg_s: 20
+home_acc_deg_s2: 20
+approach_down_mm:                 # 🟡 실측 − 30 mm (예: 솔 끝 → 바닥 150 mm 면 120)
+virtual_approach_down_mm: 120.0   # Virtual 흐름 확인용
+approach_vel_mm_s: 50.0           # × vel_scale
+approach_acc_mm_s2: 100.0
+contact_max_depth_mm: 50.0        # 빠른 접근 뒤 천천히 찾는 거리 (여유 30 mm + 20 mm)
+contact_limit_n: 3.0              # 이 힘에 닿으면 "바닥 찾음"
+backoff_mm: 3.0                   # 접촉 뒤 살짝 들어 올리는 거리 — 힘제어(상대 모드)를 공중에서 켜기 위해
+press_targets_n: [3.0, 4.0, 5.0]  # 제자리 누르기 목표 (FR-08 3~5 N)
+press_hold_s: 3.0
+wipe_target_n: 4.0                # 문지르는 동안 목표 힘
+limit_n: 10.0                     # 이 힘을 넘으면 즉시 힘 해제 (NFR-01 닦기 10 N)
+tol_n: 2.0                        # 통과 기준: 평균이 목표 ±2 N (SR-08)
+settle_s: 1.0                     # 힘을 건 뒤 안정될 때까지 기다림 (평가에서 뺌)
+circle_amp_mm: 5.0                # 문지르기 ① move_periodic X·Y 진폭 (그릇 안 여유 약 28 mm)
+circle_period_s: 2.0              # X 주기 (Y = 2배 → 8자)
+circle_repeat: 2
+spiral_rev: 2                     # 문지르기 ② move_spiral 회전 수
+spiral_rmax_mm: 5.0               # 최대 반경
+spiral_time_s: 8.0                # 시간 옵션 (속도 오류 피함)
+sample_s: 0.05                    # 힘 기록 주기
+log_dir: logs/v03                 # 힘 로그 CSV (실행 위치 기준 상대경로)

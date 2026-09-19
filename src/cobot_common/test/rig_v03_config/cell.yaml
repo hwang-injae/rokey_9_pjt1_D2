@@ -1,0 +1,15 @@
+# rig_v03.py 전용 시험 설정 — 🚨 V-03 첫 실기용 보수적인 값. 팀 cell.yaml(한석형) 이 아니다.
+# 결과로 정한 값을 이슈 #7(cell.force)로 넘긴다.
+cell:
+  limits:
+    safe_z_mm: 0.0              # rig 가 HOME 높이로 덮어쓴다(시험 전용)
+    timeout_s: 30.0             # 접촉 하강 한 번의 시간 상한 (50 mm ÷ 2 mm = 25 단계)
+  force:
+    compliance_stx: [3000, 3000, 500, 200, 200, 200]   # N/m · Nm/rad — Z 만 부드럽게 (강의 범위 X·Y·Z 0~20000, 회전 0~400)
+    contact_step_mm: 2.0        # contact_down 한 단계 (× Z 강성 500 N/m ≈ 1 N)
+    contact_vel_mm_s: 10.0      # × vel_scale 0.3 = 3 mm/s
+    contact_acc_mm_s2: 50.0
+    retreat_vel_mm_s: 50.0      # × 0.3 = 15 mm/s
+    retreat_acc_mm_s2: 100.0
+    force_max_n: 15.0           # 어떤 순간에도 넘으면 안 되는 절대 상한 (닦기 상한 10 N 위)
+    search_y_period_ratio: 2.0
