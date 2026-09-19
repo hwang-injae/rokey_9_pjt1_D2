@@ -20,7 +20,7 @@ python3 tools/gen/gen_todo.py ../_upload/prewash_담당별_할일.xlsx
 PM이 구글 시트에서 직접 고친 내용(행 추가·날짜 이동·상태)을 그대로 둔 채 몇 개 셀·행만 바꿀 때 쓴다. 일정표 정본은 구글 시트이고 PM이 직접 고친다. 초기 업로드용 생성기(`gen_sched.py`)는 9/19에 삭제했다 — 일정 변경은 항상 이 방식으로 한다.
 
 ```bash
-python3 tools/gen/patch_20260918_s4.py ../_upload/prewash_일정표_구조변경반영.xlsx   # 최신 (구조 변경 DSN-02b)
+python3 tools/gen/patch_20260919_tasks.py ../_upload/prewash_일정표_0919.xlsx   # 최신 (구조 변경 후속: 새 작업·시험 방법)
 ```
 
 지금 시트를 내려받아 변경만 얹은 xlsx를 만든다. 구글 시트에서 `파일 > 가져오기 > 업로드 > 스프레드시트 바꾸기`. 내려받은 뒤에 시트를 고쳤다면 다시 실행한다. 새 변경은 `patch_날짜_이름.py`를 복사해 만든다(`Book.from_live` → `sheet().find/set/insert` → `save`).

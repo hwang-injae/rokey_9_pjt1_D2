@@ -161,3 +161,17 @@ def rebuild_todo(book, entries_fn, people):
         while len(s.rows) < n_old:
             s.rows.append(Row('', {}))
         s.rows[2].set('A', summary)
+
+
+def set_slots(row, slots):
+    """기존 Time Line 행의 간트 색 칸을 slots=[('9/20','오전'), …] 로 다시 칠한다(색은 그 행이 쓰던 색)."""
+    gcols = [c for cs in GANTT.values() for c in cs]
+    styles = [row.style(c) for c in gcols]
+    blank = max(set(styles), key=styles.count)
+    fill = next((s for s in styles if s != blank), None)
+    if fill is None:
+        raise ValueError('이 행에는 색 칸이 없어 색을 알 수 없다')
+    for c in gcols:
+        row.set(c, style=blank)
+    for d, p in slots:
+        row.set(gantt_col(d, p), style=fill)
