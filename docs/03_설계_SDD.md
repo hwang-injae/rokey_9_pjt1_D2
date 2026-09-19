@@ -138,7 +138,7 @@ rokey_pjt01_ws/                ← 저장소 루트 (rokey_9_pjt1_D2)
 | `grip(width, force) → width` | [M] RG2 파지(목표 폭·힘) + 완료 대기 + 폭 피드백. 강사 배포 `onrobot_rg_control`은 명령을 서비스(`/onrobot/sendCommand`)로 받는다. 🟡 현재 폭: 드라이버(`OnRobotRGControllerServer`)는 `OnRobotRGInput`을 **발행하지 않는다**(9/19 소스 확인: 나가는 것은 `/joint_states`→`/onrobot_joint_states` remap의 `JointState`뿐, 서비스는 `/onrobot/sendCommand`·`/onrobot/pose`·`/onrobot/restartPower`) → **V-05에서 읽는 경로를 정한다**(후보: `/onrobot_joint_states` 관절각 → 폭 환산을 통신 노드가 구독해 저장 — 구독은 `motion.py`의 `setup_io(node)`에 단다). `grip`은 그 값을 읽는다 |
 | `grip_level(kind, level)` | [M] 파지 힘 2단계 전환: `NORMAL`(집기·이송) ↔ `HOLD`(털기·담금·물 털기, 더 꽉). 같은 폭 목표로 힘만 바꿔 다시 파지, 전환 후 폭 재확인(방법은 V-23) |
 | `release()` | [M] 그리퍼 열기 |
-| `grip_width() → mm` | [M] 현재 폭 읽기(박진용 F3 요청 — 닦는 중 툴이 밀렸는지 감시, ✅ 9/19 PM 결정). 경로: **강사 드라이버의 관절각 → 폭 환산이 먼저**(V-05에서 오차 ≤ 2 mm 확인), 안 되면 Compute Box XML-RPC를 읽기부터([제안서](ref/20260919_제안_RG2_폭_힘_경로.md)). 그리퍼 함수는 새 파일 `gripper.py` |
+| `grip_width() → mm` | [M] 현재 폭 읽기(박진용 F3 요청 — 닦는 중 툴이 밀렸는지 감시, ✅ 9/19 PM 결정). 경로: **강사 드라이버의 관절각 → 폭 환산이 먼저**(V-05에서 오차 ≤ 2 mm 확인 — 🚨 그릇 벽 파지가 ≈ 2 mm라 **닫힌 쪽(0~5 mm)에서는 반복 흔들림이 그릇 ↔ 빈손 간격의 절반 이하**여야 한다, V-01과 같이 확인), 안 되면 Compute Box XML-RPC를 읽기부터([제안서](ref/20260919_제안_RG2_폭_힘_경로.md)). 그리퍼 함수는 새 파일 `gripper.py` |
 | `weigh(n, reset=False) → g` | [M] 정지 → `get_workpiece_weight` n회의 **중앙값**(튄 값에 끌려가지 않게 — V-02 폭 40.8 g) · 실패값(음수 -1)은 버리고, 전부 실패면 예외(기능 함수가 `ROBOT_ERROR`로 변환) · 구현 #13. `reset`(0점 재설정)은 **선택 동작**: 응답 상한 3 s, 실패하면 다시 부르지 않고 계속 진행([TS-03](troubleshooting/TS-03_하중_reset_제어권_교착.md)) |
 | `force_on(axis, target, limit)` / `force_off()` | [P] task_compliance_ctrl + set_desired_force |
 | `force_reached(axis, min, max) → bool` | [P] `check_force_condition(...) == 0`을 감싼 것. 🚨 실제 두산 함수는 **만족 `0` / 아니면 `-1`**을 돌려준다(DRL 매뉴얼의 True/False와 다름). `if check_force_condition():`으로 쓰면 판정이 뒤집힌다(TS-01 D) |
@@ -246,7 +246,7 @@ sequenceDiagram
 cell:                                   # 여러 기능이 같이 쓰는 값. 여기 한 곳에만 둔다
   limits: {vel_free_pct: 60, vel_carry_pct: 30, safe_z_mm: 150, contact_limit_n: 10, insert_limit_n: 15, timeout_s: 10}
   presets:                              # 종류·툴별 파지
-    BOWL:   {grip_width_mm: 62.0, grip_force_n: 20, hold_force_n: 35, width_tol_mm: 3.0, approach_z_mm: 40}   # hold = 털기·헹굼용 강한 파지
+    BOWL:   {grip_width_mm: 2.0, grip_force_n: 20, hold_force_n: 35, width_tol_mm: 0.8, approach_z_mm: 40}    # 옆면(벽) 세로 파지 — 폭 ≈ 2 mm(9/19 확인), tol 은 V-01 에서 · hold = 털기·헹굼용 강한 파지
     CUP:    {grip_width_mm: 70.0, grip_force_n: 15, hold_force_n: 30, width_tol_mm: 3.0, approach_z_mm: 40}   # 옆면 파지(9/18 V-17 확인)
     SPONGE: {grip_width_mm: 30.0, grip_force_n: 30, width_tol_mm: 2.0}
     BRUSH:  {grip_width_mm: 22.0, grip_force_n: 30, width_tol_mm: 2.0}
@@ -356,14 +356,15 @@ for i, (dx,dy) in enumerate(zone.search.offsets_mm):        # 슬롯 순서 (off
     move_to(슬롯 상공 = zone 기준점 + (dx,dy), carrying=False) # 안전 높이
     release(); 그리퍼 열기(프리셋 폭 + 여유)
     depth, f = contact_down(descend_max_mm, contact_limit_n) # 힘 상한 감시 하강 — 접촉 또는 최대 깊이에서 정지
-    w = grip(preset.grip_width, preset.grip_force)           # 파지
+    w = grip(닫는 목표 폭 < preset.grip_width, preset.grip_force)  # 파지 — 목표는 기대 폭보다 작게(아래 🚨)
     if |w - preset.grip_width| <= width_tol:  성공 → 상승 → return ok, w, i+1, (dx,dy)
     else: release(); safe_retreat()                          # 빈 슬롯·헛잡음 → 다음 슬롯
 return EMPTY_ZONE (attempts = 슬롯 수)
 ```
 - 슬롯 위치는 구역 기준점 대비 오프셋 목록(`config/cell.yaml`의 `zones.*.search.offsets_mm`, `max_attempts` = 슬롯 수). **키 이름·`pick` 서명·`EMPTY_ZONE` 코드는 그대로**라 `cobot_api`·flow·mock은 바뀌지 않는다.
 - **그릇은 옆면(벽)을 세로로 파지**한다(외경 114 mm > RG2 최대 폭 110 mm — 지름 파지 불가): 그리퍼를 아래로 향하고 핑거가 그릇 벽의 안팎을 집는다. 슬롯 중심이 아니라 **벽 위**로 가야 하므로 슬롯 오프셋에 벽까지의 거리(반지름 ≈ 55 mm)를 더한 위치를 쓴다(값은 한석형이 `cell.yaml`에). 컵은 옆면 파지(V-17).
-- 폭 판정: 🟡 그릇 벽 파지는 벽 두께(≈ 2 mm + 패드)만큼만 벌어져 빈손과 차이가 작다 → V-01에서 3상태 간격을 확인하고, 간격이 작으면 그릇의 파지 성공은 **바로 다음 단계인 무게(WEIGH)로 확인**한다.
+- 폭 판정(✅ 9/19 PM 결정 — **그릇도 파지 폭으로 가른다, 무게로 가르지 않는다**): 그릇을 옆면(벽)으로 세로 파지하면 파지 폭이 **≈ 2 mm**로 읽힌다(9/19 황인재 확인) → 빈손(완전히 닫힘)과 폭으로 구분한다. 그릇의 기대 폭(`presets.BOWL.grip_width_mm` ≈ 2)과 허용 오차(`width_tol_mm`)는 V-01에서 재서 `cell.yaml`에 넣는다 — 그릇의 허용 오차는 그릇 폭과 빈손 폭의 간격보다 작아야 한다(컵의 3 mm를 그대로 쓰면 빈손도 성공으로 읽힌다).
+- 🚨 **`grip`에 주는 닫는 목표 폭은 기대 폭보다 작아야 한다**(그릇은 0 mm 쪽). 목표를 기대 폭과 같게 주면 빈손도 그 폭에서 멈춰 "성공"으로 읽힌다. 새 키 없이 하려면 닫는 목표 = `grip_width_mm − 2 × width_tol_mm`(0보다 작으면 0)를 권장한다 — 용기가 있으면 용기 폭에서 멈추고(힘 도달), 없으면 목표까지 닫혀 허용 오차 밖이 된다.
 - 하강은 항상 힘 상한·최대 깊이·타임아웃과 함께(NFR-01).
 - `zone_id`가 `SPONGE_BED_*`면 슬롯 1개(고정 위치 재파지).
 
@@ -458,7 +459,7 @@ return EMPTY_ZONE (attempts = 슬롯 수)
 언제 칸의 A·B·C = 오전·오후·저녁. 🚨 **주말(9/19·20)은 교육장이 18시에 닫아 C(저녁)가 없다.**
 | ID | 검증 | 담당 | 언제 | 기준 | 안 되면 |
 |---|---|---|---|---|---|
-| V-01 | 파지 폭으로 그릇·컵·빈손 3상태 구분 | M | 9/20 A (그리퍼 세션: V-05·V-23과 함께) | 세 값 간격 ≥ 6 mm | 핑거 패드 두께·프리셋 폭 조정 |
+| V-01 | 파지 폭으로 그릇·컵·빈손 3상태 구분 — **그릇은 옆면(벽) 세로 파지 ≈ 2 mm**(9/19 확인), 빈손과 폭으로 가른다 | M | 9/20 A (그리퍼 세션: V-05·V-23과 함께) | 상태마다 10회 — 세 범위가 겹치지 않고, 가장 가까운 두 상태(그릇 ≈ 2 mm ↔ 빈손)의 간격이 흔들림(최대 − 최소)의 2배 이상 | 핑거 패드를 두껍게(그릇 폭 ↑)·프리셋 폭·허용 오차 조정 |
 | V-02 | 하중 측정 정밀도(100/200 g 추 10회) | M | 9/20 A (weigh 이식과 함께) | ±20 g | 임계 100 g, 대용품 무겁게 |
 | V-03 | 힘제어 켠 채 XY 나선 이동 | P | 9/19 B 착수 → **9/20 A** | 가능 | 닦기 = 순응 + 위치 2~3 mm 누르기 |
 | V-04 | Move Periodic 탐색으로 홈 안착(2 mm 오프셋) | S(+P) | 9/21 C (F1-05 첫 단계) | 5회 중 4회 | 홈 여유 늘리기, 챔퍼 |
@@ -543,7 +544,7 @@ return EMPTY_ZONE (attempts = 슬롯 수)
 | 9/19 오후 | V-02 무게 정밀도 미달 | 잔반 임계 100 g, 대용품 무겁게 |
 | 9/19 저녁 | V-03 힘제어 중 이동 불가 | 닦기를 "순응 + 위치 2~3 mm 누르기"로 |
 | 9/20 오전 | V-09 PC 통신 불가 | PC-A 1대로 통합 |
-| 9/20 오후 | V-14 고정 슬롯 파지 미달 | 슬롯을 구역당 1개로(용기 1개씩 시연) · 그릇 폭 판정이 안 되면 무게로 확인 |
+| 9/20 오후 | V-14 고정 슬롯 파지 미달 | 슬롯을 구역당 1개로(용기 1개씩 시연) · 그릇 폭 판정이 흔들리면 핑거 패드를 두껍게·허용 오차 재조정 |
 | 9/22 오전 | UT-F1 적재 미통과 | 각도 삽입 → 수직 놓기 |
 | 9/22 오전 | UT-F3 컵 미통과 | 컵 닦기 도전 과제, 그릇만 MVP |
 | 9/22 저녁 | L2 하나라도 미통과 | L3를 9/23 오전 안에 끝내지 못하면 4개 연속 → 2개(그릇1·컵1), 실패 주입 4종 → 2종 |
