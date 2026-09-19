@@ -25,6 +25,9 @@ Ctrl+C 는 cobot_common.init() 이 단독으로 맡는다 (SDD §3.1, PR #3).
 🚨 flow_node 에는 name=·namespace=·--ros-args -r __node:= 를 주지 않는다 (SDD §10).
    프로세스 안의 두 노드(flow_node · flow_node_dsr)에 모두 걸려 이름이 같아진다.
 """
+import functools
+import logging
+
 import cobot_common as cc
 from cobot_common import config as cc_config
 from cobot_msgs.msg import FlowEvent, FlowState
@@ -33,6 +36,29 @@ from std_srvs.srv import Trigger
 from f2_sense_flow.flow import Flow, Signals, load_features
 
 FEATURES = ('f1', 'f2', 'f3')
+
+
+def safe_cb(what):
+    """ROS 콜백을 감싼다 — 🚨 콜백에서 예외가 나가면 **통신이 영구히 죽는다.**
+
+    rclpy 의 SingleThreadedExecutor 는 콜백 예외를 spin() 밖으로 다시 던지고,
+    cobot_common 의 spin 스레드는 그것을 잡아 로그만 남기고 **스레드를 끝낸다.**
+    그러면 프로세스는 살아 있는데 /flow/state 가 멈추고 start·stop·resume 이
+    영원히 응답하지 않는다 — 메인 스레드는 로봇을 계속 움직이는데 정지 버튼이 안 먹는다.
+    """
+    def deco(fn):
+        @functools.wraps(fn)
+        def wrapped(self, *a, **kw):
+            try:
+                return fn(self, *a, **kw)
+            except Exception as e:                # noqa: BLE001 — 통신 스레드를 죽이면 안 된다
+                try:
+                    self.log.error(f'{what} 콜백에서 예외 — {e!r} (통신은 계속한다)')
+                except Exception:                 # noqa: BLE001
+                    pass
+                return a[1] if len(a) > 1 else None   # 서비스면 응답 객체를 그대로 돌려준다
+        return wrapped
+    return deco
 
 
 class Io:
@@ -57,6 +83,7 @@ class Io:
         self.rate_hz = rate_hz
 
     # ────────────────────────────────── 서비스 콜백 (깃발만!)
+    @safe_cb('/flow/start')
     def _on_start(self, req, res):
         if self.flow.step == 'IDLE':
             self.sig.raise_('start')
@@ -65,17 +92,20 @@ class Io:
             res.success, res.message = False, f'IDLE 이 아닙니다 (현재 {self.flow.step})'
         return res                                   # 즉시 응답. 실행은 메인 스레드가 한다
 
+    @safe_cb('/flow/stop')
     def _on_stop(self, req, res):
         self.sig.raise_('stop')
         res.success, res.message = True, '현재 동작이 끝나면 정지합니다'
         return res
 
+    @safe_cb('/flow/resume')
     def _on_resume(self, req, res):
         self.sig.raise_('resume')
         res.success, res.message = True, '재개합니다'
         return res
 
     # ────────────────────────────────── 상태 발행 (메시지만 만든다)
+    @safe_cb('/flow/state 타이머')
     def _on_state_timer(self):
         s = self.flow.snapshot()
         m = FlowState()
@@ -84,6 +114,7 @@ class Io:
         m.stamp = self.node.get_clock().now().to_msg()
         self.state_pub.publish(m)
 
+    @safe_cb('/flow/event')
     def publish_event(self, ev):
         """flow(두뇌)가 용기 1개를 끝낼 때마다 부른다. dict → 메시지로 옮긴다."""
         m = FlowEvent()
@@ -109,7 +140,9 @@ def main():
         sig = Signals()
         log.info('기능 모듈:')
         features = load_features(use_mock, log)      # 진짜/가짜 선택 (IRD §10)
-        flow = Flow(cc.cfg(), log, safe_retreat=cc.safe_retreat, features=features)
+        # 전부 가짜면 물러날 로봇이 없다 → 후퇴를 부르지 않는다(cc.safe_retreat 는 뼈대라 예외를 낸다)
+        flow = Flow(cc.cfg(), log, features=features,
+                    safe_retreat=cc.safe_retreat if robot else None)
         io = Io(node, flow, sig)
         flow._publish_event = io.publish_event       # 두뇌 → 배선 (두뇌는 ROS 를 모른다)
 
@@ -121,6 +154,11 @@ def main():
         flow.run(sig)                                # ② 메인 스레드에서 실행
     except KeyboardInterrupt:                        # Ctrl+C — 처리기는 cobot_common 이 건다
         pass
+    except Exception:                                # noqa: BLE001
+        # 여기까지 온 예외는 flow 의 보호를 모두 지나온 것이다(설정·초기화·구조 문제).
+        # 트레이스백을 그대로 남겨 원인을 알 수 있게 하고, 정리는 finally 가 한다.
+        logging.getLogger('flow_node').exception('flow_node 를 계속할 수 없다')
+        raise
     finally:
         cc.shutdown()                                # ⑦ 어떤 경우에도 정리
 

@@ -109,9 +109,17 @@ class Flow:
         self._publish_event = publish_event or (lambda ev: None)
         self._safe_retreat = safe_retreat or (lambda: None)
 
-        self.plan = self.cfg.get('plan', [])
-        self.policy = self.cfg.get('policy', {})
-        self.step_delay_s = self.cfg.get('step_delay_s', 0.0)
+        # 🚨 설정은 **여기서 한 번에** 읽고 검증한다.
+        #    YAML 에 키만 있고 값이 비면 None 이 들어온다(`or` 로 받아야 한다).
+        #    공정 도중에 KeyError·TypeError 로 죽으면 용기를 쥔 채 멈춘다.
+        self.plan = self._check_plan(self.cfg.get('plan') or [])
+        self.policy = self.cfg.get('policy') or {}
+        self.rack_order = self.cfg.get('rack_order') or {}
+        self.counts = self._check_counts(self.cfg.get('counts') or {})
+        self.rounds = self._num('leftover_max_rounds', 2, int)
+        # DONE 을 화면에 보여 주는 시간. /flow/state 주기(state_pub_hz)보다 길어야 한 번은 잡힌다
+        self.done_hold_s = self._num('done_hold_s', 1.0, float)
+        self.step_delay_s = self._num('step_delay_s', 0.0, float)
 
         # ── 상태 (flow_node 가 2 Hz 로 읽어 /flow/state 로 내보낸다) ──
         self.step = 'IDLE'
@@ -128,8 +136,52 @@ class Flow:
         self.rinse_dips = 0
         self._prev_step = 'IDLE'
 
-        self.target_bowl = sum(p['count'] for p in self.plan if p['kind'] == 'BOWL')
-        self.target_cup = sum(p['count'] for p in self.plan if p['kind'] == 'CUP')
+        self.target_bowl = sum(e['count'] for e in self.plan if e['kind'] == 'BOWL')
+        self.target_cup = sum(e['count'] for e in self.plan if e['kind'] == 'CUP')
+
+    # ────────────────────────────────── 설정 검증 (생성자에서만)
+    def _num(self, key, default, cast):
+        """숫자 설정 하나를 읽는다. 없거나 숫자가 아니면 기본값 + 경고.
+
+        🚨 `cfg.get(k) or 기본값` 으로 쓰면 **0 을 설정할 수 없다**(0 은 거짓이라 기본값으로 바뀐다).
+           그래서 None 인지만 따로 본다.
+        """
+        raw = self.cfg.get(key)
+        if raw is None:
+            return default
+        try:
+            return cast(raw)
+        except (TypeError, ValueError):
+            self.log.warn(f'flow.{key} 가 숫자가 아니다 ({raw!r}) → {default} 으로 본다')
+            return default
+
+    def _check_plan(self, plan):
+        """plan 항목을 검사해 쓸 수 있는 것만 남긴다. 나쁜 항목은 버리고 알려 준다."""
+        good = []
+        for i, e in enumerate(plan):
+            try:
+                zone, kind, count = str(e['zone']), str(e['kind']), int(e['count'])
+            except (TypeError, KeyError, ValueError) as err:
+                self.log.error(f'flow.plan[{i}] 을 읽을 수 없다 ({err!r}) — 이 항목은 건너뛴다')
+                continue
+            if kind not in ('BOWL', 'CUP') or count < 0:
+                self.log.error(f'flow.plan[{i}] 값이 이상하다 (kind={kind}, count={count}) — 건너뛴다')
+                continue
+            good.append({'zone': zone, 'kind': kind, 'count': count})
+        if not good:
+            self.log.warn('flow.plan 에 쓸 수 있는 항목이 없다 — start 를 눌러도 아무것도 하지 않는다')
+        return good
+
+    def _check_counts(self, counts):
+        """횟수 설정이 빠졌으면 **시작할 때** 알려 주고 기본값으로 채운다."""
+        out = {}
+        for key, default in (('soap_dips', 3), ('rinse_dips', 1), ('rinse_shakes', 3)):
+            try:
+                out[key] = int(counts[key])
+            except (TypeError, KeyError, ValueError):
+                self.log.warn(f'flow.counts.{key} 가 없거나 숫자가 아니다 → {default} 으로 본다')
+                out[key] = default
+        return out
 
     # ────────────────────────────────── 상태 스냅샷
     def snapshot(self):
@@ -142,6 +194,33 @@ class Flow:
             last_code=self.last_code, message=self.message,
         )
 
+    # ────────────────────────────────── 바깥 세계를 부르는 통로
+    def _guard(self, fn, *args, what):
+        """주입받은 콜러블(safe_retreat·publish_event)을 부르는 **유일한** 통로.
+
+        🚨 Flow 는 이것들을 직접 부르지 않는다. 프로세스가 하나라 여기서 새어 나간
+           예외 하나가 셀 전체를 멈춘다. PR #8 리뷰에서 실제로 죽는 것이 확인됐다
+           (flow.py:271 → cobot_common.safe_retreat 의 NotImplementedError → 프로세스 종료).
+        """
+        try:
+            fn(*args)
+            return True
+        except Exception as e:                # noqa: BLE001 — 무엇이 터지든 셀을 멈추면 안 된다
+            self.log.error(f'{what} 실패 — {e!r}')
+            return False
+
+    def _retreat(self):
+        """안전 자세로 물러난다. 실패하면 False.
+
+        🚨 후퇴가 실패하면 **로봇이 어디 있는지 알 수 없다.** 그 상태로 같은 동작을
+           다시 하면 위험하므로, 부르는 쪽은 재시도하지 말고 PAUSED 로 사람을 기다린다.
+        """
+        if self._guard(self._safe_retreat, what='safe_retreat'):
+            return True
+        self.last_code = ROBOT_ERROR
+        self.message = '후퇴 실패 — 로봇 위치를 알 수 없다. 사람이 확인해야 한다'
+        return False
+
     # ────────────────────────────────── 예외 보호 (SDD §5.1)
     def call(self, fn, *args):
         """기능 함수는 **반드시 여기를 지나서** 부른다. 항상 Result 를 돌려준다.
@@ -152,17 +231,43 @@ class Flow:
         name = getattr(fn, '__name__', str(fn))
         try:
             r = fn(*args)
+            # 🚨 반환값 확인도 try 안에서 한다. 뼈대 단계의 함수가 None·tuple 을 돌려주면
+            #    r.code 접근이 call() **자신**을 죽인다(보호 통로가 뚫리는 셈).
+            if not isinstance(r, Result):
+                raise TypeError(f'Result 가 아니라 {type(r).__name__} 을 돌려줬다')
+            code, ok = r.code, r.ok
         except Exception as e:                    # noqa: BLE001 — 어떤 예외든 셀을 멈추면 안 된다
             # 🚨 KeyboardInterrupt 는 BaseException 이라 여기 안 걸린다 — 그게 맞다.
             #    Ctrl+C 는 그대로 위로 올라가 main() 의 finally 가 cc.shutdown() 을 부른다.
-            self.log.error(f'{name} 에서 예외 — {e!r}')
-            self._safe_retreat()
-            self.message = f'{name}: {e}'
+            try:
+                self.log.error(f'{name} 에서 예외 — {e!r}')
+                self.message = f'{name}: {e}'
+            except Exception:                     # noqa: BLE001 — 로그가 터져도 여기서 끝낸다
+                self.message = f'{name}: (메시지를 만들 수 없음)'
+            self._retreat()                       # 후퇴가 또 터져도 _guard 가 삼킨다
             r = Result.fail(ROBOT_ERROR)
-        self.last_code = r.code
-        if not r.ok:
-            self.log.warn(f'{name} 실패 → {r.code}')
+            code, ok = r.code, r.ok
+        self.last_code = code
+        if not ok:
+            self.log.warn(f'{name} 실패 → {code}')
         return r
+
+    def call_fn(self, mod_key, fn_name, *args):
+        """기능 모듈에서 함수를 **찾는 것까지** 보호한다.
+
+        🚨 getattr 을 call() 밖에서 하면, 진짜 모듈에 함수 하나가 없을 때
+           AttributeError 가 그대로 프로그램을 죽인다(한석형 f1_handling 이 만들어지는 중이면 실제로 난다).
+        """
+        def resolve_and_call(*a):
+            mod = self.f.get(mod_key)
+            if mod is None:
+                raise RuntimeError(f'{mod_key} 모듈이 없다 (use_mock 설정을 확인한다)')
+            fn = getattr(mod, fn_name, None)
+            if not callable(fn):
+                raise AttributeError(f'{mod_key}.{fn_name} 이 없다')
+            return fn(*a)
+        resolve_and_call.__name__ = f'{mod_key}.{fn_name}'
+        return self.call(resolve_and_call, *args)
 
     # ────────────────────────────────── 실패 정책
     def policy_for(self, code):
@@ -230,6 +335,9 @@ class Flow:
                     break
         self.step, self.kind, self.zone_id = 'DONE', '', ''
         self.log.info(f'plan 완료 — 그릇 {self.done_bowl} · 컵 {self.done_cup} · 격리 {self.isolated}')
+        # 🚨 곧바로 IDLE 로 덮으면 2 Hz 타이머가 DONE 을 한 번도 못 보고 HMI 에 완료가 안 뜬다.
+        #    발행 주기보다 길게 머무른다.
+        time.sleep(self.done_hold_s)
         self.step = 'IDLE'
 
     def process_one(self, sig):
@@ -237,39 +345,43 @@ class Flow:
 
         순서는 IRD §8. 모듈은 use_mock 에 따라 진짜/가짜가 들어와 있다(load_features).
         """
-        f1, f2, f3 = self.f.get('f1'), self.f.get('f2'), self.f.get('f3')
-        bed = 'SPONGE_BED_B' if self.kind == 'BOWL' else 'SPONGE_BED_C'
-        tool_id = 'SPONGE' if self.kind == 'BOWL' else 'BRUSH'
-        wipe = f3.wipe_bowl if self.kind == 'BOWL' else f3.wipe_cup
-        rounds = self.cfg.get('leftover_max_rounds') or 2
+        bowl = self.kind == 'BOWL'
+        bed = 'SPONGE_BED_B' if bowl else 'SPONGE_BED_C'
+        tool_id = 'SPONGE' if bowl else 'BRUSH'
+        wipe_fn = 'wipe_bowl' if bowl else 'wipe_cup'
+        rounds = self.rounds
+        n = self.counts
         self.rack_slot = self._next_slot()
 
-        # (단계, 부를 함수, 인자)
+        # (단계, 모듈, 함수이름, 인자) — 🚨 함수 객체를 미리 꺼내지 않는다.
+        #    꺼내는 것까지 call_fn 안에서 해야 "함수가 없다"가 크래시가 아니라 Result 가 된다.
         steps = [
-            ('PICK', f1.pick, (self.zone_id, self.kind)),
-            ('WEIGH', f1.move_to, ('WEIGH', True)),
-            ('WEIGH', f2.leftover_loop, (self.kind, rounds)),
-            ('SEAT', f1.place, (bed,)),
-            ('SOAP', f1.tool, (tool_id, 'PICK')),
-            ('SOAP', f3.soap, (self.cfg.get('soap_dips_per_item', 3),)),
-            ('WIPE', wipe, ()),
-            ('WIPE', f1.tool, (tool_id, 'RETURN')),
-            ('RINSE', f1.pick, (bed, self.kind)),
-            ('RINSE', f2.dip, ('RINSE', 1, self.kind)),
-            ('RINSE', f2.shake, ('RINSE', 3, self.kind)),
-            ('RACK', f1.rack_place, (self.rack_slot, self.kind)),
-            ('RACK', f1.move_to, ('HOME', False)),
+            ('PICK', 'f1', 'pick', (self.zone_id, self.kind)),
+            ('WEIGH', 'f1', 'move_to', ('WEIGH', True)),
+            ('WEIGH', 'f2', 'leftover_loop', (self.kind, rounds)),
+            ('SEAT', 'f1', 'place', (bed,)),
+            ('SOAP', 'f1', 'tool', (tool_id, 'PICK')),
+            ('SOAP', 'f3', 'soap', (n['soap_dips'],)),
+            ('WIPE', 'f3', wipe_fn, ()),
+            ('WIPE', 'f1', 'tool', (tool_id, 'RETURN')),
+            ('RINSE', 'f1', 'pick', (bed, self.kind)),
+            ('RINSE', 'f2', 'dip', ('RINSE', n['rinse_dips'], self.kind)),
+            ('RINSE', 'f2', 'shake', ('RINSE', n['rinse_shakes'], self.kind)),
+            ('RACK', 'f1', 'rack_place', (self.rack_slot, self.kind)),
+            ('RACK', 'f1', 'move_to', ('HOME', False)),
         ]
-        for step, fn, args in steps:
+        for step, mod, fname, args in steps:
             self.step = step
-            r = self.call(fn, *args)
+            r = self.call_fn(mod, fname, *args)
             if not r.ok:
                 action, retries = self.policy_for(r.code)
                 # retry:N->isolate — 후퇴한 뒤 같은 동작을 N 번까지 다시 해 본다
                 for i in range(retries):
                     self.log.info(f'{step} 재시도 {i + 1}/{retries} (코드 {r.code})')
-                    self._safe_retreat()
-                    r = self.call(fn, *args)
+                    if not self._retreat():   # 🚨 후퇴 실패 → 더 움직이지 않는다
+                        action = PAUSE
+                        break
+                    r = self.call_fn(mod, fname, *args)
                     if r.ok:
                         break
                 if not r.ok:
@@ -281,13 +393,14 @@ class Flow:
         else:
             self.done_cup += 1
         self.sponge_uses += 1
-        self.rinse_dips += 1
+        self.soap_dips += n['soap_dips']
+        self.rinse_dips += n['rinse_dips']
         self.emit_event('DONE')
         return GO_ON
 
     def _next_slot(self):
         """팔레트 칸 배정 — rack_order 순서대로. 다 차면 마지막 칸(실제 판정은 F1 이 RACK_FULL)."""
-        order = (self.cfg.get('rack_order') or {}).get(self.kind) or []
+        order = self.rack_order.get(self.kind) or []
         done = self.done_bowl if self.kind == 'BOWL' else self.done_cup
         return order[done] if done < len(order) else (order[-1] if order else '')
 
@@ -323,6 +436,8 @@ class Flow:
         🚧 attempts·weight_*_g·duration_s·force_log_path 는 FLOW-02(기록)에서 채운다 —
            각 단계의 Result 를 모아야 해서 여기 구조가 좀 더 필요하다.
         """
-        self._publish_event(dict(kind=self.kind, zone_id=self.zone_id,
-                                 rack_slot=self.rack_slot if result == 'DONE' else '',
-                                 result=result, code=self.last_code))
+        self._guard(self._publish_event,
+                    dict(kind=self.kind, zone_id=self.zone_id,
+                         rack_slot=self.rack_slot if result == 'DONE' else '',
+                         result=result, code=self.last_code),
+                    what='publish_event')      # 발행이 터져도 공정은 계속된다
