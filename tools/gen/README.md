@@ -20,7 +20,7 @@ python3 tools/gen/gen_todo.py ../_upload/prewash_담당별_할일.xlsx
 PM이 구글 시트에서 직접 고친 내용(행 추가·날짜 이동·상태)을 그대로 둔 채 몇 개 셀·행만 바꿀 때 쓴다. 일정표 정본은 구글 시트이고 PM이 직접 고친다. 초기 업로드용 생성기(`gen_sched.py`)는 9/19에 삭제했다 — 일정 변경은 항상 이 방식으로 한다.
 
 ```bash
-python3 tools/gen/patch_20260919_audit.py ../_upload/prewash_일정표_0919k.xlsx   # 최신 (9/19 점검 v4.3~4.12: 주인 하나·팀 구역·사람별 파일·부하·로봇 슬롯·도메인 격리·Ctrl+C 기준, 모든 시트 반영)
+python3 tools/gen/patch_20260919_audit.py ../_upload/prewash_일정표_0919l.xlsx   # 최신 (9/19 점검 v4.3~4.13: 주인 하나·팀 구역·사람별 파일·부하·로봇 슬롯·도메인 격리·Ctrl+C 기준, 모든 시트 반영)
 ```
 
 지금 시트를 내려받아 변경만 얹은 xlsx를 만든다. **올리기(PM PC, 9/19~)**: `tools/gen/sheet_push.sh ../_upload/prewash_일정표_XXXX.xlsx` — rclone(remote `gdrive`, 황인재가 1회 로그인)으로 드라이브의 **같은 파일·같은 주소**에 새 버전으로 올린다. 올리기 전에 정본 ID 확인·현재 시트 백업(`../_upload/backup/`)·"xlsx를 만든 뒤 시트가 바뀌었으면 중단", 올린 뒤에 파일 ID·내용 검증을 한다. 되돌리기는 드라이브의 버전 기록 또는 백업 파일. rclone이 없으면 예전처럼 구글 시트에서 `파일 > 가져오기 > 업로드 > 스프레드시트 바꾸기`. 내려받은 뒤에 시트를 고쳤다면 다시 실행한다. PM이 시트에서 직접 고친 것은 `python3 tools/sched_diff.py`로 본다(지난 확인 뒤로 바뀐 담당·상태·진행·칸). 새 변경은 `patch_날짜_이름.py`를 복사해 만든다(`Book.from_live` → `sheet().find/set/insert` → `save`).

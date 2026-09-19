@@ -32,12 +32,12 @@ EDIT = {
                  slots=S('9/19 오후', '9/19 저녁', '9/20 오전')),
  'INF-02c': dict(task='cobot_common 4/4 · weigh.py — weigh(n, reset=False) 저수준 측정 · V-02 측정 도구에서 이식 (reset 은 선택 동작·응답 상한 3 s·실패 시 반복 금지, TS-03)',
                  deliv='src/cobot_common/cobot_common/weigh.py', note='R · V-02 와 한 세션 · f2.weigh(F2-01)가 이걸 불러 판정한다'),
- 'PKG-01': dict(note='V-20 의 재료 · ✅ F3(박진용) PR #4 merge(9/19) · F2(민범진) 브랜치 push — PR 전(9/19 14:25) · F1(한석형) 아직'),
- 'FLOW-01': dict(note='메인 뼈대(통신 노드·깃발·예외 보호) + 상태 머신·실패 정책 + 시험 19건이 브랜치 beomjin/20260919-PKG-01-package-skeleton 에 있음(PR 전, 9/19 14:25) · try/finally 만 사용(신호 처리기 없음) 확인'),
+ 'PKG-01': dict(note='V-20 의 재료 · ✅ F3(박진용) PR #4 · ✅ F2(민범진) PR #8 merge(9/19) · F1(한석형) 아직 — V-20 은 use_mock=f1 로 먼저 돌릴 수 있다'),
+ 'FLOW-01': dict(note='✅ PR #8 merge(9/19 14:43): 메인 뼈대·상태 머신·실패 정책·시험 30건 · 🔧 다음 PR 에서 꼭: ① safe_retreat 가 예외를 내면 예외 보호가 뚫려 flow_node 가 죽는다(후퇴를 try 로 감싸 PAUSED) ② 격리가 숫자만 올린다 — 툴 반납 → ISOLATE 에 놓기 → HOME 마무리 동작 필요(L2 전까지)'),
  'CELL-02a': dict(note='로봇 불필요 · ✅ 용기·툴 실측 기록 docs/test_logs/20260918_CELL-02a_용기치수측정.md (PR #4) — 그릇 외경 114 mm > RG2 최대 폭 110 mm(테두리 파지) · 수세미 중심 이동 한계 10 mm → DSN-03 안건 · 남은 것: 홈 커팅 도면·툴 홀더 위치'),
  'INF-04': dict(task='config 골격 — params.yaml(f1·f2·f3·flow·hmi 절) + cell.yaml 키 골격만(값·파일 주인은 한석형) + prewash_bringup 런치 2종(flow_node 1개 실행 · use_mock 인자)',
                 note='✅ PR #5 merge(9/19) — cell.yaml 은 키 골격만(값 null 67개, 한석형이 채운다) · params.yaml f3 절은 박진용 초안 · 런치 인자는 환경변수로(PREWASH_USE_MOCK·PREWASH_VEL_SCALE → cc.cfg()) · flow_node 에 -r __node 금지 · 기동 확인은 V-20 에서', slots=S('9/19 오후')),
- 'INF-03': dict(note='로봇 없이 flow 개발 · mock_f1·mock_f2·mock_f3 + 시험 8건이 브랜치에 있음(PR 전, 9/19 14:16) · mock_f2 를 문서(IRD §10)에 넣을지는 DSN-03 B12', slots=S('9/19 오후', '9/19 저녁')),
+ 'INF-03': dict(note='✅ PR #8 merge(9/19): mock_f1·mock_f2·mock_f3 · 실패 주입(함수명:코드[:횟수]) · mock_f2 를 문서(IRD §10)에 넣을지는 DSN-03 B12', slots=S('9/19 오후')),
  'F1-01': dict(task='f1.move_to(station, carrying) + 일반 place — cobot_common.move_to 를 감싼 기능 함수(Result 반환). 좌표·프리셋 값은 CELL-04 에서 적은 cell.yaml 을 읽기만 한다',
                deliv='handling.py', note='R · INF-02(S)와 같은 흐름'),
  'F2-01': dict(task='f2.weigh(kind) · leftover_loop · shake(WASTE) — cobot_common.weigh 를 불러 잔반 판정까지 · 시작 시 강한 파지(HOLD)·끝나면 NORMAL·전후 폭 비교'),
@@ -84,9 +84,9 @@ EDIT = {
 # 상태 갱신: id → (상태, 진행)
 STATUS = {'INF-02a': ('완료', '1.0'),      # PR #3 merge (9/19 12:22)
           'INF-04': ('완료', '1.0'),        # PR #5 merge (9/19 13:34)
-          'PKG-01': ('진행 중', '0.5'),     # F3 골격 PR #4 merge · F2 골격은 브랜치 push(PR 전, 9/19 14:25) · F1 아직
-          'FLOW-01': ('진행 중', '0.6'),    # flow_node.py·flow.py(상태 머신·실패 정책) + 시험 19건 — beomjin/20260919-PKG-01-package-skeleton (PR 전)
-          'INF-03': ('진행 중', '0.8'),     # mock_f1·f2·f3 + 시험 8건 — 같은 브랜치 (PR 전)
+          'PKG-01': ('진행 중', '0.67'),    # F3 골격 PR #4 · F2 골격 PR #8 merge · F1(한석형) 아직
+          'FLOW-01': ('진행 중', '0.7'),    # PR #8 merge(9/19 14:43): 메인 뼈대·상태 머신·실패 정책 + 시험. 남은 것: 후퇴 예외 보호·격리 마무리 동작
+          'INF-03': ('완료', '1.0'),        # PR #8 merge: mock_f1·f2·f3 · check_api 통과 · 실패 주입
           'INF-02b': ('진행 중', '0.7'),    # force.py 구현 + rig_force·시험 — jinyong/20260919-INF-02b-force-funcs (PR 은 V-03 뒤)
           'CELL-02a': ('진행 중', '0.5')}   # 용기·툴 실측 기록 merge(PR #4) · 홈 도면·홀더 위치 남음
 # 팀(구역) 이동: id → (새 팀, 이 ID 행 바로 뒤에 둔다)
@@ -169,6 +169,9 @@ HISTORY9 = ['4.11', '진행', 'INF-04, DSN-03', 'INF-04 완료(PR #5 merge, 9/19
 
 HISTORY10 = ['4.12', '진행', 'PKG-01, FLOW-01, INF-03, INF-02b, V-05, DSN-03', 'GitHub 확인(9/19 14:35) — 민범진: f2_sense_flow 골격·flow_node 뼈대·상태 머신·mock 3종·시험 27건(브랜치, PR 전) → FLOW-01 0.6 · INF-03 0.8 · PKG-01 0.5 / 박진용: force.py 구현·시험(브랜치, PR 은 V-03 뒤) → INF-02b 0.7(칸 9/19 오후~9/20 오전), RG2 폭·힘 경로 제안서·힘제어 방법론(PR #6 merge), 인터페이스 변경 이슈 #7 / 한석형: 올라온 것 없음(티칭·검증은 저장소로 확인 불가)',
              'PM 요청: 깃허브에 올라온 내용으로 팀원별 진척 반영', 'S,M,P']
+
+HISTORY11 = ['4.13', '진행', 'PKG-01, FLOW-01, INF-03', 'PR #8(민범진) merge 9/19 14:43 — f2_sense_flow 골격·flow_node 뼈대·상태 머신·mock 3종. INF-03 완료 · PKG-01 2/3 · FLOW-01 0.7(남은 것: 후퇴 예외 보호, 격리 마무리 동작)',
+             'PR #8 검토·merge', 'M']
 
 
 def main(out):
@@ -253,7 +256,7 @@ def main(out):
         if key in RULES and ru.text(r, 'A').strip() in ('마감', '정본'): r.set('C', RULES[key])
     for r in ru.rows:
         if ru.text(r, 'A').strip() in RULES_A: r.set('C', RULES_A[ru.text(r, 'A').strip()])
-    ru.rows[0].set('A', '운영 규칙 (PreWash-Cell 일정표 v4.12)')
+    ru.rows[0].set('A', '운영 규칙 (PreWash-Cell 일정표 v4.13)')
     if has(ru, 'A', '🚨 도메인'):                          # v4.5 의 규칙 이름(개인 도메인 번호 방식) → v4.6 에서 '🚨 격리'(LOCALHOST 한 줄)로
         ru.rows[ru.find('A', '🚨 도메인')].set('A', '🚨 격리')
     for rule in NEW_RULES:
@@ -265,7 +268,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
@@ -311,4 +314,4 @@ def report(rows):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1] if len(sys.argv) > 1 else 'prewash_일정표_0919k.xlsx')
+    main(sys.argv[1] if len(sys.argv) > 1 else 'prewash_일정표_0919l.xlsx')
