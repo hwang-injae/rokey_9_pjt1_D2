@@ -5,8 +5,9 @@ TC-10(실패 정책)의 바탕이 된다.
 """
 import pytest
 
-from cobot_api import EMPTY_ZONE, OK, RACK_FULL, ROBOT_ERROR, SEAT_FAIL, Result
-from f2_sense_flow.flow import ISOLATE, NEXT_ZONE, PAUSE, Flow, Signals
+from cobot_api import (EMPTY_ZONE, FORCE_LIMIT, OK, RACK_FULL, ROBOT_ERROR, SEAT_FAIL,
+                       TIMEOUT, Result)
+from f2_sense_flow.flow import ISOLATE, NEXT_ZONE, PAUSE, RETRY, Flow, Signals
 
 
 class FakeLog:
@@ -26,7 +27,8 @@ class FakeLog:
 CFG = {'flow': {
     'plan': [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 2},
              {'zone': 'RET_C', 'kind': 'CUP', 'count': 2}],
-    'policy': {'EMPTY_ZONE': 'next_zone', 'SEAT_FAIL': 'isolate', 'RACK_FULL': 'pause'},
+    'policy': {'EMPTY_ZONE': 'next_zone', 'SEAT_FAIL': 'isolate', 'RACK_FULL': 'pause',
+               'FORCE_LIMIT': 'retry:1->isolate', 'TIMEOUT': 'retry:3->isolate'},
     'step_delay_s': 0.0,
 }}
 
@@ -38,20 +40,28 @@ def flow():
 
 # ────────────────────────────────── 실패 정책
 def test_policy_from_yaml(flow):
-    assert flow.policy_for(EMPTY_ZONE) == NEXT_ZONE
-    assert flow.policy_for(SEAT_FAIL) == ISOLATE
-    assert flow.policy_for(RACK_FULL) == PAUSE
+    assert flow.policy_for(EMPTY_ZONE) == (NEXT_ZONE, 0)
+    assert flow.policy_for(SEAT_FAIL) == (ISOLATE, 0)
+    assert flow.policy_for(RACK_FULL) == (PAUSE, 0)
+
+
+def test_retry_policy_parses_count(flow):
+    """params.yaml 형식 "retry:N->isolate" 를 (RETRY, N) 으로 읽는다 (SDD §4.3)."""
+    assert flow.policy_for(FORCE_LIMIT) == (RETRY, 1)
+    assert flow.policy_for(TIMEOUT) == (RETRY, 3)
 
 
 def test_unknown_code_is_pause(flow):
     """모르는 코드는 **안전하게 멈춘다**. 조용히 넘어가면 안 된다."""
-    assert flow.policy_for('아무거나') == PAUSE
+    assert flow.policy_for('아무거나') == (PAUSE, 0)
     assert any('pause' in m for _, m in flow.log.lines)
 
 
 def test_bad_policy_value_is_pause():
-    f = Flow({'flow': {'policy': {'SEAT_FAIL': '오타난값'}}}, FakeLog())
-    assert f.policy_for(SEAT_FAIL) == PAUSE
+    """오타·형식 오류도 멈춘다. retry 형식이 살짝 틀려도 그냥 넘어가면 안 된다."""
+    for bad in ('오타난값', 'retry:1', 'retry->isolate', 'retry:x->isolate'):
+        f = Flow({'flow': {'policy': {'SEAT_FAIL': bad}}}, FakeLog())
+        assert f.policy_for(SEAT_FAIL) == (PAUSE, 0), bad
 
 
 # ────────────────────────────────── 예외 보호 (SDD §5.1)

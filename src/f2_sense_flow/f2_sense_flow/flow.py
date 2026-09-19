@@ -13,6 +13,7 @@
 
 문서: docs/03_설계_SDD.md §5.1(상태 머신) · docs/02_인터페이스_IRD.md §8(호출 순서·실패 정책)
 """
+import re
 import threading
 import time
 
@@ -21,9 +22,10 @@ from cobot_api import OK, ROBOT_ERROR, Result
 # ── 실패 정책 (params.yaml flow.policy 의 값 문자열) ─────────────────────
 NEXT_ZONE = 'next_zone'          # 구역 종료 → 다음 구역 (기록 SKIPPED)
 ISOLATE = 'isolate'              # 격리함에 넣고 다음 용기
-RETRY_1_ISOLATE = 'retry_1_isolate'   # 후퇴 후 1회 재시도 → 그래도 실패면 격리
+RETRY = 'retry'                  # 후퇴 후 N회 재시도 → 그래도 실패면 격리
 PAUSE = 'pause'                  # 멈추고 사람을 기다린다
-POLICIES = (NEXT_ZONE, ISOLATE, RETRY_1_ISOLATE, PAUSE)
+
+_RETRY_RE = re.compile(r'^retry:(\d+)->isolate$')   # "retry:1->isolate" (SDD §4.3 · IRD §8)
 
 _POLL_S = 0.05                   # 깃발을 들여다보는 간격
 
@@ -126,15 +128,23 @@ class Flow:
 
     # ────────────────────────────────── 실패 정책
     def policy_for(self, code):
-        """실패 코드에 대해 무엇을 할지. 모르는 코드는 안전하게 PAUSE."""
+        """실패 코드에 대해 무엇을 할지 → (동작, 재시도 횟수).
+
+        params.yaml 의 값 형식 (SDD §4.3 · IRD §8):
+            next_zone · isolate · pause · "retry:N->isolate"
+        모르는 코드·모르는 값은 **안전하게 PAUSE** 한다 — 조용히 넘어가면 안 된다.
+        """
         action = self.policy.get(code)
-        if action not in POLICIES:
-            if action is not None:
-                self.log.warn(f'policy 에 모르는 값 "{action}" (코드 {code}) → pause 로 처리')
-            else:
-                self.log.warn(f'policy 에 없는 코드 {code} → pause 로 처리')
-            return PAUSE
-        return action
+        if action is None:
+            self.log.warn(f'policy 에 없는 코드 {code} → pause 로 처리')
+            return PAUSE, 0
+        if action in (NEXT_ZONE, ISOLATE, PAUSE):
+            return action, 0
+        m = _RETRY_RE.match(str(action))
+        if m:
+            return RETRY, int(m.group(1))
+        self.log.warn(f'policy 에 모르는 값 "{action}" (코드 {code}) → pause 로 처리')
+        return PAUSE, 0
 
     # ────────────────────────────────── 일시 정지 / 재개
     def to_paused(self, why=''):
@@ -212,7 +222,7 @@ class Flow:
 
     def handle_failure(self, sig):
         """실패 코드를 정책대로 처리. 계속하려면 True."""
-        action = self.policy_for(self.last_code)
+        action, _retries = self.policy_for(self.last_code)   # 재시도 횟수는 STEP 4 에서 쓴다
         if action == PAUSE:
             self.to_paused(f'코드 {self.last_code}')
             return self.wait_resume(sig)
@@ -224,7 +234,7 @@ class Flow:
         if action == NEXT_ZONE:
             self.emit_event('SKIPPED')
             return True                                       # 🚧 STEP 4: 남은 count 를 건너뛴다
-        # RETRY_1_ISOLATE 는 부르는 쪽에서 재시도한 뒤 여기로 온다 (STEP 4)
+        # RETRY 는 부르는 쪽에서 N회 재시도한 뒤 여기로 온다 (STEP 4)
         self.step = 'ISOLATE'
         self.isolated += 1
         self.emit_event('ISOLATED')

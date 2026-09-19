@@ -17,14 +17,14 @@ f1·f2·f3 는 노드가 아니라 그냥 함수이고, 이 파일의 **메인 �
 Ctrl+C 는 cobot_common.init() 이 단독으로 맡는다 (SDD §3.1, PR #3).
   → 여기서는 signal.signal 을 걸지 않고 **try/finally 로 cc.shutdown() 만** 부른다.
 
-실행:
-    ros2 run f2_sense_flow flow_node
-    ros2 run f2_sense_flow flow_node --use-mock f1,f3     # f1·f3 를 가짜로
-    ros2 run f2_sense_flow flow_node --use-mock f1,f2,f3  # 전부 가짜 → 드라이버 없이
-"""
-import argparse
-import sys
+실행 (SDD §10):
+    ros2 launch prewash_bringup prewash.launch.py vel_scale:=0.3      # 실기
+    ros2 launch prewash_bringup prewash_mock.launch.py                # 전부 가짜, 드라이버 없이
+    PREWASH_USE_MOCK=f1,f3 ros2 run f2_sense_flow flow_node           # 손으로 돌릴 때
 
+🚨 flow_node 에는 name=·namespace=·--ros-args -r __node:= 를 주지 않는다 (SDD §10).
+   프로세스 안의 두 노드(flow_node · flow_node_dsr)에 모두 걸려 이름이 같아진다.
+"""
 import cobot_common as cc
 from cobot_common import config as cc_config
 from cobot_msgs.msg import FlowEvent, FlowState
@@ -93,23 +93,13 @@ class Io:
         self.event_pub.publish(m)
 
 
-def _parse_args(argv):
-    ap = argparse.ArgumentParser(description='PreWash-Cell 메인 프로그램')
-    ap.add_argument('--use-mock', default=None,
-                    help='가짜로 돌릴 기능(쉼표). 예: f1,f3 · 전부면 드라이버 없이 돈다. '
-                         'params.yaml 의 flow.use_mock 을 덮어쓴다')
-    args, _ = ap.parse_known_args(argv)             # --ros-args 등은 그대로 흘려보낸다
-    return args
-
-
-def main(argv=None):
-    args = _parse_args(sys.argv[1:] if argv is None else argv)
-
-    # ── init 전에 설정을 읽어 robot 여부를 정한다 (SDD §5.1) ──
-    #    전부 가짜면 두산 드라이버 없이 돈다 → 브링업 없이 flow·HMI 개발 가능
+def main():
+    # ── init 전에 설정을 읽어 robot 여부를 정한다 (SDD §4.3·§5.1) ──
+    #    런치 인자 use_mock 은 환경변수 PREWASH_USE_MOCK 으로 와서 로더가 이미 얹어 준다.
+    #    cc.cfg() 는 init() 뒤에만 되므로 여기서는 config.load() 를 직접 부른다.
+    #    기능이 전부 가짜면 두산 드라이버 없이 돈다 → 브링업 없이 flow·HMI 개발 가능
     cfg = cc_config.load()
-    use_mock = ([m.strip() for m in args.use_mock.split(',') if m.strip()]
-                if args.use_mock is not None else (cfg.get('flow', {}).get('use_mock') or []))
+    use_mock = cfg.get('flow', {}).get('use_mock') or []
     robot = not set(FEATURES) <= set(use_mock)
 
     cc.init('flow_node', robot=robot)                # ① 맨 앞에서 한 번 (SDD §3.2)
@@ -123,6 +113,9 @@ def main(argv=None):
 
         log.info(f'flow 준비됨 — plan 그릇 {flow.target_bowl} · 컵 {flow.target_cup} · '
                  f'state {io.rate_hz} Hz · use_mock={use_mock or "없음"} · robot={robot}')
+        unfilled = cc_config.unfilled(cc.cfg())      # 아직 안 채운 YAML 키 (티칭 전이면 많다)
+        if unfilled:
+            log.warn(f'설정에 안 채워진 키 {len(unfilled)}개 — 좌표가 필요한 동작은 아직 못 한다')
         flow.run(sig)                                # ② 메인 스레드에서 실행
     except KeyboardInterrupt:                        # Ctrl+C — 처리기는 cobot_common 이 건다
         pass
