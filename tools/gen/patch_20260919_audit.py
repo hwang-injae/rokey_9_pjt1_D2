@@ -20,14 +20,15 @@ def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/19 오전','9/
 # id: dict(task, owner, deliv, crit, note, slots) — 없는 키는 그대로 둔다
 EDIT = {
  # --- cobot_common: 사람별 파일 · 이름이 같은 공용 함수/기능 함수 구분
- 'INF-02': dict(task='cobot_common 기본 이동·그리퍼 함수(저수준) — move_to·move_rel·grip·grip_level·release (motion.py · 값은 V-01·V-23 결과로)',
+ 'INF-02': dict(task='cobot_common 2/4 · motion.py — 기본 이동·그리퍼 함수(저수준) move_to·move_rel·grip·grip_level·release (값은 V-01·V-23 결과로)',
                 deliv='src/cobot_common/cobot_common/motion.py',
-                note='R · 사람별 파일이라 PR 이 부딪히지 않는다: motion.py=S · force.py=P · weigh.py=M · bootstrap·config·__init__=H · f1.move_to(F1-01)는 이 함수를 감싼 기능 함수'),
- 'INF-02a': dict(task='cobot_common bootstrap.py — init(name, robot)·io_node·cfg·shutdown + config.py 로더 + __init__.py(함수 재수출)·빈 motion.py·force.py·weigh.py (Virtual 에서 돌려 본 ts01_repro/virtual/s4_script.py 를 옮겨 적는다)',
+                note='R · 사람별 파일이라 PR 이 부딪히지 않는다: motion.py=S · force.py=P · weigh.py=M · bootstrap·config·__init__=H · f1.move_to(F1-01)는 이 함수를 감싼 기능 함수 · 9/18 브랜치(seokhyung/…INF-02-cobot-common-v0)의 robot.py 뼈대는 motion.py 로 옮긴다'),
+ 'INF-02a': dict(task='cobot_common 1/4 · bootstrap.py(선행) — init(name, robot)·io_node·cfg·shutdown + config.py 로더 + __init__.py(함수 재수출)·빈 motion.py·force.py·weigh.py (Virtual 에서 돌려 본 ts01_repro/virtual/s4_script.py 를 옮겨 적는다)',
                  deliv='src/cobot_common/cobot_common/bootstrap.py, config.py, __init__.py, 빈 motion.py·force.py·weigh.py, package.xml·setup.py',
                  note='🚨 9/19 오전 최우선 — V-20·FLOW-01·런치·모든 rig 스크립트가 기다린다 · 빈 파일 3개를 같이 올려 S·P·M 이 자기 파일만 채우게 한다'),
- 'INF-02b': dict(deliv='src/cobot_common/cobot_common/force.py', note='F1-02(9/20 오전)가 contact_down 을 기다린다 · Virtual에는 힘이 없으므로 호출 순서만, 값은 V-03 · 자기 파일(force.py)만 고친다'),
- 'INF-02c': dict(task='cobot_common.weigh(n, reset=False)(저수준 측정) — V-02 측정 도구에서 이식 (reset 은 선택 동작·응답 상한 3 s·실패 시 반복 금지, TS-03)',
+ 'INF-02b': dict(task='cobot_common 3/4 · force.py — 힘 함수 force_on/off·force_reached·contact_down·periodic_search·safe_retreat + 패키지 정리·리뷰(네 사람이 나눠 쓴 함수의 일관성)',
+                 deliv='src/cobot_common/cobot_common/force.py', note='F1-02(9/20 오전)가 contact_down 을 기다린다 · Virtual에는 힘이 없으므로 호출 순서만, 값은 V-03 · 자기 파일(force.py)만 고친다 · 이동이 필요한 곳(safe_retreat 등)은 motion.py 가 나오기 전까지 임시 stub'),
+ 'INF-02c': dict(task='cobot_common 4/4 · weigh.py — weigh(n, reset=False) 저수준 측정 · V-02 측정 도구에서 이식 (reset 은 선택 동작·응답 상한 3 s·실패 시 반복 금지, TS-03)',
                  deliv='src/cobot_common/cobot_common/weigh.py', note='R · V-02 와 한 세션 · f2.weigh(F2-01)가 이걸 불러 판정한다'),
  'INF-04': dict(task='config 골격 — params.yaml(f1·f2·f3·flow·hmi 절) + cell.yaml 키 골격만(값·파일 주인은 한석형) + prewash_bringup 런치 2종(flow_node 1개 실행 · use_mock 인자)',
                 note='오전은 INF-02a 하나만 → 오후로 · cell.yaml 에 티칭 값이 이미 있으면 건드리지 않는다 · 기동 확인은 V-20 에서', slots=S('9/19 오후')),
@@ -70,7 +71,8 @@ EDIT = {
  'WRAP-01': dict(deliv='정리 체크', crit='로봇 설정 초기화 · 자리 원상 복구'),
 }
 # 팀(구역) 이동: id → (새 팀, 이 ID 행 바로 뒤에 둔다)
-MOVE = {'V-23': ('F1', 'V-05'), 'V-04': ('F1', 'V-15'), 'V-16': ('F2·flow', 'V-07'), 'V-24': ('F4', 'F4-03'), 'SAFE-01': ('전원', 'NOTE-01'), 'V-21': ('전원', 'TS-01')}
+MOVE = {'INF-02': ('전원', 'INF-02a'), 'INF-02b': ('전원', 'INF-02'),      # cobot_common 네 행은 한곳에: 02a(선행) → 02 → 02b → 02c
+        'V-23': ('F1', 'V-05'), 'V-04': ('F1', 'V-15'), 'V-16': ('F2·flow', 'V-07'), 'V-24': ('F4', 'F4-03'), 'SAFE-01': ('전원', 'NOTE-01'), 'V-21': ('전원', 'TS-01')}
 DELETE = ['INT-13p']                                    # INT-13 P(S) 와 같은 일
 EASY = {
  'INF-02': '공용 로봇 함수 중 기본 이동·그리퍼(move_to·move_rel·grip·grip_level·release)를 내 파일 motion.py 에 만든다. 내가 검증(V-01·V-23)하면서 쓰는 바로 그 동작이다. 다른 사람들이 이걸 가져다 쓴다',
@@ -107,7 +109,7 @@ RULES = {       # B 열 글자 → C 열 새 글
  '이 파일(구글 드라이브)': '일정표 정본은 구글 공유 드라이브의 이 xlsx. 테스트 기준(TC·INT·V)은 저장소 docs/03_설계_SDD.md §9. 완료 행은 Time Line 에 남기고 완료 목록 시트에 복사된다(패치가 자동으로 채운다)',
 }
 NEW_RULES = [
- ('담당 표기', 'A(B) · A,B', 'A(B) = A 가 주도하고 B 는 참여. A,B = 같은 이름의 작업을 각자 자기 몫만 따로 한다(예 PKG-01). 한 가지 일을 둘이 같이 할 때는 반드시 주도(참여)로 적어 주인을 한 명으로 한다. 팀(구역)은 주도자의 기능을 따른다'),
+ ('담당 표기', 'A(B) · A,B', 'A(B) = A 가 주도하고 B 는 참여. A,B = 같은 이름의 작업을 각자 자기 몫만 따로 한다(예 PKG-01). 한 가지 일을 둘이 같이 할 때는 반드시 주도(참여)로 적어 주인을 한 명으로 한다. 팀(구역)은 주도자의 기능을 따른다. 단 공용 패키지(cobot_common·config·런치·mock) 작업은 주도자와 상관없이 전원 구역의 "계약"에 모은다'),
  ('공용 파일', 'cobot_common · config', 'cobot_common 은 사람별 파일: bootstrap.py·config.py·__init__.py = H / motion.py = S / force.py = P / weigh.py = M (부르는 쪽은 그대로 cc.함수()). config/cell.yaml 은 한석형 혼자, params.yaml 은 자기 절만'),
 ]
 HISTORY = ['4.3', '점검', 'V-04·15·16·20·22·23·24, ENV-03, CELL-04, INT-4b, INT-13p(삭제), INF-02·02a·02b·02c·03·04, F1-01, F2-01, F3-02·03, V-10, F4-01·03, UT-F1·FLOW, CR-01, 마일스톤·로봇 슬롯·규칙·완료 목록·할일',
@@ -115,6 +117,10 @@ HISTORY = ['4.3', '점검', 'V-04·15·16·20·22·23·24, ENV-03, CELL-04, INT-
            '부하·로봇: INF-04→9/19 오후, INF-03→저녁, V-22→9/20 오전(티칭 2차 안), V-16→9/20 오전, F4-01→9/20 오전, F3-03 2칸(9/20 저녁~), ENV-03→9/21 저녁, UT-F1·UT-FLOW·CR-01→9/22 오전. '
            'G2 조건에서 UT-F4 분리. 강사 일정 표 9/21~23 복구, 완료 행 진행 1.0, DOC-01a/b·DSN-01b',
            '9/19 PM 점검: 같은 일에 주인이 둘·같은 파일을 세 사람이 수정·선행 작업보다 앞선 검증(V-22)·한 칸 5~7건·9/21 저녁 로봇 3명', 'S,M,P,H']
+
+
+HISTORY2 = ['4.4', '점검', 'INF-02·02a·02b·02c', 'cobot_common 네 행을 전원 구역 "계약"에 선행 순서로 모음(02a bootstrap → 02 motion → 02b force → 02c weigh). INF-02b 가 F3 구역에 떨어져 있어 전원 구역에서는 a·c 만 보였다. 제목에 1/4~4/4 와 파일 이름. 공용 패키지 작업은 전원 구역에 둔다는 규칙 추가',
+            '팀원 보고: cobot_common 일정이 흩어져 있고 순서가 선행 관계와 반대', 'S,M,P,H']
 
 
 def main(out):
@@ -159,6 +165,8 @@ def main(out):
     for tid, (team, after) in MOVE.items():
         src = tl.find(ID, tid); dst = tl.find(ID, after)
         if src != dst + 1:
+            if tl.text(tl.rows[src], 'A').strip():             # 구역 첫 행이면 구역 이름표를 다음 행에 넘긴다
+                tl.rows[src + 1].cells['A'] = list(tl.rows[src].cells['A'])
             tl.move(src, dst + 1)
         r = tl.rows[tl.find(ID, tid)]; up = tl.rows[tl.find(ID, after)]
         a_style = up.style('A') if not tl.text(up, 'A').strip() else tl.rows[tl.find(ID, after) + 2].style('A')   # 구역 첫 행(글자 있는 칸)의 서식은 쓰지 않는다
@@ -188,18 +196,21 @@ def main(out):
     for r in ru.rows:
         key = ru.text(r, 'B').strip()
         if key in RULES and ru.text(r, 'A').strip() in ('마감', '정본'): r.set('C', RULES[key])
-    ru.rows[0].set('A', '운영 규칙 (PreWash-Cell 일정표 v4.3)')
+    ru.rows[0].set('A', '운영 규칙 (PreWash-Cell 일정표 v4.4)')
     for rule in NEW_RULES:
-        if not has(ru, 'A', rule[0]):
+        if has(ru, 'A', rule[0]):
+            ru.rows[ru.find('A', rule[0])].set('C', rule[2])
+        else:
             k = ru.first_empty(); n = ru.rows[k - 1].clone()
             for c, v in zip('ABC', rule): n.set(c, v)
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    if not has(h, 'A', HISTORY[0]):
-        k = h.first_empty(); n = h.rows[k - 1].clone()
-        for c, v in zip('ABCDEF', HISTORY): n.set(c, v)
-        h.rows[k] = n
+    for hist in (HISTORY, HISTORY2):
+        if not has(h, 'A', hist[0]):
+            k = h.first_empty(); n = h.rows[k - 1].clone()
+            for c, v in zip('ABCDEF', hist): n.set(c, v)
+            h.rows[k] = n
     # 8) 고친 Time Line 을 다시 읽어 완료 목록·할일 시트를 채운다
     tmp = os.path.join(tempfile.mkdtemp(), 'stage.xlsx'); b.save(tmp)
     rows, det = timeline(load(tmp))
@@ -241,4 +252,4 @@ def report(rows):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1] if len(sys.argv) > 1 else 'prewash_일정표_0919b.xlsx')
+    main(sys.argv[1] if len(sys.argv) > 1 else 'prewash_일정표_0919c.xlsx')
