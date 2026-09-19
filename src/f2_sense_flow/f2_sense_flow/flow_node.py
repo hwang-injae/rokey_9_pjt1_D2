@@ -30,7 +30,7 @@ from cobot_common import config as cc_config
 from cobot_msgs.msg import FlowEvent, FlowState
 from std_srvs.srv import Trigger
 
-from f2_sense_flow.flow import Flow, Signals
+from f2_sense_flow.flow import Flow, Signals, load_features
 
 FEATURES = ('f1', 'f2', 'f3')
 
@@ -107,7 +107,9 @@ def main():
         node = cc.io_node()
         log = node.get_logger()
         sig = Signals()
-        flow = Flow(cc.cfg(), log, safe_retreat=cc.safe_retreat)
+        log.info('기능 모듈:')
+        features = load_features(use_mock, log)      # 진짜/가짜 선택 (IRD §10)
+        flow = Flow(cc.cfg(), log, safe_retreat=cc.safe_retreat, features=features)
         io = Io(node, flow, sig)
         flow._publish_event = io.publish_event       # 두뇌 → 배선 (두뇌는 ROS 를 모른다)
 

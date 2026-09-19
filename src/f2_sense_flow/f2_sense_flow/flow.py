@@ -29,6 +29,42 @@ _RETRY_RE = re.compile(r'^retry:(\d+)->isolate$')   # "retry:1->isolate" (SDD §
 
 _POLL_S = 0.05                   # 깃발을 들여다보는 간격
 
+# process_one 의 결과 — run_plan 이 다음에 뭘 할지
+GO_ON = 'go_on'                  # 이 구역의 다음 용기로
+SKIP_ZONE = 'skip_zone'          # 이 구역은 그만, 다음 구역으로 (EMPTY_ZONE)
+HALT = 'halt'                    # 전부 중단 (Ctrl+C 등)
+
+# 기능 이름 → (진짜 모듈 경로, 가짜 모듈 경로)
+_MODULES = {
+    'f1': ('f1_handling.handling', 'f2_sense_flow.mock.mock_f1'),
+    'f2': ('f2_sense_flow.sense', 'f2_sense_flow.mock.mock_f2'),
+    'f3': ('f3_wipe.wipe', 'f2_sense_flow.mock.mock_f3'),
+}
+
+
+def load_features(use_mock, log=None):
+    """use_mock 에 있는 기능은 가짜 모듈을, 나머지는 진짜 모듈을 쓴다 (IRD §10).
+
+    진짜 패키지가 아직 없으면 무엇을 해야 하는지 알려 주고 멈춘다 —
+    알 수 없는 ImportError 로 끝나지 않게 한다.
+    """
+    import importlib
+    mods = {}
+    for name, (real, fake) in _MODULES.items():
+        path = fake if name in use_mock else real
+        try:
+            mods[name] = importlib.import_module(path)
+        except ModuleNotFoundError as e:
+            if name in use_mock:
+                raise
+            raise RuntimeError(
+                f'{name} 의 진짜 모듈 {path} 이 없다 ({e.name}). '
+                f'아직 안 만들어졌으면 params.yaml 의 flow.use_mock 에 "{name}" 을 넣거나 '
+                f'런치 인자 use_mock 에 넣는다.') from e
+        if log:
+            log.info(f'  {name} → {path}{" (가짜)" if name in use_mock else ""}')
+    return mods
+
 
 class Signals:
     """HMI 버튼이 세우는 깃발. 통신 스레드가 세우고 메인 스레드가 읽는다.
@@ -66,8 +102,9 @@ class Signals:
 class Flow:
     """상태 + 구역 계획 + 실패 정책."""
 
-    def __init__(self, cfg, log, publish_event=None, safe_retreat=None):
+    def __init__(self, cfg, log, publish_event=None, safe_retreat=None, features=None):
         self.cfg = (cfg or {}).get('flow', {})
+        self.f = features or {}                  # {'f1': 모듈, 'f2': 모듈, 'f3': 모듈}
         self.log = log
         self._publish_event = publish_event or (lambda ev: None)
         self._safe_retreat = safe_retreat or (lambda: None)
@@ -82,6 +119,7 @@ class Flow:
         self.zone_id = ''
         self.last_code = OK
         self.message = ''
+        self.rack_slot = ''                      # 이번 용기가 들어간 팔레트 칸
         self.done_bowl = 0
         self.done_cup = 0
         self.isolated = 0
@@ -184,10 +222,12 @@ class Flow:
                 if sig.peek('stop'):
                     self.log.info('stop 요청 — 정지')
                     self.to_paused('stop 버튼')
-                    if not self.wait_resume(sig):
-                        return
-                if not self.process_one(sig):
+                    self.wait_resume(sig)
+                outcome = self.process_one(sig)
+                if outcome == HALT:
                     return
+                if outcome == SKIP_ZONE:        # 구역이 비었다 → 남은 count 를 버리고 다음 구역
+                    break
         self.step, self.kind, self.zone_id = 'DONE', '', ''
         self.log.info(f'plan 완료 — 그릇 {self.done_bowl} · 컵 {self.done_cup} · 격리 {self.isolated}')
         self.step = 'IDLE'
@@ -195,55 +235,94 @@ class Flow:
     def process_one(self, sig):
         """용기 1개 처리. 계속하려면 True.
 
-        🚧 STEP 4(INF-03 mock 이후)에 IRD §8 의 전체 순서로 채운다:
-             f1.pick → f1.move_to(WEIGH) → f2.leftover_loop → f1.place(안착)
-             → f1.tool(PICK) → f3.soap → f3.wipe_* → f1.tool(RETURN)
-             → f1.pick(BED) → f2.dip → f2.shake → f1.rack_place → f1.move_to(HOME)
-           지금은 내 F2 함수만 부른다 (f1·f3 가 아직 없다).
+        순서는 IRD §8. 모듈은 use_mock 에 따라 진짜/가짜가 들어와 있다(load_features).
         """
-        from f2_sense_flow import sense as f2                 # 늦은 import — 시험에서 갈아끼우기 쉽다
+        f1, f2, f3 = self.f.get('f1'), self.f.get('f2'), self.f.get('f3')
+        bed = 'SPONGE_BED_B' if self.kind == 'BOWL' else 'SPONGE_BED_C'
+        tool_id = 'SPONGE' if self.kind == 'BOWL' else 'BRUSH'
+        wipe = f3.wipe_bowl if self.kind == 'BOWL' else f3.wipe_cup
+        rounds = self.cfg.get('leftover_max_rounds') or 2
+        self.rack_slot = self._next_slot()
 
-        self.step = 'WEIGH'
-        if not self.call(f2.weigh, self.kind).ok:
-            return self.handle_failure(sig)
-        self.pause_between()
-
-        self.step = 'SHAKE'
-        if not self.call(f2.shake, 'WASTE', 1, self.kind).ok:
-            return self.handle_failure(sig)
-        self.pause_between()
+        # (단계, 부를 함수, 인자)
+        steps = [
+            ('PICK', f1.pick, (self.zone_id, self.kind)),
+            ('WEIGH', f1.move_to, ('WEIGH', True)),
+            ('WEIGH', f2.leftover_loop, (self.kind, rounds)),
+            ('SEAT', f1.place, (bed,)),
+            ('SOAP', f1.tool, (tool_id, 'PICK')),
+            ('SOAP', f3.soap, (self.cfg.get('soap_dips_per_item', 3),)),
+            ('WIPE', wipe, ()),
+            ('WIPE', f1.tool, (tool_id, 'RETURN')),
+            ('RINSE', f1.pick, (bed, self.kind)),
+            ('RINSE', f2.dip, ('RINSE', 1, self.kind)),
+            ('RINSE', f2.shake, ('RINSE', 3, self.kind)),
+            ('RACK', f1.rack_place, (self.rack_slot, self.kind)),
+            ('RACK', f1.move_to, ('HOME', False)),
+        ]
+        for step, fn, args in steps:
+            self.step = step
+            r = self.call(fn, *args)
+            if not r.ok:
+                action, retries = self.policy_for(r.code)
+                # retry:N->isolate — 후퇴한 뒤 같은 동작을 N 번까지 다시 해 본다
+                for i in range(retries):
+                    self.log.info(f'{step} 재시도 {i + 1}/{retries} (코드 {r.code})')
+                    self._safe_retreat()
+                    r = self.call(fn, *args)
+                    if r.ok:
+                        break
+                if not r.ok:
+                    return self.handle_failure(sig, action)
+            self.pause_between()
 
         if self.kind == 'BOWL':
             self.done_bowl += 1
         else:
             self.done_cup += 1
+        self.sponge_uses += 1
+        self.rinse_dips += 1
         self.emit_event('DONE')
-        return True
+        return GO_ON
 
-    def handle_failure(self, sig):
-        """실패 코드를 정책대로 처리. 계속하려면 True."""
-        action, _retries = self.policy_for(self.last_code)   # 재시도 횟수는 STEP 4 에서 쓴다
+    def _next_slot(self):
+        """팔레트 칸 배정 — rack_order 순서대로. 다 차면 마지막 칸(실제 판정은 F1 이 RACK_FULL)."""
+        order = (self.cfg.get('rack_order') or {}).get(self.kind) or []
+        done = self.done_bowl if self.kind == 'BOWL' else self.done_cup
+        return order[done] if done < len(order) else (order[-1] if order else '')
+
+    def handle_failure(self, sig, action=None):
+        """실패를 정책대로 마무리한다 (재시도는 process_one 이 이미 끝냈다).
+
+        돌려주는 값: GO_ON(다음 용기) · SKIP_ZONE(이 구역 그만) · HALT(중단)
+        """
+        if action is None:
+            action, _ = self.policy_for(self.last_code)
+
         if action == PAUSE:
             self.to_paused(f'코드 {self.last_code}')
-            return self.wait_resume(sig)
-        if action == ISOLATE:
-            self.step = 'ISOLATE'
-            self.isolated += 1
-            self.emit_event('ISOLATED')
-            return True
-        if action == NEXT_ZONE:
+            return GO_ON if self.wait_resume(sig) else HALT
+
+        if action == NEXT_ZONE:                 # 구역이 비었다 — 남은 count 도 의미 없다
             self.emit_event('SKIPPED')
-            return True                                       # 🚧 STEP 4: 남은 count 를 건너뛴다
-        # RETRY 는 부르는 쪽에서 N회 재시도한 뒤 여기로 온다 (STEP 4)
+            return SKIP_ZONE
+
+        # ISOLATE, 그리고 재시도를 다 쓴 RETRY
         self.step = 'ISOLATE'
         self.isolated += 1
         self.emit_event('ISOLATED')
-        return True
+        return GO_ON
 
     def pause_between(self):
         if self.step_delay_s:
             time.sleep(self.step_delay_s)
 
     def emit_event(self, result):
+        """용기 1개가 끝날 때마다 1건 (IRD §7 FlowEvent).
+
+        🚧 attempts·weight_*_g·duration_s·force_log_path 는 FLOW-02(기록)에서 채운다 —
+           각 단계의 Result 를 모아야 해서 여기 구조가 좀 더 필요하다.
+        """
         self._publish_event(dict(kind=self.kind, zone_id=self.zone_id,
+                                 rack_slot=self.rack_slot if result == 'DONE' else '',
                                  result=result, code=self.last_code))
