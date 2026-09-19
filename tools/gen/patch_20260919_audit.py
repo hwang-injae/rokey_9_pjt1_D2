@@ -47,6 +47,8 @@ EDIT = {
  'V-16': dict(owner='M(S)', note='R · F2-01 shake 의 첫 단계로(V-07 과 한 세션) · 찾은 HOLD 값은 한석형이 cell.yaml 프리셋에 반영', slots=S('9/20 오전')),
  'V-15': dict(owner='S(P)', note='R · 티칭 2차·기구 고정 뒤 · F1-05 의 첫 단계로'),
  'V-04': dict(owner='S(P)', note='R · 티칭 2차·기구 고정 뒤 · F1-05 의 첫 단계로 · periodic_search(INF-02b)는 박진용이 제공·참여'),
+ 'V-05': dict(task='V-05 그리퍼 드라이버 연결 확인 — /onrobot/sendCommand 응답 + 현재 폭을 읽을 경로 확정 (강사 배포 드라이버는 OnRobotRGInput 토픽을 발행하지 않는다 → /onrobot_joint_states 관절각을 폭으로 환산 등. DO/DI 배선 방식은 예비)',
+              crit='명령 → 동작 → 폭 값(mm)이 코드에서 읽힘', note='R · V-01 과 한 세션 · 🚨 9/19 확인: 드라이버가 내는 것은 JointState 뿐 → 폭 경로를 여기서 정해 INF-02 grip 에 반영, 결과는 DSN-03 에서 공유(IRD·SDD 수정)'),
  'V-24': dict(owner='H', task='V-24 (선택) 동작 중 소프트 정지·타임아웃 — 비동기 이동(amovej/amovel) + check_motion 폴링 + motion/move_stop 서비스(DSR_ROBOT2 에 stop 함수 없음). shutdown() 의 정지 명령이 모션 중에 먹는지도 확인. 메인 스레드에서만(Virtual)',
               note='선택 과제(시간 남을 때만): 안 되면 정지는 기능 함수 사이로만, 움직이는 중 Ctrl+C 는 "브링업 재시작 필요" 로그(현재 기본) · 급한 정지는 E-Stop'),
  'INT-4b': dict(owner='M(P)'),
@@ -128,8 +130,8 @@ HISTORY = ['4.3', '점검', 'V-04·15·16·20·22·23·24, ENV-03, CELL-04, INT-
 HISTORY2 = ['4.4', '점검', 'INF-02·02a·02b·02c', 'cobot_common 네 행을 전원 구역 "계약"에 선행 순서로 모음(02a bootstrap → 02 motion → 02b force → 02c weigh). INF-02b 가 F3 구역에 떨어져 있어 전원 구역에서는 a·c 만 보였다. 제목에 1/4~4/4 와 파일 이름. 공용 패키지 작업은 전원 구역에 둔다는 규칙 추가',
             '팀원 보고: cobot_common 일정이 흩어져 있고 순서가 선행 관계와 반대', 'S,M,P,H']
 
-HISTORY3 = ['4.5', '안전·기준', 'ENV-04, INF-02a, V-20, V-24, DSN-03, 규칙', '🚨 도메인 격리: 기본은 개인 도메인(61~64) + LOCALHOST, 팀 도메인 60 은 PC 여러 대 통합 때만(team60 → solo). ENV-04 에 .bashrc 격리 설정 추가. '
-            'Ctrl+C 는 cobot_common.init() 이 단독 처리, flow_node·rig 는 try/finally 만. INF-02a·V-20 기준을 "멈춰 있을 때 Ctrl+C"로, 움직이는 중 정지(move_stop)는 V-24 로. INF-02a 의 세 파일은 함수 이름만 있는 뼈대',
+HISTORY3 = ['4.5', '안전·기준', 'ENV-04, INF-02a, V-05, V-20, V-24, DSN-03, 규칙', '🚨 도메인 격리: 기본은 개인 도메인(61~64) + LOCALHOST, 팀 도메인 60 은 PC 여러 대 통합 때만(team60 → solo). ENV-04 에 .bashrc 격리 설정 추가. '
+            'Ctrl+C 는 cobot_common.init() 이 단독 처리, flow_node·rig 는 try/finally 만. INF-02a·V-20 기준을 "멈춰 있을 때 Ctrl+C"로, 움직이는 중 정지(move_stop)는 V-24 로. INF-02a 의 세 파일은 함수 이름만 있는 뼈대. V-05: 그리퍼 드라이버가 OnRobotRGInput 을 발행하지 않으므로 현재 폭을 읽을 경로를 V-05 에서 확정',
             'F4 점검 보고(9/19): 모든 PC 가 도메인 60·서비스 이름 /dsr01 공통 → 시험 명령이 남의 Virtual·실기에 전달될 수 있음. DSR_ROBOT2 에 정지 함수 없음, rclpy 기본 SIGINT 가 컨텍스트를 먼저 닫음', 'S,M,P,H']
 
 
