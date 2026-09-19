@@ -1,0 +1,17 @@
+# rig_force.py 시험 값 — Virtual 전용. 힘 함수의 호출 순서만 보는 값이라 cell.yaml 에 넣지 않는다.
+rounds: 3                         # 같은 순서를 몇 바퀴 (3 이상 — TS-01 B′ "첫 번째만 되는" 결함)
+start_posj: [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]   # 시작 자세 (deg) — 두산 기본 HOME
+start_vel_deg_s: 30
+start_acc_deg_s2: 30
+approach_down_mm: 130.0           # 시작 자세에서 작업 높이까지 한 번에 내려가는 거리 (= 이 시험의 safe_z 높이)
+approach_vel_mm_s: 50.0
+approach_acc_mm_s2: 100.0
+contact_max_depth_mm: 20.0        # contact_down 최대 깊이 (Virtual 은 힘이 없어 여기까지 내려간다)
+contact_limit_n: 5.0              # 접촉 판정 힘
+force_target_n: 4.0               # force_on 목표 (FR-08 3~5 N)
+force_limit_n: 10.0               # force_on 상한 (NFR-01 닦기 10 N)
+force_hold_s: 1.0                 # 힘제어를 켠 채 기다리는 시간
+search_amp_mm: 3.0                # periodic_search 진폭
+search_period_s: 0.8
+search_duration_s: 3.2
+depth_tol_mm: 1.0                 # 도착 판정 허용 오차
