@@ -31,6 +31,8 @@ EDIT = {
                  deliv='src/cobot_common/cobot_common/force.py', note='F1-02(9/20 오전)가 contact_down 을 기다린다 · Virtual에는 힘이 없으므로 호출 순서만, 값은 V-03 · 자기 파일(force.py)만 고친다 · 이동이 필요한 곳(safe_retreat 등)은 motion.py 가 나오기 전까지 임시 stub'),
  'INF-02c': dict(task='cobot_common 4/4 · weigh.py — weigh(n, reset=False) 저수준 측정 · V-02 측정 도구에서 이식 (reset 은 선택 동작·응답 상한 3 s·실패 시 반복 금지, TS-03)',
                  deliv='src/cobot_common/cobot_common/weigh.py', note='R · V-02 와 한 세션 · f2.weigh(F2-01)가 이걸 불러 판정한다'),
+ 'PKG-01': dict(note='V-20 의 재료 · cobot_common 없이도 작성 가능 · 30분 · ✅ F3(박진용) PR #4 merge(9/19) · F1(한석형)·F2(민범진) 남음'),
+ 'CELL-02a': dict(note='로봇 불필요 · ✅ 용기·툴 실측 기록 docs/test_logs/20260918_CELL-02a_용기치수측정.md (PR #4) — 그릇 외경 114 mm > RG2 최대 폭 110 mm(테두리 파지) · 수세미 중심 이동 한계 10 mm → DSN-03 안건 · 남은 것: 홈 커팅 도면·툴 홀더 위치'),
  'INF-04': dict(task='config 골격 — params.yaml(f1·f2·f3·flow·hmi 절) + cell.yaml 키 골격만(값·파일 주인은 한석형) + prewash_bringup 런치 2종(flow_node 1개 실행 · use_mock 인자)',
                 note='오전은 INF-02a 하나만 → 오후로 · cell.yaml 에 티칭 값이 이미 있으면 건드리지 않는다 · 기동 확인은 V-20 에서', slots=S('9/19 오후')),
  'INF-03': dict(note='로봇 없이 flow 개발 · 오전은 FLOW-01 메인 뼈대 먼저, mock 은 저녁', slots=S('9/19 저녁')),
@@ -70,7 +72,7 @@ EDIT = {
  'V-02': dict(task='V-02 하중 측정 정밀도 — 100/200 g 추 10회'),
  'TS-01': dict(task='TS-01 두산 API 초기화 누락·서비스 콜백 안 로봇 명령 교착 — 원인·재현·구조 5종 Virtual 비교 → 구조 변경으로 종결(DSN-02b)'),
  'DSN-03': dict(task='2차 회의 — 반납 구역 방식(V-01 결과)·HMI 설계(F4-00)·실패 코드·정책·YAML 키 규칙 + 구조 변경 후속(모니터·기록 노드 추가 여부, /cell/force·/cell/grip_width 토픽, V-20 결과, '
-                     '공용 함수 분담·사람별 파일 확인) + 9/21 저녁 로봇 순서(S·P·M) + 격리 규칙(LOCALHOST)·Ctrl+C 주인(결정 기록 S1~S4) 확인',
+                     '공용 함수 분담·사람별 파일 확인) + 9/21 저녁 로봇 순서(S·P·M) + 격리 규칙(LOCALHOST)·Ctrl+C 주인(결정 기록 S1~S4) 확인 + 그릇 파지 방식(외경 114 mm > RG2 110 mm, CELL-02a 실측)·정지 방식 DR_QSTOP 확인',
                 deliv='docs/meetings/20260919_결정기록_DSN-03.md'),
  'DOC-05': dict(deliv='docs v3.x, 노션'),
  'BRF': dict(deliv='노션 진행률 · 당일 로봇 순서'),
@@ -78,7 +80,9 @@ EDIT = {
  'WRAP-01': dict(deliv='정리 체크', crit='로봇 설정 초기화 · 자리 원상 복구'),
 }
 # 상태 갱신: id → (상태, 진행)
-STATUS = {'INF-02a': ('완료', '1.0')}     # PR #3 merge (9/19 12:22)
+STATUS = {'INF-02a': ('완료', '1.0'),      # PR #3 merge (9/19 12:22)
+          'PKG-01': ('진행 중', '0.33'),    # F3 골격 PR #4 merge (9/19 12:39) · F1·F2 남음
+          'CELL-02a': ('진행 중', '0.5')}   # 용기·툴 실측 기록 merge(PR #4) · 홈 도면·홀더 위치 남음
 # 팀(구역) 이동: id → (새 팀, 이 ID 행 바로 뒤에 둔다)
 MOVE = {'INF-02': ('전원', 'INF-02a'), 'INF-02b': ('전원', 'INF-02'),      # cobot_common 네 행은 한곳에: 02a(선행) → 02 → 02b → 02c
         'V-23': ('F1', 'V-05'), 'V-04': ('F1', 'V-15'), 'V-16': ('F2·flow', 'V-07'), 'V-24': ('F4', 'F4-03'), 'SAFE-01': ('전원', 'NOTE-01'), 'V-21': ('전원', 'TS-01')}
@@ -147,6 +151,9 @@ HISTORY5 = ['4.7', 'PR 흐름', '규칙(개발 흐름)', 'PR 승인 방식 변�
 
 HISTORY6 = ['4.8', '진행·PR', 'INF-02a, 규칙(개발 흐름)', 'INF-02a 완료(PR #3 merge, 9/19 12:22): cobot_common 실행 뼈대 + 사람별 뼈대 파일 → S·P·M 이 자기 파일을 채울 수 있다. PR 검토는 PM 에이전트가 직접 승인·merge 또는 거절(황인재 위임)',
             'PR #3 검토·merge · 황인재 지시(개인 브랜치 → main PR 은 PM 에이전트가 검토 후 승인/거절)', 'S,M,P,H']
+
+HISTORY7 = ['4.9', '진행', 'PKG-01, CELL-02a, DSN-03', 'PKG-01 F3 골격(PR #4) merge → 진행 중 1/3 · CELL-02a 실측 기록 merge → 진행 중. DSN-03 안건에 그릇 파지 방식(외경 114 mm > RG2 최대 폭 110 mm)·정지 방식 DR_QSTOP 추가',
+            'PR #4 검토·merge (박진용)', 'S,P,H']
 
 
 def main(out):
@@ -226,7 +233,7 @@ def main(out):
         if key in RULES and ru.text(r, 'A').strip() in ('마감', '정본'): r.set('C', RULES[key])
     for r in ru.rows:
         if ru.text(r, 'A').strip() in RULES_A: r.set('C', RULES_A[ru.text(r, 'A').strip()])
-    ru.rows[0].set('A', '운영 규칙 (PreWash-Cell 일정표 v4.8)')
+    ru.rows[0].set('A', '운영 규칙 (PreWash-Cell 일정표 v4.9)')
     if has(ru, 'A', '🚨 도메인'):                          # v4.5 의 규칙 이름(개인 도메인 번호 방식) → v4.6 에서 '🚨 격리'(LOCALHOST 한 줄)로
         ru.rows[ru.find('A', '🚨 도메인')].set('A', '🚨 격리')
     for rule in NEW_RULES:
@@ -238,7 +245,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
@@ -284,4 +291,4 @@ def report(rows):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1] if len(sys.argv) > 1 else 'prewash_일정표_0919g.xlsx')
+    main(sys.argv[1] if len(sys.argv) > 1 else 'prewash_일정표_0919h.xlsx')
