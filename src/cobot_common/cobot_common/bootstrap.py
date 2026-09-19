@@ -35,7 +35,7 @@ _STOP_MODE = 1                      # DR_QSTOP(Stop Category 2). 안전 담당(�
 _DRIVER_WAIT_S = 10.0               # 브링업 대기 상한
 _STOP_WAIT_S = 2.0                  # 정지 명령 응답 상한
 _JOIN_WAIT_S = 2.0                  # 통신 노드 스레드 종료 대기 상한
-_IO_MODULES = ('motion', 'force', 'weigh')   # setup_io(node) 가 있으면 init 이 불러 준다
+_IO_MODULES = ('motion', 'gripper', 'force', 'weigh')   # setup_io(node) 가 있으면 init 이 불러 준다
 
 _lock = threading.Lock()
 _started = False
@@ -189,7 +189,7 @@ def _init_dsr(name):
 
 
 def _call_setup_io(node):
-    """사람별 파일이 통신 노드에 구독·클라이언트를 달 자리. 예: motion.py 의 setup_io(node) 가 그리퍼 폭을 구독한다."""
+    """사람별 파일이 통신 노드에 구독·클라이언트를 달 자리. 예: gripper.py 의 setup_io(node) 가 그리퍼 폭을 구독한다."""
     import importlib
     for mod_name in _IO_MODULES:
         mod = importlib.import_module(f'{__package__}.{mod_name}')
