@@ -114,8 +114,14 @@ class Run:
         lx, ly = f[0] - self.fx0, f[1] - self.fy0
         lateral = math.hypot(lx, ly)
         radial = abs(lx * self.x / r + ly * self.y / r) if r > 1e-6 else 0.0
+        now = self.d.get_current_posx(ref=self.d.DR_BASE)[0]             # 실제 위치 — 명령과 얼마나 벌어지는지(이어 붙이기·순응)
+        ax, ay = float(now[0]) - self.p0[0], float(now[1]) - self.p0[1]
+        # 실제 손목 비틀림: B≈180°(툴이 아래를 봄)에서는 툴 Z 회전이 A − C 로 나타난다 → −Δ(A − C)
+        arz = -((float(now[3]) - float(now[5])) - (self.p0[3] - self.p0[5]) + 180.0) % 360.0 + 180.0
+        arz = (arz + 180.0) % 360.0 - 180.0
         self.rows.append([phase, round(time.monotonic() - self.t0, 3), f[0], f[1], f[2], round(press, 3), p['wipe_target_n'],
-                          round(self.x, 2), round(self.y, 2), round(radial, 3)])
+                          round(self.x, 2), round(self.y, 2), round(radial, 3), round(ax, 2), round(ay, 2),
+                          round(arz, 1), round(self.rz, 1)])
         if press > p['limit_n']:
             raise cc.ForceLimitError(f'{phase}: 누르는 힘 {press:.1f} N > {p["limit_n"]} N')
         if lateral > p['lateral_max_n']:
@@ -198,7 +204,8 @@ class Run:
             f = cc.read_force()
             press = abs(f[2] - self.baseline)
             now = time.monotonic()
-            self.rows.append([phase, round(now - self.t0, 3), f[0], f[1], f[2], round(press, 3), target, '', '', ''])
+            self.rows.append([phase, round(now - self.t0, 3), f[0], f[1], f[2], round(press, 3), target,
+                              '', '', '', '', '', '', ''])
             if now - start >= p['settle_s']:
                 vals.append(press)
             if press > p['limit_n']:
@@ -233,7 +240,8 @@ class Run:
         path = os.path.join(self.p['log_dir'], time.strftime('v03_%Y%m%d_%H%M%S.csv'))
         with open(path, 'w', newline='') as f:
             w = csv.writer(f)
-            w.writerow(['phase', 't', 'fx', 'fy', 'fz', 'press_n', 'target', 'x_mm', 'y_mm', 'radial_n'])
+            w.writerow(['phase', 't', 'fx', 'fy', 'fz', 'press_n', 'target', 'x_mm', 'y_mm', 'radial_n',
+                        'actual_x_mm', 'actual_y_mm', 'actual_rz_deg', 'cmd_rz_deg'])
             w.writerows(self.rows)
         return path
 
