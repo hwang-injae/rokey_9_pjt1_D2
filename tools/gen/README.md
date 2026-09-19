@@ -20,7 +20,7 @@ python3 tools/gen/gen_todo.py ../_upload/prewash_담당별_할일.xlsx
 PM이 구글 시트에서 직접 고친 내용(행 추가·날짜 이동·상태)을 그대로 둔 채 몇 개 셀·행만 바꿀 때 쓴다. 일정표 정본은 구글 시트이고 PM이 직접 고친다. 초기 업로드용 생성기(`gen_sched.py`)는 9/19에 삭제했다 — 일정 변경은 항상 이 방식으로 한다.
 
 ```bash
-python3 tools/gen/patch_20260919_audit.py ../_upload/prewash_일정표_0919j.xlsx   # 최신 (9/19 점검 v4.3~4.11: 주인 하나·팀 구역·사람별 파일·부하·로봇 슬롯·도메인 격리·Ctrl+C 기준, 모든 시트 반영)
+python3 tools/gen/patch_20260919_weekend.py ../_upload/prewash_일정표_0919n.xlsx   # 최신 (9/19 오후 재계획 v5.0: 주말 저녁 없음 · 재분담 · 게이트) → tools/gen/sheet_push.sh 로 올린다
 ```
 
 지금 시트를 내려받아 변경만 얹은 xlsx를 만든다. **올리기(PM PC, 9/19~)**: `tools/gen/sheet_push.sh ../_upload/prewash_일정표_XXXX.xlsx` — rclone(remote `gdrive`, 황인재가 1회 로그인)으로 드라이브의 **같은 파일·같은 주소**에 새 버전으로 올린다. 올리기 전에 정본 ID 확인·현재 시트 백업(`../_upload/backup/`)·"xlsx를 만든 뒤 시트가 바뀌었으면 중단", 올린 뒤에 파일 ID·내용 검증을 한다. 되돌리기는 드라이브의 버전 기록 또는 백업 파일. rclone이 없으면 예전처럼 구글 시트에서 `파일 > 가져오기 > 업로드 > 스프레드시트 바꾸기`. 내려받은 뒤에 시트를 고쳤다면 다시 실행한다. PM이 시트에서 직접 고친 것은 `python3 tools/sched_diff.py`로 본다(지난 확인 뒤로 바뀐 담당·상태·진행·칸). 새 변경은 `patch_날짜_이름.py`를 복사해 만든다(`Book.from_live` → `sheet().find/set/insert` → `save`).
@@ -30,3 +30,5 @@ python3 tools/gen/patch_20260919_audit.py ../_upload/prewash_일정표_0919j.xls
 `patch_20260919_rebalance.py`는 Time Line·상세뿐 아니라 **마일스톤·로봇 슬롯, 규칙, 변경이력, 완료 목록, 할일_* 4장**을 함께 고친다. 일정을 바꿀 때는 이 파일처럼 모든 시트를 한 번에 맞춘다. 끝에 사람별·칸별 부하 표를 찍어 한 칸 4건을 넘지 않는지 확인한다.
 
 `patch_20260919_audit.py`(9/19 점검)는 위 방식에 더해 **행을 다른 팀 구역으로 옮기고(`MOVE`) 중복 행을 지운다(`DELETE`)**. 끝에 사람별·칸별 부하 표를 찍는다(5건 이상 ⚠). `patch_20260919_rebalance.py`는 시트 적용이 끝났다 — 다시 실행하면 이번 점검에서 옮긴 칸이 되돌아가므로 **실행하지 않는다**(예시로만 둔다).
+
+`patch_20260919_weekend.py`(v5.0)가 9/19 오후 이후의 최신 패치다. `patch_20260919_audit.py`(v4.3~4.14)와 `patch_20260919_rebalance.py`는 시트 적용이 끝났다 — **다시 실행하지 않는다**(재계획에서 옮긴 칸·담당이 되돌아간다). 진행 상태는 PM이 시트에서 직접 고치거나 최신 패치의 `EDIT`에 `status`를 넣는다.

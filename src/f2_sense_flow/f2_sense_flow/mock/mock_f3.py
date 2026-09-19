@@ -1,0 +1,27 @@
+# -*- coding: utf-8 -*-
+"""가짜 F3 접촉 닦기 — 실제는 박진용의 f3_wipe.wipe (IRD §5).
+
+이름·인자·반환은 cobot_api.F3Api 그대로. 힘 로그는 만들지 않는다(경로는 빈 문자열).
+"""
+from cobot_api import Result, WipeBowlResult, WipeCupResult
+
+from . import code_for
+
+
+def soap(count: int) -> Result:
+    code = code_for('soap')
+    return Result.fail(code) if code else Result()
+
+
+def wipe_bowl() -> WipeBowlResult:
+    code = code_for('wipe_bowl')
+    if code:
+        return WipeBowlResult.fail(code)
+    return WipeBowlResult(force_log_path='', duration_s=15.0, force_mean_n=4.0)
+
+
+def wipe_cup() -> WipeCupResult:
+    code = code_for('wipe_cup')
+    if code:
+        return WipeCupResult.fail(code)
+    return WipeCupResult(force_log_path='', duration_s=12.0, insert_depth_mm=90.0)

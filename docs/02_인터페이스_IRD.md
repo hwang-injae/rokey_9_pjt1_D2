@@ -27,7 +27,7 @@
 |---|---|---|
 | 용기 종류 `kind` | `BOWL` `CUP` | |
 | 툴 `tool` | `SPONGE`(그릇용 수세미 툴) `BRUSH`(컵용 수세미 솔) | |
-| 반납 구역 `zone_id` | `RET_B` `RET_C` | 공정 입구. 구역 안 위치·겹침 자유 → 탐색 파지 |
+| 반납 구역 `zone_id` | `RET_B` `RET_C` | 공정 입구. **구역마다 고정 슬롯 2개**(트레이에 자리 표시) — 용기는 슬롯에 겹치지 않게 하나씩 놓는다(9/19 결정: 구역 + 탐색 파지 → 고정 슬롯). ID·함수 서명은 그대로 |
 | 팔레트 칸 `rack_slot` | `RACK_B1` `RACK_B2` / `RACK_C1` `RACK_C2` `RACK_C3` `RACK_C4` | 공정 출구. 그릇 2칸·컵 4칸 |
 | 스테이션 `station` | `HOME` `WEIGH` `WASTE` `SPONGE_BED_B` `SPONGE_BED_C` `TOOL_SPONGE` `TOOL_BRUSH` `SOAP` `RINSE` `ISOLATE` | 작업대 위 고정 위치 |
 | 실패 코드 `code` | `OK` `GRIP_FAIL` `EMPTY_ZONE` `LEFTOVER` `LEFTOVER_REMAIN` `SEAT_FAIL` `TOOL_FAIL` `FORCE_LIMIT` `TIMEOUT` `RACK_JAM` `RACK_FULL` `ROBOT_ERROR` `STOPPED` | |
@@ -36,7 +36,7 @@
 ## 3. F1 파지·이송·적재 (IR-01) · 한석형 · 모듈 `f1_handling.handling`
 | 함수 | 인자 | 반환 | 비고 |
 |---|---|---|---|
-| `pick(zone_id, kind)` | `RET_B`/`RET_C`/`SPONGE_BED_*`, `BOWL`/`CUP` | `PickResult`: `ok, code, width_mm, attempts, offset_x_mm, offset_y_mm` | **탐색 파지**: 구역 탐색점 순회 → 힘 감시 하강 → 파지 → 폭 판정. 폭 범위 밖이면 놓고 다음 점. 최대 횟수 초과 → `EMPTY_ZONE`. `SPONGE_BED_*`면 고정 위치 재파지(탐색점 1개) |
+| `pick(zone_id, kind)` | `RET_B`/`RET_C`/`SPONGE_BED_*`, `BOWL`/`CUP` | `PickResult`: `ok, code, width_mm, attempts, offset_x_mm, offset_y_mm` | **고정 슬롯 파지**: 구역의 슬롯을 정해진 순서로 — 슬롯 상공 → 힘 상한 감시 하강 → 파지 → 폭 판정. 폭 범위 밖(빈 슬롯·헛잡음)이면 놓고 다음 슬롯. 슬롯을 다 돌면 `EMPTY_ZONE`. `attempts` = 시도한 슬롯 수, `offset_*` = 집은 슬롯의 오프셋. **그릇은 옆면(벽)을 세로로 파지**, 컵은 옆면 파지. `SPONGE_BED_*`면 고정 위치 재파지(슬롯 1개) |
 | `place(station)` | 스테이션 | `PlaceResult`: `ok, code, offset_mm` | 상공 → 하강 → 놓기 → 후퇴. **항상 놓기(release)까지 한다.** **`SPONGE_BED_B/C`면 안착 놓기**: 쥔 채 순응 하강 → 깊이+힘으로 홈에 들어갔는지 판정 → 안 들어가면 Move Periodic 탐색 → 들어가면 놓기 / 한도 초과 → 들고 후퇴 + `SEAT_FAIL` |
 | `move_to(station, carrying)` | 스테이션, `bool` | `Result` | 안전 높이 경유, 들고 있으면 저속. 안전 자세 복귀 = `move_to('HOME', False)` |
 | `tool(tool, action)` | `SPONGE`/`BRUSH`, `PICK`/`RETURN` | `ToolResult`: `ok, code, width_mm` | 홀더에서 툴 픽업·반납. 폭 범위 밖 → `TOOL_FAIL` |
@@ -103,7 +103,7 @@ builtin_interfaces/Time stamp
 string kind
 string zone_id
 string rack_slot
-uint8 attempts          # 탐색 파지 시도 횟수
+uint8 attempts          # 시도한 슬롯 수 (고정 슬롯 파지)
 float32 weight_before_g
 float32 weight_after_g
 string result           # DONE / ISOLATED / ERROR / SKIPPED

@@ -5,7 +5,8 @@
 
 사람별 파일 — 자기 파일만 고친다 (AGENTS.md §2)
     bootstrap.py · config.py · __init__.py   황인재   init · io_node · cfg · shutdown · config.load
-    motion.py                                한석형   move_to · move_rel · grip · grip_level · release
+    motion.py                                황인재   move_to · move_rel · move_joint_rel
+    gripper.py                               민범진   grip · grip_level · release · grip_width
     weigh.py                                 민범진   weigh
     force.py                                 박진용   force_on/off · force_reached · contact_down · periodic_search · safe_retreat
 
@@ -15,5 +16,6 @@
 from . import config                                          # noqa: F401
 from .bootstrap import cfg, init, io_node, shutdown           # noqa: F401
 from .force import *                                          # noqa: F401,F403
+from .gripper import *                                        # noqa: F401,F403
 from .motion import *                                         # noqa: F401,F403
 from .weigh import *                                          # noqa: F401,F403

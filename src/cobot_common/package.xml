@@ -14,5 +14,6 @@
        init(robot=False) 는 드라이버 없이 돌아야 하므로 여기서 의존으로 걸지 않는다. -->
 
   <test_depend>python3-pytest</test_depend>
+  <test_depend>cobot_api</test_depend>     <!-- test_config.py 가 IRD §2 의 ID 와 대조한다 -->
   <export><build_type>ament_python</build_type></export>
 </package>

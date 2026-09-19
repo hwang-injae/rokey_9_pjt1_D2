@@ -5,8 +5,8 @@ import sys, os, re, zipfile, html
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from livesheet import load, timeline
 
-PEOPLE=[('S','한석형','팀장 · F1 파지·이송·적재 + 좌표 계산·티칭(cell.yaml) + cobot_common 기본 이동·그리퍼(motion.py)'),('M','민범진','F2 무게·털기·헹굼 + flow_node + mock · 통합 실행 리더 + cobot_common weigh(weigh.py)'),
-        ('P','박진용','F3 접촉 닦기 + cobot_common 힘 함수(force.py)·패키지 정리·리뷰 + 안전 파라미터'),('H','황인재','PM · F4 웹 HMI + cobot_api·cobot_msgs·cobot_common bootstrap·런치·일정표·제출')]
+PEOPLE=[('S','한석형','팀장 · F1 파지·이송·적재 + 좌표 계산·티칭(cell.yaml 값) + 실기 검증'),('M','민범진','F2 무게·털기·헹굼 + flow_node + mock · 통합 실행 리더 + cobot_common weigh.py · gripper.py + 그리퍼 검증'),
+        ('P','박진용','F3 접촉 닦기 + cobot_common 힘 함수(force.py)·패키지 정리·리뷰 + 안전 파라미터'),('H','황인재','PM · F4 웹 HMI + cobot_api·cobot_msgs·cobot_common bootstrap·config·motion.py·런치·일정표·제출')]
 DAYORD=['9/18','9/19','9/20','9/21','9/22','9/23','9/24~28','9/29','9/30']; PARTORD=['오전','오후','저녁']
 WD={'9/18':'금','9/19':'토','9/20':'일','9/21':'월 · 오전 강의, 오후 중간점검 발표','9/22':'화','9/23':'수 · 저녁 기능 동결','9/24~28':'추석 · 로봇 없음','9/29':'화 · 14:00 강사 시연','9/30':'수 · 11:00 제출·발표'}
 

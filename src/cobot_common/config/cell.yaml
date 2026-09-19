@@ -15,6 +15,22 @@ cell:
     insert_limit_n:               # 삽입(팔레트·컵 솔) 힘 상한    — NFR-01
     timeout_s:                    # 접촉 동작 공통 타임아웃
 
+  motion:                         # 이동 함수(motion.py) 공용 값 — INF-02. "100 % 기준 속도": 실제 속도 = 기준 × limits.vel_*_pct/100 × 실행 인자 vel_scale
+    vel_tcp_max_mm_s:             # 직선 이동(movel) 100 % 기준 속도.  로봇 사양의 최대가 아니라 **우리 셀에서 허용하는 최대**를 적는다
+    acc_tcp_max_mm_s2:            # 직선 이동 100 % 기준 가속도
+    vel_joint_max_deg_s:          # 관절 이동(movej) 100 % 기준 속도
+    acc_joint_max_deg_s2:         # 관절 이동 100 % 기준 가속도        (Virtual 시험 값: src/cobot_common/test/config_virtual/cell.yaml)
+
+  force:                          # 힘 함수(force.py) 공용 값 — 이슈 #7 ①. 🔔 이 절의 **값은 박진용이 이 절만 PR** 한다(결정 기록 W5, V-03 뒤)
+    compliance_stx:               # 순응 강성 6개 [x, y, z, rx, ry, rz]
+    contact_step_mm:              # contact_down 하강 한 단계
+    contact_vel_mm_s:             # 접촉 하강 속도 (아주 느리게)
+    contact_acc_mm_s2:            # 접촉 하강 가속도
+    retreat_vel_mm_s:             # safe_retreat 후퇴 속도
+    retreat_acc_mm_s2:            # safe_retreat 후퇴 가속도
+    force_max_n:                  # 힘 함수 인자의 절대 상한 (target·limit 은 이 값 이하)
+    search_y_period_ratio:        # periodic_search 의 x:y 주기 비
+
   presets:                        # 종류·툴별 파지. 🟡 그릇은 외경 114 mm > RG2 최대 폭 110 mm 라 지름 방향 파지 불가(CELL-02a §3) → 파지 방식은 DSN-03
     BOWL:
       grip_width_mm:              # 파지 목표 폭
