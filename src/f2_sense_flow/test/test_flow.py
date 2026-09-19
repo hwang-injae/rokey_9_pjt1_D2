@@ -241,3 +241,21 @@ def test_zero_is_a_valid_setting():
 def test_missing_number_uses_default():
     f = Flow({'flow': {}}, FakeLog())
     assert f.done_hold_s == 1.0 and f.step_delay_s == 0.0 and f.rounds == 2
+
+
+def test_bad_state_pub_hz_falls_back():
+    """0·음수면 타이머를 만들 수 없다(1/0) — Io 생성 전에 걸러야 한다."""
+    for bad in (0, -1, '빠르게', None):
+        f = Flow({'flow': {'state_pub_hz': bad}}, FakeLog())
+        assert f.state_pub_hz == 2.0, bad
+    assert Flow({'flow': {'state_pub_hz': 5}}, FakeLog()).state_pub_hz == 5.0
+
+
+def test_guard_survives_broken_logger():
+    """통로 자신이 새면 안 된다 — 로그가 터져도 _guard 는 False 를 돌려준다."""
+    class BrokenLog(FakeLog):
+        def error(self, m):
+            raise RuntimeError('로그도 터진다')
+
+    f = Flow(CFG, BrokenLog())
+    assert f._guard(_boom, what='둘 다 터짐') is False
