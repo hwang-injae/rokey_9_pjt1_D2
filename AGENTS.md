@@ -21,7 +21,7 @@
 | 워크스페이스 | 두산 드라이버 `~/ws_cobot_pjt/ws_dsr`(강사 배포, 수정 금지) 위에 우리 **`rokey_pjt01_ws`**(= 저장소 루트, `docs/` + `src/`). clone 위치는 자유, `.bashrc`에 `PREWASH_WS`로 지정(예 `~/rokey9_pjt1/rokey_pjt01_ws`) |
 | 비전 | 🚨 **사용 불가** — 판단은 파지 폭·하중 측정·툴 힘·위치 |
 | 용기·기구 | 그릇 1규격 **2개** + 컵 1규격 **2개** · 식기세척기용 팔레트 모형 **그릇 2칸·컵 4칸** · 잔반 대용품은 고형물(물·기름 금지) |
-| 일정 | 개발 **9/18(금)~9/23(수)** 주말 로봇 가능 · 9/21(월) 오후 중간점검 발표 · 추석 9/24~28 로봇 불가 · 9/29(화) 14:00 강사 시연 · **9/30(수) 11:00 제출·발표** · **9/23 저녁 기능 동결** |
+| 일정 | 개발 **9/18(금)~9/23(수)** 주말 로봇 가능(🚨 교육장이 **주말 18시에 닫는다 — 주말 저녁 일정 없음**) · 9/21(월) 오후 중간점검 발표 · 추석 9/24~28 로봇 불가 · 9/29(화) 14:00 강사 시연 · **9/30(수) 11:00 제출·발표** · **9/23 저녁 기능 동결** |
 | 저장소 | https://github.com/hwang-injae/rokey_9_pjt1_D2.git |
 | 문서 | `docs/01_요구사항_BR-SR.md` · `02_인터페이스_IRD.md`(계약 정본) · `03_설계_SDD.md`(§9 테스트 계획) · `setup/M0609_환경설정.md` · 일정표 = **구글 드라이브 xlsx** [일정표(구글 시트)](https://docs.google.com/spreadsheets/d/1ikTAYTa8bgZofF_3RgP5jDoOipSZBPB1/edit?usp=sharing) |
 
@@ -46,7 +46,7 @@ HMI 시작 1회 → 반납 구역 계획 순서(그릇 구역 2개 → 컵 구�
 | **F4 시스템 모니터(웹 HMI) + PM** | **황인재** | `f4_hmi/hmi_bridge` (FastAPI + rclpy + SQLite) + `fake_state_pub` · **`cobot_api`(함수 약속)·`cobot_msgs`(메시지) 정본 관리** · `prewash_bringup` 런치 · `config/` 골격 | REST `/api/*` · WS `/ws/state` | `config/params.yaml`의 `hmi` 절 |
 겸임: 팀장·실기 슬롯·기구·**좌표(티칭·`cell.yaml`)**·브랜치 삭제 승인 = 한석형 / 통합 리더(L3·L4 실행 주도) = 민범진 / 안전 파라미터·`cobot_common` 패키지 정리·리뷰 = 박진용 / **PM(일정표·문서·인터페이스 정본(`docs/interfaces`→`cobot_msgs`)·런치·제출·강사 창구·PR 승인)**·영상·발표·아키텍처 그림 = 황인재
 
-**`cobot_common` 분담(9/19) — 사람별 파일, 자기 파일만 고친다**: `bootstrap.py`(init·io_node·cfg·shutdown)·`config.py`·`__init__.py`(재수출) = 황인재 / `motion.py` 기본 이동·그리퍼(move_to·move_rel·grip·grip_level·release) = 한석형 / `weigh.py` `weigh` = 민범진 / `force.py` 힘 함수(force_on/off·force_reached·contact_down·periodic_search·safe_retreat) + **패키지 정리·리뷰** = 박진용. 부르는 쪽은 그대로 `import cobot_common as cc` → `cc.move_to()`. 남의 함수가 아직 없으면 같은 이름의 임시 stub으로 먼저 짠다.
+**`cobot_common` 분담(9/19 오후 변경) — 사람별 파일, 자기 파일만 고친다**: `bootstrap.py`(init·io_node·cfg·shutdown)·`config.py`·`__init__.py`(재수출)·**`motion.py` 이동 함수(move_to·move_rel·move_joint_rel)** = 황인재 / **`gripper.py` 그리퍼 함수(grip·grip_level·release·grip_width)**·`weigh.py` `weigh` = 민범진 / `force.py` 힘 함수(force_on/off·force_reached·read_force·contact_down·periodic_search·safe_retreat) + **패키지 정리·리뷰** = 박진용 / 한석형 = 좌표·티칭(`cell.yaml` 값)과 실기 검증, F1 기능 함수(한석형은 9/19 티칭에 집중 — PM 결정, DSN-03 확인). 부르는 쪽은 그대로 `import cobot_common as cc` → `cc.move_to()`. 남의 함수가 아직 없으면 같은 이름의 임시 stub으로 먼저 짠다.
 
 **동시 개발 약속**: 부르는 쪽은 `flow_node` 하나뿐이고, 기능 패키지끼리는 서로 import하지 않는다. 각 기능은 정해진 위치에서 시작·끝나므로 용기를 손으로 놓고 `rig_f*.py`로 혼자 시험할 수 있다. 로봇 없이도 mock 모듈(`f2_sense_flow.mock`)·`fake_state_pub`으로 flow·HMI를 만든다.
 통합 순서: **구현 → 사전 검증(V) → L1 단위기능 테스트(녹화) → L2 단위기능 통합 → L3 셀 통합 → L4 전체 통합** (`docs/03_설계_SDD.md` §9)

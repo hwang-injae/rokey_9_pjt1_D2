@@ -113,7 +113,7 @@ rokey_pjt01_ws/                ← 저장소 루트 (rokey_9_pjt1_D2)
 ├── src/
 │   ├── cobot_api/             contracts.py (ID·코드·반환 타입·함수 서명 — IRD 정본, PM)
 │   ├── cobot_msgs/            msg/FlowState.msg · FlowEvent.msg (IRD 정본, PM)
-│   ├── cobot_common/          bootstrap.py (init — 두산 API 초기화·통신 노드, §3.2) · config.py (로더) · `__init__.py` (함수 재수출) [H] · motion.py (이동·그리퍼) [S] · force.py (힘 함수) [P] · weigh.py (무게) [M] · config/cell.yaml · config/params.yaml
+│   ├── cobot_common/          bootstrap.py (init — 두산 API 초기화·통신 노드, §3.2) · config.py (로더) · `__init__.py` (함수 재수출) [H] · motion.py (이동) [H] · gripper.py (그리퍼) [M] · weigh.py (무게) [M] · force.py (힘 함수) [P] · config/cell.yaml · config/params.yaml
 │   ├── f1_handling/           handling.py (pick·place·move_to·tool·rack_place) · test/rig_f1.py
 │   ├── f2_sense_flow/         sense.py (weigh·leftover_loop·shake·dip) · flow.py (상태 머신) · flow_node.py (메인 프로그램) · mock/mock_f1.py·mock_f3.py · logger.py · test/rig_f2.py
 │   ├── f3_wipe/               wipe.py (soap·wipe_bowl·wipe_cup) · test/rig_f3.py
@@ -123,7 +123,7 @@ rokey_pjt01_ws/                ← 저장소 루트 (rokey_9_pjt1_D2)
 ```
 두산 드라이버는 별도 워크스페이스 `~/ws_cobot_pjt/ws_dsr`(강사 배포, 수정 안 함)에 있고, 우리 워크스페이스(clone 위치 자유, `.bashrc`의 `PREWASH_WS`)가 그 위에 겹쳐진다(source 순서: ws_dsr → rokey_pjt01_ws). 상세는 [setup/M0609_환경설정.md](setup/M0609_환경설정.md).
 
-### 3.1 `cobot_common` 공용 로봇 함수 (9/19 분담: `bootstrap.py`·`config.py` 황인재 / 기본 이동·그리퍼 한석형 / `weigh` 민범진 / 힘 함수 + 패키지 정리·리뷰 박진용. 좌표 값은 한석형의 `cell.yaml`. **사람별 파일**: `motion.py` S · `force.py` P · `weigh.py` M · `bootstrap.py`·`config.py`·`__init__.py` H — 부르는 쪽은 그대로 `cc.함수()`)
+### 3.1 `cobot_common` 공용 로봇 함수 (9/19 오후 분담 — **사람별 파일**: `bootstrap.py`·`config.py`·`__init__.py`·`motion.py` 황인재 / `gripper.py`·`weigh.py` 민범진 / `force.py` + 패키지 정리·리뷰 박진용. 좌표 값은 한석형의 `cell.yaml`. 부르는 쪽은 그대로 `cc.함수()`. 🟡 표시는 DSN-03에서 확인)
 | 함수 | [담당] 내용 (H 황인재 · S 한석형 · M 민범진 · P 박진용) |
 |---|---|
 | **`init(name, robot=True)`** | [H] 프로그램 **맨 앞에서 한 번**(§3.2). ① DSR 전용 노드(`<name>_dsr`, ns `dsr01`)를 만들어 `DR_init.__dsr__node`에 넣은 **뒤에** `DSR_ROBOT2`를 import ② 통신 노드(`<name>`)를 만들어 **백그라운드 실행기 스레드**로 돌림(그리퍼 폭 구독·그리퍼 명령 클라이언트 포함) ③ 설정 로드. `robot=False`면 ①을 건너뛴다(전부 mock일 때 드라이버 없이 실행) |
@@ -132,14 +132,17 @@ rokey_pjt01_ws/                ← 저장소 루트 (rokey_9_pjt1_D2)
 | `bootstrap.dsr()` · `setup_io(node)` | [H] **`cobot_common` 안에서만 쓰는 약속**(PR #3). 사람별 파일은 함수 **안에서** `from .bootstrap import dsr` → `dsr().movej(...)`로 두산 API를 얻는다(`init()` 전이거나 메인 스레드 밖이면 `RuntimeError` — §3.2 규칙 ②를 코드로 강제). 통신 노드에 구독·클라이언트가 필요하면 자기 파일에 `setup_io(node)`를 만든다 — `init()`이 실행기를 돌리기 전에 한 번 불러 준다(콜백은 값 저장만). 새 함수는 자기 파일의 `__all__`에 이름을 넣으면 `cc.함수()`로 보인다(`__init__.py`는 고치지 않는다). 기능 패키지(f1·f2·f3)는 `dsr()`를 쓰지 않는다 |
 | `shutdown()` | [H] 동작 정지 명령(**최선 시도**) → 실행기 종료 → `rclpy.shutdown()`. 설치된 `DSR_ROBOT2.py`에는 정지 함수가 없어(`stop`·`move_stop` 없음, 9/19 확인) `motion/move_stop` 서비스(`dsr_msgs2/srv/MoveStop`)를 직접 부른다. **Virtual에서는 모션 중에도 먹는 것을 확인**(9/19 INF-02a: 모션 중 Ctrl+C → 0.08 s에 중단, `move_stop` 0.16 s, 브링업 재시작 없이 재실행 정상). 실기 확인은 V-24. 응답이 없으면 "브링업 재시작 필요"를 로그로 남긴다. 정지 방식은 `DR_QSTOP`(Stop Category 2) — 🟡 안전 담당(박진용) 확인, DSN-03 |
 | Ctrl+C(SIGINT) | [H] **`init()`이 단독으로 맡는다.** rclpy의 기본 SIGINT 처리기는 Ctrl+C 때 컨텍스트를 먼저 닫아 버려 `finally`의 정지 명령을 보낼 수 없으므로, `init()`이 그 처리기를 끈다. `flow_node`·`rig_f*.py`는 **`try/finally: cc.shutdown()`만** 쓰고 `signal.signal`을 따로 걸지 않는다 |
-| `move_to(station, carrying)` | [S] 안전 높이 경유 movej/movel, carrying이면 속도 상한 |
-| `move_rel(dx, dy, dz, frame)` | [S] 기준점 대비 상대 이동(탐색점 이동용) |
-| `grip(width, force) → width` | [S] RG2 파지(목표 폭·힘) + 완료 대기 + 폭 피드백. 강사 배포 `onrobot_rg_control`은 명령을 서비스(`/onrobot/sendCommand`)로 받는다. 🟡 현재 폭: 드라이버(`OnRobotRGControllerServer`)는 `OnRobotRGInput`을 **발행하지 않는다**(9/19 소스 확인: 나가는 것은 `/joint_states`→`/onrobot_joint_states` remap의 `JointState`뿐, 서비스는 `/onrobot/sendCommand`·`/onrobot/pose`·`/onrobot/restartPower`) → **V-05에서 읽는 경로를 정한다**(후보: `/onrobot_joint_states` 관절각 → 폭 환산을 통신 노드가 구독해 저장 — 구독은 `motion.py`의 `setup_io(node)`에 단다). `grip`은 그 값을 읽는다 |
-| `grip_level(kind, level)` | [S] 파지 힘 2단계 전환: `NORMAL`(집기·이송) ↔ `HOLD`(털기·담금·물 털기, 더 꽉). 같은 폭 목표로 힘만 바꿔 다시 파지, 전환 후 폭 재확인(방법은 V-23) |
-| `release()` | [S] |
+| `move_to(station, carrying)` | [H] 안전 높이 경유 movej/movel, carrying이면 속도 상한. 속도 = `cell.limits.vel_*_pct` × `cfg()['run']['vel_scale']` |
+| `move_rel(dx, dy, dz, frame, *, vel_mm_s=None, acc_mm_s2=None)` | [H] 상대 이동(탐색점 이동·접촉 하강의 한 단계·후퇴). `frame`은 `'BASE'`·`'TOOL'`. 🟡 속도 선택 인자는 [이슈 #7](https://github.com/hwang-injae/rokey_9_pjt1_D2/issues/7) 요청 — 없으면 `cell.limits` 속도, 접촉 하강은 아주 느리게 줘야 한다 |
+| 🟡 `move_joint_rel(joint, delta_deg, vel_pct=None)` | [H] 관절 하나를 상대 각도만큼(털기·물 털기의 J5/J6 왕복용 — DSN-03 B11, 민범진 요청). 이름·인자는 구현 PR에서 확정 |
+| `grip(width, force) → width` | [M] RG2 파지(목표 폭·힘) + 완료 대기 + 폭 피드백. 강사 배포 `onrobot_rg_control`은 명령을 서비스(`/onrobot/sendCommand`)로 받는다. 🟡 현재 폭: 드라이버(`OnRobotRGControllerServer`)는 `OnRobotRGInput`을 **발행하지 않는다**(9/19 소스 확인: 나가는 것은 `/joint_states`→`/onrobot_joint_states` remap의 `JointState`뿐, 서비스는 `/onrobot/sendCommand`·`/onrobot/pose`·`/onrobot/restartPower`) → **V-05에서 읽는 경로를 정한다**(후보: `/onrobot_joint_states` 관절각 → 폭 환산을 통신 노드가 구독해 저장 — 구독은 `motion.py`의 `setup_io(node)`에 단다). `grip`은 그 값을 읽는다 |
+| `grip_level(kind, level)` | [M] 파지 힘 2단계 전환: `NORMAL`(집기·이송) ↔ `HOLD`(털기·담금·물 털기, 더 꽉). 같은 폭 목표로 힘만 바꿔 다시 파지, 전환 후 폭 재확인(방법은 V-23) |
+| `release()` | [M] 그리퍼 열기 |
+| 🟡 `grip_width() → mm` | [M] 현재 폭 읽기(박진용 F3 요청 — 닦는 중 툴이 밀렸는지 감시). 경로는 V-05에서 확정: 강사 드라이버의 관절각 → 폭 환산이 먼저, 안 되면 Compute Box XML-RPC를 읽기부터([제안서](ref/20260919_제안_RG2_폭_힘_경로.md)). 그리퍼 함수는 새 파일 `gripper.py` |
 | `weigh(n, reset=False) → g` | [M] 정지 → `get_workpiece_weight` n회 평균. `reset`(0점 재설정)은 **선택 동작**: 응답 상한 3 s, 실패하면 다시 부르지 않고 계속 진행([TS-03](troubleshooting/TS-03_하중_reset_제어권_교착.md)) |
 | `force_on(axis, target, limit)` / `force_off()` | [P] task_compliance_ctrl + set_desired_force |
 | `force_reached(axis, min, max) → bool` | [P] `check_force_condition(...) == 0`을 감싼 것. 🚨 실제 두산 함수는 **만족 `0` / 아니면 `-1`**을 돌려준다(DRL 매뉴얼의 True/False와 다름). `if check_force_condition():`으로 쓰면 판정이 뒤집힌다(TS-01 D) |
+| 🟡 `read_force() → [fx, fy, fz, mx, my, mz]` · 예외 `ForceLimitError` · `MotionTimeout` | [P] 이슈 #7 요청. 힘 로그·`/cell/force`·상한 판정용 원시 힘 값. **공용 힘 함수는 실패를 예외로 알리고, 기능 함수(f1·f3)가 받아서 `FORCE_LIMIT`·`TIMEOUT` 코드로 바꾼다**(flow까지 새어 나오면 `ROBOT_ERROR`). 힘 함수가 읽는 공용 값은 `cell.yaml`의 🟡 `cell.force` 절(순응 강성·접촉 하강 단계·속도·후퇴 속도·절대 상한 `force_max_n` 등 8개 키 — 골격은 황인재, 값은 박진용이 그 절만 PR) |
 | `contact_down(max_depth, limit) → depth, force` | [P] amovel 하강 + `force_reached` 감시 + stop (탐색 파지·안착·삽입 공용) |
 | `periodic_search(amp, period, duration)` | [P] Move Periodic |
 | `safe_retreat()` | [P] 툴 Z 후퇴 → 안전 높이 |
@@ -446,38 +449,39 @@ return EMPTY_ZONE (attempts = max_attempts)
 ### 9.1 단계와 책임
 | 단계 | 내용 | 주도 | 로봇 | 시기 |
 |---|---|---|---|---|
-| **L1 단위기능 테스트** | 각 기능 함수를 단독 시험 스크립트(`rig_f*.py`)에서 함수별 10회, **녹화** | 각 담당 | 실기(F1·F2·F3) / 없음(F4·flow) | 함수별 TC는 구현 직후 바로 · 마무리 9/21 저녁(UT-F2)~9/22 오전(UT-F1·F3·FLOW) · UT-F4는 9/22 오후 |
-| **L2 단위기능 통합** | 시나리오 단계 = 기능 2개 조합, flow_node에서 호출하고 나머지 기능은 `use_mock`으로 가짜(예: INT-12a는 `use_mock=[f3]`) | 조합별 주도 | 실기 | 9/22 오후~저녁 |
-| **L3 셀 통합** | 그릇 1·컵 1 end-to-end + 실제 HMI(PC-B) | 민범진 | 실기 | 9/22 저녁~9/23 오전 |
+| **L1 단위기능 테스트** | 각 기능 함수를 단독 시험 스크립트(`rig_f*.py`)에서 함수별 10회, **녹화** | 각 담당 | 실기(F1·F2·F3) / 없음(F4·flow) | 함수별 TC는 구현 직후 바로 · 마무리 9/22 오전(UT-F2·FLOW)~오후(UT-F1·F3) — **G2 9/22 오후** · UT-F4는 9/22 저녁 |
+| **L2 단위기능 통합** | 시나리오 단계 = 기능 2개 조합, flow_node에서 호출하고 나머지 기능은 `use_mock`으로 가짜(예: INT-12a는 `use_mock=[f3]`) | 조합별 주도 | 실기 | 9/22 저녁~9/23 오전(G3) |
+| **L3 셀 통합** | 그릇 1·컵 1 end-to-end + 실제 HMI(PC-B) | 민범진 | 실기 | 9/23 오전~오후(G4) |
 | **L4 전체 통합** | 4개 연속 + 실패 주입 4종 + 측정 + 영상 + 동결 | 민범진 | 실기 | 9/23 오후~저녁 |
 
 ### 9.2 사전 검증 (V) — "우리 하드웨어로 되는가"를 TC 전에 확인
+언제 칸의 A·B·C = 오전·오후·저녁. 🚨 **주말(9/19·20)은 교육장이 18시에 닫아 C(저녁)가 없다.**
 | ID | 검증 | 담당 | 언제 | 기준 | 안 되면 |
 |---|---|---|---|---|---|
-| V-01 | 파지 폭으로 그릇·컵·빈손 3상태 구분 | S | 9/19 B (V-05와 한 세션) | 세 값 간격 ≥ 6 mm | 핑거 패드 두께·프리셋 폭 조정 |
-| V-02 | 하중 측정 정밀도(100/200 g 추 10회) | M | 9/19 B (weigh 이식과 함께) | ±20 g | 임계 100 g, 대용품 무겁게 |
-| V-03 | 힘제어 켠 채 XY 나선 이동 | P | **9/19 C** | 가능 | 닦기 = 순응 + 위치 2~3 mm 누르기 |
-| V-04 | Move Periodic 탐색으로 홈 안착(2 mm 오프셋) | S(+P) | 9/20 B (티칭 2차 뒤, F1-05 첫 단계) | 5회 중 4회 | 홈 여유 늘리기, 챔퍼 |
-| V-05 | **그리퍼 드라이버 연결** — 강사 배포 `onrobot_rg_control`의 `/onrobot/sendCommand` 응답 + **현재 폭을 읽을 경로 확정**(드라이버는 `OnRobotRGInput`을 발행하지 않는다 → `/onrobot_joint_states` 관절각 환산 등. DO/DI 배선 방식은 예비) | S | 9/19 B | 명령 → 동작 → 폭 값(mm) 갱신이 코드에서 읽힘 | 폭 피드백만으로 판정 |
-| V-06 | 팔레트 칸 삽입 각도·걸림 힘 판정 | S | 9/21 C (F1-04 첫 단계) | 걸림 시 힘 상승 식별 | 각도 삽입 → 수직 놓기 |
-| V-07 | 털기 진폭·속도에서 충돌 감지 오작동 | M | 9/20 A (F2-01 첫 단계) | 10회 정지 0 | 진폭 축소, 관절 왕복 |
-| V-08 | 툴 홀더 픽업·반납 10회 | S | 9/20 C (F1-03 첫 단계) | ≥9/10 | 홀더 깊이·방향 고정 보강 |
+| V-01 | 파지 폭으로 그릇·컵·빈손 3상태 구분 | M | 9/20 A (그리퍼 세션: V-05·V-23과 함께) | 세 값 간격 ≥ 6 mm | 핑거 패드 두께·프리셋 폭 조정 |
+| V-02 | 하중 측정 정밀도(100/200 g 추 10회) | M | 9/20 A (weigh 이식과 함께) | ±20 g | 임계 100 g, 대용품 무겁게 |
+| V-03 | 힘제어 켠 채 XY 나선 이동 | P | 9/19 B 착수 → **9/20 A** | 가능 | 닦기 = 순응 + 위치 2~3 mm 누르기 |
+| V-04 | Move Periodic 탐색으로 홈 안착(2 mm 오프셋) | S(+P) | 9/21 C (F1-05 첫 단계) | 5회 중 4회 | 홈 여유 늘리기, 챔퍼 |
+| V-05 | **그리퍼 드라이버 연결** — 강사 배포 `onrobot_rg_control`의 `/onrobot/sendCommand` 응답 + **현재 폭을 읽을 경로 확정**(드라이버는 `OnRobotRGInput`을 발행하지 않는다 → `/onrobot_joint_states` 관절각 환산 등. DO/DI 배선 방식은 예비) | M | 9/20 A (제안서 §5의 30분 절차) | 명령 → 동작 → 폭 값(mm) 갱신이 코드에서 읽힘 | 폭 피드백만으로 판정 |
+| V-06 | 팔레트 칸 삽입 각도·걸림 힘 판정 | S | 9/22 B (F1-04 첫 단계) | 걸림 시 힘 상승 식별 | 각도 삽입 → 수직 놓기 |
+| V-07 | 털기 진폭·속도에서 충돌 감지 오작동 | M | 9/20 B (F2-01 첫 단계) | 10회 정지 0 | 진폭 축소, 관절 왕복 |
+| V-08 | 툴 홀더 픽업·반납 10회 | S | 9/22 A (F1-03 첫 단계) | ≥9/10 | 홀더 깊이·방향 고정 보강 |
 | V-09 | PC-A↔PC-B DDS 통신(두 PC만 `team60`, 나머지는 `solo`) | H(+M) | 9/21 C (INT-4와 한 세션) | 토픽·서비스 왕복 | Discovery Server → 안 되면 PC 1대 |
-| V-10 | 컵 안쪽 솔 삽입 깊이·충돌 | P | 9/20 C (F3-03 첫 단계) | 정지 0 | 스트로크 축소 |
+| V-10 | 컵 안쪽 솔 삽입 깊이·충돌 | P | 9/21 C (F3-03 첫 단계) | 정지 0 | 스트로크 축소 |
 | V-11 | 잔반 대용품 선정(구슬·쌀, ≥100 g, 털면 떨어짐) | 전원 | 9/18 | 확정 | — |
 | V-12 | 스펀지 홈 치수 vs 용기 외경(여유 1~2 mm) | P | 9/19 B (기구 제작 직후) | 둘 다 들어감 | 재커팅 |
 | V-13 | 브라우저 start → mock flow 반응 | H | 9/21 C (INT-4와 한 세션) | PAUSED/재개 반영 | 브리지 스레드 구조 수정 |
-| V-14 | **겹친·어긋난 용기 탐색 파지** 성공률 | S | 9/20 A | ≥9/10, 낙하 0, 두 개 파지 0 | 탐색점 간격·하강 깊이·폭 허용치 조정 |
-| V-15 | **재파지 파지 폭 인식** — 스펀지 홈에 안착된 그릇·컵을 다시 잡을 때 폭으로 정상·빈손·비스듬히 잡힘이 구분되는가 | S(+P) | 9/20 B (티칭 2차 뒤, F1-05 첫 단계) | 3상태 간격 ≥ 6 mm | 재파지 위치에 가이드 추가, 또는 폭 대신 하중으로 확인 |
-| V-16 | **강한 파지(HOLD) 값 찾기** — 그릇·컵을 `HOLD` 힘으로 쥐고 털기·물 털기를 할 때 낙하·밀림이 없는 최소 힘(용기가 찌그러지지 않는 범위) | M(+S) | 9/20 A (V-23 뒤, F2-01 shake 첫 단계) | 10회 낙하 0, 전후 폭 변화 ≤ 2 mm | 핑거 패드, 진폭·속도 축소 |
+| V-14 | **겹친·어긋난 용기 탐색 파지** 성공률 | S | 9/20 B (F1-02의 TC) | ≥9/10, 낙하 0, 두 개 파지 0 | 탐색점 간격·하강 깊이·폭 허용치 조정 |
+| V-15 | **재파지 파지 폭 인식** — 스펀지 홈에 안착된 그릇·컵을 다시 잡을 때 폭으로 정상·빈손·비스듬히 잡힘이 구분되는가 | S(+P) | 9/21 C (F1-05 첫 단계) | 3상태 간격 ≥ 6 mm | 재파지 위치에 가이드 추가, 또는 폭 대신 하중으로 확인 |
+| V-16 | **강한 파지(HOLD) 값 찾기** — 그릇·컵을 `HOLD` 힘으로 쥐고 털기·물 털기를 할 때 낙하·밀림이 없는 최소 힘(용기가 찌그러지지 않는 범위) | M(+S) | 9/20 B (V-23·gripper.py 뒤, F2-01 shake 첫 단계) | 10회 낙하 0, 전후 폭 변화 ≤ 2 mm | 핑거 패드, 진폭·속도 축소 |
 | V-17 | **컵 옆면 파지** — ✅ **9/18 검증 완료**: 옆면 파지로 집기·이송 가능. 단, 털기·헹굼처럼 흔드는 동작에서는 더 강한 파지가 필요 → 파지 힘 2단계(`NORMAL`/`HOLD`) 도입 | S | 완료 | 집기·이송 안정 | — |
 | V-18 | **툴 파지 안정성** — 닦는 힘(3~5 N)이 걸릴 때 수세미 툴·솔이 그리퍼 안에서 밀리거나 돌지 않는가 | P | 9/20 A (F3-02 첫 단계) | 닦기 1회 후 툴 자세 변화 없음 | 손잡이 형상(각·홈) 보강, 파지력 상향 |
 | V-19 | **도달 범위·특이점** — 모든 스테이션(반납 구역·WEIGH·WASTE·스펀지 홈·홀더·수조·팔레트 6칸·격리)에 안전 높이 경유로 도달 가능한가 | S | 9/19 A(티칭과 함께) | 전 지점 도달, 특이점·관절 한계 경고 0 | 워크셀 재배치 |
 | V-20 | **실행 뼈대 확인(§3.2)** — `cobot_common.init` + 통신 노드 + 메인 스레드 순서 실행. 9/18 PM이 시험 코드로 Virtual 확인 완료(TS-01 §7) → **팀 코드(`cobot_common` + `flow_node` 뼈대 + 세 모듈의 빈 함수)로 재확인** | M(+H) | 9/19 B (Virtual) | 세 모듈 함수를 번갈아 2바퀴(각 함수 안에서 movej 1회), 모션 중 `/flow/state` 2 Hz, stop 수락, Ctrl+C 뒤 재실행 정상 | 구조 ③(한 프로세스에 노드 3개) — DSN-02b 표 |
 | V-21 | ~~서비스 콜백 안 장시간 모션~~ — **종료.** 구조 변경(DSN-02b)으로 서비스 콜백 안에서 로봇을 움직이지 않는다. 원인·재현은 TS-01 | P | 9/18 종료 | — | — |
-| V-23 | **파지 힘 전환 방법** — 쥔 상태에서 힘만 올려 다시 파지(`grip_level`)가 되는가. `onrobot_rg_control`(Modbus)로 힘 지정이 되는지, DO1/DO2 방식이면 RG2 웹의 프리셋 2종으로 나눌지 | S | 9/19 B | 쥔 채 NORMAL→HOLD→NORMAL 전환 10회, 낙하 0 | 처음부터 HOLD 힘으로만 파지(힘 1단계) |
+| V-23 | **파지 힘 전환 방법** — 쥔 상태에서 힘만 올려 다시 파지(`grip_level`)가 되는가. `onrobot_rg_control`(Modbus)로 힘 지정이 되는지, DO1/DO2 방식이면 RG2 웹의 프리셋 2종으로 나눌지 | M | 9/20 A (V-05와 한 세션) | 쥔 채 NORMAL→HOLD→NORMAL 전환 10회, 낙하 0 | 처음부터 HOLD 힘으로만 파지(힘 1단계) |
 | V-22 | **티칭 좌표 재현 오차** — YAML 좌표를 ROS에서 재현했을 때 티칭 위치와의 차이 | S | 9/20 A (티칭 2차 세션 안, `move_to`가 생긴 뒤) | ≤ 2 mm | 사용자 좌표계·TCP 설정 재확인 |
-| V-24 | **(선택) 동작 중 소프트 정지·타임아웃** — `move_to`를 비동기 이동(`amovej`/`amovel`) + 짧은 폴링(`check_motion`)으로 만들고, 폴링 중 stop 깃발·타임아웃이면 정지(`motion/move_stop` 서비스 — 설치된 `DSR_ROBOT2.py`에는 `stop()`이 없다). `shutdown()`의 정지 명령이 모션 중에 먹는지도 여기서 확인. 전부 메인 스레드 | H | 9/20 B (Virtual, 선택) | 이동 중 stop → 1 s 안에 정지, 이어서 다음 명령 정상 | 정지는 "기능 함수 사이"로만(현재 기본) |
+| V-24 | **(선택) 동작 중 소프트 정지·타임아웃** — `move_to`를 비동기 이동(`amovej`/`amovel`) + 짧은 폴링(`check_motion`)으로 만들고, 폴링 중 stop 깃발·타임아웃이면 정지(`motion/move_stop` 서비스 — 설치된 `DSR_ROBOT2.py`에는 `stop()`이 없다). `shutdown()`의 정지 명령이 모션 중에 먹는지도 여기서 확인. 전부 메인 스레드 | H | 보류(9/19 재계획에서 뺌) | 이동 중 stop → 1 s 안에 정지, 이어서 다음 명령 정상 | 정지는 "기능 함수 사이"로만(현재 기본) |
 
 ### 9.3 L1 단위기능 테스트 케이스
 **공통 규칙(TS-01)**: 함수는 한 번이 아니라 **연속 3회 이상** 불러서 시험한다. "첫 번째만 되는" 결함은 한 번 호출로는 보이지 않는다.

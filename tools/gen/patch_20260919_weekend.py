@@ -1,0 +1,261 @@
+# -*- coding: utf-8 -*-
+"""9/19 오후 — 재계획: ① 주말(9/19·9/20)은 교육장이 18시에 닫는다 → **주말 저녁 칸을 전부 비운다** ② 한석형은 9/19 에 티칭까지만
+③ 분담 변경(PM 결정, DSN-03 에서 확인): 그리퍼 검증 V-01·V-05·V-23 + gripper.py = 민범진 · 이동 함수 motion.py(move_to·move_rel·관절 상대 이동)·
+   cell.force 키 골격·F1 패키지 골격 = 황인재(F4 세션) · 한석형 = 티칭·cell.yaml 값·실기 검증·F1 기능 함수
+④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁(그대로)
+구글 시트의 '현재' 내용에 변경만 얹는다(PM 이 시트에서 고친 상태·행 순서는 그대로). 다시 실행해도 같은 결과가 나온다.
+실행: python3 tools/gen/patch_20260919_weekend.py ../_upload/출력.xlsx → tools/gen/sheet_push.sh ../_upload/출력.xlsx
+이 파일이 9/19 오후 이후의 최신 패치다. patch_20260919_audit.py·rebalance.py 는 다시 실행하지 않는다(여기서 옮긴 칸이 되돌아간다)."""
+import sys, os, re, tempfile, collections
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from xlsx_patch import Book, Row, new_timeline_row, rebuild_todo, set_slots
+from livesheet import SID, load, timeline
+import gen_todo
+
+ID = 'AH'
+VERSION = 'v5.0'
+OUT = 'prewash_일정표_0919n.xlsx'
+def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
+
+# id: dict(task, owner, status, deliv, crit, note, slots) — 없는 키는 그대로 둔다
+EDIT = {
+ # --- 전원 구역
+ 'PM-01': dict(slots=S('9/18 저녁', '9/19 오후', '9/20 오후', '9/21 저녁', '9/22 저녁', '9/23 저녁'), note='주말은 교육장 마감(18시) 전에'),
+ 'PKG-01': dict(owner='H,M,P', note='V-20 의 재료 · ✅ F3(박진용) PR #4 · ✅ F2(민범진) PR #8 · F1 골격은 황인재 F4 세션이 대신 작성(패키지 주인은 한석형 그대로 — 9/19 PM 결정, 한석형은 티칭에 집중) · pytest 파일 이름은 test_f1_api.py'),
+ 'INF-02': dict(task='cobot_common 2/4 · motion.py — 이동 함수(저수준) move_to · move_rel(dx,dy,dz,frame,*,vel_mm_s,acc_mm_s2) · move_joint_rel(관절 상대 이동, 털기용) · 속도 = cell.limits × run.vel_scale',
+                owner='H', deliv='src/cobot_common/cobot_common/motion.py + cell.yaml 의 cell.force 키 골격(값 없음)·test_config 수정',
+                crit='Virtual(격리)에서 move_to·move_rel·move_joint_rel 연속 3회 · 시험용 설정으로 pytest',
+                note='9/19 분담 변경: 한석형 → 황인재(F4 세션) · Virtual 만으로 완성(로봇 불필요) · 이슈 #7 ② move_rel 속도 선택 인자 · DSN-03 B11 관절 이동 함수 · 박진용 force.py 의 임시 stub _move_rel 을 대체 · 좌표는 cell.yaml(한석형)에서 읽기만',
+                slots=S('9/19 오후', '9/20 오전')),
+ 'INF-02b': dict(slots=S('9/19 오후', '9/20 오전'), note='force.py 구현·시험은 브랜치에 있음 — V-03(9/20 오전) 전이라도 PR 을 올린다(값은 후속 PR) · F1-02(9/20 오후)가 contact_down 을 기다린다 · 이슈 #7: cell.force 키 골격은 황인재(INF-02), 값은 박진용이 그 절만 PR · move_rel 이 들어오면 임시 stub 삭제'),
+ 'INF-02c': dict(slots=S('9/20 오전'), note='R · V-02 와 한 세션(9/19 오후는 티칭이 로봇을 쓴다) · f2.weigh(F2-01)가 이걸 불러 판정한다'),
+ 'DSN-03': dict(slots=S('9/19 오후'), note='9/19 17:15~18:00 교육장에서(주말 저녁은 교육장이 닫는다) · 안건 문서 docs/meetings/20260919_결정기록_DSN-03.md · HMI 설계(B5)는 F4-00 이 9/20 오전이라 9/20 브리핑에서 확인'),
+ 'DSN-04': dict(slots=S('9/20 오전')),
+ 'ARCH-01': dict(slots=S('9/20 오후')),
+ 'MID-01': dict(slots=S('9/20 오후', '9/21 오전'), note='구조 변경 근거 1장 포함(TS-01: 발견→재현→구조 5종 비교→결정) · 각자 자기 기능 1장을 9/20 오후까지 · 주말 저녁 없음'),
+ 'V-20': dict(note='재료: cobot_common(main) + flow_node(PR #8·#9) + f3_wipe(PR #4) + F1 골격(황인재 세션 대신 작성) · 격리 상태 Virtual · 안 되면 구조 ③(결정 기록 표)'),
+ 'INT-12a': dict(slots=S('9/22 저녁'), note='R · 9/22 저녁 첫 순서'),
+ 'INT-12b': dict(slots=S('9/22 저녁'), note='R · INT-12a 다음'),
+ 'INT-13': dict(slots=S('9/22 저녁', '9/23 오전'), note='R · INT-12b 다음 — 9/23 오전 첫 순서까지'),
+ 'INT-3a': dict(slots=S('9/23 오전'), note='R · L2(G3, 9/23 오전) 통과 뒤 바로'),
+ 'INT-3b': dict(slots=S('9/23 오전', '9/23 오후')),
+ 'FIX-01': dict(slots=S('9/23 오후')),
+ 'INT-4a': dict(slots=S('9/23 오후'), note='R · 🛡 범위 방어(SDD §9.9): L3 가 9/23 오후 첫 1시간 안에 안 끝나면 4개 연속 → 2개(그릇 1·컵 1)'),
+ 'INT-4b': dict(slots=S('9/23 저녁'), note='R · 🛡 범위 방어: 실패 주입 4종 → 2종(빈 구역·정지/재개)'),
+ # --- F1 (한석형: 티칭·실기·기능 함수)
+ 'CELL-04': dict(note='R · V-19 를 이 세션 안에서 · 9/19 한석형은 티칭까지만(PM 확인) · 18시 교육장 마감'),
+ 'V-19': dict(slots=S('9/19 오후')),
+ 'V-01': dict(owner='M', slots=S('9/20 오전'), note='R · V-05·V-23 과 한 그리퍼 세션(9/20 오전 첫 순서) · 9/19 분담 변경: 한석형 → 민범진 · 🚨 그릇 외경 114 mm > RG2 최대 폭 110 mm → 테두리 파지 기준으로 잰다(CELL-02a 기록) · 결과가 gripper.py grip 과 F1-02 폭 판정값이 된다'),
+ 'V-05': dict(owner='M', slots=S('9/20 오전'), note='R · 절차는 박진용 제안서 docs/ref/20260919_제안_RG2_폭_힘_경로.md §5(30분): A 드라이버(관절각→폭 환산, 힘 2.5 N 계단) 먼저 → 안 되면 B Compute Box XML-RPC 를 읽기부터 · 9/19 분담 변경: 한석형 → 민범진'),
+ 'V-23': dict(owner='M', slots=S('9/20 오전'), note='R · V-05 와 한 세션 · grip_level 구현 방법을 정한다(gripper.py) · 9/19 분담 변경: 한석형 → 민범진'),
+ 'F1-01': dict(slots=S('9/20 오전'), note='R · motion.py(황인재, 9/20 오전 PR)가 들어온 뒤 · 티칭 2차 세션 뒤에'),
+ 'F1-02': dict(slots=S('9/20 오후')),
+ 'V-14': dict(slots=S('9/20 오후'), note='R · F1-02 의 TC 로 한 흐름'),
+ 'V-15': dict(slots=S('9/21 저녁')), 'V-04': dict(slots=S('9/21 저녁')), 'F1-05': dict(slots=S('9/21 저녁')),
+ 'F1-03': dict(slots=S('9/22 오전')), 'V-08': dict(slots=S('9/22 오전')),
+ 'F1-04': dict(slots=S('9/22 오후')), 'V-06': dict(slots=S('9/22 오후')),
+ 'UT-F1': dict(slots=S('9/22 오후'), note='R · 함수별 TC 는 구현 직후 바로 수행, 이 칸은 남은 TC·녹화 마무리 · 🛡 F1 은 시연 필수 경로 — 밀리면 DSN-03 C5(F1 함수 초안을 다른 세션이 Virtual 에서 작성, 한석형은 실기 튜닝)'),
+ 'V-16': dict(slots=S('9/20 오후'), note='R · F2-01 shake 의 첫 단계로(V-07 과 한 세션) · gripper.py grip_level 이 있어야 한다 · 찾은 HOLD 값은 한석형이 cell.yaml 프리셋에 반영'),
+ # --- F2·flow (민범진)
+ 'V-02': dict(slots=S('9/20 오전'), note='R · INF-02c weigh 이식과 한 세션 · 9/19 오후는 티칭이 로봇을 쓴다'),
+ 'FLOW-01': dict(slots=S('9/19 오전', '9/19 오후', '9/20 오전'), note='✅ PR #8·#9 merge: 메인 뼈대·상태 머신·실패 정책·예외 보호 · 🔧 남은 것: 격리 마무리 동작(툴 반납 → ISOLATE 에 놓기 → HOME) — 순서는 DSN-03 B7, 로봇 교대 대기 시간에'),
+ 'V-07': dict(slots=S('9/20 오후')),
+ 'F2-01': dict(slots=S('9/20 오후', '9/21 저녁')),
+ 'F2-02': dict(slots=S('9/21 저녁')),
+ 'FLOW-02': dict(slots=S('9/22 오전')),
+ 'UT-F2': dict(slots=S('9/22 오전')),
+ # --- F3 (박진용)
+ 'V-03': dict(slots=S('9/19 오후', '9/20 오전'), note='R · 닦기 설계를 결정 · 불가면 범위 방어 · 9/19 오후 착수(PM 시트 기준 진행 중) → 주말 저녁이 없어 남은 것은 9/20 오전 로봇 교대의 박진용 첫 순서'),
+ 'V-10': dict(slots=S('9/21 저녁')),
+ 'F3-03': dict(slots=S('9/21 저녁', '9/22 오전'), note='R · 시연 필수 경로 — 함수가 둘이라 2칸(9/21 저녁 V-10·뼈대, 9/22 오전 실기 마무리) · 🛡 밀리면 컵 닦기는 도전 과제, 그릇만 MVP(SDD §9.9)'),
+ 'UT-F3': dict(slots=S('9/22 오후')),
+ # --- F4 (황인재)
+ 'F4-00': dict(slots=S('9/20 오전'), note='9/19 오후는 F1 골격·motion.py 가 먼저 · DSN-03 B5 는 9/20 브리핑에서 확인'),
+ 'F4-01': dict(slots=S('9/20 오후')),
+ 'F4-02': dict(slots=S('9/20 오후', '9/21 저녁')),
+ 'F4-03': dict(slots=S('9/22 오전', '9/22 오후'), note='DSN-03 결과 반영 · 이동 함수(INF-02)를 맡으면서 한 칸씩 뒤로'),
+ 'NOTE-02': dict(slots=S('9/22 오후'), note='F4-03 화면이 나온 뒤 gif — 강사 요구일(9/22) 안에'),
+ 'UT-F4': dict(slots=S('9/22 저녁')),
+ 'V-24': dict(status='보류', note='선택 과제 — 9/19 재계획에서 뺌(황인재가 motion.py 를 맡음). Virtual 에서는 모션 중 Ctrl+C 정지 확인됨(PR #3). 시간이 남으면 9/22 이후', slots=[]),
+}
+# 새 행: id, 뒤에 붙일 행, 서식 복제 행, 구분, 작업, 담당, 상태, 칸, 산출물, 기준, 비고
+NEW = [
+ ('INF-02d', 'INF-02', 'INF-02', '계약', 'cobot_common · gripper.py — 그리퍼 함수(저수준) grip · grip_level(NORMAL/HOLD) · release · grip_width(현재 폭 mm)',
+  'M', '시작 전', S('9/20 오후'), 'src/cobot_common/cobot_common/gripper.py', '실기에서 명령 → 동작 → 폭(mm) 읽힘 · NORMAL↔HOLD 전환 · Virtual 에서는 가짜 그리퍼 노드로 호출 순서',
+  'R · 9/19 분담 변경: 한석형(motion.py 안) → 민범진(새 파일) · V-05·V-23·V-01 결과가 곧 구현 · 박진용 제안서 참고, 박진용이 PR 리뷰 · F3 요청 grip_width() 포함 · 구독은 setup_io(node)'),
+]
+# 팀(구역) 이동: id → (새 팀, 이 ID 행 바로 뒤에 둔다) — 이미 그 구역에 있으면 PM 이 정한 행 순서를 건드리지 않는다
+MOVE = {'V-01': ('F2·flow', 'V-02'), 'V-05': ('F2·flow', 'V-01'), 'V-23': ('F2·flow', 'V-05')}
+EASY = {
+ 'INF-02': '공용 로봇 함수 중 이동(지정 위치로 이동 move_to, 상대 이동 move_rel, 관절 상대 이동)을 motion.py 에 만든다. 가상 로봇만으로 완성한다. 접촉 하강이 쓰도록 속도 선택 인자를 넣고, cell.yaml 에 힘 관련 키 골격도 추가한다',
+ 'INF-02d': '공용 로봇 함수 중 그리퍼(잡기 grip, 힘 2단계 grip_level, 놓기 release, 현재 폭 읽기 grip_width)를 새 파일 gripper.py 에 만든다. 그리퍼 검증(V-05·V-23·V-01)에서 확인한 방법 그대로',
+ 'V-01': '그리퍼로 그릇·컵을 잡았을 때와 빈손일 때의 "벌어진 폭" 값이 확실히 다른지 잰다. 그릇은 지름(114 mm)이 그리퍼 최대 폭(110 mm)보다 커서 테두리를 잡는 기준으로 잰다',
+ 'V-05': '그리퍼 드라이버가 제대로 붙었는지, 현재 폭을 어디서 읽을지 정한다(박진용 제안서의 30분 절차): 드라이버의 관절각을 폭으로 바꿔 자로 잰 값과 비교 → 안 맞으면 Compute Box 를 읽기부터',
+ 'PKG-01': '내 패키지 뼈대를 만든다: 약속(cobot_api)에 적힌 이름·인자 그대로 빈 함수를 만들고, 내 함수만 불러 보는 시험 스크립트 rig 를 만든다. F1 골격은 황인재 세션이 대신 만들어 준다(주인은 한석형)',
+ 'DSN-03': '2차 회의(9/19 17:15 교육장, 40분): 안건 문서의 A 확인 · B 결정 · C 일정 · D 요청을 차례로. 주말 저녁은 교육장이 닫아 회의를 오후 끝으로 당겼다',
+ 'V-24': '(보류) 로봇이 움직이는 도중에도 정지 버튼이 먹게 하는 선택 과제 — 이번 재계획에서 뺐다',
+}
+TITLES = {'할일_한석형': '한석형 — 팀장 · F1 파지·이송·적재 + 좌표 계산·티칭(cell.yaml 값) + 실기 검증',
+          '할일_민범진': '민범진 — F2 무게·털기·헹굼 + flow_node + mock · 통합 실행 리더 + cobot_common weigh.py · gripper.py + 그리퍼 검증',
+          '할일_박진용': '박진용 — F3 접촉 닦기 + cobot_common 힘 함수(force.py)·패키지 정리·리뷰 + 안전 파라미터',
+          '할일_황인재': '황인재 — PM · F4 웹 HMI + cobot_api·cobot_msgs·cobot_common bootstrap·config·motion.py·런치·일정표·제출'}
+LECTURE = {'9/19 토 · 9/20 일': ('휴일(로봇 사용 가능 — 🚨 교육장 18시 마감, **저녁 칸 없음**)',
+                                 '9/19 구조 변경 적용 → 티칭 1차(한석형) + 공용 함수·기능 골격 → 17:15 DSN-03 2차 회의 / 9/20 오전 그리퍼·무게·힘 검증 + 티칭 2차 → 오후 구현 + 함수별 TC · 발표 자료')}
+GATE = {
+ 'G1 리그·검증': {'B': '9/20 오후', 'C': '티칭 1·2차 완료, 기구 완성(✅ 9/19), 공용 함수(cobot_common: motion·gripper·force·weigh) v0, 실행 뼈대 확인(V-20), 설계를 정하는 검증(V-01·02·03·05·23) 결과 확보'},
+ 'G2 L1': {'B': '9/22 오후', 'C': 'UT-F1·F2·F3·FLOW 통과 + 녹화 (함수별 TC 는 구현 직후 바로 수행) + 코드리뷰 CR-01 · UT-F4 는 9/22 저녁'},
+ 'G3 L2': {'B': '9/23 오전', 'C': 'INT-12a·12b·13·4 통과 (flow_node + use_mock) — 9/22 저녁 시작, 9/23 오전 첫 순서까지. 노션 업로드는 9/22'},
+ 'G4 L3': {'B': '9/23 오후', 'C': '그릇 1·컵 1 end-to-end + HMI 3회 연속'},
+ 'G5 L4·동결': {'C': '4개 연속·실패 주입·측정·영상, v1.0-demo 태그 · 🛡 밀리면 SDD §9.9 범위 방어(4개 → 2개, 실패 주입 4종 → 2종)'},
+}
+SLOT = {        # 로봇 슬롯 표 (A 열 → {열: 글})
+ '9/19 토': {'C': 'CELL-04 티칭 1차 계속 + V-19(S·M) — 18시 교육장 마감까지 · 로봇 불필요: F1 골격·motion.py 착수(H)·V-20 Virtual(M·H)·force.py PR(P)·V-12(P) → 17:15 DSN-03 2차 회의(전원)',
+             'D': '🚫 교육장 마감(주말 18시) — 일정 없음'},
+ '9/20 일': {'B': '1시간씩 교대: 그리퍼 세션 V-05·V-23·V-01(M) → V-02 + weigh 이식(M) / V-03 → V-18·F3-02(P) / CELL-04b 티칭 2차 + V-22 → F1-01(S·P) · 로봇 불필요: motion.py PR·DSN-04·F4-00(H)',
+             'C': 'F1-02·V-14(S) / F3-02(P) / V-07·V-16 → F2-01(M) — 1시간씩 교대, 18시 마감 · 로봇 불필요: gripper.py(M)·F4-01·F4-02·MID-01·ARCH-01(H)',
+             'D': '🚫 교육장 마감(주말 18시) — 일정 없음'},
+ '9/21 월': {'D': '1시간씩 교대(순서는 DSN-03 C1): V-04·V-15 → F1-05(S, P 참여) / V-10 → F3-03(P) / F2-01·F2-02(M) · 로봇 불필요: INT-4·V-13·ENV-03·F4-02(H·M)'},
+ '9/22 화': {'B': 'F1-03·V-08(S) / F3-03 마무리(P) / UT-F2(M) · 로봇 불필요: UT-FLOW·FLOW-02(M)·CR-01(전원)·F4-03·노션 업로드(H)',
+             'C': 'F1-04·V-06 → UT-F1(S) / UT-F3(P) — G2(L1) 마감 · 로봇 불필요: F4-03·F4-04·NOTE-02(H)',
+             'D': 'L2: INT-12a(M·S) → INT-12b(S·M) → INT-13(P·S)'},
+ '9/23 수': {'B': 'INT-13 잔여 — G3(L2) → INT-3a·INT-3b L3(M 실행, 전원)', 'C': 'INT-3b·FIX-01 — G4(L3) → INT-4a 연속 처리',
+             'D': 'INT-4b 실패 주입 · INT-4c 측정 → INT-4d 영상·동결 (G5)'},
+}
+RULES = {       # (A 열, B 열 글자) → (새 B, 새 C)
+ ('마감', '9/22(화) 오전'): ('9/22(화) 오후', 'L1 단위기능 테스트(UT-F1·F2·F3·FLOW) 통과 — 함수별 TC 는 구현 직후 바로 수행. UT-F4 는 9/22 저녁. 미통과 기능은 범위 방어표대로 축소 · 코드리뷰(CR-01) · 노션에 노드 구조·HMI 화면·안전 자료 업로드 · GitHub 최신'),
+ ('마감', '9/22(화) 저녁'): ('9/23(수) 오전', 'L2 단위기능 통합 완료 (flow_node 에서 실행, 나머지 기능은 use_mock) — 9/22 저녁 시작'),
+ ('로봇', '비고 R'): ('비고 R', 'R 표시 작업은 실기 로봇 필요. 🚨 주말(9/19·20)은 교육장이 18시에 닫는다 → 하루 2슬롯(오전·오후), 저녁 칸 없음. 평일은 3슬롯(오전·오후·저녁). 배정은 전날 브리핑에서, 로봇 1대를 1시간씩 교대. 9/24~28 불가'),
+}
+NEW_RULES = [
+ ('공용 파일', 'cobot_common · config', 'cobot_common 은 사람별 파일: bootstrap.py·config.py·__init__.py·motion.py = H / gripper.py·weigh.py = M / force.py = P (부르는 쪽은 그대로 cc.함수()). config/cell.yaml 은 한석형 혼자(단 cell.force 절의 값은 박진용이 그 절만 PR), params.yaml 은 자기 절만'),
+]
+HISTORY = [VERSION, '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
+           '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
+           '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
+           '교육장 주말 운영 시간(18시 마감) · 한석형 티칭 지연 · 이슈 #7·B11·grip_width 요청을 한석형 부담 없이 수락하기 위함 (PM 결정, DSN-03 에서 확인)', 'S,M,P,H']
+
+
+def main(out):
+    gen_todo.EASY.update(EASY)
+    b = Book.from_live(SID)
+    tl = b.sheet('Time Line'); d = b.sheet('상세(산출물·완료기준)')
+
+    def has(sheet, col, v):
+        try: sheet.find(col, v); return True
+        except KeyError: return False
+
+    # 1) 새 행
+    for tid, after, like, cat, task, owner, status, slots, deliv, crit, note in NEW:
+        if has(tl, ID, tid): continue
+        n = new_timeline_row(tl, tl.rows[tl.find(ID, like)], slots, A=None, B=cat, C=task, D=owner, E='0.0', F=status, **{ID: tid})
+        tl.insert(tl.find(ID, after) + 1, n)
+        q = d.rows[d.find('A', like)].clone()
+        for c, v in zip('ACDEFG', [tid, task, owner, deliv, crit, note]): q.set(c, v)
+        d.insert(d.find('A', after) + 1, q)
+    # 2) 셀 고치기
+    for tid, e in EDIT.items():
+        r = tl.rows[tl.find(ID, tid)]
+        if 'task' in e: r.set('C', e['task'])
+        if 'owner' in e: r.set('D', e['owner'])
+        if 'status' in e: r.set('F', e['status'])
+        if 'slots' in e:
+            try: set_slots(r, e['slots'])
+            except ValueError:                           # 색 칸이 하나도 없는 행(이미 비운 행)
+                if e['slots']: raise
+        if has(d, 'A', tid):
+            q = d.rows[d.find('A', tid)]
+            for c, k in (('C', 'task'), ('D', 'owner'), ('E', 'deliv'), ('F', 'crit'), ('G', 'note')):
+                if k in e: q.set(c, e[k])
+    # 3) 완료 행은 진행 1.0 (PM 이 시트에서 완료로 바꾼 행 포함)
+    for r in tl.rows:
+        if tl.text(r, 'F').strip() == '완료' and tl.text(r, ID).strip(): r.set('E', '1.0')
+    # 4) 팀(구역) 이동
+    def team_of(i):
+        while i >= 0 and not tl.text(tl.rows[i], 'A').strip(): i -= 1
+        return tl.text(tl.rows[i], 'A').strip() if i >= 0 else ''
+    for tid, (team, after) in MOVE.items():
+        src = tl.find(ID, tid); dst = tl.find(ID, after)
+        if team_of(src) != team and src != dst + 1:
+            if tl.text(tl.rows[src], 'A').strip():           # 구역 첫 행이면 이름표를 다음 행에 넘긴다
+                tl.rows[src + 1].cells['A'] = list(tl.rows[src].cells['A'])
+            tl.move(src, dst + 1)
+            up = tl.rows[tl.find(ID, after)]
+            a_style = up.style('A') if not tl.text(up, 'A').strip() else tl.rows[tl.find(ID, after) + 2].style('A')
+            tl.rows[tl.find(ID, tid)].set('A', None, style=a_style)
+            qs = d.find('A', tid); qd = d.find('A', after)
+            if qs != qd + 1: d.move(qs, qd + 1)
+        d.rows[d.find('A', tid)].set('B', team)
+    # 5) 마일스톤·로봇 슬롯
+    m = b.sheet('마일스톤·로봇 슬롯')
+    k_mile = m.find('A', '마일스톤'); k_slot = m.find('A', '로봇 슬롯', prefix=True)
+    for i, r in enumerate(m.rows):
+        key = m.text(r, 'A').strip()
+        if i < k_mile and key in LECTURE:
+            r.set('B', LECTURE[key][0]); r.set('C', LECTURE[key][1])
+        elif k_mile < i < k_slot and key in GATE:
+            for c, v in GATE[key].items(): r.set(c, v)
+        elif i > k_slot and key in SLOT:
+            for c, v in SLOT[key].items(): r.set(c, v)
+    # 6) 규칙
+    ru = b.sheet('규칙')
+    for r in ru.rows:
+        key = (ru.text(r, 'A').strip(), ru.text(r, 'B').strip())
+        if key in RULES: r.set('B', RULES[key][0]); r.set('C', RULES[key][1])
+    ru.rows[0].set('A', f'운영 규칙 (PreWash-Cell 일정표 {VERSION})')
+    for rule in NEW_RULES:
+        if has(ru, 'A', rule[0]):
+            r_ = ru.rows[ru.find('A', rule[0])]; r_.set('B', rule[1]); r_.set('C', rule[2])
+        else:
+            k = ru.first_empty(); n = ru.rows[k - 1].clone()
+            for c, v in zip('ABC', rule): n.set(c, v)
+            ru.rows[k] = n
+    # 7) 변경이력
+    h = b.sheet('변경이력')
+    if not has(h, 'A', HISTORY[0]):
+        k = h.first_empty(); n = h.rows[k - 1].clone()
+        for c, v in zip('ABCDEF', HISTORY): n.set(c, v)
+        h.rows[k] = n
+    # 8) 고친 Time Line 을 다시 읽어 완료 목록·할일 시트를 채운다
+    tmp = os.path.join(tempfile.mkdtemp(), 'stage.xlsx'); b.save(tmp)
+    rows, det = timeline(load(tmp))
+    done = b.sheet('완료 목록'); txt, ctr = d.rows[1].style('C'), d.rows[1].style('A'); n_old = len(done.rows)
+    done.rows = done.rows[:1]
+    for r in rows:
+        if r['status'] != '완료' or not r['slots']: continue
+        n = Row('', {})
+        vals = [r['id'] or '—', r['task'], r['owner'], det.get(r['id'], {}).get('deliv', ''), ' '.join(r['slots'][0]), ' '.join(r['slots'][-1])]
+        for c, v, st in zip('ABCDEF', vals, [ctr, txt, ctr, txt, ctr, ctr]): n.set(c, v, style=st)
+        done.rows.append(n)
+    while len(done.rows) < n_old: done.rows.append(Row('', {}))
+    people = [('할일_한석형', 'S'), ('할일_민범진', 'M'), ('할일_박진용', 'P'), ('할일_황인재', 'H')]
+    rebuild_todo(b, lambda L: gen_todo.person_entries(rows, det, L), people)
+    for name, _ in people:
+        if name in b.paths: b.sheet(name).rows[0].set('A', TITLES[name])
+    b.save(out); print('->', out)
+    report(rows)
+    return rows
+
+
+def report(rows):
+    """사람별·칸별 부하(주도 + (참여)) — 브리핑·PM-01 제외, 5건 이상 ⚠. 주말 저녁에 남은 작업이 있으면 🚫 로 알린다."""
+    load_ = collections.defaultdict(list); bad = []
+    for r in rows:
+        if r['status'] in ('완료', '보류') or r['id'] in ('BRF', 'PM-01'): continue
+        lead = re.sub(r'\(.*?\)', '', r['owner']); part = ''.join(re.findall(r'\((.*?)\)', r['owner']))
+        L = set('SMPH') if '전원' in lead else set(c for c in lead if c in 'SMPH')
+        P = (set('SMPH') if '전원' in part else set(c for c in part if c in 'SMPH')) - L
+        for dday, p in r['slots']:
+            if '~' in dday or int(dday.split('/')[1]) > 23: continue
+            if dday in ('9/19', '9/20') and p == '저녁': bad.append(r['id'])
+            for w in L: load_[(dday, p, w)].append(r['id'])
+            for w in P: load_[(dday, p, w)].append('(' + r['id'] + ')')
+    order = {'오전': 0, '오후': 1, '저녁': 2}
+    for w in 'SMPH':
+        print('==', w)
+        for k in sorted([k for k in load_ if k[2] == w and k[0] != '9/18'], key=lambda k: (int(k[0].split('/')[1]), order[k[1]])):
+            print(f"  {k[0]} {k[1]} [{len(load_[k])}]{' ⚠' if len(load_[k]) >= 5 else ''} {' '.join(load_[k])}")
+    print('🚫 주말 저녁에 남은 작업:', bad or '없음')
+
+
+if __name__ == '__main__':
+    main(sys.argv[1] if len(sys.argv) > 1 else OUT)
