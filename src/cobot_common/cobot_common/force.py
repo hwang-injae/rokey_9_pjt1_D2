@@ -10,20 +10,22 @@
 - 숫자는 인자로 받거나 cfg()['cell'] 에서 읽는다(AGENTS 규칙 6). 키가 없거나 비어 있으면(null) 로봇을 움직이지 않고 KeyError.
     cell.limits : safe_z_mm · timeout_s
     cell.force  : compliance_stx · contact_step_mm · contact_vel_mm_s · contact_acc_mm_s2 ·
-                  retreat_vel_mm_s · retreat_acc_mm_s2 · force_max_n · search_y_period_ratio · force_mode(ABS/REL)
-                  (🟡 추가 요청 이슈 #7)
+                  retreat_vel_mm_s · retreat_acc_mm_s2 · force_max_n · search_y_period_ratio   (이슈 #7 ①, 키 골격 황인재)
+    cell.motion : 이동 속도 상한 — move_rel 이 읽는다
 - 실행 인자 cfg()['run']['vel_scale'](0 초과 1 이하, 첫 실기 0.3)를 이동 속도에 곱한다 — 하강·후퇴 속도, 탐색은 주기를 나눠 느리게.
 - 실패는 예외다: ForceLimitError(힘 상한) · MotionTimeout(시간 초과) · RuntimeError(두산 함수가 -1).
   기능 함수(f1·f3)가 받아서 FORCE_LIMIT · TIMEOUT · ROBOT_ERROR 코드로 바꾸고, 후퇴는 safe_retreat().
 - 두산 함수는 함수 안에서 dsr() 로 얻는다(메인 스레드 검사 포함). 모듈 맨 위에서 DSR_ROBOT2 를 import 하지 않는다.
 - check_force_condition 은 만족 0 / 아니면 -1 이다(DRL 매뉴얼과 다름, TS-01 증상 D) → force_reached() 만 쓴다.
 - 순응 중에는 관절 이동(movej) 금지 · 비동기 이동 중 순응 ON 금지(오류 2.1903, 중급교육2) → 켜기 전에 mwait().
-- 이동(contact_down 의 한 단계 하강, safe_retreat 의 상승)은 motion.move_rel(한석형) 을 쓴다. 들어오기 전까지는 이 파일의
-  🟡 임시 stub _move_rel 을 거친다(AGENTS §2). 순응·힘제어·move_periodic 처럼 힘 함수 자체의 두산 호출만 dsr() 로 직접 한다.
+- 이동(contact_down 의 한 단계 하강, safe_retreat 의 상승)은 motion.move_rel(황인재, 속도 선택 인자 = 이슈 #7 ②) 을 쓴다.
+  그 속도도 cell.motion 의 100 % 기준 × vel_scale 을 넘지 못한다. 순응·힘제어·move_periodic 처럼 힘 함수 자체의 두산 호출만
+  dsr() 로 직접 한다.
 """
 import time
 
 from .bootstrap import cfg, dsr
+from .motion import move_rel
 
 __all__ = ['force_on', 'force_off', 'force_reached', 'contact_down', 'periodic_search', 'safe_retreat',
            'read_force', 'ForceLimitError', 'MotionTimeout']
@@ -44,9 +46,8 @@ class MotionTimeout(RuntimeError):
 def force_on(axis, target, limit):
     """순응 ON(강성 cell.force.compliance_stx) → 목표 힘 ON(−axis 방향으로 target N 누름).
 
-    모드는 cell.force.force_mode: 'ABS'(목표 = 실제로 누르는 힘 — 이미 닿은 채 켤 때) /
-    'REL'(켜는 순간의 힘 + target — 공중에서 켤 때. 닿은 채 켜면 그만큼 더 누른다). 9/19 V-03 1차: 공중(3 mm 위)에서 REL 로
-    켜니 3 s 안에 바닥까지 내려가지 못함 → 닿은 채 ABS 로 시험.
+    목표 힘은 절대값(DR_FC_MOD_ABS) — target = 실제로 누르는 힘. 보통 contact_down 으로 닿은 **뒤** 켠다.
+    (상대값 REL 은 켜는 순간의 힘에 target 을 더한다 → 닿은 채 켜면 그만큼 더 누른다. 9/19 V-03 에서 닿은 채 ABS 로 확인)
     """
     i = _axis_index(axis)
     _check_force_args(target=target, limit=limit)
@@ -54,9 +55,6 @@ def force_on(axis, target, limit):
         raise ValueError(f'force_on: target {target} N 이 limit {limit} N 보다 작아야 한다')
     d = dsr()
     stx = _force_cfg('compliance_stx')
-    mode = _force_cfg('force_mode')
-    if mode not in ('ABS', 'REL'):
-        raise ValueError(f"cell.force.force_mode={mode!r} — 'ABS'·'REL' 중 하나")
     d.mwait()                                              # 비동기 이동 중 순응 ON 은 2.1903
     _ok(d.task_compliance_ctrl(stx), 'task_compliance_ctrl')
     _state['compliance'] = True
@@ -65,8 +63,7 @@ def force_on(axis, target, limit):
     fd[i] = -float(target)
     direction[i] = 1
     try:
-        _ok(d.set_desired_force(fd, direction, mod=d.DR_FC_MOD_ABS if mode == 'ABS' else d.DR_FC_MOD_REL),
-            'set_desired_force')
+        _ok(d.set_desired_force(fd, direction, mod=d.DR_FC_MOD_ABS), 'set_desired_force')
     except BaseException:
         force_off()
         raise
@@ -142,7 +139,7 @@ def contact_down(max_depth, limit):
             if time.monotonic() - t0 > timeout:
                 raise MotionTimeout(f'contact_down: {timeout} s 안에 접촉·최대 깊이에 닿지 않았다 (깊이 {depth:.1f} mm)')
             dz = min(step, max_depth - depth)
-            _move_rel(0.0, 0.0, -dz, 'BASE', vel_mm_s=vel, acc_mm_s2=acc)
+            move_rel(0.0, 0.0, -dz, 'BASE', vel_mm_s=vel, acc_mm_s2=acc)
     finally:
         force_off()
 
@@ -177,23 +174,7 @@ def safe_retreat():
     z = _current_z(d)
     if z >= safe_z:
         return
-    _move_rel(0.0, 0.0, float(safe_z) - z, 'BASE', vel_mm_s=vel, acc_mm_s2=acc)
-
-
-# ------------------------------------------------------------------ 🟡 임시 stub (AGENTS §2 — 남의 함수가 아직 없을 때)
-def _move_rel(dx, dy, dz, frame, *, vel_mm_s, acc_mm_s2):
-    """🟡 임시 stub — motion.move_rel(dx, dy, dz, frame)(한석형, INF-02) 과 같은 이름·인자. INF-02 가 들어오면 지운다.
-
-    contact_down·safe_retreat 의 이동은 전부 여기를 거친다 → 나중에 `from .motion import move_rel` 한 줄로 바꾼다.
-    vel_mm_s·acc_mm_s2 는 SDD §3.1 의 move_rel 에 없는 선택 인자다 — 접촉 하강을 느리게 하려고 붙였고,
-    move_rel 에 같은 이름의 선택 인자를 요청했다(인터페이스 변경 요청 이슈 #7).
-    """
-    d = dsr()
-    refs = {'BASE': d.DR_BASE, 'TOOL': d.DR_TOOL}
-    if frame not in refs:
-        raise ValueError(f"_move_rel: frame={frame!r} — 'BASE'·'TOOL' 중 하나")
-    _ok(d.movel([float(dx), float(dy), float(dz), 0.0, 0.0, 0.0], vel=vel_mm_s, acc=acc_mm_s2,
-                ref=refs[frame], mod=d.DR_MV_MOD_REL), f'movel(move_rel stub, {frame})')
+    move_rel(0.0, 0.0, float(safe_z) - z, 'BASE', vel_mm_s=vel, acc_mm_s2=acc)
 
 
 # ------------------------------------------------------------------ 내부

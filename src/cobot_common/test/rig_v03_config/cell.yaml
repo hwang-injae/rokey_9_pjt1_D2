@@ -4,6 +4,12 @@ cell:
   limits:
     safe_z_mm: 0.0              # rig 가 HOME 높이로 덮어쓴다(시험 전용)
     timeout_s: 30.0             # 접촉 하강 한 번의 시간 상한 (50 mm ÷ 2 mm = 25 단계)
+    vel_carry_pct: 30           # move_rel 기본 속도 비율 (motion.py 가 읽는다 — 이 rig 는 속도를 늘 직접 준다)
+  motion:                       # move_rel 속도 상한(100 % 기준, × vel_scale) — 팀 값이 비어 있어 시험용. config_virtual 과 같은 값
+    vel_tcp_max_mm_s: 400       # × 0.3 = 120 mm/s 상한 (접촉 하강 6 · 후퇴 15 mm/s 는 그 아래)
+    acc_tcp_max_mm_s2: 800
+    vel_joint_max_deg_s: 100
+    acc_joint_max_deg_s2: 200
   force:
     compliance_stx: [3000, 3000, 500, 200, 200, 200]   # N/m · Nm/rad — Z 만 부드럽게 (강의 범위 X·Y·Z 0~20000, 회전 0~400)
     contact_step_mm: 2.0        # contact_down 한 단계 (× Z 강성 500 N/m ≈ 1 N)
@@ -13,4 +19,3 @@ cell:
     retreat_acc_mm_s2: 100.0
     force_max_n: 15.0           # 어떤 순간에도 넘으면 안 되는 절대 상한 (닦기 상한 10 N 위)
     search_y_period_ratio: 2.0
-    force_mode: ABS             # 닿은 채 켠다 → 목표 = 실제 누르는 힘 (9/19 V-03 1차: 공중에서 REL 로 켜니 바닥까지 못 내려감)

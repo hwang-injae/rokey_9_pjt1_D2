@@ -35,7 +35,7 @@ _STOP_MODE = 1                      # DR_QSTOP(Stop Category 2). 안전 담당(�
 _DRIVER_WAIT_S = 10.0               # 브링업 대기 상한
 _STOP_WAIT_S = 2.0                  # 정지 명령 응답 상한
 _JOIN_WAIT_S = 2.0                  # 통신 노드 스레드 종료 대기 상한
-_IO_MODULES = ('motion', 'force', 'weigh')   # setup_io(node) 가 있으면 init 이 불러 준다
+_IO_MODULES = ('motion', 'gripper', 'force', 'weigh')   # setup_io(node) 가 있으면 init 이 불러 준다
 
 _lock = threading.Lock()
 _started = False
@@ -78,7 +78,7 @@ def init(name: str, robot: bool = True):
             _init_dsr(name)
         _robot = robot
         _io = rclpy.create_node(name)
-        _call_setup_io(_io)
+        _call_setup_io(_io, robot)
         _executor = SingleThreadedExecutor()
         _executor.add_node(_io)
         _thread = threading.Thread(target=_spin_io, name='cc_io', daemon=True)
@@ -188,24 +188,45 @@ def _init_dsr(name):
     _dsr_mod = DSR_ROBOT2
 
 
-def _call_setup_io(node):
-    """사람별 파일이 통신 노드에 구독·클라이언트를 달 자리. 예: motion.py 의 setup_io(node) 가 그리퍼 폭을 구독한다."""
+def _call_setup_io(node, robot):
+    """사람별 파일이 통신 노드에 구독·클라이언트를 달 자리. 예: gripper.py 의 setup_io(node) 가 그리퍼 폭을 구독한다.
+
+    robot=True  : 훅이 실패하면 init 도 실패한다 — 실기·Virtual 에서는 빠진 것을 바로 드러내는 편이 안전하다.
+    robot=False : 훅 실패는 경고만 남기고 건너뛴다 — "전부 mock 이면 드라이버 없이 돈다"(SDD §5.1)를 지킨다.
+                  예: 드라이버 워크스페이스(ws_dsr)가 없는 PC 에서는 gripper 훅이 onrobot_rg_msgs 를 못 찾는다.
+    """
     import importlib
     for mod_name in _IO_MODULES:
         mod = importlib.import_module(f'{__package__}.{mod_name}')
         hook = getattr(mod, 'setup_io', None)
-        if callable(hook):
+        if not callable(hook):
+            continue
+        try:
             hook(node)
+        except Exception as e:
+            if robot:
+                raise
+            _log().warn(f'{mod_name}.setup_io 를 건너뛴다(robot=False 라 계속 진행): {e!r}')
 
 
 def _spin_io():
+    """통신 노드 실행기를 돌린다. 콜백 하나가 예외를 내도 **스레드는 죽지 않는다** — 로그를 남기고 계속 돈다.
+
+    rclpy 실행기는 콜백 예외를 spin() 밖으로 다시 던진다. 여기서 끝내 버리면 프로세스는 살아 있는데
+    /flow/state 가 멈추고 start·stop·resume 이 응답하지 않는다(메인 스레드는 로봇을 계속 움직이는데 정지 버튼이 안 먹는다).
+    """
+    import traceback
     from rclpy.executors import ExternalShutdownException
-    try:
-        _executor.spin()
-    except ExternalShutdownException:
-        pass
-    except Exception as e:          # 콜백 예외로 통신 노드가 조용히 죽는 것을 막는다
-        _log().error(f'통신 노드 실행기가 멈췄다: {e!r}')
+    executor = _executor                    # shutdown() 이 전역을 None 으로 바꿔도 이 스레드는 자기 것을 본다
+    while True:
+        try:
+            executor.spin()                 # 정상 반환 = executor.shutdown() 또는 컨텍스트 종료
+            return
+        except ExternalShutdownException:
+            return
+        except Exception:                   # 콜백 안에서 난 예외 — 그 콜백 1회만 버리고 나머지는 계속 돈다
+            _log().error('통신 노드 콜백에서 예외가 났다(통신 노드는 계속 돈다). 콜백은 값 저장·깃발만 하게 고친다:\n'
+                         + traceback.format_exc(limit=6))
 
 
 def _send_stop():

@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>f1_handling</name>
+  <version>0.1.0</version>
+  <description>F1 파지·이송·적재 함수 모듈(노드 아님): pick · place · move_to · tool · rack_place. 서명·반환은 cobot_api.F1Api(IRD v3.0 §3). 담당 한석형.</description>
+  <maintainer email="Hanseokhyung@users.noreply.github.com">한석형</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>cobot_api</exec_depend>
+  <exec_depend>cobot_common</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

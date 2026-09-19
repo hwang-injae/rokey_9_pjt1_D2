@@ -13,7 +13,7 @@
       → 닿은 채 제자리 누르기 → 누른 채 손목을 ±scrub_deg 로 비틀며 중심에서 나선으로 넓혀 가기
       → 반지름 방향 힘이 (가운데에서 배운 마찰 + wall_margin_n) 을 넘으면 벽 → 그 자리에서 바로 벽 따라 2바퀴 → 후퇴 → HOME
 솔은 낮은 원통이라 손목(6축) 비틀림 각도는 닦기에 상관없다 — 따로 되돌리지 않고 HOME(관절 이동)이 0 으로 돌려 놓는다.
-힘은 닿은 채 켠다(cell.force.force_mode ABS: 목표 = 실제 누르는 힘). 9/19 1차에 3 mm 위(공중)에서 상대 모드로 켰더니
+힘은 닿은 채 켠다(force.py 는 절대값 ABS: 목표 = 실제 누르는 힘). 9/19 1차에 3 mm 위(공중)에서 상대 모드로 켰더니
 3 s 안에 바닥까지 못 내려가 공중에서 8자를 그렸다 → 방식 변경.
 누르는 힘 = 공중에서 잰 기준값 대비 Fz 변화. 어느 순간이든 limit_n 을 넘으면 즉시 힘 해제 → 후퇴.
 🚨 두산 API 의 DR_Error 는 생기는 순간 rclpy.shutdown() 을 부른다 → 이 프로세스로는 힘·순응을 못 끈다.
@@ -210,7 +210,7 @@ class Run:
         self.log.info(f'  {phase}: 목표 {target:.1f} N · 평균 {mean:.2f} · 흔들림 {sd:.2f} · 최대 {mx:.2f} N · {"OK" if ok else "FAIL"}')
 
     def press_on(self, target):
-        """닿은 채 힘제어를 켠다 (force_mode ABS → 목표 = 실제 누르는 힘)."""
+        """닿은 채 힘제어를 켠다 (ABS → 목표 = 실제 누르는 힘)."""
         cc.force_on('z', target, self.p['limit_n'])
 
     def save(self):

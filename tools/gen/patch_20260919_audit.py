@@ -28,14 +28,16 @@ EDIT = {
                  crit='격리 상태(solo)의 Virtual 에서 rig 스크립트로 movej 연속 3회 + 통신 노드 타이머 2 Hz + 멈춰 있을 때 Ctrl+C → 깨끗이 종료·재실행 정상 (움직이는 중 Ctrl+C 는 최선 시도 — V-24)',
                  note='✅ PR #3 merge(9/19) — git pull → cbc 후 S·P·M 은 자기 파일(motion·force·weigh)만 채운다 · 두산 함수는 함수 안에서 from .bootstrap import dsr → dsr().movej(...) (맨 위 DSR_ROBOT2 import 금지) · 구독은 자기 파일의 setup_io(node) · Ctrl+C 는 init() 이 단독 · Virtual 에서 모션 중 Ctrl+C 정지 확인(실기는 V-24)'),
  'INF-02b': dict(task='cobot_common 3/4 · force.py — 힘 함수 force_on/off·force_reached·contact_down·periodic_search·safe_retreat + 패키지 정리·리뷰(네 사람이 나눠 쓴 함수의 일관성)',
-                 deliv='src/cobot_common/cobot_common/force.py', note='F1-02 가 같은 칸(9/20 오전)에서 contact_down 을 기다린다 → contact_down 부터 · Virtual에는 힘이 없으므로 호출 순서만, 값은 V-03 · 자기 파일(force.py)만 고친다 · 이동이 필요한 곳(safe_retreat 등)은 motion.py 가 나오기 전까지 임시 stub'),
+                 deliv='src/cobot_common/cobot_common/force.py', note='force.py 구현 + rig_force·시험이 브랜치 jinyong/20260919-INF-02b-force-funcs 에 있음(9/19 14:27) — PR 은 오늘 저녁 V-03 뒤 · F1-02(9/20 오전)가 contact_down 을 기다린다 · 이동은 move_rel 임시 stub · 🔔 인터페이스 변경 요청 이슈 #7(cell.force 키 8개 · move_rel 선택 인자 · read_force·ForceLimitError·MotionTimeout) → DSN-03',
+                 slots=S('9/19 오후', '9/19 저녁', '9/20 오전')),
  'INF-02c': dict(task='cobot_common 4/4 · weigh.py — weigh(n, reset=False) 저수준 측정 · V-02 측정 도구에서 이식 (reset 은 선택 동작·응답 상한 3 s·실패 시 반복 금지, TS-03)',
                  deliv='src/cobot_common/cobot_common/weigh.py', note='R · V-02 와 한 세션 · f2.weigh(F2-01)가 이걸 불러 판정한다'),
- 'PKG-01': dict(note='V-20 의 재료 · cobot_common 없이도 작성 가능 · 30분 · ✅ F3(박진용) PR #4 merge(9/19) · F1(한석형)·F2(민범진) 남음'),
+ 'PKG-01': dict(note='V-20 의 재료 · ✅ F3(박진용) PR #4 · ✅ F2(민범진) PR #8 merge(9/19) · F1(한석형) 아직 — V-20 은 use_mock=f1 로 먼저 돌릴 수 있다'),
+ 'FLOW-01': dict(note='✅ PR #8(14:43)·#9(15:12) merge: 메인 뼈대·상태 머신·실패 정책 + 예외 보호(후퇴 실패 → 재시도 없이 PAUSED · 함수 없음·Result 아님도 ROBOT_ERROR · 콜백 보호) · 시험 44건 · 🔧 남은 것: 격리 마무리 동작(툴 반납 → ISOLATE 에 놓기 → HOME) — L2 전까지, 순서는 DSN-03 B7'),
  'CELL-02a': dict(note='로봇 불필요 · ✅ 용기·툴 실측 기록 docs/test_logs/20260918_CELL-02a_용기치수측정.md (PR #4) — 그릇 외경 114 mm > RG2 최대 폭 110 mm(테두리 파지) · 수세미 중심 이동 한계 10 mm → DSN-03 안건 · 남은 것: 홈 커팅 도면·툴 홀더 위치'),
  'INF-04': dict(task='config 골격 — params.yaml(f1·f2·f3·flow·hmi 절) + cell.yaml 키 골격만(값·파일 주인은 한석형) + prewash_bringup 런치 2종(flow_node 1개 실행 · use_mock 인자)',
                 note='✅ PR #5 merge(9/19) — cell.yaml 은 키 골격만(값 null 67개, 한석형이 채운다) · params.yaml f3 절은 박진용 초안 · 런치 인자는 환경변수로(PREWASH_USE_MOCK·PREWASH_VEL_SCALE → cc.cfg()) · flow_node 에 -r __node 금지 · 기동 확인은 V-20 에서', slots=S('9/19 오후')),
- 'INF-03': dict(note='로봇 없이 flow 개발 · 오전은 FLOW-01 메인 뼈대 먼저, mock 은 저녁', slots=S('9/19 저녁')),
+ 'INF-03': dict(note='✅ PR #8 merge(9/19): mock_f1·mock_f2·mock_f3 · 실패 주입(함수명:코드[:횟수]) · mock_f2 를 문서(IRD §10)에 넣을지는 DSN-03 B12', slots=S('9/19 오후')),
  'F1-01': dict(task='f1.move_to(station, carrying) + 일반 place — cobot_common.move_to 를 감싼 기능 함수(Result 반환). 좌표·프리셋 값은 CELL-04 에서 적은 cell.yaml 을 읽기만 한다',
                deliv='handling.py', note='R · INF-02(S)와 같은 흐름'),
  'F2-01': dict(task='f2.weigh(kind) · leftover_loop · shake(WASTE) — cobot_common.weigh 를 불러 잔반 판정까지 · 시작 시 강한 파지(HOLD)·끝나면 NORMAL·전후 폭 비교'),
@@ -50,7 +52,7 @@ EDIT = {
  'V-15': dict(owner='S(P)', note='R · 티칭 2차·기구 고정 뒤 · F1-05 의 첫 단계로'),
  'V-04': dict(owner='S(P)', note='R · 티칭 2차·기구 고정 뒤 · F1-05 의 첫 단계로 · periodic_search(INF-02b)는 박진용이 제공·참여'),
  'V-05': dict(task='V-05 그리퍼 드라이버 연결 확인 — /onrobot/sendCommand 응답 + 현재 폭을 읽을 경로 확정 (강사 배포 드라이버는 OnRobotRGInput 토픽을 발행하지 않는다 → /onrobot_joint_states 관절각을 폭으로 환산 등. DO/DI 배선 방식은 예비)',
-              crit='명령 → 동작 → 폭 값(mm)이 코드에서 읽힘', note='R · V-01 과 한 세션 · 🚨 9/19 확인: 드라이버가 내는 것은 JointState 뿐 → 폭 경로를 여기서 정해 INF-02 grip 에 반영, 결과는 DSN-03 에서 공유(IRD·SDD 수정)'),
+              crit='명령 → 동작 → 폭 값(mm)이 코드에서 읽힘', note='R · V-01 과 한 세션 · 🚨 드라이버가 내는 것은 JointState 뿐 → 폭 경로를 여기서 정해 INF-02 grip 에 반영 · 박진용 제안서 docs/ref/20260919_제안_RG2_폭_힘_경로.md(PR #6): A 드라이버(관절각→폭 환산, 힘은 2.5 N 계단)로 먼저, 안 되면 B Compute Box XML-RPC · 확인 순서 30분 → DSN-03 B3'),
  'V-24': dict(owner='H', task='V-24 (선택) 동작 중 소프트 정지·타임아웃 — 비동기 이동(amovej/amovel) + check_motion 폴링 + motion/move_stop 서비스(DSR_ROBOT2 에 stop 함수 없음). shutdown() 의 정지 명령이 모션 중에 먹는지도 확인. 메인 스레드에서만(Virtual)',
               note='선택 과제(시간 남을 때만): 안 되면 정지는 기능 함수 사이로만, 움직이는 중 Ctrl+C 는 "브링업 재시작 필요" 로그(현재 기본) · 급한 정지는 E-Stop'),
  'INT-4b': dict(owner='M(P)'),
@@ -72,7 +74,7 @@ EDIT = {
  'V-02': dict(task='V-02 하중 측정 정밀도 — 100/200 g 추 10회'),
  'TS-01': dict(task='TS-01 두산 API 초기화 누락·서비스 콜백 안 로봇 명령 교착 — 원인·재현·구조 5종 Virtual 비교 → 구조 변경으로 종결(DSN-02b)'),
  'DSN-03': dict(task='2차 회의 — 반납 구역 방식(V-01 결과)·HMI 설계(F4-00)·실패 코드·정책·YAML 키 규칙 + 구조 변경 후속(모니터·기록 노드 추가 여부, /cell/force·/cell/grip_width 토픽, V-20 결과, '
-                     '공용 함수 분담·사람별 파일 확인) + 9/21 저녁 로봇 순서(S·P·M) + 격리 규칙(LOCALHOST)·Ctrl+C 주인(결정 기록 S1~S4) 확인 + 그릇 파지 방식(외경 114 mm > RG2 110 mm, CELL-02a 실측)·정지 방식 DR_QSTOP 확인 + 실기에서 rig 를 손으로 돌릴 때 vel_scale 기본값(지금 1.0)·flow.leftover_max_rounds 키 추가 여부',
+                     '공용 함수 분담·사람별 파일 확인) + 9/21 저녁 로봇 순서(S·P·M) + 격리 규칙(LOCALHOST)·Ctrl+C 주인(결정 기록 S1~S4) 확인 + 그릇 파지 방식(외경 114 mm > RG2 110 mm, CELL-02a 실측)·정지 방식 DR_QSTOP 확인 + 실기에서 rig 를 손으로 돌릴 때 vel_scale 기본값(지금 1.0)·flow.leftover_max_rounds 키 추가 여부 + 이슈 #7(힘 함수 인터페이스: cell.force 키·move_rel 선택 인자·read_force 등) + 민범진 안건 B11 털기용 관절 이동 공용 함수·B12 mock_f2',
                 deliv='docs/meetings/20260919_결정기록_DSN-03.md'),
  'DOC-05': dict(deliv='docs v3.x, 노션'),
  'BRF': dict(deliv='노션 진행률 · 당일 로봇 순서'),
@@ -82,7 +84,10 @@ EDIT = {
 # 상태 갱신: id → (상태, 진행)
 STATUS = {'INF-02a': ('완료', '1.0'),      # PR #3 merge (9/19 12:22)
           'INF-04': ('완료', '1.0'),        # PR #5 merge (9/19 13:34)
-          'PKG-01': ('진행 중', '0.33'),    # F3 골격 PR #4 merge (9/19 12:39) · F1·F2 남음
+          'PKG-01': ('진행 중', '0.67'),    # F3 골격 PR #4 · F2 골격 PR #8 merge · F1(한석형) 아직
+          'FLOW-01': ('진행 중', '0.8'),    # PR #8·#9 merge: 메인 뼈대·상태 머신·실패 정책·예외 보호(후퇴·발행·콜백). 남은 것: 격리 마무리 동작
+          'INF-03': ('완료', '1.0'),        # PR #8 merge: mock_f1·f2·f3 · check_api 통과 · 실패 주입
+          'INF-02b': ('진행 중', '0.7'),    # force.py 구현 + rig_force·시험 — jinyong/20260919-INF-02b-force-funcs (PR 은 V-03 뒤)
           'CELL-02a': ('진행 중', '0.5')}   # 용기·툴 실측 기록 merge(PR #4) · 홈 도면·홀더 위치 남음
 # 팀(구역) 이동: id → (새 팀, 이 ID 행 바로 뒤에 둔다)
 MOVE = {'INF-02': ('전원', 'INF-02a'), 'INF-02b': ('전원', 'INF-02'),      # cobot_common 네 행은 한곳에: 02a(선행) → 02 → 02b → 02c
@@ -161,6 +166,14 @@ HISTORY8 = ['4.10', 'PM 수정 반영', 'CELL-04, PKG-01, INF-02, INF-02b, 로�
 
 HISTORY9 = ['4.11', '진행', 'INF-04, DSN-03', 'INF-04 완료(PR #5 merge, 9/19 13:34): config 골격(cell.yaml 키만·params.yaml 절) + prewash_bringup 런치 2종. 런치 인자는 환경변수로 cfg 에 얹힌다. DSN-03 안건에 vel_scale 기본값·leftover_max_rounds 추가',
             'PR #5 검토·merge (황인재 F4 세션)', 'S,M,P,H']
+
+HISTORY10 = ['4.12', '진행', 'PKG-01, FLOW-01, INF-03, INF-02b, V-05, DSN-03', 'GitHub 확인(9/19 14:35) — 민범진: f2_sense_flow 골격·flow_node 뼈대·상태 머신·mock 3종·시험 27건(브랜치, PR 전) → FLOW-01 0.6 · INF-03 0.8 · PKG-01 0.5 / 박진용: force.py 구현·시험(브랜치, PR 은 V-03 뒤) → INF-02b 0.7(칸 9/19 오후~9/20 오전), RG2 폭·힘 경로 제안서·힘제어 방법론(PR #6 merge), 인터페이스 변경 이슈 #7 / 한석형: 올라온 것 없음(티칭·검증은 저장소로 확인 불가)',
+             'PM 요청: 깃허브에 올라온 내용으로 팀원별 진척 반영', 'S,M,P']
+
+HISTORY11 = ['4.13', '진행', 'PKG-01, FLOW-01, INF-03', 'PR #8(민범진) merge 9/19 14:43 — f2_sense_flow 골격·flow_node 뼈대·상태 머신·mock 3종. INF-03 완료 · PKG-01 2/3 · FLOW-01 0.7(남은 것: 후퇴 예외 보호, 격리 마무리 동작)',
+             'PR #8 검토·merge', 'M']
+
+HISTORY12 = ['4.14', '진행', 'FLOW-01', 'PR #9(민범진) merge 9/19 15:12 — PR #8 리뷰에서 지적한 예외 보호 구멍 수정(후퇴·이벤트 발행·콜백·함수 찾기까지 보호), 횟수를 flow.counts 로. FLOW-01 0.8(남은 것: 격리 마무리 동작)', 'PR #9 검토·merge', 'M']
 
 
 def main(out):
@@ -245,7 +258,7 @@ def main(out):
         if key in RULES and ru.text(r, 'A').strip() in ('마감', '정본'): r.set('C', RULES[key])
     for r in ru.rows:
         if ru.text(r, 'A').strip() in RULES_A: r.set('C', RULES_A[ru.text(r, 'A').strip()])
-    ru.rows[0].set('A', '운영 규칙 (PreWash-Cell 일정표 v4.11)')
+    ru.rows[0].set('A', '운영 규칙 (PreWash-Cell 일정표 v4.14)')
     if has(ru, 'A', '🚨 도메인'):                          # v4.5 의 규칙 이름(개인 도메인 번호 방식) → v4.6 에서 '🚨 격리'(LOCALHOST 한 줄)로
         ru.rows[ru.find('A', '🚨 도메인')].set('A', '🚨 격리')
     for rule in NEW_RULES:
@@ -257,7 +270,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
@@ -303,4 +316,4 @@ def report(rows):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1] if len(sys.argv) > 1 else 'prewash_일정표_0919j.xlsx')
+    main(sys.argv[1] if len(sys.argv) > 1 else 'prewash_일정표_0919m.xlsx')
