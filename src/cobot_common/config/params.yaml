@@ -14,7 +14,10 @@ f2:                                   # ── f2 절 (민범진) ── 값은 
     BOWL: 180
     CUP: 120
   leftover_threshold_g: 50            # 잔반 판정 임계 (SR-05). V-02 정밀도 미달이면 100 (SDD §9.9)
+  leftover_max_rounds: 2              # 털고 다시 재는 최대 횟수. 초과해도 넘으면 LEFTOVER_REMAIN → 격리
   weigh_samples: 5                    # weigh() 평균 횟수
+  weigh_settle_s: 0.5                 # 재기 전 정지 대기 — 하중은 흔들리면 튄다 (SDD §5.3)
+  weigh_reset_timeout_s: 3.0          # 0점 재설정 응답 상한. 넘으면 포기하고 계속 (TS-03)
   shake:
     WASTE: {amp_deg: 15, cycles: 4, period_s: 0.6}    # 잔반 털기, V-07 에서 조정
     RINSE: {amp_deg: 10, cycles: 3, period_s: 0.5}    # 물 털기
@@ -56,6 +59,11 @@ flow:                                 # ── flow 절 (민범진) ── 🟡 
     RACK_FULL: pause
     ROBOT_ERROR: pause
   consumables: {sponge_max_uses: 20, soap_max_dips: 60}
+  state_pub_hz: 2.0                   # /flow/state 발행 주기 (IRD §6 = 2 Hz)
+                                      #   🔔 hmi.state_rate_hz(화면 갱신)와 **다른 값**이라 이름을 구분했다.
+                                      #   hmi.disconnect_after_s 보다 촘촘해야 HMI 가 끊김으로 오판하지 않는다 (DSN-03)
+  step_delay_s: 0.0                   # 기능 함수 사이 대기. 실제 운전은 0.0 (뼈대·정책 시험용)
+  records_path: records.csv           # 기록 파일 (실행 위치 기준 상대경로, AGENTS.md 규칙 7)
   use_mock: []                        # 가짜 모듈로 바꿀 기능. 예: [f1, f3] · [f1, f2, f3] 이면 드라이버 없이 돈다.
                                       #   런치 인자 use_mock(= 환경변수 PREWASH_USE_MOCK)이 있으면 그 값이 이 줄을 덮어쓴다
   mock:
