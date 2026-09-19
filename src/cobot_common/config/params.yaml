@@ -1,54 +1,76 @@
-# params.yaml — 기능별 절. 🚨 자기 절만 고친다. (SDD §4.3, IRD §9)
-# INF-02a: 로더가 읽을 수 있게 절만 만들었다. 각 절의 키 골격은 INF-04(9/19 오후), 값은 절 주인.
-f1: {}        # ── f1 절 (한석형) ──
-f2:           # ── f2 절 (민범진) ──
-  empty_weight_g:                      # 빈 용기 무게. 잔반 판정 = 측정값 − 이 값
-    BOWL: 180                          # 🟡 임시 — 9/19 B V-02 에서 실측
-    CUP:  120                          # 🟡 임시 — 9/19 B V-02 에서 실측
-  leftover_threshold_g: 50             # 이 이상이면 잔반. 미만은 통과(본세척은 식기세척기)
-                                       #   근거 AGENTS.md §1 시나리오 ②
-                                       #   V-02 정밀도가 ±20 g 를 못 맞추면 100 으로 올린다(SDD §9.2)
-  leftover_max_rounds: 2               # 털고 다시 재는 최대 횟수. 초과해도 넘으면 LEFTOVER_REMAIN → 격리
-  weigh_samples: 5                     # 한 번 잴 때 평균낼 횟수 (많을수록 정확·느림)
-  weigh_settle_s: 0.5                  # 재기 전 정지 대기. 하중은 흔들리면 튄다(SDD §5.3)
-  weigh_reset_timeout_s: 3.0           # 0점 재설정 응답 상한. 넘으면 포기하고 계속(TS-03)
-  shake:                               # 털기 — J5/J6 관절 왕복
-    WASTE: {amp_deg: 15, cycles: 4, period_s: 0.6}   # 🟡 잔반 털기 — 9/20 A V-07 에서 확정
-    RINSE: {amp_deg: 10, cycles: 3, period_s: 0.5}   # 🟡 물 털기(물 없음, 모션만)
+# params.yaml — 기능별 절. 🚨 **자기 절만 고친다.** (SDD §4.3, IRD §9)
+#
+# INF-04(9/19): 절마다 키 골격을 만들었다. 값은 **초안**이다 — 절 주인이 검증 결과로 바꾸고, 값 옆 주석에 단위·범위·바꾼 이유(날짜)를 적는다.
+#   - 여러 기능이 같이 쓰는 값(좌표·속도·힘 상한·프리셋)은 여기 두지 않는다 → cell.yaml (한석형).
+#   - **키 이름**을 추가·변경하면 팀 채널에 알린다. **값**은 주인 재량(커밋 본문에 이유).
+#   - 코드에서는  cc.cfg()['f3']['wipe_bowl']['target_force_n']  처럼 읽는다. 숫자를 코드에 쓰지 않는다.
+
+f1:                                   # ── f1 절 (한석형) ── 값은 SDD §4.3 예시, 한석형이 확정
+  insert_approach_mm: 30              # 팔레트 삽입 전 접근 거리, V-06·F1-04 에서 확정
+  tool_return_contact_n: 8            # 툴 반납 때 홀더 바닥 접촉 판정 힘, V-08·F1-03 에서 확정
+
+f2:                                   # ── f2 절 (민범진) ── 값은 SDD §4.3 예시, 민범진이 확정
+  empty_weight_g:                     # 빈 용기 기준 무게 — 판정은 (측정값 − 기준값). 실측으로 바꾼다 (V-02·F2-01)
+    BOWL: 180
+    CUP: 120
+  leftover_threshold_g: 50            # 잔반 판정 임계 (SR-05). V-02 정밀도 미달이면 100 (SDD §9.9)
+  leftover_max_rounds: 2              # 털고 다시 재는 최대 횟수. 초과해도 넘으면 LEFTOVER_REMAIN → 격리
+  weigh_samples: 5                    # weigh() 평균 횟수
+  weigh_settle_s: 0.5                 # 재기 전 정지 대기 — 하중은 흔들리면 튄다 (SDD §5.3)
+  weigh_reset_timeout_s: 3.0          # 0점 재설정 응답 상한. 넘으면 포기하고 계속 (TS-03)
+  shake:
+    WASTE: {amp_deg: 15, cycles: 4, period_s: 0.6}    # 잔반 털기, V-07 에서 조정
+    RINSE: {amp_deg: 10, cycles: 3, period_s: 0.5}    # 물 털기
   dip:
-    RINSE: {depth_mm: 60, hold_s: 1.0}               # 🟡 헹굼 담금 — 수조 배치 후 확정
-f3: {}        # ── f3 절 (박진용) ──
-flow:         # ── flow 절 (민범진) ──
-  plan:                                # 처리 순서: 그릇 구역 2개 → 컵 구역 2개
+    RINSE: {depth_mm: 60, hold_s: 1.0}                # 헹굼 담금
+
+f3:                                   # ── f3 절 (박진용) ── 값의 주인은 박진용. 초안 출처: docs/test_logs/20260918_CELL-02a_용기치수측정.md §4 (SDD §4.3 예시와 다름)
+  soap:
+    depth_mm: 40                      # 담금 깊이, F3-03 에서 확정
+    hold_s: 0.5                       # 담금 유지, F3-03 에서 확정
+  wipe_bowl:
+    target_force_n: 4.0               # 3~5 N (FR-08), V-03·F3-02 에서 조정
+    limit_n: 10.0                     # NFR-01 닦기 10 N
+    radius_mm: [2, 9]                 # 수세미 Ø90 / 그릇 내경 Ø110 → 중심 이동 한계 10 mm (CELL-02a §2)
+    turns: 4                          # F3-02 에서 확정
+    duration_s: 15                    # 타임아웃, F3-02 에서 확정
+  wipe_cup:
+    insert_depth_mm: 90               # 최대 삽입 깊이 < 95 (그리퍼-컵 윗면 여유), V-10 에서 확정
+    rot_deg: 180                      # 회전각 (SR-09 ±180°), F3-03 에서 확정
+    cycles: 4                         # F3-03 에서 확정
+    stroke_mm: 30                     # F3-03 에서 확정
+    limit_n: 10.0                     # NFR-01 닦기 10 N (회전·스트로크 구간)
+
+flow:                                 # ── flow 절 (민범진) ── 🟡 계획·정책은 DSN-03 에서 확정
+  plan:                               # 구역 계획: 위에서부터 차례로, 구역마다 count 개 또는 EMPTY_ZONE 까지
     - {zone: RET_B, kind: BOWL, count: 2}
-    - {zone: RET_C, kind: CUP,  count: 2}
-  rack_order:                          # 팔레트에 채울 칸 순서 (그릇 2칸·컵 4칸)
+    - {zone: RET_C, kind: CUP, count: 2}
+  rack_order:                         # 칸 배정 순서
     BOWL: [RACK_B1, RACK_B2]
-    CUP:  [RACK_C1, RACK_C2, RACK_C3, RACK_C4]
-  policy:                              # 실패 코드별 처리 (IRD §8)
-    EMPTY_ZONE:       next_zone        # 구역이 비었다 → 다음 구역 (기록 SKIPPED)
-    LEFTOVER_REMAIN:  isolate
-    SEAT_FAIL:        isolate
-    FORCE_LIMIT:      retry_1_isolate  # 후퇴 후 1회 재시도 → 그래도 실패면 격리
-    TIMEOUT:          retry_1_isolate
-    RACK_JAM:         retry_1_isolate
-    TOOL_FAIL:        retry_1_isolate
-    RACK_FULL:        pause            # 팔레트가 찼다 → 멈추고 사람이 교체 후 resume
-    ROBOT_ERROR:      pause            # 기능 함수에서 새어 나온 예외 포함
-  consumables:
-    sponge_max_uses: 20
-    soap_max_dips:   60
-  state_pub_hz: 2.0                    # /flow/state 발행 주기. IRD §6 = 2 Hz
-                                       #   🔔 hmi.state_rate_hz(화면 갱신)와 **다른 값**이다 — 이름을 구분했다
-                                       #   hmi.disconnect_after_s(2.0)보다 촘촘해야 HMI 가 끊김으로 오판하지 않는다 (DSN-03)
-  step_delay_s: 0.0                    # 기능 함수 사이 대기. 실제 운전은 0.0 (뼈대 시험용)
-  records_path: records.csv            # 기록 파일 (실행 위치 기준 상대경로, AGENTS.md 규칙 7)
-  use_mock: []                         # 가짜로 돌릴 기능. 예: [f1, f3] · 전부면 드라이버 없이 돈다
-                                       #   런치 인자 use_mock 이 이 값을 덮어쓴다
+    CUP: [RACK_C1, RACK_C2, RACK_C3, RACK_C4]
+  policy:                             # 실패 정책 (IRD §8): next_zone · isolate · retry:N->isolate · pause
+    EMPTY_ZONE: next_zone
+    LEFTOVER_REMAIN: isolate
+    SEAT_FAIL: isolate
+    FORCE_LIMIT: "retry:1->isolate"
+    TIMEOUT: "retry:1->isolate"
+    RACK_JAM: "retry:1->isolate"
+    TOOL_FAIL: "retry:1->isolate"
+    RACK_FULL: pause
+    ROBOT_ERROR: pause
+  consumables: {sponge_max_uses: 20, soap_max_dips: 60}
+  state_pub_hz: 2.0                   # /flow/state 발행 주기 (IRD §6 = 2 Hz)
+                                      #   🔔 hmi.state_rate_hz(화면 갱신)와 **다른 값**이라 이름을 구분했다.
+                                      #   hmi.disconnect_after_s 보다 촘촘해야 HMI 가 끊김으로 오판하지 않는다 (DSN-03)
+  step_delay_s: 0.0                   # 기능 함수 사이 대기. 실제 운전은 0.0 (뼈대·정책 시험용)
+  records_path: records.csv           # 기록 파일 (실행 위치 기준 상대경로, AGENTS.md 규칙 7)
+  use_mock: []                        # 가짜 모듈로 바꿀 기능. 예: [f1, f3] · [f1, f2, f3] 이면 드라이버 없이 돈다.
+                                      #   런치 인자 use_mock(= 환경변수 PREWASH_USE_MOCK)이 있으면 그 값이 이 줄을 덮어쓴다
   mock:
-    fail_on: []                        # 실패 주입. 예: ["place:SEAT_FAIL", "rack_place:RACK_JAM"]
-hmi:          # ── hmi 절 (황인재) ──
-  port: 8000                  # HMI 웹 포트
-  state_rate_hz: 2            # 화면 갱신 주기
-  disconnect_after_s: 2.0     # /flow/state 가 이 시간 넘게 없으면 "연결 끊김"
-  db_path: prewash.db         # SQLite 파일 (실행 위치 기준 상대경로)
+    fail_on: []                       # 실패 주입. 예: ["place:SEAT_FAIL", "rack_place:RACK_JAM"]
+
+hmi:                                  # ── hmi 절 (황인재) ──
+  port: 8000                          # HMI 웹 포트
+  state_rate_hz: 2                    # 화면 갱신 주기
+  disconnect_after_s: 2.0             # /flow/state 가 이 시간 넘게 없으면 "연결 끊김"
+  db_path: prewash.db                 # SQLite 파일 (실행 위치 기준 상대경로)
