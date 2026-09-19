@@ -4,6 +4,7 @@
 
 실행 (저장소 루트, 격리 상태 solo — AGENTS 규칙 13)
     Virtual 흐름 확인 :  sod && sodvir  →  soc && python3 src/cobot_common/test/rig_v03.py
+    Virtual + 가짜 벽 :  soc && python3 src/cobot_common/test/rig_v03.py --fake-wall   (나선 → 벽 → 2바퀴 흐름·시간)
     실기             :  sod && sodreal →  soc && python3 src/cobot_common/test/rig_v03.py --real
 준비(로봇 정지 상태): 그릇 중심을 HOME 바로 아래에 테이프로 고정 · 솔을 그리퍼에 쥐여 둔다('o' → 넣고 → 'c')
         · rig_v03.yaml 의 approach_down_mm = (솔 끝 → 그릇 안쪽 바닥) − 30 mm
@@ -48,6 +49,7 @@ class Run:
         self.results = []
         self.baseline = 0.0
         self.t0 = time.monotonic()
+        self.fake_wall_r = None                                          # Virtual 가짜 벽 반지름 mm (--fake-wall)
 
     def z(self):
         return self.d.get_current_posx(ref=self.d.DR_BASE)[0][2]
@@ -107,10 +109,13 @@ class Run:
         import math
         p = self.p
         f = cc.read_force()
+        r = math.hypot(self.x, self.y)
+        if self.fake_wall_r is not None and r > self.fake_wall_r:       # Virtual 가짜 벽: 넘어간 만큼 중심 쪽으로 되민다
+            push = p['fake_wall_k_n_per_mm'] * (r - self.fake_wall_r)
+            f = [f[0] - push * self.x / r, f[1] - push * self.y / r] + list(f[2:])
         press = abs(f[2] - self.baseline)
         lx, ly = f[0] - self.fx0, f[1] - self.fy0
         lateral = math.hypot(lx, ly)
-        r = math.hypot(self.x, self.y)
         radial = abs(lx * self.x / r + ly * self.y / r) if r > 1e-6 else 0.0
         self.rows.append([phase, round(time.monotonic() - self.t0, 3), f[0], f[1], f[2], round(press, 3), p['wipe_target_n'],
                           round(self.x, 2), round(self.y, 2), round(radial, 3)])
@@ -146,7 +151,8 @@ class Run:
                 hits = hits + 1 if rad > limit else 0
                 if hits >= p['wall_confirm']:
                     self.log.info(f'  벽: 반지름 {r:.1f} mm · 각 {math.degrees(theta):.0f}° · 반지름 방향 힘 {rad:.1f} N '
-                                  f'(가운데 최대 {max(fric) if fric else 0:.1f} + {p["wall_margin_n"]} N) · 옆 힘 {lat:.1f} N')
+                                  f'(가운데 최대 {max(fric) if fric else 0:.1f} + {p["wall_margin_n"]} N) · 옆 힘 {lat:.1f} N '
+                                  f'· 나선 {time.monotonic() - start:.1f} s')
                     self.result('spiral', p['wipe_target_n'], presses[len(fric):] or presses)
                     return r, theta
             theta += p['scrub_step_mm'] / max(r, p['scrub_step_mm'])  # 호 길이가 약 scrub_step_mm 가 되게
@@ -171,7 +177,7 @@ class Run:
             presses.append(press)
             lats.append(lat)
         self.log.info(f'  벽 따라 {p["circle_turns"]}바퀴: 반지름 {rc:.1f} mm · '
-                      f'옆 힘 평균 {statistics.mean(lats):.1f} · 최대 {max(lats):.1f} N')
+                      f'옆 힘 평균 {statistics.mean(lats):.1f} · 최대 {max(lats):.1f} N · {time.monotonic() - start:.1f} s')
         self.result('circle', p['wipe_target_n'], presses)
 
     def sample(self, phase, target, seconds=None, until_motion=False):
@@ -226,6 +232,8 @@ class Run:
 def main() -> int:
     ap = argparse.ArgumentParser(description='V-03 힘제어 중 X·Y 이동 (실기는 --real)')
     ap.add_argument('--real', action='store_true', help='실기에서 실행한다 (🚨 E-Stop 담당·격리·저속 확인 뒤)')
+    ap.add_argument('--fake-wall', action='store_true',
+                    help='Virtual 전용: 그릇 안지름·솔 지름으로 가짜 벽 힘을 넣는다 (실기에서는 거부)')
     args = ap.parse_args()
     with open(HERE / 'rig_v03.yaml', encoding='utf-8') as f:
         p = yaml.safe_load(f)
@@ -239,6 +247,9 @@ def main() -> int:
         virtual = d.get_robot_system() == d.ROBOT_SYSTEM_VIRTUAL
         if not virtual and not args.real:
             log.error('실기다 → --real 을 붙여야 실행한다 (E-Stop 담당·격리·저속 확인 뒤)')
+            return 2
+        if args.fake_wall and not virtual:
+            log.error('--fake-wall 은 Virtual 전용이다 (실기에는 진짜 벽이 있다) → 실행 거부')
             return 2
         approach = p['virtual_approach_down_mm'] if virtual else p['approach_down_mm']
         if approach is None:
@@ -269,6 +280,10 @@ def main() -> int:
         input('준비되면 엔터 → 이후 키보드에서 손을 떼고 E-Stop 에 손을 둔다 ')
 
         run = Run(d, p, log)
+        if args.fake_wall:
+            run.fake_wall_r = (p['fake_bowl_inner_d_mm'] - p['fake_brush_d_mm']) / 2
+            log.info(f"가짜 벽: 그릇 안지름 {p['fake_bowl_inner_d_mm']:g} − 솔 지름 {p['fake_brush_d_mm']:g} → "
+                     f'솔 중심 반지름 {run.fake_wall_r:.1f} mm 에서 벽')
         d.movej(p['home_posj'], vel=p['home_vel_deg_s'] * cc.cfg()['run']['vel_scale'], acc=p['home_acc_deg_s2'])
         z_home = run.z()
         cc.cfg()['cell']['limits']['safe_z_mm'] = z_home                 # 시험 전용: 안전 높이 = HOME

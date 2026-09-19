@@ -36,3 +36,7 @@ circle_margin_mm: 2.0             # 벽 따라 도는 반지름 = 벽 만난 반
 circle_turns: 2
 lateral_max_n: 12.0               # 옆 힘 절대 상한 — 넘으면 즉시 중단
 scrub_timeout_s: 300.0            # 나선·원 각각의 시간 상한
+# ── Virtual 전용 가짜 벽 (--fake-wall) — 힘이 없는 Virtual 에서 나선 → 벽 → 2바퀴 흐름·시간 확인. 실기에서는 거부 ──
+fake_bowl_inner_d_mm: 110.0       # 그릇 안지름 (CELL-02a 실측, 윗부분) → 벽 = (110 − 55) / 2 = 27.5 mm
+fake_brush_d_mm: 55.0             # 솔 끝 지름 (9/19 실측 Ø50~60 의 가운데)
+fake_wall_k_n_per_mm: 3.0         # 벽을 1 mm 밀 때 되미는 힘 (순응 X·Y 강성 3000 N/m 와 같게)
