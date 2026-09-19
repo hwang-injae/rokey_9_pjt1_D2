@@ -6,11 +6,12 @@
     터미널 1:  sod && sodvir
     터미널 2:  soc && python3 src/cobot_common/test/rig_force.py
 
+흐름: 시작 자세 → 작업 높이로 approach_down_mm 하강 → [바퀴 × rounds] → 시작 자세로 복귀
 한 바퀴: read_force → force_reached → contact_down → force_on·유지·force_off → periodic_search → safe_retreat
 확인하는 것 (완료 기준 "Virtual 에서 호출 순서 오류 0")
     ① 모든 함수가 두산 오류 없이 끝난다 — 연속 3바퀴 이상 (TS-01 B′)
     ② Virtual 은 힘이 없으므로 contact_down 은 최대 깊이까지 내려간다
-    ③ safe_retreat 뒤 Z 가 안전 높이(시작 높이)로 돌아온다
+    ③ safe_retreat 뒤 Z 가 안전 높이(= 작업 높이)로 돌아온다 · 끝나면 시작 자세로 복귀
 
 설정은 같은 폴더의 rig_force_config/(시험 전용 cell.yaml) 과 rig_force.yaml. 팀 cell.yaml 은 읽지 않는다.
 종료 코드 0(통과) / 1(실패) / 2(실행 거부) / 130(Ctrl+C).
@@ -46,9 +47,12 @@ def main() -> int:
             log.error('Virtual 이 아니다 → 실행하지 않는다. 실기 힘 시험은 V-03 절차로')
             return 2
         d.movej(p['start_posj'], vel=p['start_vel_deg_s'], acc=p['start_acc_deg_s2'])
+        z_home = d.get_current_posx(ref=d.DR_BASE)[0][2]
+        d.movel([0.0, 0.0, -p['approach_down_mm'], 0.0, 0.0, 0.0], vel=p['approach_vel_mm_s'],
+                acc=p['approach_acc_mm_s2'], ref=d.DR_BASE, mod=d.DR_MV_MOD_REL)
         z_start = d.get_current_posx(ref=d.DR_BASE)[0][2]
-        cc.cfg()['cell']['limits']['safe_z_mm'] = z_start               # 시험 전용: 안전 높이 = 시작 높이
-        log.info(f'시작 Z {z_start:.1f} mm (= 이 시험의 safe_z)')
+        cc.cfg()['cell']['limits']['safe_z_mm'] = z_start               # 시험 전용: 안전 높이 = 작업 높이
+        log.info(f'시작 자세 Z {z_home:.1f} → 작업 높이 Z {z_start:.1f} mm (= 이 시험의 safe_z)')
 
         bad = 0
         for rnd in range(1, p['rounds'] + 1):                           # ② 같은 순서를 연속으로
@@ -74,6 +78,9 @@ def main() -> int:
             bad += 0 if ok else 1
         code = 0 if bad == 0 else 1
         log.info(f"결과: {p['rounds'] - bad}/{p['rounds']} 바퀴 OK → {'통과' if code == 0 else '실패'}")
+        cc.safe_retreat()
+        d.movej(p['start_posj'], vel=p['start_vel_deg_s'], acc=p['start_acc_deg_s2'])
+        log.info(f"시작 자세로 복귀 · Z {d.get_current_posx(ref=d.DR_BASE)[0][2]:.1f} mm")
         return code
     except KeyboardInterrupt:
         log.warning('Ctrl+C — 정지 명령을 보내고 끝낸다')

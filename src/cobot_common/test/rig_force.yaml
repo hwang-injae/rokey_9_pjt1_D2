@@ -3,6 +3,9 @@ rounds: 3                         # 같은 순서를 몇 바퀴 (3 이상 — TS
 start_posj: [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]   # 시작 자세 (deg) — 두산 기본 HOME
 start_vel_deg_s: 30
 start_acc_deg_s2: 30
+approach_down_mm: 130.0           # 시작 자세에서 작업 높이까지 한 번에 내려가는 거리 (= 이 시험의 safe_z 높이)
+approach_vel_mm_s: 50.0
+approach_acc_mm_s2: 100.0
 contact_max_depth_mm: 20.0        # contact_down 최대 깊이 (Virtual 은 힘이 없어 여기까지 내려간다)
 contact_limit_n: 5.0              # 접촉 판정 힘
 force_target_n: 4.0               # force_on 목표 (FR-08 3~5 N)
