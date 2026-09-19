@@ -81,6 +81,8 @@ def move_joint_rel(joint, delta_deg, *, time_s=None, carrying=True):
     """관절 하나(joint = 1~6)를 지금 각도에서 delta_deg 만큼 돌린다. 나머지 관절은 그대로. (DSN-03 B11 — 털기·물 털기의 J5/J6 왕복)
 
     time_s 를 주면 그 시간에 맞춰 움직인다(왕복 주기를 맞출 때) — vel_scale < 1 이면 시간을 그만큼 늘린다.
+      🚨 그래도 **평균 속도(|delta_deg| / 시간)가 100 % 기준 × vel_scale 을 넘지 못한다** — 넘으면 시간을 늘리고 경고를 남긴다
+      (move_rel 의 속도 상한과 같은 규칙. 시간 지정 이동의 순간 최고 속도는 평균보다 높다 → 기준값은 여유 있게 잡는다).
     안 주면 cell.limits 속도(carrying 이면 vel_carry_pct, 아니면 vel_free_pct) × vel_scale.
     🚨 순응·힘제어가 켜져 있으면 관절 이동이 안 된다(두산 오류 2.1903) → force_off() 뒤에 부른다.
     """
@@ -89,7 +91,14 @@ def move_joint_rel(joint, delta_deg, *, time_s=None, carrying=True):
     delta = [0.0] * 6
     delta[joint - 1] = float(delta_deg)
     if time_s is not None:
-        kwargs = {'time': _positive('time_s', time_s) / _vel_scale()}
+        move_time = _positive('time_s', time_s) / _vel_scale()
+        top_v, _ = _joint_speed(100)
+        shortest = abs(float(delta_deg)) / top_v            # 상한 속도로 갈 때 걸리는 시간
+        if move_time < shortest:
+            _warn(f'move_joint_rel J{joint} {delta_deg:+g}° 를 {move_time:.2f} s 에 가면 평균 {abs(delta_deg) / move_time:.0f} deg/s — '
+                  f'상한 {top_v:g} deg/s(cell.motion.vel_joint_max_deg_s × vel_scale)를 넘어 {shortest:.2f} s 로 늘린다')
+            move_time = shortest
+        kwargs = {'time': move_time}
     else:
         vel, acc = _joint_speed(_limit('vel_carry_pct' if carrying else 'vel_free_pct'))
         kwargs = {'vel': vel, 'acc': acc}
@@ -101,6 +110,11 @@ def move_joint_rel(joint, delta_deg, *, time_s=None, carrying=True):
 def _ok(ret, what):
     if ret != 0:
         raise RuntimeError(f'{what} 실패 (반환 {ret!r})')
+
+
+def _warn(text):
+    from rclpy.logging import get_logger
+    get_logger('cobot_common').warn(text)
 
 
 def _positive(name, value):

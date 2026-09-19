@@ -149,6 +149,37 @@ def test_move_joint_rel_time_stretches_with_vel_scale(robot):
     assert robot.calls[-1][2] == {'mod': robot.DR_MV_MOD_REL, 'time': pytest.approx(0.6)}
 
 
+def test_move_joint_rel_time_cannot_beat_the_speed_cap(robot, monkeypatch):
+    """시간 지정 경로에도 속도 상한이 있다(PR #15 검토): 평균 속도가 100 % 기준 × vel_scale 을 넘으면 시간을 늘린다."""
+    warned = []
+    monkeypatch.setattr(motion, '_warn', warned.append)
+    motion.move_joint_rel(5, 60, time_s=0.1)                        # 600 deg/s 를 요구 — 상한은 100 deg/s
+    assert robot.calls[-1][2]['time'] == pytest.approx(0.6) and len(warned) == 1
+    motion.move_joint_rel(5, -60, time_s=0.1)                       # 방향이 반대여도 같다
+    assert robot.calls[-1][2]['time'] == pytest.approx(0.6)
+    robot.cfg['run']['vel_scale'] = 0.5                             # 상한도 같이 낮아진다: 50 deg/s
+    motion.move_joint_rel(5, 60, time_s=1.0)                        # 1.0 / 0.5 = 2.0 s → 30 deg/s, 상한 안
+    assert robot.calls[-1][2]['time'] == pytest.approx(2.0) and len(warned) == 2
+    motion.move_joint_rel(5, 60, time_s=0.5)                        # 1.0 s → 60 deg/s > 50 → 1.2 s 로
+    assert robot.calls[-1][2]['time'] == pytest.approx(1.2) and len(warned) == 3
+
+
+def test_move_joint_rel_time_within_cap_is_untouched(robot, monkeypatch):
+    warned = []
+    monkeypatch.setattr(motion, '_warn', warned.append)
+    motion.move_joint_rel(5, 15, time_s=0.3)                        # 50 deg/s — 털기 시험 값
+    assert robot.calls[-1][2]['time'] == pytest.approx(0.3) and warned == []
+    motion.move_joint_rel(5, 0, time_s=0.3)                         # 0° 는 나누기 없이 그대로
+    assert robot.calls[-1][2]['time'] == pytest.approx(0.3)
+
+
+def test_move_joint_rel_time_needs_the_cap_value(robot):
+    robot.cfg['cell']['motion']['vel_joint_max_deg_s'] = None       # 기준값이 비어 있으면 움직이지 않는다
+    with pytest.raises(KeyError, match='cell.motion.vel_joint_max_deg_s'):
+        motion.move_joint_rel(5, 15, time_s=0.3)
+    assert robot.calls == []
+
+
 @pytest.mark.parametrize('joint', [0, 7, 'J5', 5.5])
 def test_move_joint_rel_bad_joint(robot, joint):
     with pytest.raises(ValueError):
