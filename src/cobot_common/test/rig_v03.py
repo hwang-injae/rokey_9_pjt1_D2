@@ -11,7 +11,8 @@
 
 흐름: HOME → 빠른 접근(approach_down_mm) → contact_down(바닥 찾기, 못 찾으면 힘제어 없이 중단)
       → 닿은 채 제자리 누르기 → 누른 채 손목을 ±scrub_deg 로 비틀며 중심에서 나선으로 넓혀 가기
-      → 옆 힘이 (가운데에서 배운 마찰 + wall_margin_n) 을 넘으면 벽 → 그 반지름 − margin 으로 벽 따라 2바퀴 → 후퇴 → HOME
+      → 반지름 방향 힘이 (가운데에서 배운 마찰 + wall_margin_n) 을 넘으면 벽 → 그 자리에서 바로 벽 따라 2바퀴 → 후퇴 → HOME
+솔은 낮은 원통이라 손목(6축) 비틀림 각도는 닦기에 상관없다 — 따로 되돌리지 않고 HOME(관절 이동)이 0 으로 돌려 놓는다.
 힘은 닿은 채 켠다(cell.force.force_mode ABS: 목표 = 실제 누르는 힘). 9/19 1차에 3 mm 위(공중)에서 상대 모드로 켰더니
 3 s 안에 바닥까지 못 내려가 공중에서 8자를 그렸다 → 방식 변경.
 누르는 힘 = 공중에서 잰 기준값 대비 Fz 변화. 어느 순간이든 limit_n 을 넘으면 즉시 힘 해제 → 후퇴.
@@ -151,14 +152,17 @@ class Run:
             theta += p['scrub_step_mm'] / max(r, p['scrub_step_mm'])  # 호 길이가 약 scrub_step_mm 가 되게
 
     def circle_wall(self, r_hit, theta0):
-        """벽을 만난 반지름 − circle_margin_mm 로 circle_turns 바퀴, 손목을 비틀며 벽을 따라 문지른다."""
+        """벽에 닿은 자리에서 바로 circle_turns 바퀴, 손목을 비틀며 벽을 따라 문지른다.
+
+        반지름은 r_hit − circle_margin_mm(2 mm). 벽에 딱 붙여 돌면 그릇이 중심에서 조금만 어긋나도 한쪽 벽을 세게 밀어
+        lateral_max_n 에서 멈춘다 → 살짝 안쪽. 첫 걸음이 곧 원 위라 따로 안쪽으로 옮기는 동작은 없다.
+        """
         import math
         p = self.p
         rc = r_hit - p['circle_margin_mm']
         n = max(8, int(2 * math.pi * rc / p['scrub_step_mm']))
         presses, lats = [], []
         start = time.monotonic()
-        self.scrub_to(rc * math.cos(theta0), rc * math.sin(theta0))      # 벽에서 margin 만큼 안쪽으로
         for k in range(1, int(n * p['circle_turns']) + 1):
             if time.monotonic() - start > p['scrub_timeout_s']:
                 raise cc.MotionTimeout('벽 따라 돌기 시간 초과')
@@ -169,14 +173,6 @@ class Run:
         self.log.info(f'  벽 따라 {p["circle_turns"]}바퀴: 반지름 {rc:.1f} mm · '
                       f'옆 힘 평균 {statistics.mean(lats):.1f} · 최대 {max(lats):.1f} N')
         self.result('circle', p['wipe_target_n'], presses)
-
-    def untwist(self):
-        """비튼 손목을 0 으로 되돌린다(공중에서)."""
-        if abs(getattr(self, 'rz', 0.0)) > 1e-6:
-            p, d, s = self.p, self.d, cc.cfg()['run']['vel_scale']
-            d.movel([0.0, 0.0, 0.0, 0.0, 0.0, -self.rz], vel=[p['scrub_lin_vel_mm_s'] * s, p['scrub_rot_vel_deg_s'] * s],
-                    acc=[p['scrub_lin_acc_mm_s2'], p['scrub_rot_acc_deg_s2']], ref=d.DR_TOOL, mod=d.DR_MV_MOD_REL)
-            self.rz = 0.0
 
     def sample(self, phase, target, seconds=None, until_motion=False):
         """seconds 동안 또는 비동기 동작이 끝날 때까지 힘을 기록. limit_n 넘으면 ForceLimitError."""
@@ -319,7 +315,7 @@ def main() -> int:
                           '    soc && python3 src/cobot_common/test/release_force.py --home   (E-Stop 에 손)')
             else:
                 for what, step in (('힘·순응 끄기', cc.force_off), ('동작 끝 대기', lambda: dsr().mwait()),
-                                   ('안전 높이로', cc.safe_retreat), ('손목 되돌리기', run.untwist),
+                                   ('안전 높이로', cc.safe_retreat),
                                    ('HOME', lambda: dsr().movej(p['home_posj'],
                                                                 vel=p['home_vel_deg_s'] * cc.cfg()['run']['vel_scale'],
                                                                 acc=p['home_acc_deg_s2']))):
