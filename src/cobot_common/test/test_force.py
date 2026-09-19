@@ -189,6 +189,28 @@ def test_missing_config_refuses_before_moving(robot):
     assert 'movel' not in d.calls and 'task_compliance_ctrl' not in d.calls
 
 
+def test_null_config_value_refuses_before_moving(robot):
+    cfg = copy.deepcopy(CFG)
+    cfg['cell']['limits']['safe_z_mm'] = None                                  # INF-04 골격처럼 키는 있는데 비어 있음
+    d = robot(cfg=cfg, z=150.0)
+    with pytest.raises(KeyError, match='safe_z_mm'):
+        force.safe_retreat()
+    assert 'movel' not in d.calls
+
+
+def test_vel_scale_slows_contact_retreat_and_search(robot):
+    cfg = copy.deepcopy(CFG)
+    cfg['run'] = {'vel_scale': 0.3}                                             # 첫 실기 0.3
+    d = robot(cfg=cfg, z=150.0)
+    force.contact_down(max_depth=4.0, limit=3.0)
+    assert d.last_movel['vel'] == pytest.approx(10.0 * 0.3)
+    force.safe_retreat()
+    assert d.last_movel['vel'] == pytest.approx(50.0 * 0.3)
+    force.periodic_search(amp=3.0, period=0.8, duration=6.0)
+    assert d.periodic['period'][:2] == [pytest.approx(0.8 / 0.3), pytest.approx(1.6 / 0.3)]
+    assert d.periodic['amp'][:2] == [3.0, 3.0]                                  # 진폭은 그대로
+
+
 def test_safe_retreat_goes_straight_up_to_safe_z(robot):
     d = robot(z=150.0)
     force.force_on('z', 4.0, 10.0)

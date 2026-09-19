@@ -7,10 +7,11 @@
 
 약속
 - 좌표계는 BASE. axis 는 'x'·'y'·'z'. target·limit·min·max 는 **양수 크기(N)** 이고, 누르는 방향(−axis)은 여기서 붙인다.
-- 숫자는 인자로 받거나 cfg()['cell'] 에서 읽는다(AGENTS 규칙 6). 필요한 키가 없으면 로봇을 움직이지 않고 KeyError.
+- 숫자는 인자로 받거나 cfg()['cell'] 에서 읽는다(AGENTS 규칙 6). 키가 없거나 비어 있으면(null) 로봇을 움직이지 않고 KeyError.
     cell.limits : safe_z_mm · timeout_s
     cell.force  : compliance_stx · contact_step_mm · contact_vel_mm_s · contact_acc_mm_s2 ·
                   retreat_vel_mm_s · retreat_acc_mm_s2 · force_max_n · search_y_period_ratio
+- 실행 인자 cfg()['run']['vel_scale'](0 초과 1 이하, 첫 실기 0.3)를 이동 속도에 곱한다 — 하강·후퇴 속도, 탐색은 주기를 나눠 느리게.
 - 실패는 예외다: ForceLimitError(힘 상한) · MotionTimeout(시간 초과) · RuntimeError(두산 함수가 -1).
   기능 함수(f1·f3)가 받아서 FORCE_LIMIT · TIMEOUT · ROBOT_ERROR 코드로 바꾸고, 후퇴는 safe_retreat().
 - 두산 함수는 함수 안에서 dsr() 로 얻는다(메인 스레드 검사 포함). 모듈 맨 위에서 DSR_ROBOT2 를 import 하지 않는다.
@@ -107,7 +108,7 @@ def contact_down(max_depth, limit):
     _check_force_args(limit=limit)
     d = dsr()
     step = _force_cfg('contact_step_mm')
-    vel = _force_cfg('contact_vel_mm_s')
+    vel = _force_cfg('contact_vel_mm_s') * _vel_scale()
     acc = _force_cfg('contact_acc_mm_s2')
     stx = _force_cfg('compliance_stx')
     f_max = _force_cfg('force_max_n')
@@ -140,11 +141,13 @@ def periodic_search(amp, period, duration):
 
     두 축의 주기를 다르게 해서 한 선이 아니라 면을 훑는다(중급교육1 Move Periodic 실습 3). duration(s) 이 시간 한도.
     동기 동작이라 도는 도중에는 멈추지 않는다 — 들어갔는지는 끝난 뒤 부르는 쪽이 깊이·힘으로 판정한다.
+    vel_scale < 1 이면 주기를 그만큼 늘려 느리게 한다(진폭·시간 한도는 그대로).
     """
     if amp <= 0 or period <= 0 or duration <= 0:
         raise ValueError(f'periodic_search: amp={amp} mm, period={period} s, duration={duration} s — 모두 0 보다 커야 한다')
     d = dsr()
     ratio = _force_cfg('search_y_period_ratio')
+    period = period / _vel_scale()
     period_y = period * ratio
     repeat = max(1, int(duration // period_y))
     d.mwait()
@@ -157,7 +160,7 @@ def safe_retreat():
     """켜져 있는 힘·순응을 끄고 → X·Y 는 그대로 Z 만 cell.limits.safe_z_mm(BASE) 까지 올린다. 이미 위면 움직이지 않는다."""
     d = dsr()
     safe_z = _limits_cfg('safe_z_mm')
-    vel = _force_cfg('retreat_vel_mm_s')
+    vel = _force_cfg('retreat_vel_mm_s') * _vel_scale()
     acc = _force_cfg('retreat_acc_mm_s2')
     force_off()
     pos, _ = d.get_current_posx(ref=d.DR_BASE)
@@ -204,9 +207,17 @@ def _limits_cfg(key):
     return _cell_key('limits', key)
 
 
+def _vel_scale():
+    """실행 인자 vel_scale (config.load 가 0 초과 1 이하로 검사한다). 없으면 1.0."""
+    return float(cfg().get('run', {}).get('vel_scale', 1.0))
+
+
 def _cell_key(section, key):
     try:
-        return cfg()['cell'][section][key]
+        value = cfg()['cell'][section][key]
     except (KeyError, TypeError):
-        raise KeyError(f'cell.yaml 에 cell.{section}.{key} 가 없다 — 한석형(cell.yaml)·INF-04 에 요청. '
-                       '값이 없으면 로봇을 움직이지 않는다') from None
+        value = None
+    if value is None:                   # 키가 없거나 INF-04 골격처럼 비어 있음(null)
+        raise KeyError(f'cell.yaml 의 cell.{section}.{key} 가 없거나 비어 있다 — 한석형(cell.yaml) 에 요청. '
+                       '값이 없으면 로봇을 움직이지 않는다')
+    return value
