@@ -20,7 +20,9 @@ CFG = {'flow': {
                'FORCE_LIMIT': 'retry:1->isolate', 'TIMEOUT': 'retry:1->isolate',
                'RACK_JAM': 'retry:1->isolate', 'TOOL_FAIL': 'retry:1->isolate',
                'RACK_FULL': 'pause', 'ROBOT_ERROR': 'pause'},
+    'counts': {'soap_dips': 3, 'rinse_dips': 1, 'rinse_shakes': 3},
     'step_delay_s': 0.0,
+    'done_hold_s': 0.0,     # 시험에서는 기다리지 않는다
 }}
 
 
@@ -95,6 +97,21 @@ def test_retry_exhausted_isolates():
     results, f = run(['rack_place:RACK_JAM'])
     assert results == ['ISOLATED'] * 4
     assert f.isolated == 4
+
+
+def test_retreat_failure_stops_retry_and_pauses():
+    """🚨 후퇴가 실패하면 **재시도하지 않는다** — 로봇이 어디 있는지 모르는 채로
+    같은 동작을 다시 하면 위험하다. 격리(옮기기)도 하지 않고 사람을 기다린다.
+    """
+    def boom():
+        raise NotImplementedError('아직 구현 전이다')
+
+    mock.configure(['rack_place:RACK_JAM'])          # 재시도 정책을 타게 만든다
+    f = Flow(CFG, Quiet(), safe_retreat=boom)
+    f.f = load_features(['f1', 'f2', 'f3'])
+    f.run_plan(AutoResume())                         # 예외가 새면 여기서 깨진다
+    assert f.last_code == 'ROBOT_ERROR'
+    assert f.isolated == 0, '로봇 위치를 모르는데 격리로 옮기면 안 된다'
 
 
 def test_rack_slot_assignment():

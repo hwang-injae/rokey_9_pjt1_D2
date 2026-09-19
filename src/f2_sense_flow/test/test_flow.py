@@ -30,6 +30,7 @@ CFG = {'flow': {
     'policy': {'EMPTY_ZONE': 'next_zone', 'SEAT_FAIL': 'isolate', 'RACK_FULL': 'pause',
                'FORCE_LIMIT': 'retry:1->isolate', 'TIMEOUT': 'retry:3->isolate'},
     'step_delay_s': 0.0,
+    'done_hold_s': 0.0,     # 시험에서는 기다리지 않는다
 }}
 
 
@@ -91,6 +92,47 @@ def test_call_does_not_crash_the_cell(flow):
     assert flow.call(lambda: Result()).ok
 
 
+# ────────────────────────────────── 🚨 바깥 호출이 터져도 셀이 죽지 않는다
+# PR #8 리뷰에서 실제로 죽는 것이 확인된 결함이다 (flow_node 가 exit 1 로 종료).
+# cobot_common.safe_retreat 는 지금 NotImplementedError 뼈대라 **실제로 터진다.**
+
+def _boom(*a):
+    raise NotImplementedError('아직 구현 전이다 — 담당 박진용')
+
+
+def test_retreat_failure_does_not_escape():
+    """기능 함수도 후퇴도 둘 다 터져도 call() 밖으로 예외가 새면 안 된다."""
+    f = Flow(CFG, FakeLog(), safe_retreat=_boom)
+    r = f.call(_boom)                       # 기능 함수가 터진다 → 후퇴도 터진다
+    assert not r.ok and r.code == ROBOT_ERROR
+    assert any('safe_retreat 실패' in m for _, m in f.log.lines)
+
+
+def test_retreat_failure_sets_robot_error():
+    """후퇴가 실패하면 '로봇 위치를 모른다'를 남긴다 — 사람이 봐야 한다."""
+    f = Flow(CFG, FakeLog(), safe_retreat=_boom)
+    assert f._retreat() is False
+    assert f.last_code == ROBOT_ERROR and '후퇴 실패' in f.message
+
+
+def test_retreat_success_returns_true():
+    f = Flow(CFG, FakeLog(), safe_retreat=lambda: None)
+    assert f._retreat() is True
+
+
+def test_publish_event_failure_does_not_escape():
+    """이벤트 발행이 터져도 공정은 계속된다 (종료 중 publish 는 실제로 터진다)."""
+    f = Flow(CFG, FakeLog(), publish_event=_boom)
+    f.emit_event('DONE')                    # 예외가 나면 여기서 테스트가 깨진다
+    assert any('publish_event 실패' in m for _, m in f.log.lines)
+
+
+def test_guard_returns_false_on_failure():
+    f = Flow(CFG, FakeLog())
+    assert f._guard(lambda: None, what='정상') is True
+    assert f._guard(_boom, what='터짐') is False
+
+
 # ────────────────────────────────── 상태
 def test_snapshot_has_all_flowstate_fields(flow):
     """FlowState.msg 의 13개 필드가 빠짐없이 있어야 HMI 가 안 깨진다."""
@@ -125,3 +167,77 @@ def test_signal_peek_keeps():
     assert sig.peek('stop') and sig.peek('stop')
     sig.clear('stop')
     assert not sig.peek('stop')
+
+
+# ────────────────────────────────── 🚨 보호 통로 자체가 죽지 않는가
+# PR #8 리뷰 뒤 전수 점검에서 나온 것들. call() 안에도 보호 밖 코드가 있었다.
+
+def test_call_survives_non_result_return():
+    """기능 함수가 Result 가 아닌 것을 돌려줘도 call() 이 죽으면 안 된다.
+
+    뼈대 단계에서 흔하다(return 없음 → None, 실수로 tuple·bool).
+    전에는 r.code 접근이 try 밖이라 call() **자신**이 AttributeError 로 죽었다.
+    """
+    f = Flow(CFG, FakeLog())
+    for bad in (None, (1, 2), True, 'OK'):
+        r = f.call(lambda b=bad: b)
+        assert isinstance(r, Result) and not r.ok and r.code == ROBOT_ERROR
+
+
+def test_call_fn_survives_missing_function():
+    """진짜 모듈에 함수가 아직 없어도(만들어지는 중) 크래시가 아니라 Result 여야 한다."""
+    import types
+    f = Flow(CFG, FakeLog())
+    f.f = {'f1': types.SimpleNamespace()}          # pick 이 없는 모듈
+    r = f.call_fn('f1', 'pick', 'RET_B', 'BOWL')
+    assert not r.ok and r.code == ROBOT_ERROR
+
+
+def test_call_fn_survives_missing_module():
+    f = Flow(CFG, FakeLog())
+    f.f = {}
+    r = f.call_fn('f1', 'pick', 'RET_B', 'BOWL')
+    assert not r.ok and r.code == ROBOT_ERROR
+
+
+# ────────────────────────────────── 설정이 이상해도 생성자가 죽지 않는가
+def test_bad_plan_entries_are_skipped():
+    """plan 항목이 망가져도 생성자에서 죽지 않고 쓸 수 있는 것만 남긴다."""
+    cfg = {'flow': {'plan': [
+        {'zone': 'RET_B', 'kind': 'BOWL', 'count': 2},
+        {'zone': 'RET_C'},                       # kind·count 없음
+        {'zone': 'RET_C', 'kind': 'SPOON', 'count': 1},   # 모르는 종류
+        {'zone': 'RET_C', 'kind': 'CUP', 'count': 'two'}, # 숫자가 아님
+    ]}}
+    f = Flow(cfg, FakeLog())
+    assert len(f.plan) == 1 and f.target_bowl == 2 and f.target_cup == 0
+
+
+def test_empty_config_does_not_crash():
+    """YAML 에 키만 있고 값이 비면 None 이 들어온다 — 그래도 살아야 한다."""
+    f = Flow({'flow': {'plan': None, 'policy': None, 'rack_order': None,
+                       'counts': None, 'step_delay_s': None}}, FakeLog())
+    assert f.plan == [] and f.policy == {} and f.step_delay_s == 0.0
+    assert f.counts == {'soap_dips': 3, 'rinse_dips': 1, 'rinse_shakes': 3}
+
+
+def test_bad_step_delay_falls_back():
+    f = Flow({'flow': {'step_delay_s': '빠르게'}}, FakeLog())
+    assert f.step_delay_s == 0.0
+
+
+def test_zero_is_a_valid_setting():
+    """🚨 0 도 유효한 설정값이다.
+
+    `cfg.get(k) or 기본값` 으로 읽으면 0 이 거짓이라 기본값으로 바뀐다 —
+    시험을 0 으로 두려다 발견한 결함이다.
+    """
+    f = Flow({'flow': {'done_hold_s': 0, 'step_delay_s': 0, 'leftover_max_rounds': 0}}, FakeLog())
+    assert f.done_hold_s == 0.0
+    assert f.step_delay_s == 0.0
+    assert f.rounds == 0
+
+
+def test_missing_number_uses_default():
+    f = Flow({'flow': {}}, FakeLog())
+    assert f.done_hold_s == 1.0 and f.step_delay_s == 0.0 and f.rounds == 2
