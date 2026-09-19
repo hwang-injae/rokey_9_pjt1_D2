@@ -12,7 +12,8 @@
 
 흐름: HOME → 빠른 접근(approach_down_mm) → contact_down(바닥 찾기, 못 찾으면 힘제어 없이 중단)
       → 닿은 채 제자리 누르기 → 누른 채 손목을 ±scrub_deg 로 비틀며 중심에서 나선으로 넓혀 가기
-      → 반지름 방향 힘이 (가운데에서 배운 마찰 + wall_margin_n) 을 넘으면 벽 → 그 자리에서 바로 벽 따라 2바퀴 → 후퇴 → HOME
+      → 반지름 방향 힘이 (가운데에서 배운 마찰 + wall_margin_n) 을 넘으면 벽 → 그 자리에서 바로 벽에 붙어 2바퀴 → 후퇴 → HOME
+걸음은 blend_radius_mm 로 이어 붙여 멈추지 않고 움직인다.
 솔은 낮은 원통이라 손목(6축) 비틀림 각도는 닦기에 상관없다 — 따로 되돌리지 않고 HOME(관절 이동)이 0 으로 돌려 놓는다.
 힘은 닿은 채 켠다(force.py 는 절대값 ABS: 목표 = 실제 누르는 힘). 9/19 1차에 3 mm 위(공중)에서 상대 모드로 켰더니
 3 s 안에 바닥까지 못 내려가 공중에서 8자를 그렸다 → 방식 변경.
@@ -70,35 +71,28 @@ class Run:
 
     # ------------------------------------------------------------ 나선 문지르기 · 벽 찾기 · 벽 따라 돌기
     def scrub_to(self, x, y):
-        """중심 기준 (x, y) 로 한 걸음 가면서 **동시에** 손목을 ±scrub_deg 로 비튼다 — movel 한 번(TOOL 상대 이동).
+        """중심 기준 (x, y) 로 한 걸음 가면서 **동시에** 손목을 ±scrub_deg 로 비튼다 — movel 한 번(BASE 절대 좌표).
 
-        BASE 의 한 걸음(dx, dy)을 지금 툴 자세(A·B·C, ZYZ)로 툴 좌표에 옮겨 [tx, ty, 0, 0, 0, drz] 로 보낸다.
-        Z 는 힘제어 축이라 0. 순응 중 관절 이동(movej) 금지라 직교 이동만. 누적 비틀기 각은 self.rz 에 두고 끝나면 되돌린다.
-        한 걸음마다 힘을 읽어 기록하고 (누르는 힘, 옆 힘) 을 돌려준다.
+        목표 = [중심 X + x, 중심 Y + y, 바닥 Z, A, B, C + 비틀기]. 툴 Z 축 회전은 ZYZ 의 C 에 더하면 된다
+        (Rz(A)·Ry(B)·Rz(C)·Rz(q) = Rz(A)·Ry(B)·Rz(C + q)). Z 는 힘제어 축이라 바닥 높이를 그대로 준다.
+        🔸 blend_radius_mm(> 0) 이면 목표 앞 그 거리에서 다음 걸음으로 **이어서** 간다(멈췄다 가는 뚝뚝 끊김 없앰, 9/19 5회차).
+        순응 중 관절 이동(movej) 금지라 직교 이동만. 한 걸음마다 힘을 읽어 기록하고 (누르는 힘, 옆 힘, 반지름 방향 힘) 을 돌려준다.
         """
-        import math
         p, d, s = self.p, self.d, cc.cfg()['run']['vel_scale']
         vel = [p['scrub_lin_vel_mm_s'] * s, p['scrub_rot_vel_deg_s'] * s]
         acc = [p['scrub_lin_acc_mm_s2'], p['scrub_rot_acc_deg_s2']]
-        dx, dy = x - self.x, y - self.y
-        r11, r21, r12, r22 = self.R0                                     # 시작 때 툴 X·Y 축(BASE 기준) — 매 걸음 조회하지 않는다
-        t0x, t0y = r11 * dx + r21 * dy, r12 * dx + r22 * dy              # R0ᵀ·(dx, dy)
-        q = math.radians(self.rz)                                        # 지금까지 비튼 만큼 툴 축이 돌아가 있다 → Rz(−rz) 로 되돌림
-        tx, ty = math.cos(q) * t0x + math.sin(q) * t0y, -math.sin(q) * t0x + math.cos(q) * t0y
         rz = p['scrub_deg'] * self.twist
-        if d.movel([tx, ty, 0.0, 0.0, 0.0, rz - self.rz], vel=vel, acc=acc, ref=d.DR_TOOL, mod=d.DR_MV_MOD_REL) != 0:
+        x0, y0, z0, a, b, c = self.p0
+        target = [x0 + x, y0 + y, z0, a, b, (c + rz + 180.0) % 360.0 - 180.0]
+        if d.movel(target, vel=vel, acc=acc, radius=p['blend_radius_mm'], ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS) != 0:
             raise RuntimeError('movel(한 걸음 + 손목 비틀기) 실패')
         self.x, self.y = x, y
         self.rz, self.twist = rz, -self.twist
         return self.check('scrub')
 
     def set_frame(self):
-        """지금 툴 자세(A·B·C, ZYZ)로 R0 = Rz(a)·Ry(b)·Rz(c) 의 X·Y 열을 한 번 계산해 둔다(손목 0° 기준)."""
-        import math
-        a, b, c = (math.radians(v) for v in self.d.get_current_posx(ref=self.d.DR_BASE)[0][3:6])
-        ca, sa, cb, cc_, sc = math.cos(a), math.sin(a), math.cos(b), math.cos(c), math.sin(c)
-        self.R0 = (ca * cb * cc_ - sa * sc, sa * cb * cc_ + ca * sc,     # 툴 X 축 (BASE x, y)
-                   -ca * cb * sc - sa * cc_, -sa * cb * sc + ca * cc_)   # 툴 Y 축 (BASE x, y)
+        """지금 자세(바닥에 닿은 중심)를 나선·원의 기준으로 기억한다 — 손목 0° 기준."""
+        self.p0 = [float(v) for v in self.d.get_current_posx(ref=self.d.DR_BASE)[0]]
 
     def check(self, phase):
         """힘 한 번 읽기 → 기록 · 누르는 힘/옆 힘 상한 검사 → (press, lateral, radial).
@@ -110,9 +104,12 @@ class Run:
         p = self.p
         f = cc.read_force()
         r = math.hypot(self.x, self.y)
-        if self.fake_wall_r is not None and r > self.fake_wall_r:       # Virtual 가짜 벽: 넘어간 만큼 중심 쪽으로 되민다
-            push = p['fake_wall_k_n_per_mm'] * (r - self.fake_wall_r)
-            f = [f[0] - push * self.x / r, f[1] - push * self.y / r] + list(f[2:])
+        if self.fake_wall_r is not None:                                 # Virtual 가짜 벽(중심이 어긋난 그릇): 넘어간 만큼 되민다
+            wx, wy = self.x - p['fake_bowl_offset_mm'][0], self.y - p['fake_bowl_offset_mm'][1]
+            wr = math.hypot(wx, wy)
+            if wr > self.fake_wall_r:
+                push = p['fake_wall_k_n_per_mm'] * (wr - self.fake_wall_r)
+                f = [f[0] - push * wx / wr, f[1] - push * wy / wr] + list(f[2:])
         press = abs(f[2] - self.baseline)
         lx, ly = f[0] - self.fx0, f[1] - self.fy0
         lateral = math.hypot(lx, ly)
@@ -126,16 +123,18 @@ class Run:
         return press, lateral, radial
 
     def spiral_find_wall(self):
-        """중심에서 아르키메데스 나선(r = pitch·θ/2π)으로 넓혀 가며 문지른다. 벽이면 (반지름, 각도) · 못 찾으면 None."""
+        """중심에서 아르키메데스 나선(한 바퀴에 pitch 만큼)으로 넓혀 가며 문지른다. 벽이면 (반지름, 각도, 벽 기준 N) · 못 찾으면 None.
+
+        벽 같은 힘이 한 번 나오면 확정될 때까지 반지름을 더 넓히지 않는다 — 비스듬히 다가가며 벽을 파고들지 않게.
+        """
         import math
         p = self.p
         self.x = self.y = self.rz = 0.0
         self.twist = 1
         self.set_frame()
-        theta, fric, hits, presses = 0.0, [], 0, []
+        theta, r, fric, hits, presses = 0.0, 0.0, [], 0, []
         start = time.monotonic()
         while True:
-            r = p['spiral_pitch_mm'] * theta / (2 * math.pi)
             if r > p['spiral_r_max_mm']:
                 self.log.error(f'반지름 {p["spiral_r_max_mm"]} mm 까지 벽을 못 찾았다')
                 return None
@@ -154,29 +153,39 @@ class Run:
                                   f'(가운데 최대 {max(fric) if fric else 0:.1f} + {p["wall_margin_n"]} N) · 옆 힘 {lat:.1f} N '
                                   f'· 나선 {time.monotonic() - start:.1f} s')
                     self.result('spiral', p['wipe_target_n'], presses[len(fric):] or presses)
-                    return r, theta
-            theta += p['scrub_step_mm'] / max(r, p['scrub_step_mm'])  # 호 길이가 약 scrub_step_mm 가 되게
+                    return r, theta, limit
+            dth = p['scrub_step_mm'] / max(r, p['scrub_step_mm'])       # 호 길이가 약 scrub_step_mm 가 되게
+            theta += dth
+            if hits == 0:                                                # 벽 같으면 반지름을 그대로 두고 한 번 더 본다
+                r += p['spiral_pitch_mm'] * dth / (2 * math.pi)
 
-    def circle_wall(self, r_hit, theta0):
-        """벽에 닿은 자리에서 바로 circle_turns 바퀴, 손목을 비틀며 벽을 따라 문지른다.
+    def circle_wall(self, r_hit, theta0, wall_n):
+        """벽에 닿은 자리에서 바로 circle_turns 바퀴 — 반지름 방향 힘을 보며 **벽에 붙어** 돈다(벽 따라가기).
 
-        반지름은 r_hit − circle_margin_mm(2 mm). 벽에 딱 붙여 돌면 그릇이 중심에서 조금만 어긋나도 한쪽 벽을 세게 밀어
-        lateral_max_n 에서 멈춘다 → 살짝 안쪽. 첫 걸음이 곧 원 위라 따로 안쪽으로 옮기는 동작은 없다.
+        그릇이 HOME 중심에서 조금 어긋나 있어도 벽을 따라가도록, 걸음마다 반지름을 고친다(9/19 5회차: 한쪽 벽만 닿음):
+          목표 = wall_n(벽 판정 기준) + follow_band_n/2 의 반지름 방향 힘.
+          모자라면(벽에서 떨어짐) 바깥으로, 넘으면(너무 밂) 안쪽으로 — 차이 × follow_gain_mm_per_n, 한 번에 follow_step_mm 까지.
+        반지름은 spiral_r_max_mm 를 넘지 않는다. 옆 힘 절대 상한(lateral_max_n)은 check() 가 지킨다.
         """
         import math
         p = self.p
-        rc = r_hit - p['circle_margin_mm']
-        n = max(8, int(2 * math.pi * rc / p['scrub_step_mm']))
-        presses, lats = [], []
+        r, th, done = r_hit, theta0, 0.0
+        presses, lats, rs = [], [], []
         start = time.monotonic()
-        for k in range(1, int(n * p['circle_turns']) + 1):
+        while done < 2 * math.pi * p['circle_turns']:
             if time.monotonic() - start > p['scrub_timeout_s']:
                 raise cc.MotionTimeout('벽 따라 돌기 시간 초과')
-            th = theta0 + 2 * math.pi * k / n
-            press, lat, _ = self.scrub_to(rc * math.cos(th), rc * math.sin(th))
+            dth = p['scrub_step_mm'] / max(r, p['scrub_step_mm'])
+            th, done = th + dth, done + dth
+            press, lat, rad = self.scrub_to(r * math.cos(th), r * math.sin(th))
             presses.append(press)
             lats.append(lat)
-        self.log.info(f'  벽 따라 {p["circle_turns"]}바퀴: 반지름 {rc:.1f} mm · '
+            rs.append(r)
+            dr = (wall_n + p['follow_band_n'] / 2 - rad) * p['follow_gain_mm_per_n']
+            dr = max(-p['follow_step_mm'], min(p['follow_step_mm'], dr))
+            r = max(p['scrub_step_mm'], min(p['spiral_r_max_mm'], r + dr))
+        rc = statistics.mean(rs)
+        self.log.info(f'  벽 따라 {p["circle_turns"]}바퀴: 반지름 평균 {rc:.1f} (최소 {min(rs):.1f} · 최대 {max(rs):.1f}) mm · '
                       f'옆 힘 평균 {statistics.mean(lats):.1f} · 최대 {max(lats):.1f} N · {time.monotonic() - start:.1f} s')
         self.result('circle', p['wipe_target_n'], presses)
 
