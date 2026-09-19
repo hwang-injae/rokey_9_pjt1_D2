@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""복구 — 컨트롤러에 남은 힘제어·순응을 끈다(로봇은 움직이지 않음). --home 이면 이어서 곧게 올린 뒤 HOME.
+"""🛟 복구 전용(시험 아님) — 컨트롤러에 남은 힘제어·순응을 끈다. --home 이면 HOME 이 아닐 때만 곧게 올린 뒤 HOME.
 
 언제: 프로그램이 오류로 끝났는데 로봇 팔을 손으로 밀면 스프링처럼 눌릴 때(순응이 켜진 채 남음).
   두산 파이썬 API 의 DR_Error 는 만들어지는 순간 rclpy.shutdown() 을 부른다(설치된 DR_error2.py) →
@@ -33,6 +33,10 @@ def main() -> int:
         log.info(f'release_force={rf} · release_compliance_ctrl={rc}  (0 = 끔, -1 = 이미 꺼져 있었을 수 있음)')
         if args.home:
             s = 0.3
+            now = d.get_current_posj()
+            if max(abs(a - b) for a, b in zip(now, HOME_POSJ)) < 1.0:     # 이미 HOME 이면 움직이지 않는다
+                log.info('이미 HOME — 움직이지 않는다')
+                return 0
             up = d.movel([0, 0, args.up_mm, 0, 0, 0], vel=50 * s, acc=50, ref=d.DR_BASE, mod=d.DR_MV_MOD_REL)
             log.info(f'위로 {args.up_mm:.0f} mm = {up}')
             log.info(f'HOME = {d.movej(HOME_POSJ, vel=20 * s, acc=20)}')
