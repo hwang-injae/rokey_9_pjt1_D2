@@ -4,84 +4,411 @@
 약속(정본) : src/cobot_api/cobot_api/contracts.py 의 F2Api
 설계       : docs/02_인터페이스_IRD.md §4 · docs/03_설계_SDD.md §5.3
 
-🚧 PKG-01 단계 — 지금은 **껍데기**다.
-   이름·인자·반환만 약속대로 맞춰 두고, 속은 F2-01(9/20)에서 채운다.
-   껍데기라도 flow_node 가 부를 수 있어서, 순서·연결을 먼저 시험할 수 있다(V-20).
+이 파일이 하는 일 (용기 하나가 씻기는 과정에서 F2 가 맡은 네 조각)
+  weigh          WEIGH 자세로 가서 **잔반 무게**를 잰다 (저울이 아니라 로봇 하중으로 잰다)
+  leftover_loop  잰다 → 임계 넘으면 털고 다시 잰다 → 반복 (F2 의 핵심)
+  shake          잔반통/수조 **위에서** 관절을 왕복시켜 턴다
+  dip            수조 위에서 내려갔다 올라온다 (🚨 물은 안 쓴다 — 모션만)
 
-속을 채울 때 지킬 것 (SDD §3.2 · AGENTS.md §3):
-  · 로봇은 `import cobot_common as cc` 를 통해서만 부른다. DSR_ROBOT2 직접 import 금지
-  · 숫자(임계·횟수·진폭)는 코드에 쓰지 않고 cc.cfg()['f2'] 에서 읽는다
-  · 실패는 예외를 던지지 않고 Result.fail(코드) 로 돌려준다
+지킨 것 (SDD §3.2 · AGENTS.md §3·§4)
+  · 로봇은 `import cobot_common as cc` 로만 부른다. DSR_ROBOT2 직접 import 금지
+  · 🚨 숫자(임계·횟수·진폭·깊이)를 **코드에 쓰지 않는다** — 값은 params.yaml
+    → 실기에서 값이 바뀌어도 **YAML 만 고치면 되고 이 파일은 안 바뀐다**
+  · 실패는 예외가 아니라 Result.fail(코드) 로 돌려준다 (@_as_result 가 보장)
+  · 🚨 **어떤 실패에서도 안전 높이로 물러난다** (AGENTS §4). @_as_result 와 _fail() 이 같이 한다 —
+    flow.call() 은 **예외가 올라올 때만** 후퇴하는데 우리는 예외를 삼키기 때문이다
   · 이 함수들은 flow_node 의 메인 스레드에서만 불린다. 여기서 노드를 만들지 않는다
+
+고칠 때 볼 곳
+  · 값을 바꾸고 싶다        → params.yaml 의 f2 절
+    🔔 단, **횟수 일부는 flow 절**이다: rinse_shakes · rinse_dips · leftover_max_rounds.
+       f2 절에 있는 횟수는 shake.WASTE.cycles 하나뿐이다(leftover_loop 이 스스로 부르므로)
+  · 이동 방식을 바꾸고 싶다  → _goto()
+  · 파지 되돌리기를 바꾸고 싶다 → _release_hold()   ← PR #32 D2("HOLD 유지")가 정해지면 **이 함수 본문만**
+  · 미끄러짐 판정을 바꾸고 싶다 → _slipped()
+  · 새 실패 코드를 쓰고 싶다  → cobot_api.contracts 의 CODES 에 먼저 있어야 한다
 """
+import functools
+import time
+import traceback
 
 # cobot_api = 팀이 정한 "함수 약속" 패키지(황인재 관리). 우리는 읽어 쓰기만 한다.
-# Result        : 모든 기능 함수의 공통 반환 (ok: 성공여부, code: 실패코드 문자열)
-# WeighResult   : Result + weight_g (측정 무게)
-# LeftoverResult: Result + 털기 전/후 무게, 반복 횟수
-from cobot_api import Result, WeighResult, LeftoverResult
+from cobot_api import (GRIP_FAIL, HOLD, LEFTOVER_REMAIN, NORMAL, ROBOT_ERROR,
+                       LeftoverResult, Result, WeighResult)
 
-# 🚧 F2-01 에서 아래 줄의 주석을 푼다 (지금은 cobot_common 이 아직 없다 — 황인재 INF-02a)
-# import cobot_common as cc
+import cobot_common as cc
+
+# 스테이션 이름 = shake 의 mode 이름과 같다(WASTE·RINSE). WEIGH 는 contracts 에 상수가 없어 여기 하나만 둔다.
+_WEIGH_STATION = 'WEIGH'
 
 
+# ────────────────────────────────────────────────────────── 설정 읽기
+def _log():
+    return cc.io_node().get_logger()
+
+
+def _f2():
+    """params.yaml 의 f2 절. 없으면 빈 dict 가 아니라 **에러**여야 한다 — 조용히 기본값으로
+    돌면 '왜 안 되지' 를 실기에서 찾게 된다."""
+    conf = (cc.cfg() or {}).get('f2')
+    if not conf:
+        raise KeyError('params.yaml 에 f2 절이 없다 — 설정 파일을 확인한다')
+    return conf
+
+
+def _need(conf, key, cast=float, where='f2', lo=None, hi=None):
+    """설정값 하나를 **반드시** 읽는다. 없으면 예외 — 기본값으로 조용히 돌지 않는다.
+
+    🚨 `conf.get(key) or 기본값` 으로 쓰면 **0 을 설정할 수 없다**(0 은 거짓이라 기본값이 나간다).
+       그래서 'None 인가' 만 따로 본다. flow.py 의 `_num` 과 **같은 점은 이것뿐**이고,
+       **다른 점은 여기엔 기본값이 없다는 것**이다 — 임계·진폭이 조용히 기본값으로 돌면 더 위험하다.
+
+    lo/hi 를 주면 범위를 검사한다. 🚨 자릿수 오타(15 → 150)가 그대로 로봇 명령이 되는 것을 막는다.
+    """
+    v = conf.get(key) if isinstance(conf, dict) else None
+    if v is None:
+        raise KeyError(f'params.yaml 의 {where}.{key} 가 비어 있다 — 값을 채운다')
+    v = cast(v)
+    if lo is not None and v < lo:
+        raise ValueError(f'{where}.{key} = {v} 가 최소 {lo} 보다 작다 — 값을 확인한다')
+    if hi is not None and v > hi:
+        raise ValueError(f'{where}.{key} = {v} 가 상한 {hi} 를 넘는다 (f2.limits) — 값을 확인한다')
+    return v
+
+
+def _group(conf, group, name):
+    """f2.<group>.<name> 묶음(예: f2.shake.WASTE)을 꺼낸다."""
+    g = conf.get(group)
+    if not isinstance(g, dict) or name not in g or not isinstance(g[name], dict):
+        raise KeyError(f'params.yaml 의 f2.{group}.{name} 이 없다 — 값을 채운다')
+    return g[name]
+
+
+def _limits(conf):
+    lim = conf.get('limits')
+    if not isinstance(lim, dict):
+        raise KeyError('params.yaml 의 f2.limits 가 없다 — 오타 방어 상한을 채운다')
+    return lim
+
+
+# ────────────────────────────────────────────────────────── 안전 도구
+def _quietly(what, fn, *args):
+    """실패해도 삼키는 호출. 되돌리기(finally)·후퇴처럼 '해 보고 안 되면 어쩔 수 없는' 자리에 쓴다."""
+    try:
+        fn(*args)
+        return True
+    except Exception as e:                           # noqa: BLE001 — 여기서 더 번지면 안 된다
+        try:
+            _log().error(f'{what} 실패 — {e!r}')
+        except Exception:                            # noqa: BLE001
+            pass
+        return False
+
+
+def _retreat():
+    """🚨 실패로 끝나기 전에 **안전 높이로 물러난다** (AGENTS §4 · SDD §7).
+
+    flow.call() 은 **예외가 올라올 때만** safe_retreat 를 부른다. 우리는 예외를 Result 로
+    바꿔서 돌려주므로(@_as_result) flow 쪽 후퇴가 안 걸린다 → 여기서 직접 해야 한다.
+    """
+    _quietly('safe_retreat', cc.safe_retreat)
+
+
+def _fail(result_cls, code, **kw):
+    """실패를 돌려주기 전에 후퇴까지 한다. 성공 경로에서는 쓰지 않는다."""
+    _retreat()
+    return result_cls.fail(code, **kw)
+
+
+def _as_result(result_cls):
+    """기능 함수의 껍데기 — 예외를 **Result.fail(ROBOT_ERROR)** 로 바꾸고 안전 높이로 물러난다.
+
+    🚨 기능 함수는 예외를 밖으로 내보내지 않는다(AGENTS §4 · SDD §5.1).
+       KeyboardInterrupt 는 BaseException 이라 여기 안 걸린다 — Ctrl+C 는 그대로 올라가는 게 맞다.
+    """
+    def deco(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            try:
+                return fn(*args, **kwargs)
+            except Exception as e:                   # noqa: BLE001 — 코드로 바꿔 보고한다
+                try:
+                    # 🚨 traceback 까지 남긴다 — finally 에서 난 예외가 원래 원인을 덮을 수 있고,
+                    #    TS-05(두산 DR_Error) 복구에 "어느 함수에 어떤 인자" 가 꼭 필요하다.
+                    _log().error(f'{fn.__name__} 실패 — {type(e).__name__}: {e}\n'
+                                 f'{traceback.format_exc()}')
+                except Exception:                    # noqa: BLE001 — 로그가 죽어도 결과는 돌려준다
+                    pass
+                _retreat()
+                return result_cls.fail(ROBOT_ERROR)
+        return wrapper
+    return deco
+
+
+# ────────────────────────────────────────────────────────── 동작 도구
+def _goto(station, carrying=True):
+    """station 의 **티칭 자세까지** 간다.
+
+    🚨 cc.move_to 는 안전 높이 때문에 못 내려간 만큼을 돌려준다(상공까지만 간다).
+       티칭 자세 = 그 기능이 **동작을 시작하는 자세**다(SDD §5.3, 황인재 9/20 확정)
+       → 남은 높이를 여기서 마저 내려가야 각 함수의 depth_mm 같은 값이 '티칭 자세 기준' 이 된다.
+       이렇게 해 두면 safe_z_mm 을 바꿔도 동작이 달라지지 않는다.
+
+    🚨 먼저 force_off() 를 부른다. 순응·힘제어가 켜진 채면 ① 관절 이동이 거부되고
+       (오류 2.1903 — 설치본 DRFC.py:528 RC_ERROR_DRCL_STATE_INVALID_EVENT, RobotError group MOTION=2)
+       ② 직교 이동은 되더라도 **힘제어가 계속 눌러서** 지령한 거리만큼 안 간다(조용한 실패라 더 나쁘다).
+       앞 단계(F3 닦기)가 껐어야 정상이지만 실패로 끝났으면 켜진 채일 수 있다.
+       꺼져 있어도 부를 수 있게 만들어져 있다(force.py force_off 머리말).
+    """
+    cc.force_off()
+    up = float(cc.move_to(station, carrying) or 0.0)
+    if up > 0.0:
+        _log().info(f'{station} 상공에서 {up:.1f} mm 더 내려간다 (티칭 자세까지)')
+        cc.move_rel(0.0, 0.0, -up, 'BASE')
+    return up
+
+
+def _hold(kind, level):
+    """파지 힘 전환.
+
+    🚨 드라이버에 '힘만 바꾸는 명령' 이 없어서 이건 **다시 잡기**다(RG2 매뉴얼 §6.2.3,
+       gripper.py 머리말). 그래서 **힘을 낮추는 쪽(HOLD → NORMAL)에서만 미끄러진다** —
+       미끄러짐 판정이 그 전환까지 덮도록 폭을 NORMAL 상태에서 재는 이유다(_slipped 참고).
+    """
+    cc.grip_level(kind, level)
+
+
+def _release_hold(kind):
+    """동작이 끝나면 파지 힘을 NORMAL 로 되돌린다.
+
+    🔔 PR #32 D2 가 "HOLD 유지" 로 정해지면 **이 함수 본문만** 바꾼다(호출부는 그대로).
+       flow 는 "단계 사이는 이미 NORMAL" 을 전제로 멈추므로(SDD §5.1) 그때 flow.py 주석과
+       test_f2_sense.py 의 관련 시험도 같이 고쳐야 한다.
+    """
+    _quietly('grip_level(NORMAL)', _hold, kind, NORMAL)
+
+
+def _slipped(label, w_before, w_after, tol):
+    """동작 전후 그리퍼 폭이 tol 보다 변했으면 미끄러진 것. 🚨 기준은 여기 한 곳.
+
+    🚨 두 폭은 **같은 힘(NORMAL) 상태에서** 재야 비교가 된다 — HOLD 는 더 세게 쥐어 폭이 다르다.
+       그래서 w_before 는 HOLD 로 바꾸기 **전**, w_after 는 NORMAL 로 되돌린 **뒤**에 잰다.
+       이렇게 하면 두 번의 힘 전환(올림·내림)이 **둘 다 검사 범위 안**에 들어온다.
+    🚨 abs() 다 — 실제 낙하는 그리퍼가 닫히며 폭이 **줄어든다**(≈2 mm → 0). 늘어나는 쪽만 보면 못 잡는다.
+    """
+    changed = abs(w_after - w_before)
+    if changed > tol:
+        _log().warn(f'{label} — 폭이 {w_before:.2f} → {w_after:.2f} mm '
+                    f'({changed:.2f} mm 변함 > 허용 {tol:.2f}) · 미끄러진 것으로 본다')
+        return True
+    return False
+
+
+# ────────────────────────────────────────────────────────── 공개 함수
+@_as_result(WeighResult)
 def weigh(kind: str) -> WeighResult:
-    """무게를 잰다.
+    """무게를 잰다. 돌려주는 것은 **잔반 무게**(측정값 − 빈 용기 기준값)다.
 
     kind : 'BOWL'(그릇) 또는 'CUP'(컵)  ← IRD §2 의 문자열 그대로
-    반환 : WeighResult (ok, code, weight_g)
+    반환 : WeighResult (ok, code, weight_g = 잔반 g) · 용기를 놓쳤으면 GRIP_FAIL
 
-    F2-01 에서 채울 내용 (SDD §5.3):
-        cc.move_to('WEIGH', True) → 0.5초 정지 → cc.weigh(n) 로 N회 평균
-        0점 재설정(reset)은 **선택 동작** — 응답 3초 넘으면 포기하고 그냥 진행(TS-03)
-        판정은 '측정값 − 빈 용기 기준값'이라 고정 옵셋은 저절로 상쇄된다
+    🚨 왜 '측정값' 이 아니라 '잔반 무게' 인가: 이 함수가 kind 를 받는 이유가
+       **빈 용기 기준값을 고르기 위해서**다(SDD §5.3). 로봇 하중에는 원인 모를 옵셋이 있는데
+       (V-02: +42~45 g), 같은 경로·같은 자세로 잰 빈 용기 값을 빼면 **옵셋이 상쇄된다**.
+       그래서 params.yaml 의 empty_weight_g 는 저울 무게가 아니라 **이 경로로 읽은 값**이어야 한다.
     """
-    return WeighResult(weight_g=0.0)      # 🚧 껍데기: 항상 0 g · ok=True
+    conf = _f2()
+    lim = _limits(conf)
+    empties = conf.get('empty_weight_g')
+    if not isinstance(empties, dict):
+        raise KeyError('params.yaml 의 f2.empty_weight_g 가 없다 — 값을 채운다')
+    empty = _need(empties, kind, where='f2.empty_weight_g')
+    samples = _need(conf, 'weigh_samples', cast=int, lo=1)
+    settle_s = _need(conf, 'weigh_settle_s', lo=0.0,
+                     hi=_need(lim, 'max_settle_s', where='f2.limits'))
+    min_net = _need(lim, 'min_net_g', where='f2.limits')
+
+    _goto(_WEIGH_STATION, carrying=True)
+    time.sleep(settle_s)                      # 🚨 움직이는 중에 재면 가속도가 섞인다(SDD §5.3)
+    raw = float(cc.weigh(samples))            # cobot_common/weigh.py — 중앙값, 음수는 버린다
+
+    net = raw - empty
+    _log().info(f'weigh({kind}) — 읽음 {raw:.1f} g − 빈 용기 {empty:.1f} g = 잔반 {net:.1f} g')
+
+    if net < min_net:
+        # 🚨 빈손이면 하중이 옵셋만 남아 net 이 크게 음수가 된다. 여기가 F2 가 "용기를 놓쳤다" 를
+        #    잡을 수 있는 유일한 자리다 — 그냥 통과시키면 빈 그리퍼로 세제·닦기까지 전 공정을 돈다.
+        _log().warn(f'weigh({kind}) — 잔반 {net:.1f} g 이 하한 {min_net:.1f} g 보다 작다 · '
+                    '용기를 놓친 것으로 본다')
+        return _fail(WeighResult, GRIP_FAIL, weight_g=net)
+    return WeighResult(weight_g=net)
 
 
+@_as_result(LeftoverResult)
 def leftover_loop(kind: str, max_rounds: int) -> LeftoverResult:
-    """잔반이 남았으면 털고 다시 재는 것을 반복한다(폐루프).
+    """잔반이 남았으면 털고 다시 재는 것을 반복한다(폐루프). **F2 의 핵심**.
 
     kind       : 'BOWL' / 'CUP'
-    max_rounds : 최대 몇 번까지 털어볼지
+    max_rounds : 최대 몇 번까지 털어볼지 (flow 가 params.yaml 의 flow.leftover_max_rounds 를 넘긴다)
     반환       : LeftoverResult (ok, code, weight_before_g, weight_after_g, rounds)
 
-    F2-01 에서 채울 내용 (SDD §5.3):
-        weigh → 임계(기본 50 g) 넘으면 → move_to('WASTE') → shake('WASTE') → 다시 weigh
-        max_rounds 를 넘겨도 계속 넘으면 Result.fail(LEFTOVER_REMAIN)
-        임계 미만이면 통과(본세척은 식기세척기 담당)
+    흐름:  잰다 → 임계 미만이면 통과 → 넘으면 [털고 다시 잰다] × max_rounds → 그래도 넘으면
+           LEFTOVER_REMAIN (flow 의 정책이 격리로 보낸다)
+
+    🔔 알려진 한계: 이 함수 한 덩어리가 flow 기준 **한 단계**라, 도는 동안 정지 버튼을 못 본다
+       (flow 는 단계 사이마다 본다 — SDD §5.1). 중단 훅을 받으려면 서명이 바뀌므로
+       인터페이스 논의가 필요하다(AGENTS §3 규칙 5). 민범진이 이슈로 올림.
     """
-    return LeftoverResult(weight_before_g=0.0, weight_after_g=0.0, rounds=0)   # 🚧 껍데기
+    conf = _f2()
+    threshold = _need(conf, 'leftover_threshold_g')
+    cycles = _need(_group(conf, 'shake', 'WASTE'), 'cycles', cast=int, lo=1,
+                   where='f2.shake.WASTE')
+    rounds_max = max(0, int(max_rounds))
+
+    first = weigh(kind)
+    if not first.ok:                                  # 재는 것부터 실패하면 그대로 올린다
+        return LeftoverResult.fail(first.code, weight_before_g=first.weight_g)
+    before = first.weight_g
+
+    if before <= threshold:                           # SR-05·FR-04: 임계를 **초과**해야 잔반이다
+        _log().info(f'leftover_loop({kind}) — {before:.1f} g ≤ 임계 {threshold:.1f} g · 통과')
+        return LeftoverResult(weight_before_g=before, weight_after_g=before, rounds=0)
+
+    after = before
+    done = 0                                          # 🚨 **끝난** 회차 수 (실패한 회차는 안 센다)
+    for r in range(1, rounds_max + 1):
+        _log().info(f'leftover_loop({kind}) — 잔반 {after:.1f} g · 털기 {r}/{rounds_max}')
+        shaken = shake('WASTE', cycles, kind)
+        if not shaken.ok:
+            return LeftoverResult.fail(shaken.code, weight_before_g=before,
+                                       weight_after_g=after, rounds=done)
+        again = weigh(kind)
+        if not again.ok:
+            return LeftoverResult.fail(again.code, weight_before_g=before,
+                                       weight_after_g=after, rounds=done)
+        done = r
+        after = again.weight_g                        # weight_after_g = 마지막으로 **성공한** 측정값
+        if after <= threshold:
+            _log().info(f'leftover_loop({kind}) — {done}회 만에 {after:.1f} g · 통과')
+            return LeftoverResult(weight_before_g=before, weight_after_g=after, rounds=done)
+
+    _log().warn(f'leftover_loop({kind}) — {done}회 털었는데 아직 {after:.1f} g · 격리로 보낸다')
+    return _fail(LeftoverResult, LEFTOVER_REMAIN, weight_before_g=before,
+                 weight_after_g=after, rounds=done)
 
 
+@_as_result(Result)
 def shake(mode: str, count: int, kind: str) -> Result:
-    """흔들어 턴다.
+    """흔들어 턴다. 잔반통/수조 **위에서** 관절 하나를 왕복시킨다.
 
-    mode  : 'WASTE'(잔반 털기) 또는 'RINSE'(물 털기)
-    count : 흔들 횟수
+    mode  : 'WASTE'(잔반 털기) 또는 'RINSE'(물 털기) — **스테이션 이름과 같다**
+    count : 흔들 횟수 (부르는 쪽이 정한다. leftover_loop 는 f2.shake.WASTE.cycles 를,
+            flow 는 flow.counts.rinse_shakes 를 넘긴다)
     kind  : 'BOWL' / 'CUP'  ← 파지 힘 프리셋을 고르려고 받는다
-    반환  : Result
+    반환  : Result (미끄러지면 GRIP_FAIL)
 
-    F2-01 에서 채울 내용 (IRD §4 · 9/18 V-17 결과):
-        🚨 시작할 때 cc.grip_level(kind, 'HOLD')  ← 흔들 때는 더 꽉 잡는다
-           끝날 때 cc.grip_level(kind, 'NORMAL')  ← 반드시 되돌린다
-        J5/J6 관절 왕복, 진폭·속도는 cc.cfg()['f2']['shake'][mode]
-        동작 전후 그리퍼 폭을 비교해 변했으면(미끄러짐) Result.fail(GRIP_FAIL)
+    한 번 왕복 = 가운데 → +amp → −amp → 가운데. 🚨 **항상 가운데에서 끝난다** —
+    도중에 실패해도 finally 가 남은 각도를 되돌린다(자세가 밀린 채 다음 용기로 가면 안 된다).
     """
-    return Result()                        # 🚧 껍데기: ok=True, code='OK'
+    conf = _f2()
+    lim = _limits(conf)
+    p = _group(conf, 'shake', mode)
+    joint = _need(p, 'joint', cast=int, lo=1, hi=6, where=f'f2.shake.{mode}')
+    amp = _need(p, 'amp_deg', lo=0.0, hi=_need(lim, 'max_amp_deg', where='f2.limits'),
+                where=f'f2.shake.{mode}')
+    period = _need(p, 'period_s', lo=0.0, where=f'f2.shake.{mode}')
+    slip_tol = _need(conf, 'slip_tol_mm')
+    n = int(count)
+
+    if n <= 0:
+        _log().warn(f'shake({mode}) — count={count} 라 아무것도 안 한다')
+        return Result()
+
+    _goto(mode, carrying=True)                  # force_off 는 _goto 안에서 먼저 부른다
+
+    # 🚨 폭은 **HOLD 로 바꾸기 전**에 잰다 — 두 번의 힘 전환을 모두 검사 범위에 넣으려고(_slipped).
+    w_before = float(cc.grip_width())
+
+    # 🚨 period_s 는 **한 주기** 시간이다. move_joint_rel 의 time_s 는 **한 번 움직이는 구간**의
+    #    시간이라 나눠 줘야 한다(황인재 9/20): 가운데↔끝 = period/4, 끝↔반대끝 = period/2.
+    #    그대로 넘기면 4배 느려진다.
+    t_quarter = period / 4.0
+    t_half = period / 2.0
+
+    moved = 0.0                                 # 가운데에서 얼마나 벗어나 있나 (실패 복구용)
+    _hold(kind, HOLD)                           # 흔들 때는 더 꽉 잡는다 (IRD §4)
+    try:
+        for i in range(1, n + 1):
+            cc.move_joint_rel(joint, +amp, time_s=t_quarter, carrying=True)   # 가운데 → 끝
+            moved += amp
+            cc.move_joint_rel(joint, -2 * amp, time_s=t_half, carrying=True)  # 끝 → 반대쪽 끝
+            moved -= 2 * amp
+            cc.move_joint_rel(joint, +amp, time_s=t_quarter, carrying=True)   # 끝 → 가운데
+            moved += amp
+            _log().info(f'shake({mode}) {i}/{n} — J{joint} ±{amp:.0f}° · 주기 {period:.2f} s')
+    finally:
+        if abs(moved) > 1e-9:                   # 🚨 도중에 실패했으면 가운데로 되돌린다
+            _quietly('가운데 복귀', cc.move_joint_rel, joint, -moved)
+        _release_hold(kind)
+
+    w_after = float(cc.grip_width())            # NORMAL 로 되돌린 뒤 — w_before 와 같은 힘 상태
+    if _slipped(f'shake({mode})', w_before, w_after, slip_tol):
+        return _fail(Result, GRIP_FAIL)
+    return Result()
 
 
+@_as_result(Result)
 def dip(station: str, count: int, kind: str) -> Result:
-    """수조에 담갔다 뺀다.
+    """수조에 담갔다 뺀다. 🚨 **물은 쓰지 않는다 — 모션만**(로봇 보호등급 IP54).
 
-    station : 'RINSE'(헹굼 수조)
+    station : 'RINSE'(헹굼 수조) — f2.dip 아래의 이름과 같다
     count   : 담글 횟수
     kind    : 'BOWL' / 'CUP'
-    반환    : Result
+    반환    : Result (미끄러지면 GRIP_FAIL)
 
-    F2-01 에서 채울 내용 (SDD §5.3):
-        🚨 담그는 동안 강한 파지(HOLD), 끝나면 NORMAL 로 되돌린다
-        수조 상공 → depth_mm 하강 → hold_s 유지 → 상승
-        깊이·시간은 cc.cfg()['f2']['dip'][station]
+    티칭 자세(수조 위, 담그기 시작 자세)에서 **아래로 depth_mm** → hold_s 유지 → 같은 만큼 위로.
+    🚨 **매번 올라와서 끝난다** — 도중에 실패해도 finally 가 내려간 만큼 되올린다.
+       용기가 수조에 걸린 채 다음 이동으로 가면 안 된다(SDD §5.3).
+
+    🔔 알려진 한계: 이 하강은 힘 감시가 없는 자유 공간 이동이다(물 없음 전제). 티칭이 어긋나거나
+       수조가 밀리면 용기 바닥이 수조 바닥을 찍는다. cc.contact_down 으로 바꾸면 힘 상한·최대 깊이·
+       타임아웃이 한꺼번에 붙지만 설계 변경이라 팀 확인이 필요하다. 지금은 max_depth_mm 상한으로만 막는다.
     """
-    return Result()                        # 🚧 껍데기
+    conf = _f2()
+    lim = _limits(conf)
+    p = _group(conf, 'dip', station)
+    depth = _need(p, 'depth_mm', lo=0.0, hi=_need(lim, 'max_depth_mm', where='f2.limits'),
+                  where=f'f2.dip.{station}')
+    hold_s = _need(p, 'hold_s', lo=0.0, hi=_need(lim, 'max_hold_s', where='f2.limits'),
+                   where=f'f2.dip.{station}')
+    slip_tol = _need(conf, 'slip_tol_mm')
+    n = int(count)
+
+    if n <= 0:
+        _log().warn(f'dip({station}) — count={count} 라 아무것도 안 한다')
+        return Result()
+
+    _goto(station, carrying=True)               # force_off 는 _goto 안에서 먼저 부른다
+
+    w_before = float(cc.grip_width())           # HOLD 로 바꾸기 전 (shake 와 같은 이유)
+
+    down = 0.0                                  # 지금 얼마나 내려가 있나 (실패 복구용)
+    _hold(kind, HOLD)                           # 담그는 동안 더 꽉 잡는다 (IRD §4)
+    try:
+        for i in range(1, n + 1):
+            cc.move_rel(0.0, 0.0, -depth, 'BASE')
+            down = depth
+            time.sleep(hold_s)
+            cc.move_rel(0.0, 0.0, +depth, 'BASE')
+            down = 0.0
+            _log().info(f'dip({station}) {i}/{n} — {depth:.0f} mm 내려갔다 {hold_s:.1f} s 뒤 올라옴')
+    finally:
+        # 🚨 순서가 중요하다 — **아직 꽉 쥔 채** 먼저 올라오고, 그 다음에 힘을 되돌린다.
+        if down > 0.0:
+            _quietly('수조에서 올라오기', cc.move_rel, 0.0, 0.0, +down, 'BASE')
+        _release_hold(kind)
+
+    w_after = float(cc.grip_width())
+    if _slipped(f'dip({station})', w_before, w_after, slip_tol):
+        return _fail(Result, GRIP_FAIL)
+    return Result()

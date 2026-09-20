@@ -34,7 +34,8 @@ def test_repo_cell_skeleton_uses_ird_ids():
     """cell.yaml 키 골격이 IRD §2 의 ID 와 어긋나지 않는다(오타·누락 방지)."""
     cell = config.load(SRC_CONFIG)['cell']
     assert set(cell) == {'limits', 'motion', 'force', 'presets', 'stations', 'zones', 'beds', 'rack'}
-    assert set(cell['motion']) == {'vel_tcp_max_mm_s', 'acc_tcp_max_mm_s2', 'vel_joint_max_deg_s', 'acc_joint_max_deg_s2'}
+    assert set(cell['motion']) == {'vel_tcp_max_mm_s', 'acc_tcp_max_mm_s2', 'vel_joint_max_deg_s', 'acc_joint_max_deg_s2',
+                                   'move_timeout_s'}
     assert set(cell['force']) == {'compliance_stx', 'contact_step_mm', 'contact_vel_mm_s', 'contact_acc_mm_s2',
                                   'retreat_vel_mm_s', 'retreat_acc_mm_s2', 'force_max_n', 'search_y_period_ratio'}   # 이슈 #7 ①
     beds = {'SPONGE_BED_B', 'SPONGE_BED_C'}

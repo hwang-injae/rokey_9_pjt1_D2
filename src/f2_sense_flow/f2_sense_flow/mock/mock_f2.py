@@ -6,38 +6,31 @@
    f2 가 있어 함께 만들었다(DSN-03 에 알림). 없으면 F2-01 로 sense.py 속을 채우는 순간
    로봇 없는 런치가 깨진다 — 지금은 sense.py 가 껍데기라 안 드러날 뿐이다.
 
-무게는 설정의 빈 용기 기준값을 그대로 돌려준다 = "잔반 없음". 잔반 상황을 만들려면
-fail_on 으로 LEFTOVER 계열 코드를 주입한다.
+🚨 무게는 **0 g(잔반 없음)** 을 돌려준다 — 진짜 sense.weigh 가 돌려주는 것이
+   "측정값" 이 아니라 **"잔반 무게"(측정값 − 빈 용기 기준값)** 이기 때문이다(SDD §5.3).
+   F2-01 전에는 여기서 빈 용기 기준값(180 g)을 돌려줬는데, 그러면 같은 상황에서
+   가짜는 180, 진짜는 0 이 되어 **가짜가 진짜와 다르게 동작한다.**
+   잔반 상황을 만들려면 fail_on 으로 LEFTOVER 계열 코드를 주입한다.
 """
 from cobot_api import LeftoverResult, Result, WeighResult
 
 from . import code_for
-
-_EMPTY_G = {'BOWL': 180.0, 'CUP': 120.0}         # params.yaml f2.empty_weight_g 의 예시값
-
-
-def _empty(kind):
-    try:
-        import cobot_common as cc
-        return float(cc.cfg()['f2']['empty_weight_g'][kind])
-    except Exception:
-        return _EMPTY_G.get(kind, 0.0)
 
 
 def weigh(kind: str) -> WeighResult:
     code = code_for('weigh')
     if code:
         return WeighResult.fail(code)
-    return WeighResult(weight_g=_empty(kind))     # 기준값 그대로 = 잔반 0 g
+    return WeighResult(weight_g=0.0)              # 잔반 0 g (진짜 sense.weigh 와 같은 뜻)
 
 
 def leftover_loop(kind: str, max_rounds: int) -> LeftoverResult:
+    # 🚨 무게는 weigh 와 같은 뜻(잔반 g)이다 — 통과는 0 g, 실패는 임계(50 g)를 넘긴 값.
     code = code_for('leftover_loop')
-    g = _empty(kind)
     if code:
-        return LeftoverResult.fail(code, weight_before_g=g + 80.0, weight_after_g=g + 60.0,
-                                   rounds=max_rounds)
-    return LeftoverResult(weight_before_g=g, weight_after_g=g, rounds=0)
+        return LeftoverResult(ok=False, code=code, weight_before_g=80.0,
+                              weight_after_g=60.0, rounds=max_rounds)
+    return LeftoverResult(weight_before_g=0.0, weight_after_g=0.0, rounds=0)
 
 
 def shake(mode: str, count: int, kind: str) -> Result:

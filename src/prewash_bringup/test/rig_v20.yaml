@@ -1,0 +1,15 @@
+# rig_v20.py 시험 값 — 🚨 Virtual 전용. 좌표·속도는 src/cobot_common/test/config_virtual/cell.yaml.
+motion:                         # 각 기능 함수 앞에 끼워 넣는 관절 왕복 1회 (골격 함수가 로봇을 안 움직이므로)
+  joint: 1
+  delta_deg: 8
+  time_s: 0.4                   # 편도 시간 → 함수 1개 ≈ 1 s
+probe:
+  wait_flow_s: 15               # flow_node 가 뜨기를 기다리는 시간
+  service_timeout_s: 2.0
+  rate_hz: 2.0                  # /flow/state (IRD §6)
+  rate_tol_hz: 0.2
+  run_before_stop_s: 8          # start 뒤 이만큼 움직이는 것을 보고 stop 을 누른다
+  pause_within_s: 60            # stop 뒤 PAUSED 를 기다리는 상한 (걸린 시간·그 사이 단계는 따로 잰다)
+  hold_paused_s: 3              # PAUSED 에서 진행이 없는지 보는 시간
+  finish_within_s: 120          # resume 뒤 DONE 까지
+  idle_within_s: 5

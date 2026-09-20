@@ -7,12 +7,12 @@ COMMON_TEAM='''## 2. 팀·환경 (✅ 확정)
 - D그룹 2조: 한석형(팀장·F1) · 민범진(통합 리더·F2·flow) · 박진용(안전·F3) · 황인재(**PM**·F4). 겸임: 실기 슬롯·기구·브랜치 삭제 승인 한석형 / 통합 리더(L3·L4 주도)·인터페이스 창구 민범진 / 안전 파라미터 박진용 / PM(일정표·문서·제출·강사 창구·PR 승인)·영상·발표·아키텍처 그림 황인재
 - M0609 + RG2 1대, 컨트롤러 IP 192.168.1.100 · TCP 12345 · RG2 설정 웹 192.168.1.1. Ubuntu 24.04 + ROS 2 Jazzy, `ROS_DOMAIN_ID=60`. 비전·3D 프린터·액체 사용 불가
 - PC: 개발 4대 각자(Virtual/mock). 통합 실행 PC-A(로봇 제어: 드라이버 + f1·f2·f3·flow) + PC-B(HMI). 워크스페이스 `~/ws_cobot_pjt/ws_dsr`(드라이버, 수정 금지) 위에 `rokey_pjt01_ws`(= 저장소, `docs/` + `src/`, 위치는 `.bashrc`의 `PREWASH_WS`)
-- 용기 그릇 1규격 2개 + 컵 1규격 2개. 팔레트 모형 그릇 2칸·컵 4칸. 반납 구역 2곳(그릇·컵), 구역마다 **지정된 고정 슬롯 2개**에 겹치지 않게 놓는다 → 고정 슬롯 파지(9/19 PM 결정). **그릇은 옆면(벽)을 세로로 파지**(외경 114 mm > 그리퍼 최대 폭 110 mm). 잔반 대용품 고형물(구슬·쌀) ≥100 g
+- 용기 그릇 1규격 2개 + 컵 1규격 2개. 팔레트 모형 그릇 2칸·컵 2칸(9/20 변경: 컵 4 → 2). 반납 구역 2곳(그릇·컵), 구역마다 **지정된 고정 슬롯 2개**에 겹치지 않게 놓는다 → 고정 슬롯 파지(9/19 PM 결정). **그릇은 옆면(벽)을 세로로 파지**(외경 114 mm > 그리퍼 최대 폭 110 mm). 잔반 대용품 고형물(구슬·쌀) ≥100 g
 - 일정: 개발 9/18(금)~9/23(수), 주말 로봇 가능. 9/21(월) 오후 중간점검 발표(로봇·개발은 저녁만). 9/23 저녁 **기능 동결**. 추석 9/24~28 로봇 불가. 9/29(화) 14:00 강사 시연. 9/30(수) 11:00 제출·발표
 - 브링업: `sod` → `sodvir`(Virtual) / `sodreal`(실기, PC-A) · 우리 코드 빌드 `cbc`. 시나리오·ID·실패 코드·함수 이름은 `AGENTS.md` §1~2와 IRD v3.0(코드 정본 `src/cobot_api/cobot_api/contracts.py`)이 정본
 '''
 COMMON_IF='''## 3. 인터페이스 (정본 `docs/02_인터페이스_IRD.md` · `docs/interfaces/`)
-- 내가 **제공**하는 함수(F4는 ROS 인터페이스)와 **사용**하는 것을 IRD에서 그대로 읽고 첫 응답에 표로 정리할 것. 공통 ID(`BOWL` `CUP` `SPONGE` `BRUSH`, 구역 `RET_B` `RET_C`, 칸 `RACK_B1..2` `RACK_C1..4`, 스테이션, 실패 코드)는 IRD §2 문자열 그대로.
+- 내가 **제공**하는 함수(F4는 ROS 인터페이스)와 **사용**하는 것을 IRD에서 그대로 읽고 첫 응답에 표로 정리할 것. 공통 ID(`BOWL` `CUP` `SPONGE` `BRUSH`, 구역 `RET_B` `RET_C`, 칸 `RACK_B1..2` `RACK_C1..2`, 스테이션, 실패 코드)는 IRD §2 문자열 그대로.
 - 실행 구조(9/18 결정, `docs/meetings/20260918_결정기록_구조_인터페이스.md`): **노드는 `flow_node`(메인 프로그램)와 `hmi_bridge` 둘뿐.** f1·f2·f3는 노드가 아니라 **함수를 제공하는 파이썬 패키지**이고 `flow_node`의 메인 스레드가 그 함수를 차례로 부른다(서비스 아님). 기능 패키지끼리는 서로 import하지 않는다(F4는 flow의 `/flow/*` 서비스를 부르는 클라이언트).
 - 동시 개발 약속: 각 기능은 정해진 위치에서 시작·끝난다 → 용기를 손으로 놓고 `rig_f*.py`로 단독 시험. 로봇 없이 mock 모듈(`f2_sense_flow.mock`, 같은 함수 이름)·`fake_state_pub`으로 flow·HMI 개발.
 '''
@@ -82,19 +82,19 @@ ROLES={
 - **함수 모듈 `src/f1_handling/f1_handling/handling.py`** (노드 아님): `pick(zone_id, kind)`(고정 슬롯 파지) `place(station)`(스펀지 홈이면 **안착 놓기**, 항상 release까지) `move_to(station, carrying)` `tool(tool, action)` `rack_place(rack_slot, kind)` — 서명·반환 타입은 `cobot_api`(`PickResult` 등) 그대로. 복귀는 `move_to('HOME', False)`
 - **안착 놓기 `place(SPONGE_BED_B/C)`** (SDD §5.2): 용기를 쥔 채 홈 상공 → 순응 ON 하강 → 접촉·깊이 판정 → 미달이면 `periodic_search` 중 접촉 조건 감시 → 들어가면 놓고 후퇴(`offset_mm`) / 한도 초과면 들고 후퇴 `SEAT_FAIL`. 힘 관련 공용 함수(`contact_down`·`periodic_search`·`force_on/off`)는 박진용과 같이 다듬는다
 - **고정 슬롯 파지 `pick(zone_id, kind)`** (SDD §5.2, 9/19 PM 결정): 구역 기준점 + `config/cell.yaml`(`zones.*.search.offsets_mm` = **슬롯 위치**, 구역마다 2개) 를 정해진 순서로 → 슬롯 상공에서 그리퍼 열기 → `contact_down`(힘 상한·최대 깊이·타임아웃)으로 접촉 높이에 정지 → `grip` → 폭이 프리셋 ±3 mm면 성공(응답에 `attempts`, `offset`) / 빈손이면 놓고 다음 슬롯 → 다 비었으면 `EMPTY_ZONE`. **그릇은 옆면(벽)을 세로로 파지**(그리퍼가 아래를 보고 핑거가 벽 안팎을 집는다 — 접근 위치 = 슬롯 중심 + 벽까지의 오프셋, 값은 `cell.yaml`). **그릇도 파지 폭으로 성공을 가른다**(9/19 PM 결정 — 옆면 세로 파지 폭 ≈ 2 mm 확인, 무게로 가르지 않는다): 그릇 전용 `width_tol_mm`는 그릇 ↔ 빈손 간격보다 작게(V-01), 🚨 `grip`에 주는 닫는 목표 폭은 기대 폭보다 작게(권장 `grip_width_mm − 2 × width_tol_mm`, 0 미만이면 0) — 같게 주면 빈손도 그 폭에서 멈춰 성공으로 읽힌다. 서명·`EMPTY_ZONE`·YAML 키 이름은 그대로다. `zone_id`가 `SPONGE_BED_*`면 탐색점 1개(고정 재파지)
-- **좌표 계산·티칭이 주 업무**: `src/cobot_common/config/cell.yaml`(팀 공용 좌표·속도·프리셋, 한 곳에만 — **나 혼자 고친다**)과 `params.yaml`의 `f1` 절의 **주인**: 종류별 프리셋(폭·힘·허용 폭·접근 높이), 구역 기준점·탐색점 목록·최대 횟수·하강 힘 상한, 스테이션 좌표, 팔레트 기준점 + 칸 오프셋·각도(그릇 2·컵 4), 속도 상한(들고 있을 때 30%), 안전 높이, 삽입력 상한
+- **좌표 계산·티칭이 주 업무**: `src/cobot_common/config/cell.yaml`(팀 공용 좌표·속도·프리셋, 한 곳에만 — **나 혼자 고친다**)과 `params.yaml`의 `f1` 절의 **주인**: 종류별 프리셋(폭·힘·허용 폭·접근 높이), 구역 기준점·탐색점 목록·최대 횟수·하강 힘 상한, 스테이션 좌표, 팔레트 기준점 + 칸 오프셋·각도(그릇 2·컵 2), 속도 상한(들고 있을 때 30%), 안전 높이, 삽입력 상한
 - `rack_place`: 기준점 + 칸 오프셋 → 지정 각도 → 상공 → 순응 ON 하강 + 삽입력 감시 → 도달 시 놓기 → 후퇴. 걸림 → 후퇴 → `RACK_JAM`
 - `tool`: 홀더 방향 고정, 픽업 후 폭 확인(범위 밖 `TOOL_FAIL`), 반납은 힘 접촉으로 바닥 확인
 - 기구(9/18): 반납 구역 2곳 표시(트레이·테이프), 팔레트 모형 배치, 격리 구역, 핑거 실리콘 패드
-- **검증(V)**: 9/18 저녁 V-01 파지 폭 3상태(그릇·컵·빈손)·V-05 DO/DI·V-17 컵 옆면 파지(✅ 9/18 검증 완료 — 흔드는 동작용 강한 파지는 V-16·V-23)·**V-20(9/19 오후, 민범진 주도·황인재 참여)에는 PKG-01로 참여**: `handling.py`에 빈 함수 5개만 넣어 주면 된다(배경은 TS-01·DSN-02b). 9/19 오전 **티칭 1차(나 주도, 민범진 참여)** + V-19 도달 범위·특이점. 9/19 오후 V-01·V-05·**V-23 파지 힘 전환**(내가 주인, 결과는 DSN-03에서 공유). 9/20 오전 **티칭 2차 + V-22 티칭 좌표 재현 오차**(`move_to`가 생긴 뒤라 이때)·**V-14 고정 슬롯 파지 성공률**·V-16 참여(민범진 주도 — 찾은 HOLD 값은 내가 `cell.yaml` 프리셋에 반영). 9/20 오후 **V-04 periodic 안착·V-15 재파지 폭 인식은 내가 주도**(F1-05의 첫 단계, 박진용은 `periodic_search` 제공·참여). V-08은 F1-03, V-06은 F1-04의 첫 단계. 반납 구역 방식은 **고정 슬롯으로 확정**(9/19 PM 결정)이므로 `pick`(F1-02)은 그 방식으로 만든다
+- **검증(V)**: 9/18 저녁 V-01 파지 폭 3상태(그릇·컵·빈손)·V-05 DO/DI·V-17 컵 파지(몸통을 통째로 — 벽을 집지 않는다, ✅ 9/18 검증 완료 — 흔드는 동작용 강한 파지는 V-16·V-23)·**V-20(9/19 오후, 민범진 주도·황인재 참여)에는 PKG-01로 참여**: `handling.py`에 빈 함수 5개만 넣어 주면 된다(배경은 TS-01·DSN-02b). 9/19 오전 **티칭 1차(나 주도, 민범진 참여)** + V-19 도달 범위·특이점. 9/19 오후 V-01·V-05·**V-23 파지 힘 전환**(내가 주인, 결과는 DSN-03에서 공유). 9/20 오전 **티칭 2차 + V-22 티칭 좌표 재현 오차**(`move_to`가 생긴 뒤라 이때)·**V-14 고정 슬롯 파지 성공률**·V-16 참여(민범진 주도 — 찾은 HOLD 값은 내가 `cell.yaml` 프리셋에 반영). 9/20 오후 **V-04 periodic 안착·V-15 재파지 폭 인식은 내가 주도**(F1-05의 첫 단계, 박진용은 `periodic_search` 제공·참여). V-08은 F1-03, V-06은 F1-04의 첫 단계. 반납 구역 방식은 **고정 슬롯으로 확정**(9/19 PM 결정)이므로 `pick`(F1-02)은 그 방식으로 만든다
 - 겸임: 팀장, 실기 슬롯 배분, 기구 총괄, 브랜치 삭제 승인''',
  not_='잔반·닦기 판정 기준(F2·F3), 흐름 순서·정책(flow), HMI. 힘제어 닦기 궤적은 F3.',
  out='`src/f1_handling/f1_handling/handling.py` · `src/cobot_common/config/cell.yaml`·`params.yaml`(`f1` 절) · `src/f1_handling/test/rig_f1.py` · 핑거 패드·반납 구역·팔레트 배치',
  rig='반납 구역에 그릇 2개를 겹쳐/어긋나게, 컵 2개 동일 + 빈 구역 1회. 툴 홀더 2종, 팔레트 모형. 손으로 놓고 `rig_f1.py`에서 내 함수만 호출.',
- l1='TC-01 고정 슬롯 파지 그릇·컵 각 10회 ≥9(빈 슬롯은 다음 슬롯으로), 빈 구역 `EMPTY_ZONE` 5/5, 낙하 0, 두 개 파지 0 · TC-02 툴 픽업/반납 각 10회, 안전 높이 · **TC-05 안착 놓기 정위치 5 + 2 mm 오프셋 5 ≥9/10, 한도 초과 `SEAT_FAIL`** · TC-09 팔레트 6칸 각 5회 ≥9, 걸림 → `RACK_JAM` 후퇴. 전부 녹화',
- sched='🚨 주말(9/19·20)은 교육장이 18시에 닫는다 — 저녁 일정 없음. 9/19 A·B **CELL-04 티칭 1차**(민범진과, V-19 포함) — 오늘은 티칭까지만 · 17:15 DSN-03 → 9/20 A **CELL-04b 티칭 2차**(V-22 포함)·F1-01(`motion.py`가 main에 들어온 뒤), B **F1-02 탐색 파지**·V-14·V-16 참여 → 9/21 C **V-04·V-15 주도**(박진용 참여)·F1-05 안착 놓기(로봇 1시간씩 교대) → 9/22 A F1-03 툴(V-08 먼저)·CR-01, B F1-04 적재(V-06 먼저)·**UT-F1**(G2), C **INT-12b 주도**·INT-12a·INT-13 참여 → 9/23 L3·L4. 함수별 TC는 구현 직후 바로. 공용 함수는 내가 만들지 않는다(`motion.py` 황인재 · `gripper.py` 민범진) — 나는 `cell.yaml` 값과 F1 기능 함수',
+ l1='TC-01 고정 슬롯 파지 그릇·컵 각 10회 ≥9(빈 슬롯은 다음 슬롯으로), 빈 구역 `EMPTY_ZONE` 5/5, 낙하 0, 두 개 파지 0 · TC-02 툴 픽업/반납 각 10회, 안전 높이 · **TC-05 안착 놓기 정위치 5 + 2 mm 오프셋 5 ≥9/10, 한도 초과 `SEAT_FAIL`** · TC-09 팔레트 4칸 각 5회 ≥9, 걸림 → `RACK_JAM` 후퇴. 전부 녹화',
+ sched='🚨 주말(9/19·20)은 교육장이 18시에 닫는다 — 저녁 일정 없음. **9/20 재계획(좌표 작업 지연)**: 9/19 CELL-04 티칭 1차(그릇 쪽까지) → 9/20 A **좌표 마무리만**: CELL-04 컵 쪽·CELL-01 슬롯 표시 → V-19 도달 범위(+ `cell.motion`·`limits` 값 PR), B **CELL-04b 티칭 2차**(박진용 참여) → V-22(황인재 주도, 나는 좌표 제공·입회) → **F1-01**(그릇 좌표로 먼저) → 9/21 C **F1-02 고정 슬롯 파지 + V-14**(코드는 그 전에 Virtual 로 미리) → 9/22 A **V-04·V-15 → F1-05 안착 놓기**(박진용 참여)·CR-01, B **F1-03 툴**(V-08 먼저), C **F1-04 적재**(V-06 먼저)·UT-F1 시작·INT-12a·INT-13 참여 → 9/23 A UT-F1 잔여·**INT-12b 주도**, B L3, C L4·동결. 함수별 TC는 구현 직후 바로. 공용 함수는 내가 만들지 않는다(`motion.py` 황인재 · `gripper.py` 민범진 · `force.py` 박진용 — 전부 main 에 있다) — 나는 `cell.yaml` 값과 F1 기능 함수. 티칭 자세 = 그 기능이 동작을 시작하는 자세(SDD §5.3)',
  deep='''- **고정 슬롯 파지를 가장 깊게**: 슬롯 위치를 기준점 + 오프셋으로 만드는 법, 접촉 하강이 용기 높이 오차를 어떻게 흡수하는지, 그릇 옆면(벽) 세로 파지의 접근 위치·자세, 폭으로 빈손/정상을 가르는 표(그릇은 무게 확인 대안), 실패 시 놓고 올라가는 안전 순서, `attempts`·`offset` 기록이 KPI가 되는 이유.
-- **`trans()`·Pallet**: 기준점 1개 + 오프셋으로 슬롯 위치·팔레트 칸 6개를 만드는 계산 예시. 팔레트를 옮겨도 기준점만 재티칭.
+- **`trans()`·Pallet**: 기준점 1개 + 오프셋으로 슬롯 위치·팔레트 칸 4개를 만드는 계산 예시. 팔레트를 옮겨도 기준점만 재티칭.
 - **팔레트 삽입**: 지정 각도 자세 만들기, 순응제어 + 삽입력 감시, 걸림 판정(힘↑ & 깊이 미달).
 - **티칭 절차**: Dart Platform 자세 → 좌표 읽기 → YAML → ROS 재현 → 🚨 제어권 해제.''',
  req='''1. **역할·요구사항 분석**: 산출물, 하지 않는 것의 경계, 인터페이스(제공/사용) 표
@@ -119,7 +119,7 @@ ROLES={
  out='`src/f2_sense_flow/f2_sense_flow/sense.py` `flow.py` `flow_node.py` `mock/mock_f1.py` `mock/mock_f3.py` `logger.py` · `test/rig_f2.py` · `config/params.yaml`의 `f2`·`flow` 절 · `records.csv` 스키마',
  rig='100/200 g 추, 대용품 용기 4·빈 용기 4, 잔반통, 빈 수조. F1 없이 손으로 용기를 쥐여주고 `rig_f2.py`에서 내 함수만 호출. flow는 mock 모듈로.',
  l1='TC-03 무게 ±20 g · TC-04 잔반 검출 100%/오판 0 · TC-08 헹굼·물털기 10회 정지 0 · TC-10 mock 실패 주입 5종 정책대로(EMPTY_ZONE → 다음 구역) · TC-12 기록 4행 누락 0. 전부 녹화',
- sched='🚨 주말(9/19·20)은 교육장이 18시에 닫는다 — 저녁 일정 없음. 9/19 A·B ENV-04·PKG-01·CELL-03·**FLOW-01**(PR #8·#9 merge)·INF-03(완료)·V-20 주도(황인재 참여)·티칭 1차 참여 · 17:15 DSN-03 → 9/20 A **그리퍼 세션 V-05·V-23·V-01**(첫 로봇 순서, 박진용 제안서 §5)·V-02 + **INF-02c weigh.py**·FLOW-01 격리 마무리, B **INF-02d `gripper.py`**(grip·grip_level·release·grip_width)·V-07·**V-16 주도**(한석형 참여) → **F2-01** → 9/21 C F2-01·F2-02(로봇 1시간씩 교대)·ENV-03·INT-4 참여 → 9/22 A **UT-F2**·UT-FLOW·FLOW-02·CR-01, C **INT-12a 주도**·INT-12b → 9/23 A **L3 주도**, B~C **L4 주도**·동결',
+ sched='🚨 주말(9/19·20)은 교육장이 18시에 닫는다 — 저녁 일정 없음. **9/20 재계획**: 9/19 FLOW-01(PR #8·#9·#11)·INF-03·INF-02c `weigh.py`(#13·#14)·**INF-02d `gripper.py`(#17)** merge 완료 → 9/20 A **그리퍼 세션 V-05·V-23·V-01**(첫 로봇 순서)·V-02 + INF-02c 실기 확인·빈 용기 기준값·CELL-03 배치, B gripper.py 수정(힘 기준 맞추는 시점)·V-07·**V-16 단독**(HOLD 값은 한석형에게 전달) → **F2-01**·V-20 참여(황인재 주도로 바뀜) → 9/21 C F2-01·F2-02(로봇 1시간씩 교대)·ENV-03·INT-4 참여 → 9/22 A **UT-F2**·UT-FLOW·FLOW-02·CR-01, B **FLOW-01 격리 마무리**(툴 반납 → ISOLATE 에 놓기 → HOME, 9/20 확정), C **INT-12a 주도** → 9/23 A INT-12b 참여(한석형 주도), B **L3 주도**, C **L4 주도**·동결. ROBOT_ERROR = 그 자리 정지 + 사람이 복구(SDD §7)',
  deep='''- **하중 측정을 가장 깊게**: `reset_workpiece_weight` → 정지 → `get_workpiece_weight` 절차, 관절 토크 기반이라 자세·가감속에 민감한 이유, 평균·차동으로 ±20 g를 만드는 법, 50 g 임계와 "미만은 통과"의 근거.
 - **상태 머신**: 전이표(SDD §5.1)를 코드 구조(딕셔너리 + 핸들러)로, PAUSED에서 이전 상태 복귀, 구역 count·EMPTY_ZONE 처리, 어떤 실패에서도 툴 반납.
 - **mock 설계**: 같은 함수 이름·인자로 즉시 `Result` 반환 + 설정으로 실패 주입 → TC-10. 전부 mock이면 `cobot_common.init(robot=False)`로 드라이버 없이 돈다.
@@ -145,7 +145,7 @@ ROLES={
  out='`src/cobot_common/cobot_common/force.py`(힘 함수 — 내 파일. `motion.py`·`bootstrap.py`·`config.py`·`__init__.py` 황인재, `gripper.py`·`weigh.py` 민범진은 리뷰만) · `cell.yaml`의 `cell.force` 절 값(그 절만)·패키지 정리 · `src/f3_wipe/f3_wipe/wipe.py` · `config/params.yaml`의 `f3` 절 · `src/f3_wipe/test/rig_f3.py` · 힘 로그 `force_*.csv` · 스펀지 고정틀·툴 홀더·수세미 손잡이 · 안전 파라미터 표',
  rig='스펀지 홈에 그릇·컵을 손으로 놓고, 툴을 그리퍼에 손으로 쥐여준 뒤 `rig_f3.py`에서 내 함수만 호출. F1 없이 개발 가능.',
  l1='TC-06 그릇 닦기 10회 목표 ±2 N·상한 초과 0·강제 초과 시 후퇴 · TC-07 컵 닦기 10회 정상. 전부 녹화',
- sched='🚨 주말(9/19·20)은 교육장이 18시에 닫는다 — 저녁 일정 없음. 9/19 A·B ENV-04·PKG-01(완료)·CELL-02a·CELL-02·V-12(완료)·**INF-02b `force.py` — V-03 전이라도 PR**·V-03 착수 · 17:15 DSN-03 → 9/20 A **V-03**(로봇 교대 내 첫 순서)·INF-02b 값 반영·티칭 2차 참여·**F3-02 wipe_bowl**(V-18 먼저), B F3-02 → 9/21 C **F3-03 soap·wipe_cup 착수**(V-10 먼저)·V-04·V-15 참여(한석형 주도) → 9/22 A **F3-03 실기 마무리**·CR-01, B **UT-F3**(G2), C~9/23 A **INT-13 주도** → 9/23 L3·L4 실패 주입. `cobot_common` 패키지 정리·리뷰(`motion.py` 황인재·`gripper.py` 민범진 PR 포함)는 계속 내 일. `cell.force` 절의 값은 내가 그 절만 PR',
+ sched='🚨 주말(9/19·20)은 교육장이 18시에 닫는다 — 저녁 일정 없음. **9/20 재계획**: 9/19 PKG-01·CELL-02a·CELL-02·V-12 완료·**INF-02b `force.py` merge(#20)**·V-03 실기 4회차 → 9/20 A **V-03 마무리 → `cell.force` 값 PR**·V-18·**F3-02 wipe_bowl**(셀 좌표 전이라 rig 좌표로)·force.py 수정 3건(#20 검토)·**TS-05 문서**, B **티칭 2차 참여**(오후 첫 순서로 옮겨짐) → F3-02 를 셀 좌표로 → 9/21 C **F3-03 soap·wipe_cup 착수**(V-10 먼저) → 9/22 A **V-04·V-15·F1-05 참여**(한석형 주도, 9/21 저녁에서 옮겨짐)·F3-03 실기 마무리·CR-01, B **UT-F3**(G2), C~9/23 A **INT-13 주도** → 9/23 L3·L4 실패 주입. `cobot_common` 패키지 정리·리뷰는 계속 내 일. `cell.force` 절의 값은 내가 그 절만 PR',
  deep='''- **힘제어를 가장 깊게**: `task_compliance_ctrl`·`set_desired_force`가 무엇을 하는지, 툴 좌표계 Z로 힘을 걸며 XY로 움직이는 구조(V-03 결과에 따라 대안), 목표 3~5 N·상한 10 N의 근거, `check_force_condition`으로 후퇴 트리거, `release_force` 순서.
 - **안착 판정과 탐색**: 깊이 + 힘 AND 조건, Move Periodic 진폭·주기·시간 한도, 접촉 조건 감시로 "들어갔다"를 아는 법.
 - **힘 로그**: `get_tool_force` 샘플링 → CSV → 발표 그래프.
@@ -160,7 +160,7 @@ ROLES={
  tasks='''- 배우는 순서(웹 처음): ① FastAPI "안녕" 페이지 ② 버튼 3개가 서버 함수 호출 ③ 서버가 1초마다 숫자를 WebSocket으로 밀고 화면 갱신 ④ 그 숫자를 `/flow/state`로 교체(rclpy 결합) ⑤ `/flow/event`마다 SQLite 한 줄 + 이력 표. ④까지 `fake_state_pub`만 있으면 된다
 - `src/f4_hmi/app.py`: FastAPI — `POST /api/start|stop|resume`(→ `/flow/*` 서비스), `GET /api/state`, `GET /api/history`(SQLite), WS `/ws/state`(`/flow/state`·`/flow/event` 중계). rclpy는 별도 스레드(spin), 서비스 호출은 요청 스레드를 막지 않게
 - `src/f4_hmi/db.py`: SQLite `prewash.db` — `events`(FlowEvent 필드 그대로 + id, received_at), `state_log`(1 Hz). 파이썬 내장 `sqlite3`, 설치 없음. MQTT는 쓰지 않는다(ROS 토픽과 중복)
-- `static/index.html`(HTML/JS 한 장, 프레임워크 없음): 제어(시작·**정지=소프트 E-STOP 항상 노출·붉은색**·재개) / 상태(모드·단계·현재 용기·구역·진행률 done/target) / 반납 구역 2칸·팔레트 6칸 / 수량·소모품 바 / **ROS 연결 점**(state 2 s 이상 없으면 빨강, 버튼 비활성) / 오류 코드·로그(붉은 경고 우선) / 최근 이력 표
+- `static/index.html`(HTML/JS 한 장, 프레임워크 없음): 제어(시작·**일시 정지 항상 노출**("E-STOP"이라 부르지 않는다 — 지금 동작을 마친 뒤 멈춤)·재개) / 상태(모드·단계·현재 용기·구역·진행률 done/target) / 반납 구역 2칸·팔레트 4칸 / 수량·소모품 바 / **ROS 연결 점**(state 2 s 이상 없으면 빨강, 버튼 비활성) / 오류 코드·로그(붉은 경고 우선) / 최근 이력 표
 - `fake_state_pub.py` (**9/18 최우선**): 시나리오(yaml)대로 `/flow/state`·`/flow/event` 발행(정상·격리·오류·PAUSED·EMPTY_ZONE)
 - 설정: **`config/params.yaml`의 `hmi` 절 주인**: 포트 8000, 갱신 2 Hz, 끊김 판정 2 s, DB 경로(상대)
 - 9/19 A ENV-03/V-09 PC 2대 통신 확인(민범진과), A~B ARCH-01 아키텍처 draw.io 최종 + 노션 산출물 등록. 9/22 A NOTE-02 HMI 화면 gif 노션 업로드, F4-05 KPI 스크립트(records/SQLite → 성공률·사이클 타임·탐색 시도)
@@ -173,7 +173,7 @@ ROLES={
  out='`src/f4_hmi/app.py` `db.py` `static/index.html` `fake_state_pub.py` · `config/params.yaml`의 `hmi` 절 · `kpi.py` · `src/cobot_api/` · `src/cobot_msgs/` · `src/prewash_bringup/launch/*.py` · `config/` 골격 · 아키텍처 `.drawio` · 회의록 · 시연 영상·PPT',
  rig='로봇·flow 없이 `fake_state_pub.py` + `app.py`만. 브라우저에서 확인. PC-B에서는 `cobot_msgs` + `f4_hmi`만 빌드.',
  l1='TC-11 버튼 → 서비스 호출 ≤1 s, 상태 표시 지연 ≤1 s, fake 시나리오(정상·격리·오류·재개·EMPTY_ZONE) 전부 표시, 끊김 표시 · TC-12 SQLite 4행(민범진과) · V-13 브라우저 start → mock flow 반응 · INT-4 mock flow 연결. 녹화',
- sched='🚨 주말(9/19·20)은 교육장이 18시에 닫는다 — 저녁 일정 없음. 9/19 A **INF-02a**(PR #3)·B INF-04(PR #5)·통신 스레드 수정(PR #10) 완료 → B **F1 패키지 골격 대신 작성**(주인 한석형, `test_f1_api.py`)·**INF-02 `motion.py` 착수**(move_to·move_rel(+속도 선택 인자)·move_joint_rel + `cell.force` 키 골격·test_config)·V-20 참여 · 17:15 DSN-03 → 9/20 A **`motion.py` PR**·DSN-04 반영·F4-00 HMI 설계 초안, B F4-01 fake pub·골격·F4-02 브리지·버튼·ARCH-01·MID-01 취합(17시까지) → 9/21 C F4-02·**INT-4**·V-13·ENV-03(한 세션) → 9/22 A F4-03·CR-01·NOTE-01·SAFE-01 노션 업로드, B F4-03·F4-04 SQLite·NOTE-02, C **UT-F4**·F4-05 KPI → 9/23 INT-4c 측정·영상 촬영 → 추석 영상 편집·PPT. V-24는 보류',
+ sched='🚨 주말(9/19·20)은 교육장이 18시에 닫는다 — 저녁 일정 없음. **9/20 재계획**: 9/19 INF-02a(#3·#10·#18)·INF-04(#5)·F1 골격(#12)·**INF-02 `motion.py`(#15·#16)** 완료 → 9/20 A DSN-04 반영·F4-00 HMI 설계 초안, B **V-22 좌표 재현 주도**(실기, 티칭 2차 뒤 — 한석형 입회)·**V-20 실행 뼈대 주도**(Virtual, flow_node + 세 모듈)·F4-01 fake pub·골격·F4-02 브리지·버튼·ARCH-01·MID-01 취합(17시까지) → 9/21 C F4-02·**INT-4**·V-13·ENV-03(한 세션) → 9/22 A F4-03·CR-01·NOTE-01·SAFE-01 노션 업로드, B F4-03·F4-04 SQLite·NOTE-02, C **UT-F4**·F4-05 KPI → 9/23 INT-4c 측정·영상 촬영 → 추석 영상 편집·PPT. V-24는 보류',
  deep='''- **ROS ↔ 웹 연결을 가장 깊게**: `rclpy.spin()`과 uvicorn 이벤트 루프를 같이 돌리는 법(스레드 + 큐), 서비스 호출을 요청 스레드에서 블로킹 없이, WebSocket으로 상태를 밀어주는 구조를 코드 골격으로. 웹이 처음이므로 HTTP·WebSocket·JSON을 한 줄씩 풀어서.
 - **SQLite**: 표 2개 스키마, INSERT/SELECT 최소 코드, 파일 경로는 상대경로.
 - **가짜 발행기**: 실제 `FlowState`·`FlowEvent` 필드 그대로(target·attempts 포함), 시나리오 yaml로 순서·타이밍·실패 코드 재생.
@@ -182,7 +182,7 @@ ROLES={
  req='''1. **역할·요구사항 분석**: 산출물, 하지 않는 것의 경계, 인터페이스(제공/사용) 표
 2. **환경 준비 점검**: PC-B에 필요한 것만(`cobot_msgs`+`f4_hmi` 빌드, FastAPI·uvicorn·websockets 설치 — HMI 전용 venv, colcon은 시스템)
 3. **STEP 실행 계획**: 구글 드라이브 일정표의 내 taskID(F4-00~05, INF-01b, INF-04, ENV-03/V-09, ARCH-01, DSN-03/04, V-13, UT-F4, INT-4, NOTE-01/02, INT-4c, DOC-03, SUB-01, PM-01)에 날짜·시간대를 붙여서. 웹 학습 순서 ①~⑤를 STEP에 녹일 것
-4. **초기 코드 골격**: `fake_state_pub.py` → `app.py`(FastAPI + rclpy 스레드 + WS 브로드캐스트) → `index.html`(상태 바인딩, 버튼 3개, 구역 2 + 팔레트 6칸, 연결 점, 오류 로그, 이력 표) → `db.py`. **가짜 발행기부터**
+4. **초기 코드 골격**: `fake_state_pub.py` → `app.py`(FastAPI + rclpy 스레드 + WS 브로드캐스트) → `index.html`(상태 바인딩, 버튼 3개, 구역 2 + 팔레트 4칸, 연결 점, 오류 로그, 이력 표) → `db.py`. **가짜 발행기부터**
 5. **주의사항** — 예쁜 UI 먼저 만들다 브리지·버튼 미완성(순서: fake pub → 브리지 → 버튼 → 화면 → DB) / 메시지 필드를 IRD와 다르게 가정 / rclpy와 uvicorn을 같은 스레드에서 돌려 멈춤 / 연결 끊김 표시 없음 / 재개 버튼 없이 오류 화면만 / L3 전에 실제 flow에 한 번도 안 붙여봄 → 9/21 INT-4에서 mock flow에 먼저 연결'''),
 }
 for k,r in ROLES.items():
