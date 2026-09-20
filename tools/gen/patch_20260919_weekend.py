@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v8.6'
+VERSION = 'v8.7'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -447,6 +447,19 @@ PR43_0920 = {
 for _tid, _e in PR43_0920.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/20 23:00 PR #45 merge(9/21 저녁 실기 준비물) + F4 선작업 2건(PR 전)
+N45 = '✅ 9/20 23:00 PR #45 merge — 9/21 저녁에 그대로 쓸 도구·절차서:'
+PR45_0920 = {
+ 'V-24':   dict(note_add=N45 + ' rig_pause.py 에 실기 모드(--real: 진짜 cell.yaml · J1 30°·옆 80 mm 의 작은 이동 · 단계마다 Enter · vel_scale>0.3 거부 · E-Stop 확인, --carrying) · 절차서 docs/test_logs/20260921_V-24_실기_일시정지_황인재.md. 🚨 --real 경로는 아직 끝까지 돈 적이 없다(값이 비어 있어 KeyError — 맞는 동작) → **1회차를 "절차가 도는지" 보는 회차로**. press_at_s 1.5 가 이동보다 늦으면 값 조정'),
+ 'V-22':   dict(note_add=N45 + ' rig_coords.py 에 실기 모드(--real · 구간마다 Enter · 하강 전 재확인 · **--from N 으로 막힌 구간부터 이어서** · 끝에 오차 표 = V-22 산출물) · 절차서 20260921_V-22_V-19_좌표재현_황인재.md'),
+ 'V-19':   dict(note_add='9/20 #45: V-22 와 같은 도구·같은 절차서로 한 세션에서 본다(rig_coords --real 의 구간별 도달 = V-19)'),
+ 'V-25':   dict(note_add=N45 + ' 절차서 20260921_F1-01_실기_황인재.md — PM 요청 2가지(놓은 뒤 되올라올 때 용기를 끌지 않는가 · place_clear_mm 100 이 충분한가) 포함'),
+ 'F1-03':  dict(status='진행 중', prog='0.6', note_add='9/20 밤 F4 세션 선작업(브랜치 injae/20260920-F1-03-tool · **PR 전** — 황인재: "실기 검증하고 승인하겠다"): tool PICK/RETURN 구현 — PICK = grip → 폭 판정, 헛잡으면 홀더에 두고 후퇴 / RETURN = contact_down 으로 바닥 찾기, **못 찾으면 release 하지 않고** TOOL_FAIL. 새 키 f1.tool_clear_mm 100 · tool_return_depth_mm 20. 가상에서는 프리셋이 비어 "안 움직이고 KeyError" 만 확인 → 9/22 V-08 뒤에 PR'),
+ 'F4-02':  dict(note_add='9/20 밤 F4 세션 선작업(브랜치 injae/20260920-F4-02b-button-header · **PR 전**): 버튼 POST 에 X-PreWash 헤더 요구(없으면 403) — 9/20 PM 검토에서 요청한 것. 실제 기동으로 403/200 확인. 황인재가 9/22 INT-4·V-13 때 보고 승인'),
+}
+for _tid, _e in PR45_0920.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -615,6 +628,9 @@ HISTORY36 = ['v8.5', '진척·신규', 'V-25(신규), F1-01, F3-02, F3-03, INF-0
 HISTORY37 = ['v8.6', '결정·진척', 'F3-02, F3-03, V-10, V-03, INF-02b, CELL-02b, F1-01', '황인재 결정 E13(9/20 밤): 닦기는 바닥을 contact_down 으로 찾고 벽면은 힘제어 1.5 N — E6 의 고정 높이를 정정(박진용 실기 근거) · wipe_cup 은 Move Periodic 동시 왕복 · SR-09 각도 완화 · 그릇 받침 유격은 그대로. PR #43(F3-02·F3-03)·#44(F1-01) merge. FR-08·SR-08·SR-09 · SDD §3.1·§4.3·§5.4·§8 · TC-06·07 반영',
              '황인재 9/20 22:00 · PR #43·#44', 'P,S,H']
 
+HISTORY38 = ['v8.7', '진척', 'V-24, V-22, V-19, V-25, F1-03, F4-02', 'PR #45 merge(9/20 23:00): 9/21 저녁 실기 준비물 — rig_pause·rig_coords 실기 모드(작은 이동 · 단계마다 Enter · vel_scale 0.3 상한 · E-Stop 확인 · --from 으로 이어서) + 절차서·기록 양식 3종. F4 선작업 2건은 PR 전(F1-03 툴 집기·반납 · F4-02b 버튼 헤더) — 황인재가 실기에서 보고 승인',
+             'PR #45 · F4 세션', 'H']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -709,7 +725,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
