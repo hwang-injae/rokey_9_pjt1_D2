@@ -63,8 +63,8 @@ class Result:
 @dataclass
 class PickResult(Result):           # f1.pick
     width_mm: float = 0.0           # 파지 후 그리퍼 폭
-    attempts: int = 0               # 시도한 탐색점 수
-    offset_x_mm: float = 0.0        # 성공한 탐색점 오프셋(구역 기준점 기준)
+    attempts: int = 0               # 시도한 슬롯 수
+    offset_x_mm: float = 0.0        # 집은 슬롯의 오프셋(구역 기준점 기준)
     offset_y_mm: float = 0.0
 
 
@@ -109,7 +109,8 @@ class F1Api(Protocol):
     """F1 파지·이송·적재 — 한석형 · 모듈 f1_handling.handling"""
 
     def pick(self, zone_id: str, kind: str) -> PickResult:
-        """탐색 파지. zone_id 가 SPONGE_BED_* 면 고정 위치 재파지(탐색점 1개). 코드 OK/EMPTY_ZONE/ROBOT_ERROR"""
+        """고정 슬롯 파지: 구역의 슬롯을 정해진 순서로 — 폭 범위 밖(빈 슬롯·헛잡음)이면 다음 슬롯, 다 돌면 EMPTY_ZONE.
+        zone_id 가 SPONGE_BED_* 면 고정 위치 재파지(슬롯 1개). 코드 OK/EMPTY_ZONE/ROBOT_ERROR"""
 
     def place(self, station: str) -> PlaceResult:
         """놓기(항상 release 까지). SPONGE_BED_* 면 안착 놓기. 코드 OK/SEAT_FAIL/FORCE_LIMIT/TIMEOUT/ROBOT_ERROR"""
