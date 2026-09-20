@@ -1,0 +1,21 @@
+# rig_gripper.py 전용 시험 설정 — 🚨 팀 cell.yaml(한석형) 이 아니다.
+#
+# 왜 따로 두나: grip_level 이 읽는 presets 의 힘 값이 팀 cell.yaml 에서 아직 **전부 비어 있다**.
+#   그 값을 정하는 것이 V-16(HOLD 값 찾기)이고 그게 이 시험의 목적이다 → 닭-달걀이라 팀 파일에 기댈 수 없다.
+#   여기 값은 **시작값**일 뿐이고, V-23·V-16 으로 확정한 값을 한석형에게 넘겨 팀 cell.yaml 에 넣는다.
+# 출처: docs/03_설계_SDD.md §4.3 예시값 (지어낸 숫자가 아니다).
+cell:
+  limits:
+    timeout_s: 10.0             # 그리퍼 동작 한 번의 시간 상한 (_wait_done · 서비스 대기)
+
+  presets:                      # 🟡 전부 시작값 — 확정은 V-01(폭·tol) · V-16(hold_force_n)
+    BOWL:
+      grip_width_mm: 2.0        # 옆면(벽) 세로 파지 — 9/19 확인
+      grip_force_n: 20          # NORMAL
+      hold_force_n: 35          # HOLD  ← V-16 에서 "낙하 없는 최소 힘" 으로 확정
+      width_tol_mm: 0.8         # ← V-01 결과로 다시 제안한다
+    CUP:
+      grip_width_mm: 70.0       # 몸통을 통째로 파지 — 9/18 V-17 확인
+      grip_force_n: 15
+      hold_force_n: 30
+      width_tol_mm: 3.0
