@@ -57,10 +57,12 @@ class FakeDsr:
     def release_compliance_ctrl(self):
         return self._r('release_compliance_ctrl')
 
+    offset_fz = 0.0                     # 공중에서도 잡히는 힘 (툴 무게 설정에 없는 무게)
+
     def _fz(self):
         if self.surface_z is None or self.pos[2] >= self.surface_z:
-            return 0.0
-        return -(self.surface_z - self.pos[2]) * self.k
+            return self.offset_fz
+        return self.offset_fz - (self.surface_z - self.pos[2]) * self.k
 
     def get_tool_force(self, ref=None):
         self.calls.append('get_tool_force')
@@ -156,9 +158,17 @@ def test_contact_down_stops_at_contact(robot):
     d = robot(z=400.0, surface_z=390.0)
     depth, f = force.contact_down(max_depth=40.0, limit=3.0)
     assert 10.0 <= depth < 40.0 and f >= 3.0                                    # 표면(10 mm) 지나 한두 단계 안에서 멈춤
-    assert d.calls[:2] == ['mwait', 'task_compliance_ctrl']                      # 순응 켜고 내려간다
+    assert d.calls[:3] == ['mwait', 'get_tool_force', 'task_compliance_ctrl']    # 기준 힘을 재고 → 순응 켜고 내려간다
     assert d.calls[-1] == 'release_compliance_ctrl' and not force._state['compliance']
     assert d.last_movel['mod'] == d.DR_MV_MOD_REL and d.last_movel['ref'] == d.DR_BASE
+
+
+def test_contact_down_ignores_tool_weight_offset(robot):
+    """공중에서도 Fz 가 나오는 툴(솔·수세미 무게)이라도 내려가기 전에 접촉으로 보지 않는다 (9/20 실기)."""
+    d = robot(z=400.0, surface_z=395.0, k_n_per_mm=1.0)
+    d.offset_fz = -5.0                                                          # 공중에서도 |Fz| 5 N
+    depth, f = force.contact_down(max_depth=20.0, limit=3.0)
+    assert depth >= 5.0 and f == pytest.approx(3.0, abs=1.5)                    # 표면(5 mm)을 지나서야 멈춘다
 
 
 def test_contact_down_stops_at_max_depth_without_surface(robot):
@@ -257,6 +267,35 @@ def test_periodic_search_axes_and_repeat(robot):
     assert p['period'][:2] == [0.8, pytest.approx(1.6)] and p['repeat'] == 3   # 6 s // 1.6 s
 
 
+def test_force_check_raises_over_limit(robot):
+    """닦는 동안 힘 상한 감시 — force_on 의 limit 을 넘으면 ForceLimitError (#20 검토 2)."""
+    d = robot(z=100.0, surface_z=104.0, k_n_per_mm=1.0)                         # 4 mm 눌림 → |Fz| 4 N
+    force.force_on('z', 4.0, 10.0)
+    press, lateral = force.force_check('z')
+    assert press == pytest.approx(4.0) and lateral == pytest.approx(0.0)
+    d.pos[2] = 90.0                                                             # 14 mm 눌림 → 14 N > limit 10
+    with pytest.raises(force.ForceLimitError):
+        force.force_check('z')
+
+
+def test_force_check_uses_baseline(robot):
+    d = robot(z=200.0)
+    d.offset_fz = -2.0                                                          # 툴 무게로 공중에서도 2 N
+    base = force.read_force()
+    assert force.force_check('z', baseline=base)[0] == pytest.approx(0.0)
+
+
+def test_force_off_tries_both_even_if_first_fails(robot):
+    """release_force 가 실패해도 순응 해제까지 시도한다 (#20 검토 1) — 안 그러면 safe_retreat 의 후퇴가 막힌다."""
+    d = robot(fail={'release_force'})
+    force.force_on('z', 4.0, 10.0)
+    d.calls.clear()
+    with pytest.raises(RuntimeError):
+        force.force_off()
+    assert d.calls == ['release_force', 'release_compliance_ctrl']
+    assert not force._state['compliance'] and not force._state['force']
+
+
 def test_read_force_failure(robot):
     robot(fail={'get_tool_force'})
     with pytest.raises(RuntimeError):
@@ -266,5 +305,5 @@ def test_read_force_failure(robot):
 def test_exports():
     import cobot_common as cc
     for name in ('force_on', 'force_off', 'force_reached', 'contact_down', 'periodic_search', 'safe_retreat',
-                 'read_force', 'ForceLimitError', 'MotionTimeout'):
+                 'read_force', 'force_check', 'ForceLimitError', 'MotionTimeout'):
         assert hasattr(cc, name), name

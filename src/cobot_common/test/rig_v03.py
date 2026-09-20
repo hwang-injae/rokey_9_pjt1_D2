@@ -78,19 +78,24 @@ class Run:
 
         목표 = [중심 X + x, 중심 Y + y, 바닥 Z, A, B, C + 비틀기]. 툴 Z 축 회전은 ZYZ 의 C 에 더하면 된다
         (Rz(A)·Ry(B)·Rz(C)·Rz(q) = Rz(A)·Ry(B)·Rz(C + q)). Z 는 힘제어 축이라 바닥 높이를 그대로 준다.
-        🔸 blend_radius_mm(> 0) 이면 목표 앞 그 거리에서 다음 걸음으로 **이어서** 간다(멈췄다 가는 뚝뚝 끊김 없앰, 9/19 5회차).
+        🔸 blend_radius_mm(> 0) 이면 목표 앞 그 거리에서 다음 걸음으로 **이어서** 간다(멈췄다 가는 뚝뚝 끊김 없앰).
+        🔸 손목은 twist_every 걸음마다 한 번만 방향을 바꾼다 — 걸음마다 바꾸면 이어 붙이기가 비틀기를 지워 버리고(Virtual 실측),
+           매 걸음 회전을 세웠다 돌리느라 덜컹거린다(9/20 실기 소음).
         순응 중 관절 이동(movej) 금지라 직교 이동만. 한 걸음마다 힘을 읽어 기록하고 (누르는 힘, 옆 힘, 반지름 방향 힘) 을 돌려준다.
         """
         p, d, s = self.p, self.d, cc.cfg()['run']['vel_scale']
         vel = [p['scrub_lin_vel_mm_s'] * s, p['scrub_rot_vel_deg_s'] * s]
         acc = [p['scrub_lin_acc_mm_s2'], p['scrub_rot_acc_deg_s2']]
+        self.step_i += 1
+        if self.step_i % max(1, int(p['twist_every'])) == 0:
+            self.twist = -self.twist
         rz = p['scrub_deg'] * self.twist
         x0, y0, z0, a, b, c = self.p0
         target = [x0 + x, y0 + y, z0, a, b, (c + rz + 180.0) % 360.0 - 180.0]
         if d.movel(target, vel=vel, acc=acc, radius=p['blend_radius_mm'], ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS) != 0:
             raise RuntimeError('movel(한 걸음 + 손목 비틀기) 실패')
         self.x, self.y = x, y
-        self.rz, self.twist = rz, -self.twist
+        self.rz = rz
         return self.check(phase)
 
     def set_frame(self):
@@ -155,7 +160,7 @@ class Run:
         import math
         p = self.p
         self.x = self.y = self.rz = 0.0
-        self.twist = 1
+        self.twist, self.step_i = 1, 0
         self.set_frame()
         r_max = self.r_max()
         theta, r, hits, presses = 0.0, 0.0, 0, []
