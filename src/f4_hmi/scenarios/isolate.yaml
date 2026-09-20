@@ -1,0 +1,9 @@
+# 격리 — 두 번째 그릇이 털어도 잔반이 남아 격리 구역으로 간다(LEFTOVER_REMAIN → isolate). 화면의 격리 수량·알람·이력의 ISOLATED 줄을 볼 때.
+title: 격리 — 잔반이 남은 그릇 1개
+items:
+  - {kind: BOWL, zone: RET_B, rack_slot: RACK_B1}
+  - kind: BOWL
+    zone: RET_B
+    fail: {at: SHAKE, code: LEFTOVER_REMAIN, action: isolate, message: '잔반이 남았다 (68 g > 50 g) — 격리한다'}
+  - {kind: CUP, zone: RET_C, rack_slot: RACK_C1}
+  - {kind: CUP, zone: RET_C, rack_slot: RACK_C2}

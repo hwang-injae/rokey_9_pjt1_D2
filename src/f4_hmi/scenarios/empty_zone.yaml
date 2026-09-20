@@ -1,0 +1,11 @@
+# 빈 구역 — 그릇 구역이 1개뿐이라 두 번째에서 EMPTY_ZONE → 컵 구역으로 넘어간다(next_zone). 목표 수량보다 덜 처리하고 끝난다.
+title: 빈 구역 — 그릇이 1개뿐
+targets: {bowl: 2, cup: 2}          # 계획은 2 + 2 였다 (진행률이 1/2 로 끝나는 것을 본다)
+items:
+  - {kind: BOWL, zone: RET_B, rack_slot: RACK_B1}
+  - kind: BOWL
+    zone: RET_B
+    attempts: 2
+    fail: {at: PICK, code: EMPTY_ZONE, action: next_zone, message: 'RET_B 가 비었다 — 다음 구역으로'}
+  - {kind: CUP, zone: RET_C, rack_slot: RACK_C1}
+  - {kind: CUP, zone: RET_C, rack_slot: RACK_C2}

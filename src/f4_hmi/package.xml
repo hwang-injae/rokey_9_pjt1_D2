@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>f4_hmi</name>
+  <version>0.1.0</version>
+  <description>F4 시스템 모니터(웹 HMI) — hmi_bridge(FastAPI + rclpy + SQLite) · fake_state_pub(가짜 flow)</description>
+  <maintainer email="hwang-injae@users.noreply.github.com">황인재</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <exec_depend>cobot_msgs</exec_depend>
+  <exec_depend>cobot_common</exec_depend>
+  <!-- 웹 서버 부품(fastapi · uvicorn · websockets)은 apt 가 아니라 HMI 전용 상자 ~/venvs/hmi 에 pip 로 설치한다 (README.md) -->
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
