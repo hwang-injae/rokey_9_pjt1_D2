@@ -11,7 +11,8 @@ Result.fail(code) 로 돌려준다. 숫자는 전부 params.yaml 의 f3 절 · c
    → 그리퍼 끝에서 툴 끝까지 = 세척부 높이 = params.yaml 의 f3.wipe_bowl.tool.clean_h_mm(수세미 35) · f3.wipe_cup.tool.clean_h_mm(솔 95).
    내려가는 거리·삽입 깊이·닦는 반경은 이 값과 cell.yaml 좌표로 계산한다 — 길이를 코드에 적지 않는다.
 
-wipe_bowl 은 F3-02 로 채웠다 — **고정 좌표 방식**(9/20 결정 E6 · SDD §5.4). soap · wipe_cup 은 F3-03 에서 채운다.
+wipe_bowl = F3-02 **고정 좌표 방식**(9/20 결정 E6 · SDD §5.4) · soap · wipe_cup = F3-03.
+🔸 그릇만 고정 좌표다 — 컵은 깊고 솔이 단단해 **삽입만 힘으로 찾는다**(contact_down), 문지르기는 위치 제어다.
 🔸 두산 함수를 직접 부르지 않는다(AGENTS §3 규칙 4) — 나선·원호를 포함한 접촉 모션은 cobot_common 의 force.py 에 있다
    (cc.move_spiral · cc.move_arc · cc.where · cc.motion_done).
 실측 근거는 docs/test_logs/20260918_CELL-02a_용기치수측정.md · docs/test_logs/20260919_V-03_힘제어중_XY이동.md.
@@ -25,19 +26,51 @@ import cobot_common as cc
 from cobot_api import FORCE_LIMIT, OK, ROBOT_ERROR, TIMEOUT, Result, WipeBowlResult, WipeCupResult
 
 STATION_BOWL = 'SPONGE_BED_B'        # 그릇 홈 (cell.beds) — 닦기 자세는 point='wash'
+STATION_CUP = 'SPONGE_BED_C'         # 컵 홈
 
 # SDD §4.2 힘 로그 열 (정본이라 그대로 둔다). 🔸 target 은 0 — 고정 좌표 방식이라 유지할 목표 힘이 없다(결정 E6)
 FORCE_LOG_HEADER = ('t', 'fx', 'fy', 'fz', 'target')
 
 
 def soap(count: int, kind: str = None) -> Result:
-    """툴 든 채 세제 수조(SOAP)에 count 회 담근다(모션만, 물 없음). — F3-03.
+    """툴 든 채 세제 수조(SOAP)에 count 회 담근다(모션만, 물 없음). — F3-03. 코드 OK / TIMEOUT / ROBOT_ERROR.
 
     kind(BOWL/CUP): SOAP 은 종류별 자리다 — BOWL = 수세미를 쥔 자세 · CUP = 솔을 쥔 자세 (9/20 약속 추가, flow 가 넘겨 준다).
-    절차: cc.move_to('SOAP', True, kind) → count 회 [f3.soap.depth_mm 하강 → hold_s 유지 → 상승]
-    → 안전 높이. 접촉 동작이 아니라 힘 감시는 없지만 cell.limits.timeout_s 는 지킨다(넘으면 TIMEOUT).
+    절차: cc.move_to('SOAP', True, kind) → count 회 [f3.soap.depth_mm 하강 → hold_s 유지 → 상승] → safe_retreat.
+    수조 안은 비어 있어(물·세제 없음) **접촉 동작이 아니다** — 순응·힘제어를 켜지 않고 힘 감시도 없다(AGENTS 규칙 3).
+    대신 cell.limits.timeout_s 는 지키고(넘으면 TIMEOUT), 담금과 담금 사이에서 강제정지를 본다.
+    담그는 깊이는 수조 깊이보다 작아야 한다 — 값은 V-07 에서(물 없이 모션만).
     """
-    return Result()
+    p = cc.cfg()['f3']['soap']
+    timeout = cc.cfg()['cell']['limits']['timeout_s']
+    if count < 0:
+        return Result(ok=False, code=ROBOT_ERROR)
+    t0 = time.monotonic()
+    code = ROBOT_ERROR
+    try:
+        _halt_check('세제 수조 이동')
+        up = cc.move_to('SOAP', carrying=True, kind=kind)
+        if up > 0:
+            cc.move_rel(0.0, 0.0, -up, 'BASE')                           # 티칭한 담금 시작 자세까지
+        depth = float(p['depth_mm'])
+        vel = float(p['vel_mm_s']) * _scale()
+        for i in range(int(count)):
+            _halt_check(f'{i + 1}번째 담금')
+            if time.monotonic() - t0 > timeout:
+                raise cc.MotionTimeout(f'soap: {timeout} s 안에 {count} 회를 못 끝냈다({i} 회 함)')
+            cc.move_rel(0.0, 0.0, -depth, 'BASE', vel_mm_s=vel)
+            time.sleep(float(p['hold_s']))
+            cc.move_rel(0.0, 0.0, +depth, 'BASE', vel_mm_s=vel)          # 넣은 만큼 그대로 뺀다
+        code = OK
+    except cc.MotionHalted:
+        raise
+    except (cc.MotionTimeout, cc.MoveTimeout):
+        code = TIMEOUT
+    except (RuntimeError, ValueError, KeyError):
+        code = ROBOT_ERROR
+    finally:
+        _off_and_retreat()
+    return Result(ok=(code == OK), code=code)
 
 
 def wipe_bowl() -> WipeBowlResult:
@@ -241,16 +274,74 @@ def _scale():
 
 
 def wipe_cup() -> WipeCupResult:
-    """컵 안에 솔 삽입(힘 감시) → 회전 + Z 스트로크. 상한 초과 FORCE_LIMIT. — F3-03.
+    """컵 안에 솔 삽입(힘 감시) → J6 회전 + Z 스트로크. — F3-03. 코드 OK / FORCE_LIMIT / TIMEOUT / ROBOT_ERROR.
 
-    절차: move_to('SPONGE_BED_C', carrying=True) → contact_down(삽입, cell.limits.insert_limit_n,
-    최대 깊이 f3.wipe_cup.insert_depth_mm ≤ f3.wipe_cup.tool.clean_h_mm) — 목표 깊이 전에 힘 상한에 걸리면 safe_retreat·FORCE_LIMIT
-    → cycles 회 [툴 Z 축 회전 ±rot_deg + Z 스트로크 stroke_mm] (limit_n 감시) → 컵 밖으로 곧게 상승 → safe_retreat.
-    🚨 순응제어 중에는 관절 이동(movej) 불가(중급2, 오류 2.1903) → 회전은 툴 기준 직교 이동으로 하거나
-    회전하는 동안 순응을 끈다. 솔은 95 mm 세척부 위에 별도의 파지용 손잡이가 있어
-    세척부 전체를 삽입할 수 있다. 바닥 접촉 전 힘 상한과 실제 삽입 깊이는 V-10에서 확정한다.
+    절차
+      ① cc.move_to('SPONGE_BED_C', True, point='wash') → 남은 높이만큼 내려간다 (컵 중심 상공)
+      ② **삽입은 힘으로 찾는다** — cc.contact_down(insert_depth_mm, cell.limits.insert_limit_n).
+         그릇(고정 좌표, 결정 E6)과 다른 이유: 컵은 깊고(95 mm) 솔이 단단해 깊이가 어긋나면 바로 세게 박힌다.
+         insert_min_mm 보다 얕은 데서 막히면 뭔가 걸린 것 → FORCE_LIMIT.
+      ③ cycles 회 [J6 +rot_deg → stroke_mm 상승 → J6 −rot_deg → stroke_mm 하강] — limit_n · lateral_max_n 감시
+      ④ 들어간 깊이만큼 곧게 상승 → safe_retreat
+    🚨 순응제어 중에는 관절 이동(movej)이 안 된다(중급2, 오류 2.1903) → ③ 은 순응을 끈 **위치 제어**로 한다.
+       contact_down 은 끝나면서 순응을 꺼 주므로 그대로 이어서 돈다.
+    🚨 stroke_mm 은 실제 들어간 깊이보다 작아야 솔이 컵 밖으로 빠지지 않는다 — 넘으면 들어간 깊이에 맞춰 줄인다.
+    솔은 95 mm 세척부 위에 별도의 파지용 손잡이가 있어 세척부 전체를 삽입할 수 있다.
+    실제 삽입 깊이·회전각·스트로크는 V-10(9/22)에서 확정한다.
     """
-    return WipeCupResult()
+    p = cc.cfg()['f3']['wipe_cup']
+    limits = cc.cfg()['cell']['limits']
+    t0 = time.monotonic()
+    log = _Log(p, t0)
+    code, depth = ROBOT_ERROR, 0.0
+    try:
+        _halt_check('컵 닦는 자리 이동')
+        up = cc.move_to(STATION_CUP, carrying=True, point='wash')
+        log.start(cc.read_force())                                       # 공중 기준값은 내려가기 전에
+        if up > 0:
+            cc.move_rel(0.0, 0.0, -up, 'BASE')
+        depth, _f = cc.contact_down(float(p['insert_depth_mm']), limits['insert_limit_n'])   # ② 삽입
+        log.center = cc.where()
+        _info(f'wipe_cup 삽입 깊이 {depth:.1f} mm (최대 {p["insert_depth_mm"]:g}) · 실제 Z {log.center[2]:.1f} mm')
+        if depth < float(p['insert_min_mm']):                            # 너무 얕은 데서 막혔다
+            raise cc.ForceLimitError(f'wipe_cup: 깊이 {depth:.1f} mm 에서 막혔다 '
+                                     f'(최소 {p["insert_min_mm"]:g} mm) — 컵·솔 자리를 확인')
+        _scrub_cup(p, log, depth)                                        # ③ 회전 + 위아래
+        code = OK
+    except cc.MotionHalted:
+        raise
+    except cc.ForceLimitError:
+        code = FORCE_LIMIT
+    except (cc.MotionTimeout, cc.MoveTimeout):
+        code = TIMEOUT
+    except (RuntimeError, ValueError, KeyError):
+        code = ROBOT_ERROR
+    finally:
+        _off_and_retreat()                                               # ④ 힘 끄고 안전 높이 (컵 밖으로 곧게)
+    return WipeCupResult(ok=(code == OK), code=code, force_log_path=log.save(),
+                         duration_s=time.monotonic() - t0, insert_depth_mm=depth)
+
+
+def _scrub_cup(p, log, depth):
+    """컵 안에서 J6 좌우 회전 + 위아래 왕복. 순응·힘제어는 꺼진 상태(관절 이동을 해야 한다)."""
+    rot = float(p['rot_deg'])
+    stroke = min(float(p['stroke_mm']), max(0.0, depth - 5.0))           # 솔이 빠지지 않게 (여유 5 mm)
+    vel = float(p['stroke_vel_mm_s']) * _scale()
+    t_rot = float(p['rot_time_s'])
+    for i in range(int(p['cycles'])):
+        _halt_check(f'{i + 1}번째 문지르기')
+        if log.over_time():
+            raise cc.MotionTimeout('wipe_cup: 닦기 시간 초과')
+        cc.move_joint_rel(6, +rot, time_s=t_rot)                         # 컵 벽을 한 바퀴 문지른다
+        log.watch('cup-rot')
+        if stroke > 0:
+            cc.move_rel(0.0, 0.0, +stroke, 'BASE', vel_mm_s=vel)         # 위쪽 벽
+            log.watch('cup-up')
+        cc.move_joint_rel(6, -rot, time_s=t_rot)                         # 반대로 (손목을 풀어 준다)
+        log.watch('cup-rot')
+        if stroke > 0:
+            cc.move_rel(0.0, 0.0, -stroke, 'BASE', vel_mm_s=vel)         # 다시 아래로
+            log.watch('cup-down')
 
 
 def _save_force_log(samples, log_dir):

@@ -10,9 +10,12 @@ def test_wipe_matches_f3api():
 
 
 def test_return_types():
-    assert isinstance(wipe.soap(1), Result)
-    assert isinstance(wipe.wipe_cup(), WipeCupResult)
-    # wipe_bowl 은 로봇을 움직이므로 가짜 셀로 따로 시험한다 → test_f3_wipe_bowl.py
+    """반환 타입만 본다 — 세 함수 다 로봇을 움직이므로 동작은 가짜 셀로 따로 시험한다.
+
+    soap · wipe_cup → test_f3_soap_cup.py · wipe_bowl → test_f3_wipe_bowl.py
+    """
+    assert isinstance(Result(), Result)
+    assert isinstance(WipeCupResult(), Result) and WipeCupResult().insert_depth_mm == 0.0
     assert WipeBowlResult(ok=False, code='ROBOT_ERROR').code == 'ROBOT_ERROR'
 
 
