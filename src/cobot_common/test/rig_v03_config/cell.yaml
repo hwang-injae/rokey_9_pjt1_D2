@@ -13,7 +13,7 @@ cell:
   force:
     compliance_stx: [3000, 3000, 500, 200, 200, 200]   # N/m · Nm/rad — Z 만 부드럽게 (강의 범위 X·Y·Z 0~20000, 회전 0~400)
     contact_step_mm: 2.0        # contact_down 한 단계 (× Z 강성 500 N/m ≈ 1 N)
-    contact_vel_mm_s: 20.0      # × vel_scale 0.3 = 6 mm/s (4회차: 더 빠르게)
+    contact_vel_mm_s: 40.0      # × vel_scale 0.3 = 12 mm/s — 순응을 켠 채 2 mm 씩이라 빨라도 세게 닿지 않는다 (9/20)
     contact_acc_mm_s2: 50.0
     retreat_vel_mm_s: 200.0     # × 0.3 = 60 mm/s — 내려올 때와 같은 속도로 곧게 상승 (9/20)
     retreat_acc_mm_s2: 200.0
