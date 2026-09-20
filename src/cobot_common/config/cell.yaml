@@ -23,15 +23,18 @@ cell:
     acc_joint_max_deg_s2:         # 관절 이동 100 % 기준 가속도        (Virtual 시험 값: src/cobot_common/test/config_virtual/cell.yaml)
     move_timeout_s:               # 이동 1번의 상한 시간(일시정지한 시간은 빼고). 넘으면 정지 명령을 보내고 오류 — V-24 에서 추가
 
-  force:                          # 힘 함수(force.py) 공용 값 — 이슈 #7 ①. 🔔 이 절의 **값은 박진용이 이 절만 PR** 한다(결정 기록 W5, V-03 뒤)
-    compliance_stx:               # 순응 강성 6개 [x, y, z, rx, ry, rz]
-    contact_step_mm:              # contact_down 하강 한 단계
-    contact_vel_mm_s:             # 접촉 하강 속도 (아주 느리게)
-    contact_acc_mm_s2:            # 접촉 하강 가속도
-    retreat_vel_mm_s:             # safe_retreat 후퇴 속도
-    retreat_acc_mm_s2:            # safe_retreat 후퇴 가속도
-    force_max_n:                  # 힘 함수 인자의 절대 상한 (target·limit 은 이 값 이하)
-    search_y_period_ratio:        # periodic_search 의 x:y 주기 비
+  force:                          # 힘 함수(force.py) 공용 값 — 이슈 #7 ①. 값은 박진용(V-03 9/20 실기로 확정, 시험 기록 docs/test_logs/20260919_V-03_*)
+    compliance_stx: [1000, 1000, 200, 100, 100, 100]   # 순응 강성 [x, y, z, rx, ry, rz] N/m · Nm/rad
+                                  #   Z 를 가장 물렁하게(200) — 닿을 때 충격을 흡수. 옆·회전도 낮춰(1000·100) 툴이 바닥을 물고
+                                  #   비틀릴 때 붙었다 떨어지며 작업대를 흔드는 것(스틱-슬립)을 줄였다. 강의 범위 X·Y·Z 0~20000, 회전 0~400
+    contact_step_mm: 3.0          # contact_down 하강 한 단계 — 순응 중이라 닿아도 한 걸음만큼만 눌린다.
+                                  #   0.5 mm 는 너무 느리고, 5 mm 이상은 무른 툴에서 한 번에 깊게 눌린다
+    contact_vel_mm_s: 20.0        # 접촉 하강 속도 (× vel_scale 0.3 = 6 mm/s)
+    contact_acc_mm_s2: 30.0       # 접촉 하강 가속도 — 걸음마다 급정거하면 작업대가 울린다
+    retreat_vel_mm_s: 200.0       # safe_retreat 후퇴 속도 (× 0.3 = 60 mm/s, 내려올 때와 같게)
+    retreat_acc_mm_s2: 200.0      # safe_retreat 후퇴 가속도
+    force_max_n: 15.0             # 힘 함수 인자의 절대 상한 (닦기 상한 10 N 위, 접촉 동작 어디서도 넘지 않는다)
+    search_y_period_ratio: 2.0    # periodic_search 의 x:y 주기 비 — 한 선이 아니라 면을 훑게 (V-04 에서 재확인)
 
   presets:                        # 종류·툴별 파지. 🟡 그릇은 외경 114 mm > RG2 최대 폭 110 mm 라 지름 방향 파지 불가(CELL-02a §3) → 파지 방식은 DSN-03
     BOWL:
