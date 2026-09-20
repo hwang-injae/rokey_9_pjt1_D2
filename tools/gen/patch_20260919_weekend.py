@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v9.2'
+VERSION = 'v9.3'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -552,6 +552,17 @@ REBAL_0921 = {
 for _tid, _e in REBAL_0921.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 08:40 실기 — 6번 관절 163° 회전으로 케이블 꼬임 · 로봇 정지
+R840 = '🔬 9/21 08:40 실기(황인재):'
+J6_0921 = {
+ 'CELL-04':  dict(note_add=R840 + ' WASTE BOWL 을 관절 자세(posj)로 바꾸니 그 자리에는 닿았지만 다음 스펀지 홈까지 **6번 관절이 약 163° 돌아 그리퍼 케이블이 꼬여 로봇이 멈췄다**(오류 상태 — 정지 명령 무응답). posx 로 되돌렸다(F4 브랜치). 🚨 **그릇 경로의 6번 관절 값이 자세마다 제각각**(0 · −16 · −179 · −220 · −117) → 자세 사이에서 손목이 크게 돈다 → **오늘 저녁 티칭은 WASTE BOWL 한 자세가 아니라 그릇 경로 전체를 6번 관절이 이어지게 다시 찍는 일**이 된다. 1 h 20 슬롯을 넘을 수 있다 → 넘치면 컵 한 바퀴 확인(④)을 9/22 오전으로'),
+ 'V-22':     dict(note_add=R840 + ' 🚨 rig_coords 안전 결함 발견·수정(F4 브랜치 8ae86d2): 실기에서 이동이 실패하면 도구가 **자동으로 HOME 으로 가려 했다**(케이블이 꼬인 채 자동 이동하면 더 꼬인다 — 다행히 컨트롤러가 오류 상태라 거부). → --real 이면 **어떤 이동 실패든 그 자리에서 멈추고 사람에게 넘긴다**(--from N 으로 이어서). 이 수정이 main 에 들어간 뒤에 저녁 실기를 돌린다'),
+ 'V-19':     dict(note_add=R840 + ' 도달 범위가 아니라 **관절 경로**(6번 관절 연속성) 문제가 드러났다 — V-19 의 판정 항목에 "자세 사이 6번 관절 회전이 과하지 않은가"를 더한다'),
+ 'V-07':     dict(note_add=R840 + ' WASTE BOWL 이 경로 재티칭으로 바뀐다 — 털기 방향도 같이'),
+}
+for _tid, _e in J6_0921.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -625,7 +636,7 @@ SLOT['9/22 화'] = {'B': '**V-04·V-15 → F1-05 안착(S, P 참여)** / **V-24 
 SLOT['9/21 월']['D'] = ('🚨 **18:30~22:00 (3.5 h) — 시간으로 끊는다**(전부 넣으면 약 5 h). ①②④⑤ 의 전제 = cell.yaml 이동 값 11개(limits 4 + motion 5). '
                         '**18:30 ① 툴·홀더 확정(P 주도·H·S)** — 이동 값 11개는 **황인재(F4)가 18:30 전에 파일에 넣는다**(9/21 위임 · 없으면 뒤가 전부 KeyError) / '
                         '**18:50 ② V-24 실기**(H · rig_pause --real, 빈손 → 용기 → 용기 3회차) / '
-                        '**19:20 ③ 티칭 + 그 자리에서 확인**(H 전담, 1 h 20 — 🚨 아침에 막힌 2건 먼저: **WASTE BOWL 특이점 회피**(M 입회 — 털기 자세가 바뀐다) → **팔레트 그릇 칸 접근점 2개** → 툴 홀더 2종 + SOAP 2 → 그릇 집기 접근점. 한 자세 찍을 때마다 rig_coords --from 으로 바로 확인) / '
+                        '**19:20 ③ 티칭 + 그 자리에서 확인**(H 전담, 1 h 20 — 🚨 아침에 막힌 것 먼저: **그릇 경로를 6번 관절이 이어지게 다시 찍기**(08:40 케이블 꼬임 · WASTE BOWL 특이점 포함 · M 입회 — 털기 자세가 바뀐다) → **팔레트 그릇 칸 접근점 2개** → 툴 홀더 2종 + SOAP 2 → 그릇 집기 접근점. 한 자세 찍을 때마다 rig_coords --from 으로 바로 확인) / '
                         '**20:40 ④ V-22·V-19 컵 한 바퀴**(H · 그릇 한 바퀴는 아침에 봤다 — 18~33번) / '
                         
                         '**21:00 ⑤ 그리퍼 세션**(M, **60분** · P 가 옆에서 — 🔴 먼저 **BOWL·CUP 의 폭·힘·허용 오차 6개**(V-05 → V-01, 내일 오전 집기가 기다린다), 시간이 남으면 V-23·V-16. 무게(V-02)·SPONGE·BRUSH 는 9/22 오전) · 로봇 불필요: **한석형은 저녁 내내 F1-02 집기 코드**(로봇 순서 없음) · F2 kind·GRIP_FAIL(M) · **박진용은 SAFE-01 완성 + F3-02 준비** · 🛡 밀리면 ⑤ 를 9/22 오전 첫 순서로')
@@ -743,6 +754,9 @@ HISTORY42 = ['v9.1', '전담', 'CELL-04, CELL-04b, V-19, V-22, F1-02, F1-05, V-1
 HISTORY43 = ['v9.2', '재분담', 'V-05, V-01, V-25, INT-12b, SAFE-01, CR-01, 로봇 슬롯', '황인재 9/21 08:50 재분담 — 민범진·황인재에 몰린 것을 옮김: ① 그리퍼 세션 35 → 60분(V-25 F1-01 실기를 9/22 오후 F1-03 앞으로 빼서) · 박진용이 옆에서(절차 제안서 작성자) ② INT-12b 주도를 한석형에게 되돌림(좌표가 빠져 여유가 생겼다) ③ SAFE-01 을 박진용이 주도(안전 파라미터 담당 · 오늘 저녁이 비어 있다)',
              '황인재 9/21 08:50', 'S,M,P,H']
 
+HISTORY44 = ['v9.3', '실기 결과', 'CELL-04, V-22, V-19, V-07, 로봇 슬롯', '황인재 9/21 08:40 실기: WASTE BOWL 을 관절 자세로 바꾸자 다음 자리로 가며 6번 관절이 163° 돌아 케이블이 꼬여 로봇 정지 → 그릇 경로 6번 관절 값이 제각각(0·−16·−179·−220·−117) → 오늘 저녁 티칭 = 그릇 경로를 6번 관절이 이어지게 다시 찍기(넘치면 컵 확인을 9/22 오전). rig_coords 가 실기 실패 뒤 자동으로 HOME 가려던 안전 결함을 F4 가 발견·수정(브랜치)',
+             '황인재 실기 9/21 08:40', 'H,M']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -837,7 +851,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
