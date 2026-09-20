@@ -260,8 +260,8 @@ cell:                                   # 여러 기능이 같이 쓰는 값. �
     WEIGH: {BOWL: {posx: [...]}, CUP: {posx: [...]}}          # 종류별 → cc.move_to('WEIGH', True, 'BOWL').  WASTE·SOAP·RINSE·ISOLATE 도 같다
     TOOL_SPONGE: {pick: {posj: [...]}, return: {posx: [...]}}  # 용도별 → cc.move_to('TOOL_SPONGE', False, point='pick').  TOOL_BRUSH 도 같다
   zones:                                # 반납 구역 — 고정 슬롯(9/19 결정). 슬롯마다 집는 자세 → cc.move_to('RET_B', False, point=1)
-    RET_B: {slots: [{posj: [...]}, {posj: [...]}]}
-    RET_C: {slots: [{posj: [...]}, {posj: [...]}]}
+    RET_B: {slots: [{approach_posx: [...], posx: [...]}]}      # 9/20 E9: 내리막 공급 구조 → 집는 자리 1개(접근 자세 + 그립 자세)
+    RET_C: {slots: [{approach_posx: [...], posx: [...]}]}
   beds:                                 # 스펀지 홈 — place 놓는 자리 · regrip 다시 잡는 자리(컵) · wash 닦기 시작하는 자리(끝점 z = **닦는 높이**, 결정 E6)
     SPONGE_BED_B: {place: {approach_posx: [...], posx: [...]}, wash: {approach_posx: [...], posx: [...]},
                    seat: {contact_limit_n: 15, search_amp_mm: 3, search_period_s: 0.8, search_max_s: 6}}
@@ -361,7 +361,7 @@ stateDiagram-v2
 - 어떤 실패에서도 **툴은 홀더에 반납**(flow가 `tool(RETURN)` 호출), 로봇은 안전 높이.
 
 ### 5.2 f1_handling — `handling.py` (한석형)
-**pick (고정 슬롯 파지 — 9/19 PM 결정)** — 반납 구역마다 **지정된 고정 슬롯 2개**에 용기를 겹치지 않게 놓고, 슬롯을 순서대로 집는다(이전 안 "구역 + 탐색 파지: 겹침·어긋남 허용"은 일정 방어로 제외):
+**pick (고정 자리 파지 — 9/19 PM 결정 · 9/20 E9 로 자리 수 변경)** — ✅ **반납 구역은 내리막 공급 구조**다(한석형 제작 · 황인재 확인 9/20): 용기를 하나 꺼내면 뒤 용기가 **같은 자리로 내려온다** → 구역마다 집는 자리는 **1개**, flow 는 같은 자리에서 `count` 번 집는다(설정의 `slots` 목록은 1개짜리 — 코드는 목록을 도는 그대로). 🚨 조건: 다음 용기가 같은 자리에 오는 반복 정밀도(그릇은 벽 2 mm 를 집는다 — 목표 ±3 mm, 한석형 5회 확인). 이전 안: 반납 구역마다 **지정된 고정 슬롯 2개**에 용기를 겹치지 않게 놓고, 슬롯을 순서대로 집는다(이전 안 "구역 + 탐색 파지: 겹침·어긋남 허용"은 일정 방어로 제외):
 ```
 for i in 1..len(cell.zones[zone_id].slots):                  # 슬롯 순서 (슬롯마다 집는 자세 posj — 9/20 CELL-04, #36)
     release(); 그리퍼 열기(프리셋 폭 + 여유)                   # 🚨 move_to 전에 연다 — posj 자세는 물체 옆까지 바로 들어간다
@@ -442,6 +442,7 @@ return EMPTY_ZONE (attempts = 슬롯 수)
 | `LEFTOVER_REMAIN` | 털기 후에도 임계 초과 | 격리 | 경고 |
 | `SEAT_FAIL` | 탐색 한도 초과 | 격리 | 경고 |
 | `TOOL_FAIL` | 툴 폭 범위 밖(툴 없음) | 재시도 1회 → 격리 | 경고 |
+| `GRIP_FAIL` | f2: 털기·담금 전후 그리퍼 폭이 `slip_tol_mm` 넘게 변함(미끄러짐) · 무게가 `min_net_g` 아래(빈손) | ✅ **PAUSED + 알림 → 사람이 확인**(황인재 9/20 — `params.yaml` `flow.policy.GRIP_FAIL: pause`). pick 안의 헛잡음은 지금처럼 F1 이 다음 시도로 소화 | 오류 |
 | `FORCE_LIMIT` / `TIMEOUT` | 닦기·삽입·하강 | 즉시 후퇴 → 재시도 1회 → 격리 | 경고 |
 | `RACK_JAM` | 삽입 걸림 | 후퇴 → 재시도 1회 → 격리 | 경고 |
 | `RACK_FULL` | 칸 소진 | PAUSED + 알림 | 오류 |

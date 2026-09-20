@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v8.0'
+VERSION = 'v8.1'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -311,6 +311,17 @@ EVE_0920 = {
 for _tid, _e in EVE_0920.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/20 17:25 황인재 결정 4건(E9 확인 · E10 · E11 · E12) + PR #41 merge
+DEC_0920E = {
+ 'F4-02':   dict(status='완료', prog='1.0', note_add='✅ 9/20 17:25 PR #41 merge: 버튼 4종(start·stop·resume·abort) + WebSocket /ws/state + 가짜 flow 의 버튼 응답(--wait-start), 전체 시험 262건. ✅ 결정 E10: **웹 화면은 이 PC 의 브라우저에서만**(hmi.host 127.0.0.1 이 최종 · 태블릿용 비밀번호 F4-02b 는 하지 않는다). 후속(F4-03 과 같이): 버튼 요청에 사용자 지정 헤더 요구(다른 웹 페이지가 몰래 POST 하는 것 막기)'),
+ 'CELL-04': dict(note_add='✅ 9/20 17:25 황인재 확인(E9): 반납 구역은 **내리막 공급 구조** — 꺼내면 뒤 용기가 같은 자리로 내려온다 → 구역마다 집는 자리 1개(슬롯 2 폐기). cell.yaml zones.*.slots 를 1개로 · test_config 의 "슬롯 2개" 단언 · rig_coords 의 슬롯 2 항목은 F4 세션이 좌표 갱신 PR 에서. 조건: 다음 용기가 같은 자리에 오는 반복 정밀도 ±3 mm(한석형 5회 확인)'),
+ 'F1-02':   dict(note_add='9/20 E9: 구역마다 집는 자리 1개(내리막 공급 구조) — 같은 자리에서 count 번 집는다. 코드는 slots 목록을 도는 그대로(목록이 1개짜리). 헛잡으면 EMPTY_ZONE'),
+ 'FLOW-03': dict(note_add='✅ 9/20 17:25 결정 E11: 중단(/flow/abort) 정리 순서 = **HOME 먼저** → 툴 반납 → 용기를 격리(f1.place(\'ISOLATE\', kind)) → HOME → 다음 용기. ✅ E12: **GRIP_FAIL 정책 = pause**(멈추고 사람이 확인) — params.yaml flow.policy.GRIP_FAIL: isolate → pause, 주석의 🔔(IRD·SDD 에 행이 없다)는 이제 해결됨(IRD §8 · SDD §7 에 추가)'),
+ 'FLOW-01': dict(note_add='9/20 E12: flow.policy.GRIP_FAIL 을 pause 로(민범진 자기 절) — IRD §8 · SDD §7 반영됨'),
+}
+for _tid, _e in DEC_0920E.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -454,6 +465,9 @@ HISTORY30 = ['v7.9', '결정·인터페이스', 'INF-02, V-22, CELL-04, FLOW-01,
 HISTORY31 = ['v8.0', '진척', 'F4-01, V-03, CELL-04, F1-04, F4-02', '9/20 17:15: PR #39(F4-01 HMI 뼈대)·#40(cell.force 값) merge → F4-01·V-03 완료. #37(V-03 rig)은 수정 요청 1건. 한석형 회신(E9): 반납 구역은 한 자리 공급 구조 · WEIGH = 픽 +100 · 툴 좌표는 홀더 확정 뒤 · limits·motion·presets 재요청. E7 확인: 후퇴 높이는 남기고 안전 높이는 없앤다',
              'PR #39·#40 · 한석형 회신 · 황인재 9/20 17:10', 'S,M,P,H']
 
+HISTORY32 = ['v8.1', '결정', 'F4-02, CELL-04, F1-02, FLOW-03, FLOW-01', '황인재 9/20 17:25: E9 확인(반납 구역 = 내리막 공급 구조 → 집는 자리 1개) · E10 웹 화면은 이 PC 에서만 · E11 중단의 첫 이동은 HOME · E12 GRIP_FAIL = pause. PR #41(F4-02 버튼·WebSocket) merge → F4-02 완료. FR-02·IRD §2·§6·§8 · SDD §5.2·§7 반영',
+             '황인재 9/20 17:25 · PR #41', 'S,M,H']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -548,7 +562,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
