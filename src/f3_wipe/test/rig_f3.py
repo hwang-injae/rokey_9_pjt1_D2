@@ -33,13 +33,19 @@ def main():
     log = cc.io_node().get_logger()
     log.info(f'vel_scale {cc.cfg().get("run", {}).get("vel_scale", 1.0):g} · {a.which} {a.n} 회 '
              '· 🚨 실기면 E-Stop 에 손을 두고 본다')
+    means = []
     try:
         for i in range(a.n):                                # ② 연속 3회 이상
             r = fn()
             log.info(f'{i + 1}/{a.n} {a.which} → {r}')
+            if getattr(r, 'force_mean_n', None):
+                means.append(r.force_mean_n)
             if not r.ok:
                 log.error(f'{a.which} 실패({r.code}) — 원인을 고치기 전에는 반복하지 않는다')
                 return 1
+        if means:                                           # 마감 기준(TC-06): 3회의 누르는 힘 평균을 보고한다
+            log.info(f'누르는 힘 평균 {sum(means) / len(means):.2f} N '
+                     f'(회차별 {" · ".join(f"{m:.2f}" for m in means)}) — 이 값이 기준값이 된다')
     finally:
         cc.shutdown()                                       # ③ 끝낼 때 (Ctrl+C 포함)
     return 0

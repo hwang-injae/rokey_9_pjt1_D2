@@ -90,7 +90,18 @@ class FakeDsr:
         return self.movel(*a, **kw)                 #   가짜는 보내는 즉시 도착한 것으로 친다 → 아래 check_motion 이 바로 0
 
     def check_motion(self):
-        return 0                                    # 0 = 끝남
+        return self.motion                          # 0 = 끝남
+
+    motion = 0
+
+    def amove_spiral(self, rev=None, rmax=None, lmax=None, vel=None, acc=None, time=None, axis=None, ref=None):
+        self.spiral = dict(rev=rev, rmax=rmax, lmax=lmax, vel=vel, acc=acc, time=time, axis=axis, ref=ref)
+        return self._r('amove_spiral')
+
+    def movec(self, mid, end, vel=None, acc=None, radius=None, ref=None, mod=0):
+        self.arc = dict(mid=list(mid), end=list(end), vel=vel, acc=acc, radius=radius, ref=ref, mod=mod)
+        self.pos = list(end)
+        return self._r('movec')
 
     def move_periodic(self, amp, period, atime=None, repeat=None, ref=None):
         self.periodic = dict(amp=amp, period=period, repeat=repeat, ref=ref)
@@ -309,8 +320,97 @@ def test_read_force_failure(robot):
         force.read_force()
 
 
+# ------------------------------------------------------------------ 닦기 접촉 모션 (나선 · 원호) — F3-02 가 cc.* 로만 부른다
+def test_move_spiral_uses_time_not_velocity(robot):
+    """🚨 속도로 부르면 드라이버가 멈춘다 → vel·acc 는 0, 시간으로만 (중급1 p.69 · 9/20 실기)."""
+    d = robot()
+    force.move_spiral(2.8, 14.0, 3.0)
+    assert d.spiral['vel'] == [0.0, 0.0] and d.spiral['acc'] == [0.0, 0.0]
+    assert d.spiral['time'] == pytest.approx(3.0)                       # vel_scale 이 없으면 그대로
+    assert d.spiral['rev'] == 2.8 and d.spiral['rmax'] == 14.0 and d.spiral['lmax'] == 0.0
+    assert d.spiral['axis'] == d.DR_AXIS_Z and d.spiral['ref'] == d.DR_TOOL
+    assert 'mwait' in d.calls                                           # 도는 중에 켜면 2.1903
+
+
+def test_move_spiral_slows_by_vel_scale(robot):
+    cfg = copy.deepcopy(CFG)
+    cfg['run'] = {'vel_scale': 0.5}
+    d = robot(cfg)
+    force.move_spiral(2.8, 14.0, 3.0)
+    assert d.spiral['time'] == pytest.approx(6.0)                       # 느리게 = 같은 길을 더 오래
+
+
+def test_move_spiral_rejects_bad_args(robot):
+    robot()
+    for args in ((0, 14.0, 3.0), (2.8, 0, 3.0), (2.8, 14.0, 0)):
+        with pytest.raises(ValueError):
+            force.move_spiral(*args)
+
+
+def test_move_spiral_failure_is_error(robot):
+    robot(fail={'amove_spiral'})
+    with pytest.raises(RuntimeError):
+        force.move_spiral(2.8, 14.0, 3.0)
+
+
+def test_move_arc_blends_and_caps_speed(robot):
+    cfg = copy.deepcopy(CFG)
+    cfg['run'] = {'vel_scale': 0.5}
+    d = robot(cfg)
+    mid = [100.0, 60.0, 50.0, 0.0, 180.0, 18.0]
+    end = [110.0, 50.0, 50.0, 0.0, 180.0, -18.0]
+    force.move_arc(mid, end, 180.0, 400.0, radius_mm=3.0)
+    assert d.arc['mid'] == mid and d.arc['end'] == end
+    assert d.arc['radius'] == 3.0 and d.arc['mod'] == d.DR_MV_MOD_ABS   # 이어 붙이기 · 절대 자세
+    assert d.arc['vel'] == [pytest.approx(90.0), pytest.approx(200.0)]  # × vel_scale
+    force.move_arc(mid, end, 9999.0, 400.0)                             # 100 % 기준(400) 을 넘지 못한다
+    assert d.arc['vel'][0] == pytest.approx(200.0)
+    assert d.arc['radius'] == 0.0
+
+
+def test_where_and_motion_done(robot):
+    d = robot()
+    assert force.where() == d.pos
+    assert force.motion_done()
+    d.motion = 1
+    assert not force.motion_done()
+
+
+def test_safe_retreat_retreats_even_if_release_fails(robot):
+    """🚨 힘 해제가 실패해도 후퇴는 한다 — 툴을 용기 안에 두고 오면 더 위험하다(PM 검토 9/20)."""
+    d = robot(fail={'release_force'}, z=100.0)
+    force.force_on('z', 4.0, 10.0)
+    with pytest.raises(RuntimeError):
+        force.safe_retreat()
+    assert d.pos[2] == pytest.approx(300.0)                             # cell.limits.safe_z_mm 까지 올라왔다
+
+
+def test_contact_down_does_not_count_paused_time(robot, monkeypatch):
+    """사람이 멈춰 둔 동안은 시간 상한을 세지 않는다(PM 요청 9/20)."""
+    cfg = copy.deepcopy(CFG)
+    cfg['cell']['limits']['timeout_s'] = 0.0                            # 안 멈췄으면 첫 바퀴에 시간 초과
+    robot(cfg, surface_z=None)                                          # 바닥이 없어 계속 내려간다
+    monkeypatch.setattr(force, 'is_paused', lambda: True)
+    steps = {'n': 0}
+    real = force.move_rel
+
+    def counted(*a, **kw):
+        steps['n'] += 1
+        if steps['n'] > 3:
+            raise RuntimeError('그만')                                   # 무한 루프 방지 — 시간으로는 안 끝난다
+        return real(*a, **kw)
+
+    monkeypatch.setattr(force, 'move_rel', counted)
+    with pytest.raises(RuntimeError, match='그만'):                      # MotionTimeout 이 아니다
+        force.contact_down(1000.0, 5.0)
+    monkeypatch.setattr(force, 'is_paused', lambda: False)              # 멈춤을 풀면 같은 설정에서 시간 초과
+    with pytest.raises(force.MotionTimeout):
+        force.contact_down(1000.0, 5.0)
+
+
 def test_exports():
     import cobot_common as cc
     for name in ('force_on', 'force_off', 'force_reached', 'contact_down', 'periodic_search', 'safe_retreat',
-                 'read_force', 'force_check', 'ForceLimitError', 'MotionTimeout'):
+                 'read_force', 'force_check', 'compliance_on', 'compliance_off',
+                 'where', 'motion_done', 'move_spiral', 'move_arc', 'ForceLimitError', 'MotionTimeout'):
         assert hasattr(cc, name), name

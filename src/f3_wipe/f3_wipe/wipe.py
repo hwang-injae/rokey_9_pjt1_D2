@@ -11,7 +11,9 @@ Result.fail(code) 로 돌려준다. 숫자는 전부 params.yaml 의 f3 절 · c
    → 그리퍼 끝에서 툴 끝까지 = 세척부 높이 = params.yaml 의 f3.wipe_bowl.tool.clean_h_mm(수세미 45) · f3.wipe_cup.tool.clean_h_mm(솔 95).
    내려가는 거리·삽입 깊이·닦는 반경은 이 값과 cell.yaml 좌표로 계산한다 — 길이를 코드에 적지 않는다.
 
-wipe_bowl 은 F3-02 로 채웠다(V-03 로 확정한 방식). soap · wipe_cup 은 F3-03 에서 채운다.
+wipe_bowl 은 F3-02 로 채웠다 — **고정 좌표 방식**(9/20 결정 E6 · SDD §5.4). soap · wipe_cup 은 F3-03 에서 채운다.
+🔸 두산 함수를 직접 부르지 않는다(AGENTS §3 규칙 4) — 나선·원호를 포함한 접촉 모션은 cobot_common 의 force.py 에 있다
+   (cc.move_spiral · cc.move_arc · cc.where · cc.motion_done).
 실측 근거는 docs/test_logs/20260918_CELL-02a_용기치수측정.md · docs/test_logs/20260919_V-03_힘제어중_XY이동.md.
 """
 import csv
@@ -24,7 +26,8 @@ from cobot_api import FORCE_LIMIT, OK, ROBOT_ERROR, TIMEOUT, Result, WipeBowlRes
 
 STATION_BOWL = 'SPONGE_BED_B'        # 그릇 홈 (cell.beds) — 닦기 자세는 point='wash'
 
-FORCE_LOG_HEADER = ('t', 'fx', 'fy', 'fz', 'target')   # SDD §4.2 힘 로그 열
+# SDD §4.2 힘 로그 열 (정본이라 그대로 둔다). 🔸 target 은 0 — 고정 좌표 방식이라 유지할 목표 힘이 없다(결정 E6)
+FORCE_LOG_HEADER = ('t', 'fx', 'fy', 'fz', 'target')
 
 
 def soap(count: int, kind: str = None) -> Result:
@@ -40,53 +43,46 @@ def soap(count: int, kind: str = None) -> Result:
 def wipe_bowl() -> WipeBowlResult:
     """그릇 안쪽을 수세미로 닦는다 — F3-02. 코드 OK / FORCE_LIMIT / TIMEOUT / ROBOT_ERROR.
 
-    V-03(9/20 실기)으로 확정한 절차. 괄호 안은 강의자료 근거.
-      ① move_to('SPONGE_BED_B', point='wash') → 남은 높이만큼 내려간다
-      ② contact_down 으로 바닥을 찾는다(시작 힘 대비 변화량 — 툴 무게·센서 치우침 때문)
-      ③ **순응만** 켠다(힘제어는 아직) — 찾은 자리 그대로 (중급2: Force 전에 Compliance)
-      ④ 바닥: **나선 한 번** — 좌우 비틀기 없음, 힘제어 없음
-         (중급2 "힘 방향과 같은 방향의 모션 불가" — 나선은 툴 Z 축 모션이라 Z 힘제어와 같은 축)
+    **고정 좌표 방식**(결정 E6 · SDD §5.4). 괄호 안은 강의자료 근거.
+      ① cc.move_to('SPONGE_BED_B', point='wash') → 티칭한 닦는 높이까지 내려간다
+         — 앞은 빠르게, 마지막 slow_mm 구간만 천천히 걸음마다 누르는 힘을 보면서
+      ② 바닥: **나선 한 번** — 중심에서 벽 반지름까지, 좌우 비틀기 없음
          (중급1 p.69 나선은 **시간**으로 속도 지정 · 반경 대비 회전 수가 과하면 시작조차 하지 않는다)
-      ⑤ 힘제어 ON(target_force_n) → 벽면: 원호를 이어 붙여 **반대 방향 turns 바퀴** + 손목 ±twist_deg
-         (중급1 p.79 중첩 가능한 모션은 Move L·C·J·JX · 중급2 힘 Z + 이동 X·Y = 폴리싱)
-      ⑥ 힘제어 OFF → 순응 OFF → 그 높이에서 중심 복귀 → safe_retreat
-    벽 반지름 = (그릇 안지름 − 툴 지름)/2 + wall_press_mm — 수세미가 물러 벽 힘이 잡히지 않아 크기로 계산한다(9/20 결정).
+      ③ 벽면: 원호를 이어 붙여 **반대 방향 turns 바퀴** + 손목(6번 축) ±twist_deg 좌우 비틀기
+         (중급1 p.79 중첩 가능한 모션은 Move L·C·J·JX — radius 를 줘야 멈추지 않고 이어진다)
+      ④ 올리지 않고 그 높이에서 중심 복귀 → safe_retreat
+
+    🚨 **찾지 않는다**: 벽 찾기 · 바닥 찾기(contact_down) · 목표 힘 유지(force_on) 를 쓰지 않는다.
+       수세미가 로봇 순응보다 훨씬 물러 "못 따라간 거리"가 생기지 않고, 바닥 마찰(5~14 N)이 벽 신호(1~2 N)를 덮는다(V-03).
+       벽 반지름 = (bowl_inner_d_mm − tool.d_mm)/2 + wall_press_mm.
+    🚨 **순응도 켜지 않는다**: 순응을 켠 채 내리면 명령한 Z 와 실제 Z 가 다르다(Z 200 N/m 면 3 N 에 15 mm 덜 내려간다)
+       → 고정 높이가 뜻을 잃는다. 대신 수세미(스펀지)가 완충 노릇을 하고, 안전은 아래 힘 감시가 맡는다.
+       닦는 높이에 닿으면 **실제 Z 를 로그로 남긴다**(명령한 높이와 같은지 확인용).
+    감시는 한다(NFR-01): 공중 기준값 대비 누르는 힘 > limit_n 또는 옆 힘 > lateral_max_n 이면 즉시 후퇴 FORCE_LIMIT ·
+    duration_s 를 넘으면 TIMEOUT · 힘 로그 CSV 저장. 구간과 구간 사이에서 강제정지(cc.is_halted)를 본다.
     """
     p = cc.cfg()['f3']['wipe_bowl']
-    limits = cc.cfg()['cell']['limits']
     t0 = time.monotonic()
     log = _Log(p, t0)
     code = ROBOT_ERROR
     try:
-        up = cc.move_to(STATION_BOWL, carrying=True, point='wash')       # 홈 상공(접근점)까지
-        if up > 0:
-            cc.move_rel(0.0, 0.0, -up, 'BASE')                           # 티칭한 닦기 자세까지
-        depth, _ = cc.contact_down(p['contact_max_depth_mm'], limits['contact_limit_n'])
-        if depth >= p['contact_max_depth_mm'] - 0.5:                     # 바닥을 못 찾았다 — 용기·좌표 문제
-            return _fail(log, ROBOT_ERROR, t0)
-        log.start(cc.read_force(), _where())
-        cc.compliance_on()                                               # ③ 순응만 (찾은 자리 그대로)
-        _spiral(p, log)                                                  # ④ 바닥 나선 (힘제어 없음)
-        cc.force_on('z', p['target_force_n'] + abs(log.base[2]), p['limit_n'])   # ⑤ 힘제어 (공중 기준값 보정)
-        _wall_laps(p, log)
-        cc.force_off()
-        _to_center(p, log)                                               # ⑥ 그 높이에서 중심으로
+        _descend(p, log)                                                 # ① 닦는 높이까지
+        _spiral(p, log)                                                  # ② 바닥 나선
+        _wall_laps(p, log)                                               # ③ 벽면 turns 바퀴
+        _to_center(p, log)                                               # ④ 그 높이에서 중심으로
         code = OK
+    except cc.MotionHalted:                                              # 강제정지는 코드로 바꾸지 않는다 — flow 의 중단 흐름으로 (결정 E11)
+        raise
     except cc.ForceLimitError:
         code = FORCE_LIMIT
-    except cc.MotionTimeout:
+    except (cc.MotionTimeout, cc.MoveTimeout):
         code = TIMEOUT
     except (RuntimeError, ValueError, KeyError):
         code = ROBOT_ERROR
     finally:
-        _off_and_retreat()
+        _off_and_retreat()                                               # 끝나든 실패하든 힘을 끄고 안전 높이로
     return WipeBowlResult(ok=(code == OK), code=code, force_log_path=log.save(),
                           duration_s=time.monotonic() - t0, force_mean_n=log.mean())
-
-
-def _fail(log, code, t0):
-    """바닥을 못 찾는 등 시작 전 실패 — 힘·순응은 켜지 않은 상태로 돌아간다."""
-    return WipeBowlResult(ok=False, code=code, force_log_path=log.save(), duration_s=time.monotonic() - t0)
 
 
 def _off_and_retreat():
@@ -95,23 +91,37 @@ def _off_and_retreat():
         try:
             step()
         except Exception:                                                # noqa: BLE001 — 복구는 끝까지
-            cc.io_node().get_logger().error(f'wipe_bowl 정리 실패: {step.__name__} — 눈으로 확인')
+            _warn(f'wipe_bowl 정리 실패: {step.__name__} — 눈으로 확인')
+
+
+def _info(msg):
+    cc.io_node().get_logger().info(msg)
+
+
+def _warn(msg):
+    cc.io_node().get_logger().error(msg)
+
+
+def _halt_check(where):
+    """구간과 구간 사이에서만 강제정지를 본다 — 나선·원호는 도는 중에 끊을 수 없다(move_periodic 과 같은 취급)."""
+    if cc.is_halted():
+        raise cc.MotionHalted(f'wipe_bowl: {where} 앞에서 강제정지')
 
 
 class _Log:
-    """닦는 동안의 기준값·중심 자세·힘 로그(SDD §4.2). 이 파일 안에서만 쓴다."""
+    """닦는 동안의 공중 기준값·중심 자세·힘 로그(SDD §4.2). 이 파일 안에서만 쓴다."""
 
     def __init__(self, p, t0):
         self.p, self.t0 = p, t0
         self.samples, self.presses = [], []
-        self.base = [0.0] * 6
-        self.center = None                                               # 바닥에 닿은 자리 = 나선의 중심
+        self.base = [0.0] * 6                                            # 공중 기준값 — 툴 무게·센서 치우침(V-03: 1.4~2.4 N)
+        self.center = None                                               # 닦는 높이에 닿은 자리 = 나선의 중심
 
-    def start(self, force, pose):
-        self.base, self.center = list(force), list(pose)
+    def start(self, force):
+        self.base = list(force)
 
     def wall_r(self):
-        """벽에 닿는 툴 중심 반지름 = (그릇 안지름 − 툴 지름)/2 + 벽 누름."""
+        """벽에 닿는 툴 중심 반지름 = (그릇 안지름 − 툴 지름)/2 + 벽 누름. 힘으로 찾지 않는다(결정 E6)."""
         p = self.p
         return max(0.0, (p['bowl_inner_d_mm'] - p['tool']['d_mm']) / 2 + p['wall_press_mm'])
 
@@ -121,7 +131,7 @@ class _Log:
         f = cc.read_force()
         press = abs(f[2] - self.base[2])
         lateral = math.hypot(f[0] - self.base[0], f[1] - self.base[1])
-        self.samples.append((round(time.monotonic() - self.t0, 3), f[0], f[1], f[2], p['target_force_n']))
+        self.samples.append((round(time.monotonic() - self.t0, 3), f[0], f[1], f[2], 0.0))
         self.presses.append(press)
         if press > p['limit_n']:
             raise cc.ForceLimitError(f'{phase}: 누르는 힘 {press:.1f} N > {p["limit_n"]} N')
@@ -138,37 +148,66 @@ class _Log:
         return _save_force_log(self.samples, self.p['log_dir']) if self.samples else ''
 
 
+def _descend(p, log):
+    """닦는 자리 위 → 티칭한 닦는 높이. 앞은 빠르게, 마지막 slow_mm 만 걸음마다 힘을 보면서 천천히."""
+    _halt_check('닦는 자리 이동')
+    up = cc.move_to(STATION_BOWL, carrying=True, point='wash')           # 접근점까지 · up = 끝점(닦는 높이)까지 남은 높이
+    log.start(cc.read_force())                                           # 공중 기준값은 **내려가기 전에** 잰다
+    slow = min(float(p['slow_mm']), up)
+    if up - slow > 0:
+        cc.move_rel(0.0, 0.0, -(up - slow), 'BASE')                      # 앞 구간은 보통 속도
+    vel = float(p['slow_vel_mm_s']) * _scale()
+    left = slow
+    while left > 1e-6:                                                   # 느린 구간 — 걸음마다 누르는 힘 상한
+        dz = min(float(p['slow_step_mm']), left)
+        cc.move_rel(0.0, 0.0, -dz, 'BASE', vel_mm_s=vel)
+        left -= dz
+        log.watch('down')
+    log.center = cc.where()
+    _info(f'wipe_bowl 닦는 높이: 실제 Z {log.center[2]:.1f} mm (순응 끔 — 명령한 높이와 같아야 한다), '
+          f'공중 기준 Fz {log.base[2]:.1f} N')
+
+
 def _spiral(p, log):
-    """바닥 나선 한 번 — 중심에서 벽 반지름까지. 좌우 비틀기·힘제어 없음."""
+    """바닥 나선 한 번 — 중심에서 벽 반지름까지. 좌우 비틀기 없음."""
+    _halt_check('바닥 나선')
     r_wall = log.wall_r()
     rev = max(1.0, round(r_wall / p['spiral_pitch_mm'], 1))
-    _move_spiral(rev, r_wall, p['spiral_time_s'])
-    while not _motion_done():                                            # 도는 동안 힘만 확인
+    cc.move_spiral(rev, r_wall, p['spiral_time_s'])                      # 비동기 — 도는 동안 힘만 본다
+    while not cc.motion_done():
         if log.over_time():
             raise cc.MotionTimeout('wipe_bowl: 나선 시간 초과')
         log.watch('spiral')
         time.sleep(p['sample_s'])
-    moved = math.hypot(*[a - b for a, b in zip(_where()[:2], log.center[:2])])
-    if moved < r_wall * 0.5:                                             # 명령은 받았는데 돌지 않았다(9/20 실기)
-        raise RuntimeError(f'나선이 돌지 않았다(실제 {moved:.1f} mm / 목표 {r_wall:.1f}) — '
-                           '회전 수·시간 조합 또는 힘제어가 켜져 있는지 확인')
+    moved = _radius(cc.where(), log.center)
+    if moved < r_wall * 0.5:                                             # 명령은 받았는데 돌지 않았다(9/20 실기 증상)
+        raise RuntimeError(f'나선이 돌지 않았다(실제 {moved:.1f} mm / 목표 {r_wall:.1f} mm) — '
+                           '회전 수·시간 조합을 확인(중급1 p.69)')
 
 
 def _wall_laps(p, log):
-    """벽면 — 원호를 이어 붙여 반대 방향 turns 바퀴, 원호마다 손목 좌우 비틀기."""
+    """벽면 — 원호(Move C)를 이어 붙여 반대 방향 turns 바퀴, 원호마다 손목 좌우 비틀기."""
+    _halt_check('벽면 회전')
     r = log.wall_r()
-    x0, y0, z0, a, b, c = log.center
-    z = _where()[2]                                                      # 지금 높이(힘제어가 정한다)
+    x0, y0, _z0, a, b, c = log.center
+    now = cc.where()
+    z = now[2]                                                           # 닦는 높이 그대로 (힘제어를 쓰지 않으므로 변하지 않는다)
+    gap = r - _radius(now, log.center)
+    if gap > 0.1:                                                        # 나선이 벽까지 다 못 갔으면 남은 만큼만 천천히 붙인다
+        th = math.atan2(now[1] - y0, now[0] - x0)
+        cc.move_rel(gap * math.cos(th), gap * math.sin(th), 0.0, 'BASE',
+                    vel_mm_s=float(p['wall_approach_vel_mm_s']) * _scale())
+        log.watch('wall')
     per = max(2, int(round(360.0 / p['wall_arc_deg'])))
     n = int(p['turns'] * per)
     dth = -2 * math.pi / per                                             # 나선과 반대 방향
-    th0 = math.atan2(_where()[1] - y0, _where()[0] - x0)
+    th0 = math.atan2(cc.where()[1] - y0, cc.where()[0] - x0)
+    chord = 2 * r * abs(math.sin(dth / 2))
+    blend = min(float(p['blend_radius_mm']), chord * 0.45)               # 이어 붙이는 거리가 호의 절반을 넘으면 안 된다
 
     def pose(th, rz):
         return [x0 + r * math.cos(th), y0 + r * math.sin(th), z, a, b, (c + rz + 180.0) % 360.0 - 180.0]
 
-    _move_pose(pose(th0, p['twist_deg']), p['wall_approach_vel_mm_s'], 0.0)   # 벽까지 천천히 밀어 붙인다
-    log.watch('wall')
     twist = 1
     for k in range(n):
         if log.over_time():
@@ -176,17 +215,29 @@ def _wall_laps(p, log):
         th_mid, th_end = th0 + dth * (k + 0.5), th0 + dth * (k + 1)
         rz_mid = p['twist_deg'] * twist
         twist = -twist
-        blend = 0.0 if k == n - 1 else p['blend_radius_mm']
-        _move_arc(pose(th_mid, rz_mid), pose(th_end, p['twist_deg'] * twist), p['lin_vel_mm_s'],
-                  p['rot_vel_deg_s'], blend)
+        rz_end = 0.0 if k == n - 1 else p['twist_deg'] * twist           # 마지막 원호는 손목을 제자리로 돌려놓고 끝낸다
+        cc.move_arc(pose(th_mid, rz_mid), pose(th_end, rz_end),
+                    p['lin_vel_mm_s'], p['rot_vel_deg_s'],
+                    0.0 if k == n - 1 else blend)                        # 마지막만 이어 붙이지 않는다(그 자리에 선다)
         if k % max(1, int(p['force_every'])) == 0:
             log.watch('wall')
 
 
 def _to_center(p, log):
-    """세척 끝 — 올리지 않고 그 높이에서 중심(닿았던 자리)으로. 손목도 0 으로."""
-    x0, y0, _z, a, b, c = log.center
-    _move_pose([x0, y0, _where()[2], a, b, c], p['lin_vel_mm_s'], 0.0)
+    """세척 끝 — 올리지 않고 그 높이에서 중심(내려온 자리)으로. 손목은 마지막 원호에서 이미 제자리다."""
+    _halt_check('중심 복귀')
+    now = cc.where()
+    cc.move_rel(log.center[0] - now[0], log.center[1] - now[1], 0.0, 'BASE',
+                vel_mm_s=float(p['lin_vel_mm_s']) * _scale())
+
+
+def _radius(pose, center):
+    return math.hypot(pose[0] - center[0], pose[1] - center[1])
+
+
+def _scale():
+    """실행 인자 vel_scale — 속도를 직접 주는 이동에는 부르는 쪽이 곱한다(cobot_common 약속)."""
+    return float(cc.cfg().get('run', {}).get('vel_scale', 1.0))
 
 
 def wipe_cup() -> WipeCupResult:
@@ -200,59 +251,6 @@ def wipe_cup() -> WipeCupResult:
     세척부 전체를 삽입할 수 있다. 바닥 접촉 전 힘 상한과 실제 삽입 깊이는 V-10에서 확정한다.
     """
     return WipeCupResult()
-
-
-# ------------------------------------------------------------------ 🟡 임시 stub (AGENTS §2 — 남의 함수가 아직 없을 때)
-# motion.py(황인재)에 요청할 것: ① 지금 자세 읽기 ② 회전을 포함한 절대 이동(+이어 붙이기) ③ 원호 이동 ④ 나선
-# 넷 다 두산 함수를 그대로 감싸는 것이고, 지금은 이 파일에서 같은 이름으로 임시로 둔다(이슈로 올린 뒤 motion.py 로 옮긴다).
-def _dsr():
-    from cobot_common.bootstrap import dsr
-    return dsr()
-
-
-def _where():
-    """🟡 지금 자세 [x, y, z, a, b, c] (BASE)."""
-    d = _dsr()
-    return [float(v) for v in d.get_current_posx(ref=d.DR_BASE)[0]]
-
-
-def _motion_done():
-    """🟡 비동기 동작이 끝났나 (check_motion == 0)."""
-    return _dsr().check_motion() == 0
-
-
-def _move_spiral(rev, rmax_mm, time_s):
-    """🟡 툴 Z 축 나선 (비동기).
-
-    🚨 속도(vel)로 부르면 드라이버가 멈춘다 — **vel·acc 0 + time** 으로만 부른다(중급1 p.69, 9/20 실기).
-    """
-    d = _dsr()
-    d.mwait()
-    ret = d.amove_spiral(rev=float(rev), rmax=float(rmax_mm), lmax=0.0, vel=[0.0, 0.0], acc=[0.0, 0.0],
-                         time=float(time_s), axis=d.DR_AXIS_Z, ref=d.DR_TOOL)
-    if ret != 0:
-        raise RuntimeError(f'amove_spiral 실패 (반환 {ret!r})')
-
-
-def _move_pose(pose, vel_mm_s, radius_mm):
-    """🟡 주어진 자세로 곧게 (회전 포함, 이어 붙이기 radius)."""
-    d = _dsr()
-    s = cc.cfg().get('run', {}).get('vel_scale', 1.0)
-    ret = d.movel([float(v) for v in pose], vel=[float(vel_mm_s) * s, 60.0 * s], acc=[600.0, 600.0],
-                  radius=float(radius_mm), ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS)
-    if ret != 0:
-        raise RuntimeError(f'movel 실패 (반환 {ret!r})')
-
-
-def _move_arc(mid, end, vel_mm_s, vel_deg_s, radius_mm):
-    """🟡 원호 이동 (Move C) — radius 를 주면 다음 원호로 이어 붙는다(중급1 p.79 중첩 가능)."""
-    d = _dsr()
-    s = cc.cfg().get('run', {}).get('vel_scale', 1.0)
-    ret = d.movec([float(v) for v in mid], [float(v) for v in end],
-                  vel=[float(vel_mm_s) * s, float(vel_deg_s) * s], acc=[1200.0, 1000.0],
-                  radius=float(radius_mm), ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS)
-    if ret != 0:
-        raise RuntimeError(f'movec 실패 (반환 {ret!r})')
 
 
 def _save_force_log(samples, log_dir):

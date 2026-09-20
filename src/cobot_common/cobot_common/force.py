@@ -4,6 +4,8 @@
     import cobot_common as cc
     depth, f = cc.contact_down(max_depth=40, limit=cfg['cell']['limits']['contact_limit_n'])
     cc.force_on('z', target=4.0, limit=10.0) → (닦기) → cc.force_off() → cc.safe_retreat()
+    cc.move_spiral(rev=2.8, rmax_mm=14, time_s=3) → while not cc.motion_done(): (힘 확인)   # 바닥 나선 (비동기)
+    cc.move_arc(mid, end, vel_mm_s=180, vel_deg_s=400, radius_mm=3)                        # 벽면 원호 (이어 붙임)
 
 약속
 - 좌표계는 BASE. axis 는 'x'·'y'·'z'. target·limit·min·max 는 **양수 크기(N)** 이고, 누르는 방향(−axis)은 여기서 붙인다.
@@ -11,7 +13,7 @@
     cell.limits : safe_z_mm · timeout_s
     cell.force  : compliance_stx · contact_step_mm · contact_vel_mm_s · contact_acc_mm_s2 ·
                   retreat_vel_mm_s · retreat_acc_mm_s2 · force_max_n · search_y_period_ratio   (이슈 #7 ①, 키 골격 황인재)
-    cell.motion : 이동 속도 상한 — move_rel 이 읽는다
+    cell.motion : 이동 속도 상한 — move_rel · move_arc 가 읽는다
 - 실행 인자 cfg()['run']['vel_scale'](0 초과 1 이하, 첫 실기 0.3)를 이동 속도에 곱한다 — 하강·후퇴 속도, 탐색은 주기를 나눠 느리게.
 - 실패는 예외다: ForceLimitError(힘 상한) · MotionTimeout(시간 초과) · RuntimeError(두산 함수가 -1).
   기능 함수(f1·f3)가 받아서 FORCE_LIMIT · TIMEOUT · ROBOT_ERROR 코드로 바꾸고, 후퇴는 safe_retreat().
@@ -21,14 +23,18 @@
 - 이동(contact_down 의 한 단계 하강, safe_retreat 의 상승)은 motion.move_rel(황인재, 속도 선택 인자 = 이슈 #7 ②) 을 쓴다.
   그 속도도 cell.motion 의 100 % 기준 × vel_scale 을 넘지 못한다. 순응·힘제어·move_periodic 처럼 힘 함수 자체의 두산 호출만
   dsr() 로 직접 한다.
+- 닦기 접촉 모션(move_spiral · move_arc)과 where · motion_done 도 여기 둔다 — 순응·힘제어를 켠 채 도는 동작이라
+  힘 상한·해제와 같이 봐야 하고, 기능 함수(f3)는 두산 함수를 직접 부르지 않는다(AGENTS §3 규칙 4).
+  이 둘에는 **일시정지 폴링이 없다**(move_periodic 과 같다) → 일시정지는 구간이 끝난 뒤 다음 이동에서 먹는다.
 """
 import time
 
 from .bootstrap import cfg, dsr
-from .motion import move_rel
+from .motion import is_paused, move_rel
 
 __all__ = ['force_on', 'force_off', 'force_reached', 'force_check', 'compliance_on', 'compliance_off',
-           'contact_down', 'periodic_search', 'safe_retreat', 'read_force', 'ForceLimitError', 'MotionTimeout']
+           'contact_down', 'periodic_search', 'safe_retreat', 'read_force',
+           'where', 'motion_done', 'move_spiral', 'move_arc', 'ForceLimitError', 'MotionTimeout']
 
 _AXES = ('x', 'y', 'z')
 _state = {'compliance': False, 'force': False, 'limit': None}   # 지금 켜져 있는 것 (safe_retreat 가 본다)
@@ -162,16 +168,21 @@ def contact_down(max_depth, limit):
     f0 = read_force()[2]                                # 내려가기 전 Z 힘 = 기준(툴 무게·옵셋 포함)
     _ok(d.task_compliance_ctrl(stx), 'task_compliance_ctrl')
     _state['compliance'] = True
-    t0 = time.monotonic()
+    waited = 0.0                                        # 🚨 일시정지한 시간은 세지 않는다(PM 요청 9/20 — 사람이 멈춰 둔 동안 TIMEOUT 나면 안 된다)
+    last = time.monotonic()
     try:
         while True:
+            now = time.monotonic()
+            if not is_paused():
+                waited += now - last
+            last = now
             depth = z0 - _current_z(d)
             f = abs(read_force()[2] - f0)               # 시작 대비 변화량 (누르는 힘)
             if f > f_max:
                 raise ForceLimitError(f'contact_down: 누르는 힘 {f:.1f} N > force_max_n {f_max} N (깊이 {depth:.1f} mm)')
             if f >= limit or depth >= max_depth:
                 return depth, f
-            if time.monotonic() - t0 > timeout:
+            if waited > timeout:
                 raise MotionTimeout(f'contact_down: {timeout} s 안에 접촉·최대 깊이에 닿지 않았다 (깊이 {depth:.1f} mm)')
             dz = min(step, max_depth - depth)
             move_rel(0.0, 0.0, -dz, 'BASE', vel_mm_s=vel, acc_mm_s2=acc)
@@ -222,16 +233,77 @@ def periodic_search(amp, period, duration):
 
 
 def safe_retreat():
-    """켜져 있는 힘·순응을 끄고 → X·Y 는 그대로 Z 만 cell.limits.safe_z_mm(BASE) 까지 올린다. 이미 위면 움직이지 않는다."""
+    """켜져 있는 힘·순응을 끄고 → X·Y 는 그대로 Z 만 cell.limits.safe_z_mm(BASE) 까지 올린다. 이미 위면 움직이지 않는다.
+
+    🚨 force_off() 가 실패해도 **후퇴는 반드시 시도한다** — 힘이 안 꺼졌다고 툴을 용기 안에 두고 오면 더 위험하다.
+       (끄기 실패는 후퇴한 뒤에 올린다. PM 검토 9/20)
+    """
     d = dsr()
     safe_z = _limits_cfg('safe_z_mm')
     vel = _force_cfg('retreat_vel_mm_s') * _vel_scale()
     acc = _force_cfg('retreat_acc_mm_s2')
-    force_off()
+    off_error = None
+    try:
+        force_off()
+    except BaseException as e:                       # noqa: BLE001 — 후퇴가 먼저다
+        off_error = e
     z = _current_z(d)
-    if z >= safe_z:
-        return
-    move_rel(0.0, 0.0, float(safe_z) - z, 'BASE', vel_mm_s=vel, acc_mm_s2=acc)
+    if z < safe_z:
+        move_rel(0.0, 0.0, float(safe_z) - z, 'BASE', vel_mm_s=vel, acc_mm_s2=acc)
+    if off_error is not None:
+        raise off_error
+
+
+# ------------------------------------------------------------------ 닦기 이동 (나선 · 원호) — 접촉 동작 전용
+# 🔸 여기 두는 이유: 순응·힘제어를 켠 채 도는 접촉 모션이라 힘 함수와 같이 봐야 한다(AGENTS §3 규칙 4 — f3 는 cc.* 만 부른다).
+#    자유 공간 이동은 motion.py(황인재) 몫이다. 두 함수 모두 **일시정지 폴링이 없다** — move_periodic 과 같은 취급이라
+#    일시정지는 이 구간이 끝난 뒤 다음 이동에서 먹는다. 부르는 쪽이 구간 사이에서 is_halted() 를 본다.
+def where():
+    """지금 TCP 자세 [x, y, z, a, b, c] (BASE). 닦는 높이·나선이 실제로 돌았는지 확인에 쓴다."""
+    d = dsr()
+    pos, _ = d.get_current_posx(ref=d.DR_BASE)
+    return [float(v) for v in pos]
+
+
+def motion_done():
+    """비동기 이동이 끝났나 (check_motion() == 0). move_spiral 이 도는 동안 힘을 보려고 쓴다."""
+    return dsr().check_motion() == 0
+
+
+def move_spiral(rev, rmax_mm, time_s, axis='z', ref='TOOL'):
+    """나선(Move Spiral)을 **비동기로 시작**한다 — 끝을 기다리지 않는다(부르는 쪽이 motion_done() 으로 본다).
+
+    🚨 속도(vel)로 부르면 드라이버(dsr_controller2)가 통째로 멈춘다(브링업 재시작). **vel·acc 0 + time** 으로만 부른다
+       — 중급교육1 p.69 "[속도] → [시간] 지정 옵션을 이용하여 속도 설정", 9/20 실기로 확인.
+    🚨 최대 반경에 비해 회전 수가 많으면 **시작조차 하지 않는다**(같은 쪽 경고) — 반경 14 mm 에 7바퀴·1.5 s 는 안 돌고
+       2.8바퀴·3 s 는 돈다. 돌았는지는 부르는 쪽이 where() 로 확인한다.
+    비동기라 순응이 이미 켜져 있어야 하고(중급1 p.69 "순응제어 및 비동기 제어를 활용하는 경우가 많다"),
+    켤 때는 도는 중이 아니어야 한다(2.1903) → 여기서 먼저 mwait 한다.
+    """
+    if rev <= 0 or rmax_mm <= 0 or time_s <= 0:
+        raise ValueError(f'move_spiral: rev={rev} · rmax={rmax_mm} mm · time={time_s} s — 모두 0 보다 커야 한다')
+    d = dsr()
+    axis_c = _axis_const(d, axis)
+    ref_c = {'BASE': d.DR_BASE, 'TOOL': d.DR_TOOL}[ref]
+    d.mwait()
+    _ok(d.amove_spiral(rev=float(rev), rmax=float(rmax_mm), lmax=0.0, vel=[0.0, 0.0], acc=[0.0, 0.0],
+                       time=float(time_s) / _vel_scale(), axis=axis_c, ref=ref_c), 'amove_spiral')
+
+
+def move_arc(mid, end, vel_mm_s, vel_deg_s, radius_mm=0.0):
+    """원호(Move C) — BASE 절대 자세 두 개(가운데·끝)를 지나는 호. 회전(a·b·c)도 같이 간다.
+
+    radius_mm > 0 이면 다음 모션으로 **이어 붙는다**(중첩 가능한 모션은 Move L·C·J·JX 뿐 — 중급교육1 p.79).
+    0 이면 그 자리에서 멈춘다 — 0 으로 이어 붙이면 원호마다 서서 작업대가 울린다(9/20 실기).
+    속도에는 vel_scale 을 곱하고, cell.motion 의 100 % 기준을 넘지 못한다.
+    """
+    d = dsr()
+    s = _vel_scale()
+    top_v, top_a = float(_cell_key('motion', 'vel_tcp_max_mm_s')), float(_cell_key('motion', 'acc_tcp_max_mm_s2'))
+    vel = [min(_positive('vel_mm_s', vel_mm_s) * s, top_v * s), _positive('vel_deg_s', vel_deg_s) * s]
+    acc = [top_a * s, top_a * s]
+    _ok(d.movec([float(v) for v in mid], [float(v) for v in end], vel=vel, acc=acc,
+                radius=float(radius_mm), ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS), 'movec')
 
 
 # ------------------------------------------------------------------ 내부
@@ -255,6 +327,12 @@ def _check_force_args(**kw):
     for name, v in kw.items():
         if not 0 < v <= f_max:
             raise ValueError(f'{name}={v} N — 0 보다 크고 cell.force.force_max_n({f_max} N) 이하여야 한다')
+
+
+def _positive(name, v):
+    if v is None or float(v) <= 0:
+        raise ValueError(f'{name}={v} — 0 보다 커야 한다')
+    return float(v)
 
 
 def _current_z(d):
