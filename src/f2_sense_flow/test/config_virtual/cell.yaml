@@ -1,0 +1,34 @@
+# rig_f2_virtual.py 전용 좌표 — 🚨 팀 cell.yaml(한석형) 이 아니다. Virtual 로봇이 닿는 아무 점이다.
+#
+# 왜 따로 두나: 팀 cell.yaml 의 좌표는 아직 비어 있고(티칭 대기), WASTE·RINSE 는
+#   src/cobot_common/test/config_virtual/ 에도 없다. 실기 값이 아니므로 **절대 실기에 쓰지 않는다**
+#   (rig 가 Virtual 이 아니면 실행을 거부한다).
+#
+# 🔑 높이를 일부러 갈라 두었다 — _goto 의 "남은 높이 내려가기" 를 실제로 지나가게 하려고:
+#     WEIGH  z 425 > safe_z 350  → move_to 가 그 자리까지 간다        (up = 0)
+#     WASTE  z 300 < safe_z 350  → 상공에서 멈춘다 → 50 mm 더 내려가야 (up = 50)
+#     RINSE  z 300                → 같음                              (up = 50)
+cell:
+  limits:
+    vel_free_pct: 60              # 빈손 이동 속도 %
+    vel_carry_pct: 30             # 용기를 들고 이동할 때 (F2 는 항상 이쪽)
+    safe_z_mm: 350                # 안전 높이 — 위 주석의 갈림 기준
+    contact_limit_n: 10
+    insert_limit_n: 15
+    timeout_s: 10
+
+  motion:                         # Virtual 시험 값 (src/cobot_common/test/config_virtual 와 같게)
+    vel_tcp_max_mm_s: 400
+    acc_tcp_max_mm_s2: 800
+    vel_joint_max_deg_s: 100      # 🔑 털기 평균 속도(15° / 0.15 s = 100 °/s)가 딱 여기 걸린다
+    acc_joint_max_deg_s2: 200     #    → move_joint_rel 이 시간을 늘리고 경고하는지 볼 수 있다
+
+  presets:                        # 🟡 시험용 — 확정은 V-01·V-16 (그리퍼는 Virtual 에 없어 가짜로 대체된다)
+    BOWL: {grip_width_mm: 2.0, grip_force_n: 20, hold_force_n: 35, width_tol_mm: 0.8, approach_z_mm: 40}
+    CUP:  {grip_width_mm: 70.0, grip_force_n: 15, hold_force_n: 30, width_tol_mm: 3.0, approach_z_mm: 40}
+
+  stations:
+    HOME:  {posj: [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]}
+    WEIGH: {posx: [368.0, 156.25, 425.0, 45.0, 180.0, 45.0]}   # 안전 높이 위 → up = 0
+    WASTE: {posx: [368.0, -60.0,  300.0, 45.0, 180.0, 45.0]}   # 안전 높이 아래 → up = 50
+    RINSE: {posx: [468.0,  60.0,  300.0, 45.0, 180.0, 45.0]}   # 안전 높이 아래 → up = 50
