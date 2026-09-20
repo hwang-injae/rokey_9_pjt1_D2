@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v7.3'
+VERSION = 'v7.4'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -235,6 +235,18 @@ SEOK_0920 = {
 for _tid, _e in SEOK_0920.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/20 17:00 PR #34(V-24 본작업) merge
+V24_0920 = {
+ 'V-24':    dict(prog='0.6', slots=S('9/20 오후', '9/21 저녁', '9/22 오전'),
+                 note_add='✅ 9/20 17:00 PR #34 merge(예정보다 빠름): motion.py 비동기 + 폴링 · cc.pause/resume/halt/clear_halt · MotionHalted·MoveTimeout · 새 키 cell.motion.move_timeout_s — Virtual rig_pause 10/10 · rig_motion 30/30 · rig_v20 probe 12/12 · pytest 185건. 🚨 **실기 미검증 → 9/21 저녁 첫 순서로 실기 확인**(빈손·HOME 근처 짧은 이동의 도착 위치 → 일시 정지·재개 → 그다음 V-22·접촉 동작) · 9/22 오전: 힘이 걸린 채 일시 정지(박진용과) · 남은 것: 시간 초과 갈래도 멈춘 것을 기다리기 · rig_force Virtual 회귀'),
+ 'V-22':    dict(note_add='🚨 9/21 저녁: V-24 실기 확인(짧은 이동의 도착 위치·일시 정지) **다음에** 한다 — 이동 함수가 비동기로 바뀌었다(#34). V-22 가 "도착하기 전에 함수가 돌아오는가"를 같이 잡아낸다'),
+ 'FLOW-03': dict(note_add='✅ 9/20 #34 merge → 연결 가능: /flow/stop·/flow/resume 콜백에서 cc.pause()·cc.resume()(깃발만 — 콜백에서 불러도 된다), 상태 발행에 cc.is_paused() 반영 · /flow/abort 는 cc.halt() 로 하던 이동을 끊고 → 정리 동작 전에 cc.clear_halt() · 기능 함수는 MotionHalted·MoveTimeout 을 잡지 말고 위로'),
+ 'INF-02b': dict(note_add='🚨 9/20 #34: 이동 함수가 비동기로 바뀌어 contact_down 의 걸음(move_rel)이 그 위에서 돈다 — 9/21 저녁 실기 확인 뒤에 접촉 동작. contact_down 의 자체 시간 상한(timeout_s)이 일시 정지 시간을 포함한다 → cc.is_paused() 인 동안은 세지 않게. test_common_force.py 8줄(가짜 두산에 amovel·check_motion, 시험 설정 move_timeout_s)은 황인재(F4 세션)가 #34 에서 같이 고쳤다 — main 을 먼저 받을 것'),
+ 'CELL-04': dict(note_add='🆕 9/20 #34: cell.motion 에 **move_timeout_s**(이동 1번의 상한 시간) 키가 생겼다 — 비면 이동 함수가 KeyError. Virtual 시험 값 30 s'),
+}
+for _tid, _e in V24_0920.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -300,7 +312,7 @@ SLOT['9/22 화'] = {'B': '**V-04·V-15 → F1-05 안착(S, P 참여)** / F3-03 �
 SLOT['9/23 수'] = {'B': 'UT-F1 잔여 → **INT-12b(S·M)** · INT-13 잔여 — G3(L2)', 'C': 'INT-3a 그릇 e2e → INT-3b 컵 e2e · FIX-01 — G4(L3)',
                    'D': 'INT-4a 연속 처리 → INT-4b 실패 주입 · INT-4c 측정 → INT-4d 영상·동결 (G5) · 🛡 범위 방어: 4개 → 2개, 실패 주입 4종 → 2종'}
 GATE['G2 L1']['C'] = 'UT-F2·F3·FLOW 통과 + 녹화 (함수별 TC 는 구현 직후 바로 수행) + 코드리뷰 CR-01 · 🚨 **F1(UT-F1)은 좌표 지연으로 9/22 저녁~9/23 오전 첫 순서** · UT-F4 는 9/23 오전(최소 범위 — 버튼·상태·연결), 전체는 추석에 mock 으로'
-SLOT['9/21 월']['D'] = '1시간씩 교대: **F1-02 pick + V-14(S)** / V-10 → F3-03(P) / F2-01·F2-02(M) · V-22(H·S — 9/20 에 못 했으면 첫 순서) · 로봇 불필요: V-24 Virtual 마무리·F4-01·F4-02·ENV-03(H·M)'
+SLOT['9/21 월']['D'] = '🚨 **첫 순서: V-24 실기 확인(H, 30분 — 짧은 이동의 도착 위치·일시 정지·재개) → V-22(H·S)** → 1시간씩 교대: F1-02 pick + V-14(S) / V-10 → F3-03(P) / F2-01·F2-02(M) · 로봇 불필요: F4-01·F4-02·ENV-03(H·M)'
 SLOT['9/22 화'] = {'B': '**V-04·V-15 → F1-05 안착(S, P 참여)** / **V-24 실기 확인 — 이동 도중 일시 정지 → 재개(H·P, 1시간)** / F3-03 마무리(P) / UT-F2(M) · 로봇 불필요: FLOW-03·UT-FLOW·FLOW-02(M)·CR-01(전원)·F4-02·V-13·노션 업로드(H)',
                    'C': '**F1-03·V-08(S)** / UT-F3(P) / UT-F2 잔여(M) — G2(L1) 마감(F1 제외) · 로봇 불필요: FLOW-03·FLOW-01 격리 마무리(M)·INT-4 flow(mock)+HMI(H·M)·F4-03(H)',
                    'D': '**F1-04·V-06 → UT-F1(S)** / L2: INT-12a(M·S) → INT-13(P·S) · 로봇 불필요: F4-03·NOTE-02 gif(H)'}
@@ -360,6 +372,8 @@ HISTORY23 = ['v7.2', '결정 보류', 'V-05, V-23, V-16, INF-02d', '민범진 �
              '황인재 9/20 15:50', 'M']
 HISTORY24 = ['v7.3', '진척', 'CELL-04', '한석형 브랜치 확인: 좌표 약 25개는 티칭됨(스크립트 안 상수) → cell.yaml 로 옮기는 일이 남음. 늦어진 원인 = cell.yaml 골격과 실제 티칭 방식이 안 맞음 + 전체 경로 Virtual 스크립트 반복. CELL-04 진행 0.7',
              'PM 확인 9/20 16:20', 'S']
+HISTORY25 = ['v7.4', '진척', 'V-24, V-22, FLOW-03, INF-02b, CELL-04', 'PR #34 merge — V-24 본작업(이동 함수 비동기 + 폴링 · pause/resume/halt)이 예정(9/21 저녁)보다 빨리 main 에 들어옴. 실기 미검증이라 **9/21 저녁 첫 순서 = V-24 실기 확인 → V-22 → 접촉 동작**. 새 키 cell.motion.move_timeout_s(한석형). FLOW-03 연결 가능',
+             'PR #34', 'H,M,P,S']
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -454,7 +468,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
