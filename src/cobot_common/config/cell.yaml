@@ -20,6 +20,7 @@ cell:
     acc_tcp_max_mm_s2:            # 직선 이동 100 % 기준 가속도
     vel_joint_max_deg_s:          # 관절 이동(movej) 100 % 기준 속도
     acc_joint_max_deg_s2:         # 관절 이동 100 % 기준 가속도        (Virtual 시험 값: src/cobot_common/test/config_virtual/cell.yaml)
+    move_timeout_s:               # 이동 1번의 상한 시간(일시정지한 시간은 빼고). 넘으면 정지 명령을 보내고 오류 — V-24 에서 추가
 
   force:                          # 힘 함수(force.py) 공용 값 — 이슈 #7 ①. 🔔 이 절의 **값은 박진용이 이 절만 PR** 한다(결정 기록 W5, V-03 뒤)
     compliance_stx:               # 순응 강성 6개 [x, y, z, rx, ry, rz]

@@ -1,0 +1,9 @@
+# rig_pause.py 시험 값 — 🚨 Virtual 전용. 좌표·속도는 config_virtual/cell.yaml.
+long_joint: {joint: 1, delta_deg: 90, time_s: 6.0}   # 긴 관절 이동 (평균 15 deg/s — 상한 100 안)
+long_line:  {dy_mm: 200, vel_mm_s: 30, acc_mm_s2: 60}  # 긴 직선 이동 (약 7 s)
+press_at_s: 2.0                 # 이동 시작 뒤 이 시각에 일시정지/강제정지를 누른다
+resume_after_s: 2.0             # 일시정지 뒤 이만큼 있다가 재개
+stop_within_s: 0.5              # 누른 뒤 이 안에 서야 한다
+still_deg: 0.05                 # 이보다 덜 움직이면 "서 있다"
+reach_tol_deg: 0.5
+reach_tol_mm: 1.0

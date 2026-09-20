@@ -11,6 +11,7 @@ cell:
     acc_tcp_max_mm_s2: 800
     vel_joint_max_deg_s: 100
     acc_joint_max_deg_s2: 200
+    move_timeout_s: 30
   force:                                # safe_retreat 가 읽는 값만 (Virtual 에는 힘이 없다 — 나머지 힘 함수는 Virtual 에서 시험하지 않는다)
     retreat_vel_mm_s: 100
     retreat_acc_mm_s2: 200
