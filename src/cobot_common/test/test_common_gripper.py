@@ -33,17 +33,27 @@ class FakeRes:
 
 
 class FakeClient:
-    """보낸 문자열을 기록한다."""
+    """보낸 문자열을 기록한다.
 
-    def __init__(self, ok=True):
+    `fail_at = N` 이면 **N번째 호출만** 실패 응답을 준다(1부터 센다). 명령은 `sent` 에 남는다 —
+    "보내기는 했는데 성공했는지 모른다" 가 실제 상황이고, 그리퍼가 이미 움직였을 수 있다.
+    호출 번호는 `calls` 로 따로 센다(시험이 `sent.clear()` 를 해도 번호가 흐트러지지 않게).
+    """
+
+    def __init__(self, ok=True, fail_at=None):
         self.sent = []
+        self.calls = 0
         self._ok = ok
+        self.fail_at = fail_at
 
     def wait_for_service(self, timeout_sec=None):
         return True
 
     def call(self, req):
         self.sent.append(req.command)
+        self.calls += 1
+        if self.fail_at is not None and self.calls == self.fail_at:
+            return FakeRes(False, f'가짜 실패({self.fail_at}번째 명령)')
         return FakeRes(self._ok, '' if self._ok else '가짜 실패')
 
 
@@ -231,3 +241,76 @@ def test_no_client_raises(monkeypatch):
     monkeypatch.setattr(G, '_client', None)
     with pytest.raises(RuntimeError, match='init'):
         G.release()
+
+
+# ────────────────────────────────── 🚨 기억(_force_n)과 실제 힘이 어긋나면 안 된다
+def test_set_force_updates_memory_after_each_command(fake, monkeypatch):
+    """명령 한 번마다 기억을 갱신한다 — 계단마다 한 칸씩 따라 올라가야 한다.
+
+    마지막에 한꺼번에 갱신하면 중간에 끊겼을 때 실제 힘과 기억이 갈라진다.
+    """
+    seen = []
+    real_call = fake.client.call
+
+    def spy(req):
+        seen.append(G._force_n)                        # 이 명령을 보내기 **직전** 의 기억
+        return real_call(req)
+
+    monkeypatch.setattr(fake.client, 'call', spy)
+    monkeypatch.setattr(G, '_force_n', 0.0)
+    G._set_force(10.0)                                 # 0 → 10 N = 'i' 4계단
+    assert seen == [0.0, 2.5, 5.0, 7.5], f'계단마다 갱신하지 않았다 — {seen}'
+    assert G._force_n == pytest.approx(10.0)
+
+
+def test_set_force_failure_midway_does_not_keep_stale_memory(fake, monkeypatch):
+    """🚨 도중에 실패하면 기억은 **실제와 맞거나 없어야(None)** 한다.
+
+    재현(9/20 감사): 3번째 'i' 에서 실패 → 실제는 5.0~7.5 N 인데 0.0 N 으로 기억하고 있었다.
+    그러면 다음부터 힘이 계속 어긋나, NORMAL 인 줄 알고 약하게 쥐어 이송 중 낙하가 된다(SDD §8).
+    """
+    monkeypatch.setattr(G, '_force_n', 0.0)
+    fake.client.fail_at = 3
+    with pytest.raises(RuntimeError, match='그리퍼 명령'):
+        G._set_force(20.0)                             # 0 → 20 N = 'i' 8계단, 3번째에서 끊긴다
+    done = fake.client.sent.count('i') - 1             # 앞 2계단은 확실히 들어갔다
+    low = done * G._FORCE_STEP_N                       # 5.0 N
+    high = (done + 1) * G._FORCE_STEP_N                # 7.5 N — 실패한 명령이 닿았을 수도 있다
+    assert G._force_n is None or low - 0.01 <= G._force_n <= high + 0.01, (
+        f'기억 {G._force_n} N 이 실제(≈{low}~{high} N)와 어긋난다')
+
+
+def test_memory_dropped_after_failure_keeps_protections_working(fake, monkeypatch):
+    """기억을 버렸으니 9/20 보호가 그대로 작동한다 — grip_level 거부 · release 에서 다시 맞추기.
+
+    옛 코드는 여기서 '기억 10 N / 실제 17.5 N' 로 조용히 이어 갔다.
+    """
+    monkeypatch.setattr(G, '_force_n', 0.0)
+    monkeypatch.setattr(G, '_joint_angle', 0.83)
+    fake.client.fail_at = 3
+    with pytest.raises(RuntimeError, match='그리퍼 명령'):
+        G._set_force(20.0)
+    assert G._force_n is None, '실패한 뒤에 기억이 남으면 다음 보호가 안 걸린다'
+
+    fake.client.fail_at = None
+    fake.client.sent.clear()
+    with pytest.raises(RuntimeError, match='기준'):
+        G.grip_level('BOWL', 'NORMAL')                 # 쥔 채 힘 바꾸기 → 거부
+    assert fake.client.sent == [], '거부했으면 아무 명령도 안 보낸다'
+
+    G.release()                                        # 빈손이 확실한 자리에서 다시 맞춘다
+    assert fake.client.sent[0] == 'o', '열기가 맨 먼저여야 한다'
+    assert fake.client.sent.count('d') >= 16
+    assert G._force_n == pytest.approx(0.0)
+
+
+def test_anchor_force_failure_midway_leaves_no_memory(fake, monkeypatch):
+    """🚨 기준 맞추기가 중간에 끊기면 0.0 N 으로도, 옛 값으로도 단정하지 않는다.
+
+    'd' 를 17회 다 보내야 0 N 이다 — 3번째에서 끊기면 실제로는 덜 내려가 있다.
+    """
+    monkeypatch.setattr(G, '_force_n', 20.0)           # 옛 기억이 남아 있어도
+    fake.client.fail_at = 3
+    with pytest.raises(RuntimeError, match='그리퍼 명령'):
+        G._anchor_force()
+    assert G._force_n is None, '덜 내려갔는데 0.0 N 이나 옛 값으로 단정하면 안 된다'
