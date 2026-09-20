@@ -163,32 +163,46 @@ class Run:
         return p['bowl_r_max_mm'] - p['brush_d_mm'] / 2 + p['r_max_margin_mm']
 
     def wipe_bottom(self):
-        """바닥 닦기 — **move_spiral 한 번**. 좌우 비틀기 없음(사용자 결정 9/20). 중심에서 벽 반지름까지.
+        """바닥 닦기 — 중심에서 시작해 **소용돌이처럼** 조금씩 벌어지며 돈다. 좌우 비틀기 없음.
 
-        🚨 나선은 **속도가 아니라 시간으로 지정**한다(중급교육1 p.69 "[속도] → [시간] 지정 옵션").
-           속도(vel·acc)로 주면 드라이버가 응답하지 않고 브링업까지 멈춘다(9/20 확인).
+        반원 원호(Move C) 를 반지름을 키워 가며 이어 붙여 그린다. 원호는 이어 붙이기(radius)가 되는 모션이라
+        사이에서 멈추지 않는다(중급교육1 p.79).
+        🚨 두산 Move Spiral 은 쓰지 않는다 — 명령은 받아들여지지만 **로봇이 실행하지 않는다**(9/20 실기: 시작됨=False,
+           실제 최대 반지름 0.3 mm). 속도로 주면 아예 드라이버가 멈춘다.
         """
-        p, d = self.p, self.d
+        p, d, s = self.p, self.d, cc.cfg()['run']['vel_scale']
         self.set_frame()
         self.x = self.y = self.rz = 0.0
+        x0, y0, _z, a, b, c = self.p0
         r_wall = min(self.wall_r(), self.r_max())
-        rev = max(1.0, round(r_wall / p['spiral_pitch_mm'], 1))
-        self.log.info(f'  바닥: 나선 {rev}바퀴 · 반지름 {r_wall:.1f} mm · {p["spiral_time_s"]:g} s 동안 (비틀기 없음)')
+        vel = [p['scrub_lin_vel_mm_s'] * s, p['scrub_rot_vel_deg_s'] * s]
+        acc = [p['scrub_lin_acc_mm_s2'], p['scrub_rot_acc_deg_s2']]
+        half = p['spiral_pitch_mm'] / 2.0                                # 반 바퀴마다 이만큼 벌어진다
+        n = max(1, int(math.ceil(r_wall / half)))
+        self.log.info(f'  바닥: 소용돌이 {n / 2:.1f}바퀴 · 반지름 0 → {r_wall:.1f} mm · 반원 {n}개 '
+                      f'(반 바퀴마다 {half:.1f} mm 벌어짐)')
+
+        def pose(r, th):
+            return [x0 + r * math.cos(th), y0 + r * math.sin(th), self.z_now, a, b, c]
+
+        th = 0.0
         d.mwait()
-        # 🚨 vel·acc 를 **반드시 넘긴다**(파이썬 API 가 없으면 거부: 'Invalid value : vel, v').
-        #    값은 0 으로 두고 time 으로 속도를 정한다(중급교육1 p.69). 속도를 실제 값으로 주면 드라이버가 멈춘다.
-        ret = d.amove_spiral(rev=rev, rmax=r_wall, lmax=0.0, vel=[0.0, 0.0], acc=[0.0, 0.0],
-                             time=float(p['spiral_time_s']), axis=d.DR_AXIS_Z, ref=d.DR_TOOL)
-        if ret != 0:
-            raise RuntimeError(f'amove_spiral 실패 (반환 {ret!r})')
-        started = self.wait_start()
-        rmax_seen = self.sample_spiral()                                 # 도는 동안 실제 반지름을 훑는다(명령 하나라 끊기지 않는다)
-        self.log.info(f'  나선 도는 동안 실제 최대 반지름 {rmax_seen:.1f} mm (목표 {r_wall:.1f}) · 시작됨={started}')
-        if rmax_seen < r_wall * 0.5:
-            self.log.error('  🚨 나선이 거의 돌지 않았다 — 명령은 받아들여졌지만 움직이지 않는다')
+        for k in range(n):
+            r_mid = min(half * (k + 0.5), r_wall)
+            r_end = min(half * (k + 1), r_wall)
+            arc = math.pi * max(r_mid, 1.0)                              # 이 반원의 길이(대략)
+            blend = 0.0 if k == n - 1 else min(p['blend_radius_mm'], arc * 0.4)
+            if d.movec(pose(r_mid, th + math.pi / 2), pose(r_end, th + math.pi), vel=vel, acc=acc,
+                       radius=blend, ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS) != 0:
+                raise RuntimeError('movec(나선 반원) 실패')
+            th += math.pi
+            self.x, self.y = r_end * math.cos(th), r_end * math.sin(th)
+            if k % max(1, int(p['force_every'])) == 0:
+                self.force_only('spiral')
+        d.mwait()
         now = d.get_current_posx(ref=d.DR_BASE)[0]
-        self.x, self.y = float(now[0]) - self.p0[0], float(now[1]) - self.p0[1]
-        self.log.info(f'  나선 끝: 반지름 {math.hypot(self.x, self.y):.1f} mm')
+        self.x, self.y = float(now[0]) - x0, float(now[1]) - y0
+        self.log.info(f'  나선 끝: 실제 반지름 {math.hypot(self.x, self.y):.1f} mm (목표 {r_wall:.1f})')
         return r_wall
 
     def wipe_wall(self, r_wall):
@@ -464,7 +478,7 @@ def main() -> int:
 
         log.info('① 순응 켜고 세척 자리로 (바닥 대비 after_contact_mm)')
         run.press_on(p['wipe_target_n'])
-        run.sample('settle', p['wipe_target_n'], seconds=p['settle_s'])
+        run.force_only('settle')                                         # 대기 없이 바로 시작 (멈칫 제거)
 
         log.info('② 바닥 — move_spiral 한 번 (비틀기 없음)')
         r_wall = run.wipe_bottom()
