@@ -56,6 +56,7 @@ class Run:
         self.gap = 0.0                                                   # 반지름 방향으로 못 따라간 거리 mm (check 가 갱신)
         self.z_now = 0.0                                                 # 지금 실제 Z — 다음 걸음의 Z 명령으로 그대로 쓴다
         self.compliance_on = False                                       # depth 방식에서 직접 켠 순응
+        self.z_contact = 0.0                                             # contact_down 으로 바닥을 찾은 높이
 
     def z(self):
         return self.d.get_current_posx(ref=self.d.DR_BASE)[0][2]
@@ -284,9 +285,14 @@ class Run:
         if d.task_compliance_ctrl(stx) != 0:
             raise RuntimeError('task_compliance_ctrl 실패')
         self.compliance_on = True
-        dz = p['after_contact_mm']                                       # + 면 더 누르고, − 면 그만큼 들어 올린다
-        if abs(dz) > 1e-6:
-            self.move_z(-dz, p['press_vel_mm_s'], p['press_acc_mm_s2'])
+        if self.z_contact <= 0:                                          # 바닥을 아직 안 찾았다 — 움직이지 않는다
+            raise RuntimeError('press_on: 바닥 높이를 모른다(contact_down 먼저)')
+        want = self.z_contact - p['after_contact_mm']                    # 바닥 기준 자리 (+ 면 더 누름, − 면 들어 올림)
+        dz = want - self.z()                                             # 지금 높이 대비 — 여러 번 불러도 누적되지 않는다
+        if abs(dz) > 0.05:
+            self.move_z(dz, p['press_vel_mm_s'], p['press_acc_mm_s2'])
+            self.log.info(f'  Z {self.z_contact:.1f} → {self.z():.1f} mm (바닥 대비 {self.z() - self.z_contact:+.1f})')
+        dz = p['after_contact_mm']
         what = f'{dz:g} mm 더 누름 (Z 순응 {stx[2]:g} N/m → 약 {stx[2] / 1000 * dz:.1f} N)' if dz > 0 else \
                (f'{-dz:g} mm 들어 올림 — 바닥에 살짝 띄워 문지른다' if dz < 0 else '바닥 찾은 자리 그대로')
         self.log.info(f'  순응만 켜고: {what}')
@@ -380,6 +386,7 @@ def main() -> int:
             log.error(f'접근 뒤 공중 |Fz| {abs(run.baseline):.1f} N 가 크다 → 툴 무게·접촉 확인. 힘제어 없이 중단')
             return 1
         depth, f = cc.contact_down(p['contact_max_depth_mm'], p['contact_limit_n'])
+        run.z_contact = run.z()                                          # 🚨 바닥 높이를 기억한다 — 띄우기·누르기는 이 값 기준
         contacted = depth < p['contact_max_depth_mm'] - 0.5
         log.info(f'contact_down: 깊이 {depth:.1f} mm · |Fz| {f:.1f} N · {"바닥 찾음" if contacted else "못 찾음"} · 바닥 Z {run.z():.1f}')
         if not contacted and not virtual:

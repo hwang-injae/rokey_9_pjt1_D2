@@ -11,12 +11,12 @@ cell:
     vel_joint_max_deg_s: 100
     acc_joint_max_deg_s2: 200
   force:
-    compliance_stx: [1000, 1000, 500, 100, 100, 100]   # N/m · Nm/rad — 9/20: X·Y 3000 → 1000, 회전 200 → 100.
+    compliance_stx: [1000, 1000, 200, 100, 100, 100]   # N/m · Nm/rad — 9/20: Z 500 → 200 (닿을 때 더 물렁하게)
                                                        #   수세미가 바닥을 물고 손목이 비틀릴 때 붙었다 떨어지며(스틱-슬립)
                                                        #   작업대를 흔들었다 → 옆·회전 방향을 물렁하게 해 충격을 흡수한다
-    contact_step_mm: 2.0        # contact_down 한 단계 (× Z 강성 500 N/m ≈ 1 N)
-    contact_vel_mm_s: 40.0      # × vel_scale 0.3 = 12 mm/s — 순응을 켠 채 2 mm 씩이라 빨라도 세게 닿지 않는다 (9/20)
-    contact_acc_mm_s2: 50.0
+    contact_step_mm: 0.5        # 한 걸음 — 9/20: 2 → 0.5. 닿은 뒤에도 한 걸음만큼 밀어 넣으므로 잘게 쪼갠다(쿵쿵거림)
+    contact_vel_mm_s: 20.0      # × vel_scale 0.3 = 6 mm/s
+    contact_acc_mm_s2: 30.0     # 9/20: 50 → 30 (걸음마다 급하게 서지 않게)
     retreat_vel_mm_s: 200.0     # × 0.3 = 60 mm/s — 내려올 때와 같은 속도로 곧게 상승 (9/20)
     retreat_acc_mm_s2: 200.0
     force_max_n: 15.0           # 어떤 순간에도 넘으면 안 되는 절대 상한 (닦기 상한 10 N 위)
