@@ -307,7 +307,12 @@ class Run:
         """
         p = self.p
         if p['press_mode'] == 'force':
-            cc.force_on('z', target, p['limit_n'])
+            # 🚨 목표에 **공중 기준값(센서 치우침·툴 무게)** 을 더한다. 안 더하면 실제 누르는 힘이 그만큼 모자란다
+            #    (9/19 실측: 목표 4 N → 실제 1.9 N, 공중 기준값이 약 2 N 이었다).
+            #    Z 높이는 명령하지 않는다 — 누르는 깊이는 힘제어가 정한다(위치와 싸우면 작업대를 친다).
+            fd = target + abs(self.baseline)
+            cc.force_on('z', fd, p['limit_n'])
+            self.log.info(f'  힘제어: 목표 {target:g} N 유지 (공중 기준값 {self.baseline:+.2f} N 보정 → 명령 {fd:.2f} N)')
             return
         if p['press_mode'] != 'depth':
             raise ValueError(f"press_mode={p['press_mode']!r} — 'force'·'depth' 중 하나")

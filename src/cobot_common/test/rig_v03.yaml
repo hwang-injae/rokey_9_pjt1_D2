@@ -16,8 +16,8 @@ contact_max_depth_mm: 30.0        # 천천히 찾는 거리 — 130 + 30 이면 
 contact_limit_n: 0.5              # 시작 힘보다 이만큼 커지면 '바닥' — 9/20: 3 → 2 → 1 → 0.5 (아주 살짝 닿자마자 멈춘다)
 press_targets_n: [1.5]            # 제자리 누르기 목표
 press_hold_s: 1.5                 # 제자리 누르기 확인 시간 (9/20: 3 → 1.5, 시험용일 뿐 세척과 무관)
-wipe_target_n: 1.5                # (press_mode force 일 때) 문지르는 동안 누르는 목표 힘
-press_mode: depth                 # 🔸 9/20: 수세미는 물러서 힘제어로 누르면 깊게 들어간다 → 깊이로 누른다
+wipe_target_n: 1.5                # 닦는 동안 유지할 누르는 힘 (공중 기준값은 코드가 더해 준다)
+press_mode: force                 # force = 닦는 동안 **목표 힘을 유지**(9/20 결정) · depth = 정해진 깊이만 눌러 두기
                                   #   force = 목표 힘까지 알아서 내려감 · depth = 순응만 켜고 press_depth_mm 만 내려감
 after_contact_mm: 3.0             # 바닥을 찾은 뒤 이만큼 **더 눌러** 확실히 닿게 한다 (9/20: 0 → 3).
                                   #   순응 Z 200 N/m → 3 mm 면 약 0.6 N. 힘제어로 밀어 넣는 것과 달리 깊이가 정해져 있다
