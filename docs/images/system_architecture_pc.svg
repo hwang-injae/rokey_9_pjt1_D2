@@ -104,11 +104,11 @@
 <polyline points="1430,650 1470,650" fill="none" stroke="#1155aa" stroke-width="3" marker-end="url(#arb)"/>
 <polyline points="1430,685 1450,685 1450,782 1470,782" fill="none" stroke="#1155aa" stroke-width="3" marker-end="url(#arb)"/>
 <polyline points="1585,246 1585,280" fill="none" stroke="#888" stroke-width="1.2" marker-end="url(#ar)"/>
-<rect x="93.2" y="249.0" width="233.6" height="84" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
+<rect x="62.70000000000002" y="249.0" width="294.59999999999997" height="84" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>
 <text x="210" y="262.0" text-anchor="middle" font-size="10" font-weight="bold" fill="#222">파이썬 함수 호출 (같은 프로세스 · 메인 스레드)</text>
 <text x="210" y="275.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">pick(zone_id, kind) → PickResult</text>
-<text x="210" y="288.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">place(station) → PlaceResult</text>
-<text x="210" y="301.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">move_to(station, carrying) → Result</text>
+<text x="210" y="288.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">place(station, kind=None) → PlaceResult</text>
+<text x="210" y="301.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">move_to(station, carrying, kind=None) → Result</text>
 <text x="210" y="314.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">tool(tool, action) → ToolResult</text>
 <text x="210" y="327.0" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">rack_place(rack_slot, kind) → Result</text>
 <rect x="406.6" y="255.5" width="306.79999999999995" height="71" fill="#ffffff" fill-opacity="0.93" stroke="#cccccc" stroke-width="0.6"/>

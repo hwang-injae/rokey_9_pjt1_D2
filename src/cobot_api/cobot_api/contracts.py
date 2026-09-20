@@ -112,11 +112,13 @@ class F1Api(Protocol):
         """고정 슬롯 파지: 구역의 슬롯을 정해진 순서로 — 폭 범위 밖(빈 슬롯·헛잡음)이면 다음 슬롯, 다 돌면 EMPTY_ZONE.
         zone_id 가 SPONGE_BED_* 면 고정 위치 재파지(슬롯 1개). 코드 OK/EMPTY_ZONE/ROBOT_ERROR"""
 
-    def place(self, station: str) -> PlaceResult:
-        """놓기(항상 release 까지). SPONGE_BED_* 면 안착 놓기. 코드 OK/SEAT_FAIL/FORCE_LIMIT/TIMEOUT/ROBOT_ERROR"""
+    def place(self, station: str, kind: str = None) -> PlaceResult:
+        """놓기(항상 release 까지). SPONGE_BED_* 면 안착 놓기. 코드 OK/SEAT_FAIL/FORCE_LIMIT/TIMEOUT/ROBOT_ERROR
+        kind(BOWL/CUP): 종류별 자리(ISOLATE·WEIGH …)에 놓을 때 준다 — 9/20 추가(좌표가 종류별이 됐다, #36). 그 밖의 자리는 생략"""
 
-    def move_to(self, station: str, carrying: bool) -> Result:
-        """안전 높이 경유 이동. 들고 있으면 저속. 안전 자세 복귀는 move_to('HOME', False)"""
+    def move_to(self, station: str, carrying: bool, kind: str = None) -> Result:
+        """티칭한 자세로 이동. 들고 있으면 저속. 안전 자세 복귀는 move_to('HOME', False)
+        kind(BOWL/CUP): 종류별 자리(WEIGH·WASTE·SOAP·RINSE·ISOLATE)로 갈 때 준다 — 9/20 추가(#36). HOME 처럼 자세가 하나인 자리는 생략"""
 
     def tool(self, tool: str, action: str) -> ToolResult:
         """툴 픽업/반납. tool=SPONGE/BRUSH, action=PICK/RETURN. 폭 범위 밖이면 TOOL_FAIL"""

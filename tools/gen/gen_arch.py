@@ -44,7 +44,7 @@ N('legend',1140,300,280,232,['범례','','□ 사각형 = 노드','◯ 타원 = 
 
 # ---------- 엣지 ----------
 E('flow','f1',[(480,194),(480,222),(210,222),(210,360)],
-  ['파이썬 함수 호출 (같은 프로세스 · 메인 스레드)','pick(zone_id, kind) → PickResult','place(station) → PlaceResult','move_to(station, carrying) → Result','tool(tool, action) → ToolResult','rack_place(rack_slot, kind) → Result'],(210,291),'call')
+  ['파이썬 함수 호출 (같은 프로세스 · 메인 스레드)','pick(zone_id, kind) → PickResult','place(station, kind=None) → PlaceResult','move_to(station, carrying, kind=None) → Result','tool(tool, action) → ToolResult','rack_place(rack_slot, kind) → Result'],(210,291),'call')
 E('flow','f2',[(560,194),(560,360)],
   ['파이썬 함수 호출','weigh(kind) → WeighResult','leftover_loop(kind, max_rounds) → LeftoverResult','shake(mode, count, kind) → Result','dip(station, count, kind) → Result'],(560,291),'call')
 E('flow','f3',[(640,194),(640,222),(910,222),(910,360)],

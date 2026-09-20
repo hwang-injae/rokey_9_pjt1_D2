@@ -37,8 +37,8 @@
 | 함수 | 인자 | 반환 | 비고 |
 |---|---|---|---|
 | `pick(zone_id, kind)` | `RET_B`/`RET_C`/`SPONGE_BED_*`, `BOWL`/`CUP` | `PickResult`: `ok, code, width_mm, attempts, offset_x_mm, offset_y_mm` | **고정 슬롯 파지**: 구역의 슬롯을 정해진 순서로 — 슬롯 상공 → 힘 상한 감시 하강 → 파지 → 폭 판정. 폭 범위 밖(빈 슬롯·헛잡음)이면 놓고 다음 슬롯. 슬롯을 다 돌면 `EMPTY_ZONE`. `attempts` = 시도한 슬롯 수, `offset_*` = 집은 슬롯의 오프셋. **그릇은 옆면(벽)을 세로로 파지**, 컵은 **몸통을 통째로 파지**(지름 방향 — 벽을 집지 않는다, 폭 ≈ 컵 지름이라 빈손·그릇과 간격이 충분). `SPONGE_BED_*`면 고정 위치 재파지(슬롯 1개) |
-| `place(station)` | 스테이션 | `PlaceResult`: `ok, code, offset_mm` | 상공 → 하강 → 놓기 → 후퇴. **항상 놓기(release)까지 한다.** **`SPONGE_BED_B/C`면 안착 놓기**: 쥔 채 순응 하강 → 깊이+힘으로 홈에 들어갔는지 판정 → 안 들어가면 Move Periodic 탐색 → 들어가면 놓기 / 한도 초과 → 들고 후퇴 + `SEAT_FAIL` |
-| `move_to(station, carrying)` | 스테이션, `bool` | `Result` | 안전 높이 경유, 들고 있으면 저속. 안전 자세 복귀 = `move_to('HOME', False)` |
+| `place(station, kind=None)` | 스테이션, (선택) `BOWL`/`CUP` | `PlaceResult`: `ok, code, offset_mm` | 상공 → 하강 → 놓기 → 후퇴. **항상 놓기(release)까지 한다.** **`SPONGE_BED_B/C`면 안착 놓기**: 쥔 채 순응 하강 → 깊이+힘으로 홈에 들어갔는지 판정 → 안 들어가면 Move Periodic 탐색 → 들어가면 놓기 / 한도 초과 → 들고 후퇴 + `SEAT_FAIL` · ✅ 9/20 추가: **`kind`** = 종류별 자리(`ISOLATE` 등)에 놓을 때 준다(좌표가 종류별이 됐다, #36). 스펀지 홈처럼 이름에 종류가 들어 있는 자리는 생략 |
+| `move_to(station, carrying, kind=None)` | 스테이션, `bool`, (선택) `BOWL`/`CUP` | `Result` | 티칭한 자세로 이동, 들고 있으면 저속. 안전 자세 복귀 = `move_to('HOME', False)`. ✅ 9/20 추가: **`kind`** = 종류별 자리(`WEIGH`·`WASTE`·`SOAP`·`RINSE`·`ISOLATE`)로 갈 때 준다 — 그릇은 위에서·컵은 옆에서 잡아 같은 자리라도 자세가 다르다(#36). `HOME` 은 생략. ("안전 높이 경유"는 9/20 결정 E7 로 삭제) |
 | `tool(tool, action)` | `SPONGE`/`BRUSH`, `PICK`/`RETURN` | `ToolResult`: `ok, code, width_mm` | 홀더에서 툴 픽업·반납. 폭 범위 밖 → `TOOL_FAIL` |
 | `rack_place(rack_slot, kind)` | 칸, 종류 | `Result` | 지정 각도 삽입, 순응 + 삽입력 감시, 걸림 → `RACK_JAM` |
 
@@ -123,7 +123,7 @@ from f3_wipe import wipe as f3                  # mock 이면 f2_sense_flow.mock
 # plan (params.yaml flow 절): [{zone: RET_B, kind: BOWL, count: 2}, {zone: RET_C, kind: CUP, count: 2}]
 # 구역마다 count 회 또는 EMPTY_ZONE 까지 반복:
 # BOWL
-f1.pick('RET_B', 'BOWL') → f1.move_to('WEIGH', True) → f2.leftover_loop('BOWL', 2)
+f1.pick('RET_B', 'BOWL') → f1.move_to('WEIGH', True, 'BOWL') → f2.leftover_loop('BOWL', 2)   # kind: 9/20 추가(종류별 자리)
 → f1.place('SPONGE_BED_B')                      # 안착 놓기(순응 하강·탐색, 실패 SEAT_FAIL)
 → f1.tool('SPONGE', 'PICK') → f3.soap(3) → f3.wipe_bowl() → f1.tool('SPONGE', 'RETURN')
 → f1.pick('SPONGE_BED_B', 'BOWL')               # 홈에 놓인 그릇 재파지(고정 위치, 탐색점 1개)
