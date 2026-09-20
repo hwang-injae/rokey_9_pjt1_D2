@@ -262,10 +262,13 @@ class Run:
             x, y = float(now[0]) - self.p0[0], float(now[1]) - self.p0[1]
             rmax = max(rmax, math.hypot(x, y))
             press = abs(f[2] - self.baseline)
+            lateral = math.hypot(f[0] - self.fx0, f[1] - self.fy0)
             self.rows.append(['spiral', round(time.monotonic() - self.t0, 3), f[0], f[1], f[2], round(press, 3),
                               p['wipe_target_n'], '', '', '', round(x, 2), round(y, 2), '', '', '', ''])
             if press > p['limit_n']:
                 raise cc.ForceLimitError(f'나선: 누르는 힘 {press:.1f} N > {p["limit_n"]} N')
+            if lateral > p['lateral_max_n']:                              # 나선 끝은 벽을 누른다 → 옆 힘도 본다(PM 검토)
+                raise cc.ForceLimitError(f'나선: 옆 힘 {lateral:.1f} N > {p["lateral_max_n"]} N')
             if self.d.check_motion() == 0:
                 return rmax
             if time.monotonic() - t0 > p['spiral_time_s'] + 5.0:
