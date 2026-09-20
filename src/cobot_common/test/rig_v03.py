@@ -26,6 +26,7 @@
 """
 import argparse
 import csv
+import math
 import os
 import statistics
 import sys
@@ -161,93 +162,81 @@ class Run:
         p = self.p
         return p['bowl_r_max_mm'] - p['brush_d_mm'] / 2 + p['r_max_margin_mm']
 
-    def wipe_path(self):
-        """바닥 나선 + 벽면 회전을 **Move B 한 번**으로 — 원호 구간을 블렌딩으로 이어 등속 이동(중급교육1 p.85).
+    def wipe_bottom(self):
+        """바닥 닦기 — **move_spiral 한 번**. 좌우 비틀기 없음(사용자 결정 9/20). 중심에서 벽 반지름까지.
 
-        · 나선: 반지름이 조금씩 커지는 원호를 이어 붙이면 나선이 된다. Move Spiral 은 에뮬레이터가 응답하지 않아 쓰지 않는다
-          (9/20 확인: 서비스는 있으나 무응답 → 에뮬레이터가 지원하지 않음. 실기에서만 되는 기능에 의존하지 않는다).
-        · 벽면: 같은 반지름으로 반대 방향 circle_turns 바퀴.
-        · 손목 좌우 비틀기는 **벽면 구간에서만** 구간 끝 자세의 C 를 ±scrub_deg 로 번갈아 준다(사용자 시나리오 7).
-        · 구간은 최대 50개(MoveBlending 메시지) — 나선 turns × arcs + 벽면 turns × arcs 로 맞춘다.
+        🚨 나선은 **속도가 아니라 시간으로 지정**한다(중급교육1 p.69 "[속도] → [시간] 지정 옵션").
+           속도(vel·acc)로 주면 드라이버가 응답하지 않고 브링업까지 멈춘다(9/20 확인).
         """
-        import math
-        p, d, s = self.p, self.d, cc.cfg()['run']['vel_scale']
+        p, d = self.p, self.d
         self.set_frame()
         self.x = self.y = self.rz = 0.0
-        x0, y0, _z, a, b, c = self.p0
         r_wall = min(self.wall_r(), self.r_max())
-        per = int(p['arcs_per_turn'])
-        spiral_turns = max(1, int(round(r_wall / p['spiral_pitch_mm'])))
-        n_sp, n_wall = spiral_turns * per, int(p['circle_turns']) * per
-        if n_sp + n_wall > 50:                                           # 메시지 상한
-            raise ValueError(f'구간 {n_sp + n_wall}개 > 50 — arcs_per_turn·바퀴 수를 줄인다')
-
-        def pose(r, th, rz):
-            return [x0 + r * math.cos(th), y0 + r * math.sin(th), self.z_now,
-                    a, b, (c + rz + 180.0) % 360.0 - 180.0]
-
-        segs, poses, dth = [], [], 2 * math.pi / per
-        for k in range(n_sp):                                            # ① 바닥 나선 — 밖으로, 비틀기 없음
-            r_mid = r_wall * (k + 0.5) / n_sp
-            r_end = r_wall * (k + 1) / n_sp
-            segs.append(d.posb(d.DR_CIRCLE, pose(r_mid, dth * (k + 0.5), 0.0),
-                               pose(r_end, dth * (k + 1), 0.0), p['moveb_radius_mm']))
-            poses += [pose(r_mid, dth * (k + 0.5), 0.0), pose(r_end, dth * (k + 1), 0.0)]
-        th0, twist = dth * n_sp, 1
-        for k in range(n_wall):                                          # ② 벽면 — 반대 방향, 구간마다 비틀기
-            th_mid, th_end = th0 - dth * (k + 0.5), th0 - dth * (k + 1)
-            rz_prev = p['scrub_deg'] * twist
-            twist = -twist
-            segs.append(d.posb(d.DR_CIRCLE, pose(r_wall, th_mid, rz_prev),
-                               pose(r_wall, th_end, p['scrub_deg'] * twist), p['moveb_radius_mm']))
-            poses += [pose(r_wall, th_mid, rz_prev), pose(r_wall, th_end, p['scrub_deg'] * twist)]
-        self.log.info(f'  경로 한 번에: 바닥 나선 {spiral_turns}바퀴(반지름 → {r_wall:.1f} mm) + '
-                      f'벽면 {p["circle_turns"]}바퀴(반대 방향, 비틀기 ±{p["scrub_deg"]:g}°) = 구간 {len(segs)}개')
+        rev = max(1.0, round(r_wall / p['spiral_pitch_mm'], 1))
+        self.log.info(f'  바닥: 나선 {rev}바퀴 · 반지름 {r_wall:.1f} mm · {p["spiral_time_s"]:g} s 동안 (비틀기 없음)')
         d.mwait()
-        ret = d.amoveb(segs, vel=[p['scrub_lin_vel_mm_s'] * s, p['scrub_rot_vel_deg_s'] * s],
-                       acc=[p['scrub_lin_acc_mm_s2'], p['scrub_rot_acc_deg_s2']],
-                       ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS)
-        if ret == 0 and self.wait_start():                               # 한 번에 도는 방식이 실제로 시작됐다
-            self.sample('wipe', p['wipe_target_n'], until_motion=True)
-        else:                                                            # 드라이버가 안 받아 주면 점으로 나눠 간다(전 방식)
-            self.log.warning('Move B 가 시작되지 않았다 → 점으로 나눠 가는 방식으로 전환(조금 끊긴다)')
-            self.walk(poses)
+        ret = d.amove_spiral(rev=rev, rmax=r_wall, lmax=0.0, time=float(p['spiral_time_s']),
+                             axis=d.DR_AXIS_Z, ref=d.DR_TOOL)
+        if ret != 0:
+            raise RuntimeError(f'amove_spiral 실패 (반환 {ret!r})')
+        self.wait_start()
+        self.sample('spiral', p['wipe_target_n'], until_motion=True)
         now = d.get_current_posx(ref=d.DR_BASE)[0]
-        self.x, self.y = float(now[0]) - x0, float(now[1]) - y0
-        self.rz = p['scrub_deg'] * twist
-        self.log.info(f'  끝난 자리: 반지름 {math.hypot(self.x, self.y):.1f} mm')
+        self.x, self.y = float(now[0]) - self.p0[0], float(now[1]) - self.p0[1]
+        self.log.info(f'  나선 끝: 반지름 {math.hypot(self.x, self.y):.1f} mm')
+        return r_wall
 
-    def walk(self, poses):
-        """같은 경로를 movel 로 **연달아** 보낸다 — 걸음마다 이어 붙이기(radius)로 로봇은 멈추지 않는다.
+    def wipe_wall(self, r_wall):
+        """벽면 닦기 — 원호(Move C)를 이어 붙여 **반대 방향** circle_turns 바퀴, 도는 동안 좌우 비틀기.
 
-        🚨 걸음 사이에 힘·위치를 읽지 않는다. 서비스 왕복(한 번에 30~60 ms)이 끼면 로봇이 다음 명령을 기다리며 서고,
-        그게 뚝뚝 끊김·작업대 흔들림의 원인이었다(9/20). 경로는 미리 계산했으니 도는 중 판단할 것이 없다.
-        힘은 force_every 걸음마다 한 번만 확인한다(상한 감시용).
+        Move C 는 중첩(블렌딩) 가능한 모션이라 radius 를 주면 멈추지 않고 다음 원호로 이어진다(중급교육1 p.79).
+        원호 끝 자세의 C 를 ±scrub_deg 로 번갈아 주면 도는 동안 손목이 좌우로 비틀린다.
         """
-        import math
         p, d, s = self.p, self.d, cc.cfg()['run']['vel_scale']
+        x0, y0, _z, a, b, c = self.p0
         vel = [p['scrub_lin_vel_mm_s'] * s, p['scrub_rot_vel_deg_s'] * s]
         acc = [p['scrub_lin_acc_mm_s2'], p['scrub_rot_acc_deg_s2']]
-        limit = self.r_max() + 5.0
-        every = max(1, int(p['force_every']))
-        for i, q in enumerate(poses):
-            if math.hypot(q[0] - self.p0[0], q[1] - self.p0[1]) > limit:
-                raise RuntimeError(f'경로 점이 반지름 상한 {limit:.1f} mm 를 넘는다(계산 오류)')
-            if d.movel(q, vel=vel, acc=acc, radius=p['moveb_radius_mm'],
-                       ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS) != 0:
-                raise RuntimeError('movel(경로 한 걸음) 실패')
-            self.x, self.y = q[0] - self.p0[0], q[1] - self.p0[1]
-            if i % every == 0:                                           # 힘은 가끔만 — 왕복이 끼면 움직임이 끊긴다
-                f = cc.read_force()
-                press = abs(f[2] - self.baseline)
-                self.rows.append(['wipe', round(time.monotonic() - self.t0, 3), f[0], f[1], f[2],
-                                  round(press, 3), p['wipe_target_n'], round(self.x, 2), round(self.y, 2),
-                                  '', '', '', '', '', '', ''])
-                if press > p['limit_n']:
-                    raise cc.ForceLimitError(f'wipe: 누르는 힘 {press:.1f} N > {p["limit_n"]} N')
-                if math.hypot(f[0] - self.fx0, f[1] - self.fy0) > p['lateral_max_n']:
-                    raise cc.ForceLimitError('wipe: 옆 힘 상한 초과')
+        th0 = math.atan2(self.y, self.x) if math.hypot(self.x, self.y) > 1e-6 else 0.0
+        per = max(2, int(round(360.0 / p['wall_arc_deg'])))
+        n = int(p['circle_turns'] * per)
+        dth = -2 * math.pi / per                                         # 나선과 반대 방향
+        chord = 2 * r_wall * abs(math.sin(dth / 2))
+        radius = min(p['blend_radius_mm'], chord * 0.45)
+        self.log.info(f'  벽면: {p["circle_turns"]}바퀴 · 반지름 {r_wall:.1f} mm · 원호 {n}개 '
+                      f'· 이어 붙이기 {radius:.1f} mm · 비틀기 ±{p["scrub_deg"]:g}°')
+
+        def pose(th, rz):
+            return [x0 + r_wall * math.cos(th), y0 + r_wall * math.sin(th), self.z_now,
+                    a, b, (c + rz + 180.0) % 360.0 - 180.0]
+
+        twist = 1
         d.mwait()
+        for k in range(n):
+            th_mid, th_end = th0 + dth * (k + 0.5), th0 + dth * (k + 1)
+            rz_mid = p['scrub_deg'] * twist
+            twist = -twist
+            r = 0.0 if k == n - 1 else radius                            # 마지막 원호만 이어 붙이지 않는다
+            if d.movec(pose(th_mid, rz_mid), pose(th_end, p['scrub_deg'] * twist), vel=vel, acc=acc,
+                       radius=r, ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS) != 0:
+                raise RuntimeError('movec(벽면 원호) 실패')
+            self.x = r_wall * math.cos(th_end)
+            self.y = r_wall * math.sin(th_end)
+            if k % max(1, int(p['force_every'])) == 0:
+                self.force_only('wall')
+        d.mwait()
+        self.rz = p['scrub_deg'] * twist
+
+    def force_only(self, phase):
+        """도는 중에는 힘만 읽어 기록·상한 확인 — 위치는 읽지 않는다(서비스 왕복이 끼면 움직임이 끊긴다)."""
+        p = self.p
+        f = cc.read_force()
+        press = abs(f[2] - self.baseline)
+        self.rows.append([phase, round(time.monotonic() - self.t0, 3), f[0], f[1], f[2], round(press, 3),
+                          p['wipe_target_n'], round(self.x, 2), round(self.y, 2), '', '', '', '', '', '', ''])
+        if press > p['limit_n']:
+            raise cc.ForceLimitError(f'{phase}: 누르는 힘 {press:.1f} N > {p["limit_n"]} N')
+        if math.hypot(f[0] - self.fx0, f[1] - self.fy0) > p['lateral_max_n']:
+            raise cc.ForceLimitError(f'{phase}: 옆 힘 상한 {p["lateral_max_n"]} N 초과')
 
     def wait_start(self, seconds=2.0):
         """비동기 동작이 실제로 시작될 때까지 기다린다 (check_motion 이 0 이 아니게 될 때까지)."""
@@ -438,8 +427,11 @@ def main() -> int:
         run.press_on(p['wipe_target_n'])
         run.sample('settle', p['wipe_target_n'], seconds=p['settle_s'])
 
-        log.info('② 세척 — Move B 한 번으로 바닥 나선 → 벽면 %d바퀴(반대 방향·손목 비틀기)' % p['circle_turns'])
-        run.wipe_path()
+        log.info('② 바닥 — move_spiral 한 번 (비틀기 없음)')
+        r_wall = run.wipe_bottom()
+
+        log.info('③ 벽면 — 원호를 이어 붙여 반대 방향 %d바퀴 + 좌우 비틀기' % p['circle_turns'])
+        run.wipe_wall(r_wall)
 
         log.info('③ 그 높이에서 중심으로 복귀 → 순응 끄고 위로')
         run.back_to_center()
