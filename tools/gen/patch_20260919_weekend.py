@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v7.2'
+VERSION = 'v7.3'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -228,6 +228,14 @@ GRIP_0920 = {
 for _tid, _e in GRIP_0920.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/20 16:20 한석형 브랜치 확인(seokhyung/20260919-CELL-04-teaching)
+SEOK_0920 = {
+ 'CELL-04': dict(prog='0.7', note_add='🔎 9/20 16:20 PM 확인 — 브랜치 seokhyung/20260919-CELL-04-teaching: **좌표 약 25개는 이미 티칭돼 있다**(그릇·컵 경로 전체: 집기 · 잔반통 앞 · 스펀지 홈 놓기(접근점+끝점) · 툴 집기/반납 · 닦는 자리 · 재파지 · 헹굼 앞 · 팔레트 그릇 2·컵 2). 다만 **cell.yaml 이 아니라 Virtual 단계 실행 스크립트(rig_f1.py v6) 안에 상수로** 들어 있어 팀이 쓸 수 없다. 늦어진 원인: ① cell.yaml 골격이 "기준점 + 오프셋·스테이션마다 자세 1개"인데, 실제 티칭은 "종류별(그릇은 위에서·컵은 옆에서) 절대 자세 + 접근점" 이라 맞지 않는다 ② 전체 경로를 Virtual 에서 한 번에 확인하는 스크립트를 6판까지 고쳤다(ChatGPT 웹이라 한 판이 오래 걸린다). 빠진 것: WEIGH · SOAP · ISOLATE · 구역의 두 번째 슬롯 · limits·motion·presets 값. 확인 필요: BOWL_RINSE_READY 의 z = −13.6 mm(로봇 받침면 아래)'),
+}
+for _tid, _e in SEOK_0920.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
+
 
 
 
@@ -345,6 +353,8 @@ HISTORY22 = ['v7.1', '결정·재배치', 'V-24, FLOW-03(신규), F4-01~05, UT-F
              '황인재 9/20 (V-24a 시험 결과)', 'H,M,P']
 HISTORY23 = ['v7.2', '결정 보류', 'V-05, V-23, V-16, INF-02d', '민범진 결정 요청(그리퍼 조작 방법 D1 힘 기준 방향 · D2 HOLD 유지): 황인재 — **검증해 보고 정한다**. 오늘 그리퍼 세션은 지금 코드 그대로, 세션에서 잴 항목을 V-05·V-23·V-16 비고에 적음. gripper.py 버그 3건은 바로 수정. PR #33(V-24a 시험 도구·기록) merge',
              '황인재 9/20 15:50', 'M']
+HISTORY24 = ['v7.3', '진척', 'CELL-04', '한석형 브랜치 확인: 좌표 약 25개는 티칭됨(스크립트 안 상수) → cell.yaml 로 옮기는 일이 남음. 늦어진 원인 = cell.yaml 골격과 실제 티칭 방식이 안 맞음 + 전체 경로 Virtual 스크립트 반복. CELL-04 진행 0.7',
+             'PM 확인 9/20 16:20', 'S']
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -438,7 +448,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
