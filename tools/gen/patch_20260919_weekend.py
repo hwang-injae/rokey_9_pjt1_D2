@@ -563,6 +563,16 @@ J6_0921 = {
 for _tid, _e in J6_0921.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 08:55 프리셋의 흐름을 분명히 — 민범진이 재고 → 황인재(F4)가 cell.yaml 에 넣는다
+PS = '🔧 9/21 프리셋 흐름:'
+PRESET_0921 = {
+ 'V-16':  dict(note_add=PS + ' ~~찾은 HOLD 값은 한석형이 cell.yaml 프리셋에 반영~~ → **황인재(F4)가 반영**(9/21 좌표·cell.yaml 전담 이관). 민범진은 값을 단톡방·기록으로 넘긴다'),
+ 'V-01':  dict(note_add=PS + ' 이 행에서 나오는 **그릇·컵의 파지 폭(grip_width_mm)·폭 허용 오차(width_tol_mm)** 와 쥐어 본 **평소 힘(grip_force_n)** 이 cell.yaml presets 의 BOWL·CUP 값이 된다 — 오늘 저녁 그리퍼 세션에서 재고, **황인재(F4)가 cell.yaml 에 넣는다**. 내일 오전 한석형의 집기(F1-02)·V-14 가 이 값을 기다린다'),
+ 'CELL-04b': dict(note_add=PS + ' presets 16개는 **민범진이 재고(V-01·V-16) 황인재가 넣는다** — 그때까지 비워 둔다(권고 · 황인재 확인 대기). 수세미·솔(SPONGE·BRUSH)은 툴·홀더 확정(CELL-02b) 뒤 9/22'),
+}
+for _tid, _e in PRESET_0921.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
