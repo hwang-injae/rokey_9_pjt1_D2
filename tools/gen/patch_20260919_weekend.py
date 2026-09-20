@@ -388,8 +388,9 @@ def main(out):
         r = tl.rows[tl.find(ID, tid)]
         if 'task' in e: r.set('C', e['task'])
         if 'owner' in e: r.set('D', e['owner'])
-        if 'status' in e: r.set('F', e['status'])
-        if 'prog' in e: r.set('E', e['prog'])
+        if 'status' in e and tl.text(r, 'F').strip() != '완료':   # 시트에서 이미 완료인 행은 되돌리지 않는다(황인재가 직접 완료 처리한 것 보호)
+            r.set('F', e['status'])
+        if 'prog' in e and tl.text(r, 'F').strip() != '완료': r.set('E', e['prog'])
         if 'slots' in e:
             try: set_slots(r, e['slots'])
             except ValueError:                           # 색 칸이 하나도 없는 행(이미 비운 행 · 보류였던 행)
