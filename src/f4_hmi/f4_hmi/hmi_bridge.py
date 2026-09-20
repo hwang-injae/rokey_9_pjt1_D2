@@ -41,13 +41,13 @@ def main():
     from .state_store import StateStore
 
     store = StateStore(hmi['disconnect_after_s'])
-    link = RosLink(store)
+    link = RosLink(store, hmi.get('service_timeout_s', 1.0))
     link.start()
     log = link.node.get_logger()
     host, port = str(hmi.get('host', '0.0.0.0')), int(hmi['port'])
     log.info(f'HMI 서버를 연다 → http://localhost:{port}  (같은 망의 태블릿은 http://<이 PC 의 IP>:{port})')
     try:
-        uvicorn.run(create_app(store, cfg), host=host, port=port, log_level='warning', lifespan='off')     # Ctrl+C 까지 여기서 돈다 (시작·종료 훅은 안 쓴다 → 끌 때 조용하다)
+        uvicorn.run(create_app(store, cfg, link.call), host=host, port=port, log_level='warning', lifespan='off')     # Ctrl+C 까지 여기서 돈다 (시작·종료 훅은 안 쓴다 → 끌 때 조용하다)
     except KeyboardInterrupt:                           # 런치에서 끄면 Ctrl+C 가 두 번 온다(터미널 + 런치가 전달) → 두 번째는 조용히 넘긴다
         pass
     finally:

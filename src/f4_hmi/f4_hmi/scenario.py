@@ -7,6 +7,7 @@
     gripping : /cell/gripping 값
     wiping   : True 면 그동안 /cell/force 를 낸다(닦는 동안만 — IRD §6)
     event    : 장면이 끝날 때 내는 FlowEvent 필드 (용기 1개 완료·격리·건너뜀마다 1건 — IRD §7)
+    item     : 몇 번째 용기의 장면인가(0 부터). 용기와 무관한 장면(IDLE·DONE)은 -1 — 중단(abort) 때 '다음 용기'를 찾는 데 쓴다
 
 실제 flow(f2_sense_flow/flow.py)를 흉내 낸 규칙
     단계 순서 PICK → WEIGH → SHAKE → SEAT → SOAP → WIPE → RINSE → RACK, 용기마다 이벤트 1건, 전부 끝나면 DONE 을 잠깐 유지한 뒤 IDLE.
@@ -31,6 +32,7 @@ class Scene:
     gripping: bool = False
     wiping: bool = False
     event: dict = field(default=None)
+    item: int = -1
 
 
 def scenario_dir() -> Path:
@@ -95,14 +97,16 @@ def build(scn: dict) -> list:
               target_cup=int(targets.get('cup', sum(1 for it in scn['items'] if it['kind'] == 'CUP'))),
               sponge_uses=0, soap_dips=0, rinse_dips=0, last_code=OK, message='')
     scenes = []
+    current = [-1]                                                  # 지금 만드는 장면이 속한 용기 번호
 
     def add(duration_s, *, event=None, wiping=False, gripping=None):
         scenes.append(Scene(float(duration_s), dict(st), grip.get(st['step'], False) if gripping is None else gripping,
-                            wiping, event))
+                            wiping, event, current[0]))
 
     add(scn['idle_s'])                                              # 시작 전 IDLE
     halted = False
-    for item in scn['items']:
+    for number, item in enumerate(scn['items']):
+        current[0] = number
         kind, fail, pause = item['kind'], item.get('fail'), item.get('pause')
         st.update(kind=kind, zone_id=item.get('zone', ''), last_code=OK, message='')
         spent = 0.0
@@ -155,6 +159,7 @@ def build(scn: dict) -> list:
             scenes[-1].event = event('DONE', OK, item.get('rack_slot', ''))
         if halted:
             break
+    current[0] = -1
     if not halted:
         st.update(step='DONE', kind='', zone_id='', last_code=OK, message='')
         add(scn['done_hold_s'])
@@ -165,6 +170,20 @@ def build(scn: dict) -> list:
 
 def total_s(scenes) -> float:
     return sum(s.duration_s for s in scenes)
+
+
+def start_of(scenes, index) -> float:
+    """index 번 장면이 시작하는 시각."""
+    return sum(s.duration_s for s in scenes[:index])
+
+
+def after_item(scenes, index) -> int:
+    """index 번 장면의 용기가 끝난 **다음** 장면 번호(다음 용기의 첫 장면, 없으면 DONE·IDLE). 중단(abort)이 건너뛸 곳."""
+    item = scenes[index].item
+    for k in range(index + 1, len(scenes)):
+        if scenes[k].item != item:
+            return k
+    return len(scenes) - 1
 
 
 def scene_at(scenes, t_s):

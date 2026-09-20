@@ -95,3 +95,15 @@ def test_bad_scenario_is_rejected(tmp_path, text):
 def test_unknown_scenario_name():
     with pytest.raises(FileNotFoundError):
         sc.load('no_such_scenario')
+
+
+def test_scenes_know_their_item_so_abort_can_skip_to_the_next_one():
+    scenes = sc.build(sc.load('normal'))
+    assert scenes[0].item == -1 and scenes[-1].item == -1 and scenes[-2].state['step'] == 'DONE' and scenes[-2].item == -1
+    assert [s.item for s in scenes[1:9]] == [0] * 8 and scenes[9].item == 1
+    wipe = next(k for k, s in enumerate(scenes) if s.state['step'] == 'WIPE')
+    nxt = sc.after_item(scenes, wipe)
+    assert scenes[nxt].item == 1 and scenes[nxt].state['step'] == 'PICK'            # 첫 그릇을 접으면 둘째 그릇의 PICK 으로
+    assert sc.start_of(scenes, nxt) == pytest.approx(sum(s.duration_s for s in scenes[:nxt]))
+    last_wipe = max(k for k, s in enumerate(scenes) if s.state['step'] == 'WIPE')
+    assert scenes[sc.after_item(scenes, last_wipe)].state['step'] == 'DONE'          # 마지막 용기를 접으면 DONE 으로

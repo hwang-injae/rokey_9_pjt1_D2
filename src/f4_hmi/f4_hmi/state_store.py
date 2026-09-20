@@ -3,6 +3,7 @@
 
     ROS 콜백 → put_state() · put_event() · put_force() · put_gripping()      (값 저장만 — 콜백에서 다른 일은 하지 않는다)
     GET /api/state → snapshot()                                                (그 순간의 사본 — 락 안에서 복사한다)
+    WS /ws/state   → subscribe(fn): 값이 들어올 때마다 fn(type, payload) — **ROS 스레드에서** 불린다(F4-02). fn 은 넘겨주기만 하고 바로 돌아와야 한다.
 연결 판정: /flow/state 가 hmi.disconnect_after_s 넘게 안 오면 connected = False (IRD §6 "2 s 이상 안 오면 연결 끊김").
 """
 import threading
@@ -23,26 +24,46 @@ class StateStore:
         self._force, self._force_at = None, None
         self._events = deque(maxlen=RECENT_EVENTS)
         self._count = 0                                     # 받은 /flow/state 수 (시험·진단용)
+        self._listeners = []
+
+    def subscribe(self, fn):
+        self._listeners.append(fn)
+
+    def _tell(self, kind, payload):
+        for fn in list(self._listeners):                    # 락 밖에서 부른다 — 듣는 쪽이 snapshot() 을 불러도 막히지 않게
+            fn(kind, payload)
 
     # ------------------------------------------------------------------ ROS 스레드
     def put_state(self, fields: dict):
         with self._lock:
             self._state, self._state_at = dict(fields), self._clock()
             self._count += 1
+        self._tell('state', self.live())
 
     def put_event(self, fields: dict):
         with self._lock:
             self._events.appendleft(dict(fields))           # 최근 것이 앞
+        self._tell('event', {'event': dict(fields)})
 
     def put_force(self, newton: float):
         with self._lock:
             self._force, self._force_at = float(newton), self._clock()
+        self._tell('force', {'n': round(float(newton), 2)})
 
     def put_gripping(self, value: bool):
         with self._lock:
+            changed = self._gripping != bool(value)
             self._gripping = bool(value)
+        if changed:                                         # 2 Hz 로 계속 오지만 화면에는 바뀔 때만 알린다
+            self._tell('gripping', {'value': bool(value)})
 
     # ------------------------------------------------------------------ 웹 스레드
+    def live(self) -> dict:
+        """자주 바뀌는 값만 — WS 의 type=state 몸통. (snapshot 에서 최근 이벤트 목록을 뺀 것)"""
+        snap = self.snapshot()
+        snap.pop('events')
+        return snap
+
     def snapshot(self) -> dict:
         with self._lock:
             now = self._clock()
