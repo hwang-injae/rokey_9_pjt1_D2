@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v7.1'
+VERSION = 'v7.2'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -218,6 +218,17 @@ STOP_0920 = {
 for _tid, _e in STOP_0920.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/20 15:50 그리퍼 조작 방법(민범진 결정 요청 #32) — 검증한 뒤에 정한다
+GRIP_0920 = {
+ 'V-23': dict(note_add='🆕 9/20 황인재: 그리퍼 조작 방법 D2(털기 뒤 HOLD 유지 vs NORMAL 복귀)는 **이 검증 결과로 정한다** — HOLD → NORMAL 로 낮출 때의 폭 변화·미끄러짐을 방향별로 기록(그릇·컵 각 10회)'),
+ 'V-16': dict(note_add='🆕 9/20 황인재: V-23 에서 낮출 때 미끄러지면 "HOLD 유지" 후보 → HOLD 힘으로 30 s 들고 있기 3회(용기 변형·자국 없음)를 같이 확인'),
+ 'V-05': dict(note_add='🆕 9/20 황인재: 그리퍼 조작 방법 D1(힘 기준을 0 N 쪽 vs 40 N 쪽)은 **검증한 뒤에 정한다** — 세션에서 ① 브링업 직후 힘이 40 N 인가 ② 빈손에서 양쪽 기준 맞추기 때 핑거가 움직이는가 ③ 그릇·컵을 쥔 채 40 N 까지 올렸을 때 폭 변화·변형(3회) ④ 빈손 폭(핑거팁 두께 × 2)·용기 높이(64/45 mm 제한)를 기록. 오늘은 지금 코드 그대로 진행'),
+ 'INF-02d': dict(note_add='🆕 9/20: 민범진 결정 요청 #32 — D1·D2 는 검증 뒤 결정, **버그 3건(파지할 때마다 10 s 타임아웃 · 무조건 success · 안전 스위치 감지)은 바로 수정**'),
+}
+for _tid, _e in GRIP_0920.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
+
 
 
 # 팀(구역) 이동: id → (새 팀, 이 ID 행 바로 뒤에 둔다) — 이미 그 구역에 있으면 PM 이 정한 행 순서를 건드리지 않는다
@@ -332,6 +343,8 @@ HISTORY21 = ['v7.0', '진척', '9/20 오전 칸의 미완료 작업 전부, F4-0
              '황인재 9/20 · GitHub 기록', 'S,M,P,H']
 HISTORY22 = ['v7.1', '결정·재배치', 'V-24, FLOW-03(신규), F4-01~05, UT-F4, V-13, INT-4, NOTE-02, V-22', '황인재 9/20 15:30: ① 일시 정지 = **즉시 멈춤 → 재개하면 하던 동작을 이어서**(V-24 를 선택 과제에서 본작업으로 — motion.py 비동기 전환, 황인재 · 연결은 민범진 FLOW-03 신규) ② 멈춘 용기는 사람이 확인해 마저(resume) 또는 접기(/flow/abort 신설 — 격리) ③ **웹 HMI 는 추석에도 집에서 이어 간다** → F4-01·02 는 9/21 저녁~9/22 오전, F4-03 다듬기·F4-04·UT-F4 전체는 추석으로. 범위: 힘제어·접촉 구간은 그 동작을 마친 뒤 멈춤. 되돌아갈 자리: 단계 사이 정지',
              '황인재 9/20 (V-24a 시험 결과)', 'H,M,P']
+HISTORY23 = ['v7.2', '결정 보류', 'V-05, V-23, V-16, INF-02d', '민범진 결정 요청(그리퍼 조작 방법 D1 힘 기준 방향 · D2 HOLD 유지): 황인재 — **검증해 보고 정한다**. 오늘 그리퍼 세션은 지금 코드 그대로, 세션에서 잴 항목을 V-05·V-23·V-16 비고에 적음. gripper.py 버그 3건은 바로 수정. PR #33(V-24a 시험 도구·기록) merge',
+             '황인재 9/20 15:50', 'M']
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -425,7 +438,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
