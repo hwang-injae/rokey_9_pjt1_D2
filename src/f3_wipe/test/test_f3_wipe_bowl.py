@@ -16,13 +16,13 @@ from cobot_api import FORCE_LIMIT, OK, ROBOT_ERROR, TIMEOUT
 from f3_wipe import wipe
 
 WALL_R = (110.0 - 90.0) / 2 + 4.0       # 벽 반지름 = (그릇 안지름 − 툴 지름)/2 + 벽 누름 = 14 mm
-UP = 188.0                              # 접근점(z 235) → 닦는 높이(z 47) 까지 남은 높이
+UP = 167.0                              # 접근점(z 235) → 바닥(z 68, 9/20 실측) 까지 남은 높이
 CFG = {
     'run': {'vel_scale': 0.3},
     'cell': {'limits': {'safe_z_mm': 235.0, 'contact_limit_n': 2.0}},
     'f3': {'wipe_bowl': {
         'tool': {'clean_h_mm': 35, 'd_mm': 90},
-        'fast_down_mm': 155.0, 'find_gap_mm': 10.0, 'find_max_mm': 40.0,
+        'find_gap_mm': 10.0, 'find_max_mm': 40.0,
         'target_force_n': 1.5, 'limit_n': 10.0, 'lateral_max_n': 25.0,
         'bowl_inner_d_mm': 110.0, 'wall_press_mm': 4.0,
         'spiral_pitch_mm': 5.0, 'spiral_time_s': 3.0,
@@ -32,7 +32,7 @@ CFG = {
     }},
 }
 POSE0 = [400.0, 0.0, 235.0, 45.0, 180.0, 45.0]      # 접근점 (닦는 자리 상공)
-FAST = 155.0                                        # 빠른 접근 (접근점 기준). UP−find_gap(178) 보다 작아 이쪽이 쓰인다
+FAST = UP - 10.0                                    # 빠른 접근 = 바닥 find_gap_mm 위까지
 FIND = 14.0                                         # 가짜 바닥: 빠른 접근 뒤 이만큼 더 내려가면 닿는다
 CENTER = [POSE0[0], POSE0[1], POSE0[2] - FAST - FIND]   # 바닥에 닿은 자리 = 나선의 중심
 
@@ -191,10 +191,10 @@ def test_force_target_compensates_air_baseline(cell):
 
 
 def test_fast_approach_then_find_bottom(cell):
-    """빠른 접근은 **티칭 끝점이 아니라** 접근점 기준 fast_down_mm — 끝점이 바닥보다 아래면 박는다(9/20)."""
+    """티칭 끝점(= 9/20 실기로 잰 바닥) find_gap_mm 위까지 빠르게, 나머지는 힘으로."""
     wipe.wipe_bowl()
     fast = [c for c in cell.calls if c[0] == 'move_rel' and c[1] < 0][0]
-    assert fast[1] == pytest.approx(-FAST)                                 # min(up − find_gap, fast_down) = 155
+    assert fast[1] == pytest.approx(-(UP - 10.0))
     assert ('contact_down', 40.0, 2.0) in cell.calls                       # find_max_mm · cell.limits.contact_limit_n
 
 

@@ -196,9 +196,8 @@ class _Log:
 def _descend(p, log):
     """닦는 자리 위 → 빠르게 내려간 뒤 **바닥을 힘으로 찾는다**(9/20 실기에서 확인한 방식, 박진용 9/21 확정).
 
-    🚨 빠른 하강은 **티칭한 끝점이 아니라 접근점에서 fast_down_mm** 만큼만 간다.
-       끝점(cell.beds.SPONGE_BED_B.wash)이 실제 바닥보다 아래로 찍혀 있으면 그대로 내려가다 바닥을 찍기 때문이다
-       (9/20 실기: 바닥은 TCP Z 63~68, 티칭값은 47). 끝점이 더 얕으면 그쪽에 맞춘다 — 둘 중 **덜 내려가는 쪽**.
+    빠른 하강은 티칭한 끝점(cell.beds.SPONGE_BED_B.wash.posx 의 z = 9/20 실기로 잰 바닥) **find_gap_mm 위**까지.
+       나머지는 힘으로 찾는다 — 접촉 깊이가 실행마다 12~17 mm 로 달라 끝점 하나로는 맞출 수 없다.
     바닥 찾기는 cc.contact_down — 순응을 켜고 cell.force.contact_step_mm 씩 내려가며
     **시작 힘 대비** cell.limits.contact_limit_n 만큼 힘이 커지면 멈춘다(공중 치우침 1.4~2.4 N 때문에 절대값으로 보면 안 된다).
     찾은 자리에서 더 누르지 않는다. contact_down 이 끝나며 순응을 꺼 주므로 닦기는 위치 제어로 이어진다.
@@ -206,9 +205,9 @@ def _descend(p, log):
     _halt_check('닦는 자리 이동')
     up = cc.move_to(STATION_BOWL, carrying=True, point='wash')           # 접근점까지 · up = 티칭 끝점까지 남은 높이
     log.start(cc.read_force())                                           # 공중 기준값은 **내려가기 전에** 잰다
-    fast = min(max(0.0, up - float(p['find_gap_mm'])), float(p['fast_down_mm']))
+    fast = max(0.0, up - float(p['find_gap_mm']))                        # ① 빠르게 (바닥 find_gap_mm 위까지)
     if fast > 0:
-        cc.move_rel(0.0, 0.0, -fast, 'BASE')                             # ① 빠르게 (바닥 위까지만)
+        cc.move_rel(0.0, 0.0, -fast, 'BASE')
     depth, f = cc.contact_down(float(p['find_max_mm']),                   # ② 나머지는 힘으로
                                cc.cfg()['cell']['limits']['contact_limit_n'])
     log.center = cc.where()
