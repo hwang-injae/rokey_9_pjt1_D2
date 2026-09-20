@@ -30,20 +30,20 @@ REAL_CONFIG = HERE.parent / 'config'
 # (이름, 들고 있나, kind, point) — 한석형 스크립트의 작업 순서
 ROUTE = [
     ('HOME', False, None, None),
-    ('RET_B', False, None, 1), ('WASTE', True, 'BOWL', None), ('SPONGE_BED_B', True, None, 'place'),
+    ('RET_B', False, None, 1), ('WEIGH', True, 'BOWL', None), ('WASTE', True, 'BOWL', None), ('SPONGE_BED_B', True, None, 'place'),
     ('TOOL_SPONGE', False, None, 'pick'), ('HOME', True, None, None), ('SPONGE_BED_B', True, None, 'wash'),
     ('HOME', True, None, None), ('TOOL_SPONGE', True, None, 'return'), ('SPONGE_BED_B', False, None, 'place'),
     ('RINSE', True, 'BOWL', None), ('HOME', True, None, None), ('RACK_B1', True, None, None),
     ('HOME', False, None, None), ('RACK_B2', True, None, None), ('HOME', False, None, None),
-    ('RET_C', False, None, 1), ('WASTE', True, 'CUP', None), ('SPONGE_BED_C', True, None, 'place'),
+    ('RET_C', False, None, 1), ('WEIGH', True, 'CUP', None), ('WASTE', True, 'CUP', None), ('SPONGE_BED_C', True, None, 'place'),
     ('TOOL_BRUSH', False, None, 'pick'), ('HOME', True, None, None), ('SPONGE_BED_C', True, None, 'wash'),
     ('HOME', True, None, None), ('TOOL_BRUSH', True, None, 'return'), ('SPONGE_BED_C', False, None, 'regrip'),
     ('RINSE', True, 'CUP', None), ('HOME', True, None, None), ('RACK_C1', True, None, None),
     ('HOME', False, None, None), ('RACK_C2', True, None, None), ('HOME', False, None, None),
 ]
 # 아직 안 찍은 자세 — 움직이지 않고 KeyError 여야 한다
-UNTAUGHT = [('WEIGH', 'BOWL', None), ('WEIGH', 'CUP', None), ('SOAP', 'BOWL', None), ('SOAP', 'CUP', None),
-            ('ISOLATE', 'BOWL', None), ('ISOLATE', 'CUP', None), ('RET_B', None, 2), ('RET_C', None, 2)]
+UNTAUGHT = [('SOAP', 'BOWL', None), ('SOAP', 'CUP', None),
+            ('ISOLATE', 'BOWL', None), ('ISOLATE', 'CUP', None)]
 
 
 def _filled_copy(fill):
@@ -95,7 +95,6 @@ def main() -> int:
         if d.get_robot_system() != d.ROBOT_SYSTEM_VIRTUAL:
             log.error('Virtual 이 아니다 → 실행하지 않는다')
             return 2
-        safe_z = float(cc.cfg()['cell']['limits']['safe_z_mm'])
 
         def posx():
             return [float(v) for v in d.get_current_posx(ref=d.DR_BASE)[0]]
@@ -113,12 +112,20 @@ def main() -> int:
             if not ok:
                 fails.append(label)
 
-        log.info(f'──── ① ② 찍은 자세 {len(ROUTE)}번 이동 (안전 높이 {safe_z:g} mm — Virtual 시험 값) ────')
+        log.info(f'──── ① ② 찍은 자세 {len(ROUTE)}번 이동 — 자세에서 자세로 곧장(9/20 E7) ────')
         for station, carrying, kind, point in ROUTE:
             label = station + (f' {kind}' if kind else '') + (f' point={point}' if point is not None else '')
             _, spec = _named_pose(station, kind, point)
             try:
                 up = cc.move_to(station, carrying, kind, point)
+            except cc.MoveIncomplete as e:                              # 컨트롤러가 이동을 도중에 세웠다 — move_to 가 알려 준다(9/20)
+                if station in p['known_path_stop']:
+                    log.warn(f'⚠  {label}: {e}')
+                    log.warn('⚠    └ 이미 아는 경로 문제(rig_coords.yaml known_path_stop) — 실패로 세지 않고 HOME 으로 돌아가 계속한다')
+                else:
+                    record(label, False, f'move_to 오류: MoveIncomplete: {e}')
+                cc.move_to('HOME', carrying)
+                continue
             except Exception as e:                                      # noqa: BLE001 — 어느 자세에서 막혔는지 표에 남긴다
                 record(label, False, f'move_to 오류: {type(e).__name__}: {e}')
                 continue
@@ -129,10 +136,9 @@ def main() -> int:
                 continue
             end = spec.get('posx') or spec['approach_posx']
             stop = list(spec.get('approach_posx') or end)
-            stop[2] = max(stop[2], safe_z)
             dpos, drot = off(posx(), stop)
             ok = dpos <= tol['pos_mm'] and drot <= tol['rot_deg'] and abs(up - (stop[2] - end[2])) < 1e-6
-            record(label, ok, f"{'접근점' if 'approach_posx' in spec else '상공'} z {stop[2]:g} · 오차 {dpos:.2f} mm {drot:.2f}° · 남은 높이 {up:.1f} mm")
+            record(label, ok, f"{'접근점' if 'approach_posx' in spec else '티칭 자세'} z {stop[2]:g} · 오차 {dpos:.2f} mm {drot:.2f}° · 남은 높이 {up:.1f} mm")
             if up > 0.0:                                                # ② 곧게 내려가면 끝점인가 → 다시 올라온다
                 cc.move_rel(0.0, 0.0, -up, 'BASE')
                 time.sleep(p['settle_s'])

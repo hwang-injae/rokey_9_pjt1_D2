@@ -51,7 +51,7 @@ def test_repo_cell_skeleton_uses_ird_ids():
         assert set(cell['stations'][name]) == {'pick', 'return'}, name
     assert set(cell['beds']['SPONGE_BED_B']) == {'place', 'wash', 'seat'}
     assert set(cell['beds']['SPONGE_BED_C']) == {'place', 'regrip', 'wash', 'seat'}
-    assert all(len(cell['zones'][z]['slots']) == 2 for z in (RET_B, RET_C))       # 구역마다 슬롯 2개 (flow.plan 의 count 와 같다)
+    assert all(len(cell['zones'][z]['slots']) == 1 for z in (RET_B, RET_C))       # 구역마다 집는 자리 1개 — 한 자리 공급 구조(9/20 결정 E9)
 
 
 def _rotation(rx, ry, rz):
@@ -72,7 +72,8 @@ def _angle_between(p, q):
 
 
 # ⚠ 접근점 → 끝점이 수직이 아닌 채로 옮겨 온 자세. 한석형이 다시 찍으면 여기서 지운다(9/20 CELL-04: RACK_C2 는 수평 2.4 mm · 방향 3.8°)
-KNOWN_TILTED = {'cell.rack.slots.RACK_C2'}
+#   · 9/20 저녁: RET_B 슬롯 1 은 접근(잡기1) → 그립(잡기2)이 수평 2.8 mm
+KNOWN_TILTED = {'cell.rack.slots.RACK_C2', 'cell.zones.RET_B.slots[1]'}
 
 
 def test_repo_approach_points_are_straight_above_end_points():
@@ -87,8 +88,11 @@ def test_repo_approach_points_are_straight_above_end_points():
                 pairs[path] = (node['approach_posx'], node['posx'])
             for k, v in node.items():
                 walk(v, f'{path}.{k}')
+        elif isinstance(node, list):                                               # 구역의 슬롯 목록 (번호는 1 부터)
+            for i, v in enumerate(node, start=1):
+                walk(v, f'{path}[{i}]')
     walk(cell, 'cell')
-    assert len(pairs) >= 6                                                         # 스펀지 홈 place·wash × 2 + 팔레트 컵 2칸
+    assert len(pairs) >= 7                                                         # 스펀지 홈 place·wash × 2 + 팔레트 컵 2칸 + 그릇 집기
     tilted = set()
     for path, (up, end) in pairs.items():
         assert up[2] > end[2], f'{path}: 접근점이 끝점보다 낮다'
@@ -107,9 +111,8 @@ def test_repo_params_sections():
 def test_unfilled_lists_empty_cell_values():
     empty = config.unfilled(config.load(SRC_CONFIG))
     assert 'cell.limits.safe_z_mm' in empty                       # INF-04 시점: cell 값은 한석형이 채우기 전
-    assert 'cell.stations.WEIGH.BOWL.posx' in empty               # 9/20 CELL-04: 한석형이 찍은 26개는 찼고, 안 찍은 자세는 비어 있다
-    assert 'cell.zones.RET_B.slots[2].posj' in empty              # 슬롯 목록도 센다 (번호는 1 부터)
-    assert 'cell.stations.HOME.posj' not in empty and 'cell.zones.RET_B.slots[1].posj' not in empty
+    assert 'cell.stations.SOAP.BOWL.posx' in empty                # 9/20 CELL-04: 한석형이 찍은 자세는 찼고, 안 찍은 자세는 비어 있다(WEIGH 는 9/20 저녁에 참)
+    assert 'cell.stations.HOME.posj' not in empty and 'cell.zones.RET_B.slots[1].posj' not in empty   # 슬롯 목록도 센다(번호는 1 부터)
     assert not [p for p in empty if not p.startswith('cell.')]
 
 
