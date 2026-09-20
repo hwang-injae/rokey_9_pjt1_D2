@@ -20,10 +20,21 @@ CFG = {
         'stations': {'HOME': {'posj': [0, 0, 90, 0, 90, 0]},
                      'WEIGH': {'posx': [400, 100, 450, 0, 180, 0]},          # 안전 높이보다 높다
                      'TOOL_SPONGE': {'posx': [300, -200, 120, 0, 180, 0]},   # 안전 높이보다 낮다
-                     'SOAP': {'posx': None}},                                 # 아직 티칭 전
-        'beds': {'SPONGE_BED_B': {'frame': None, 'origin_posx': [350, 0, 50, 0, 180, 0]},
-                 'SPONGE_BED_C': {'frame': 'BED', 'origin_posx': [350, 80, 50, 0, 180, 0]}},
-        'zones': {'RET_B': {'frame': None, 'origin_posx': [200, 300, 40, 0, 180, 0]}},
+                     'SOAP': {'posx': None},                                  # 아직 티칭 전
+                     'WASTE': {'BOWL': {'posx': [600, -170, 240, 0, 180, 0]},          # 종류별 자세 (9/20 CELL-04)
+                               'CUP': {'posx': [110, -400, 240, 90, -160, -160]}},
+                     'ISOLATE': {'BOWL': {'posx': None}, 'CUP': {'posx': None}},         # 종류별인데 아직 티칭 전
+                     'TOOL_BRUSH': {'pick': {'posj': [-28, 17, 84, 0, 79, -28]},         # 용도별 자세
+                                    'return': {'posx': [420, -220, 130, 0, 180, 0]}}},
+        'beds': {'SPONGE_BED_B': {'place': {'approach_posx': [350, 0, 450, 0, 180, 0],   # 접근점이 안전 높이보다 높다
+                                            'posx': [350, 0, 50, 0, 180, 0]},
+                                  'wash': {'approach_posx': [300, 0, 235, 0, 180, 0],     # 접근점이 안전 높이보다 낮다
+                                           'posx': [300, 0, 47, 0, 180, 0]},
+                                  'seat': {'contact_limit_n': None}},                     # 자세가 아닌 값 — point 로 고를 수 없다
+                 'SPONGE_BED_C': {'place': {'frame': 'BED', 'posx': [350, 80, 50, 0, 180, 0]}}},
+        'zones': {'RET_B': {'slots': [{'posj': [0, 23, 68, 0, 88, 0]}, {'posj': None}]}},
+        'rack': {'slots': {'RACK_B1': {'posx': [300, 600, 310, 90, 95, 7]},
+                           'RACK_C1': {'approach_posx': [331, 401, 411, 80, 72, -91], 'posx': [331, 401, 279, 80, 72, -91]}}},
     },
 }
 
@@ -102,16 +113,52 @@ def test_move_to_never_goes_below_safe_height(robot):
     above = motion.move_to('TOOL_SPONGE', False)
     assert above == SAFE_Z - 120.0                                  # 남은 높이를 돌려준다 → 하강은 부르는 쪽이
     assert robot.calls[-1][1][2] == SAFE_Z
-    assert motion.move_to('SPONGE_BED_B', True) == SAFE_Z - 50.0    # beds · zones 의 이름도 받는다
-    assert motion.move_to('RET_B', False) == SAFE_Z - 40.0
 
 
-@pytest.mark.parametrize('station,exc', [('SOAP', KeyError),                # 좌표가 비어 있다
-                                         ('NOWHERE', KeyError),             # 그런 이름이 없다
-                                         ('SPONGE_BED_C', NotImplementedError)])   # 사용자 좌표계는 아직
-def test_move_to_refuses_without_moving(robot, station, exc):
+def test_move_to_picks_pose_by_kind(robot):
+    assert motion.move_to('WASTE', True, 'CUP') == SAFE_Z - 240.0
+    assert robot.calls[-1][1] == [110, -400, SAFE_Z, 90, -160, -160]        # 컵용 자세(옆에서 잡는 방향)의 상공
+    motion.move_to('WASTE', True, kind='BOWL')
+    assert robot.calls[-1][1][:2] == [600, -170]
+    motion.move_to('HOME', False, 'BOWL')                                   # 종류별이 아닌 자리에서는 kind 를 무시한다
+    assert robot.calls[-1][0] == 'movej'
+
+
+def test_move_to_picks_pose_by_point(robot):
+    assert motion.move_to('TOOL_BRUSH', False, point='pick') == 0.0         # 관절 자세 → 그 자세까지
+    assert robot.calls[-1][:2] == ('movej', [-28, 17, 84, 0, 79, -28])
+    assert motion.move_to('TOOL_BRUSH', True, point='return') == SAFE_Z - 130.0
+    assert motion.move_to('RET_B', False, point=1) == 0.0                   # 반납 구역은 슬롯 번호(1 부터)
+    assert robot.calls[-1][:2] == ('movej', [0, 23, 68, 0, 88, 0])
+
+
+def test_move_to_goes_to_approach_point_and_returns_height_to_end(robot):
+    up = motion.move_to('SPONGE_BED_B', True, point='place')
+    assert robot.calls[-1][1] == [350, 0, 450, 0, 180, 0] and up == 450.0 - 50.0     # 접근점까지 가고, 끝점까지 남은 높이
+    up = motion.move_to('SPONGE_BED_B', True, point='wash')
+    assert robot.calls[-1][1][2] == SAFE_Z and up == SAFE_Z - 47.0                  # 접근점이 낮으면 안전 높이에서 멈춘다
+    up = motion.move_to('RACK_C1', True, 'CUP')                                     # 팔레트 칸 이름도 받는다
+    assert robot.calls[-1][1][2] == 411 and up == 411.0 - 279.0
+    assert motion.move_to('RACK_B1', True) == 0.0                                   # 접근점이 없고 안전 높이보다 높다 → 그 자세까지
+
+
+@pytest.mark.parametrize('args,exc', [(('SOAP',), KeyError),                          # 좌표가 비어 있다
+                                      (('NOWHERE',), KeyError),                       # 그런 이름이 없다
+                                      (('SPONGE_BED_C', None, 'place'), NotImplementedError),   # 사용자 좌표계는 못 쓴다
+                                      (('WASTE',), ValueError),                       # 종류별인데 kind 를 안 줬다
+                                      (('WASTE', 'PLATE'), ValueError),               # 없는 종류
+                                      (('ISOLATE', 'CUP'), KeyError),                 # 종류별인데 아직 안 찍었다
+                                      (('TOOL_BRUSH',), ValueError),                  # 자세가 여러 개인데 point 를 안 줬다
+                                      (('SPONGE_BED_B', None, 'seat'), ValueError),   # 자세가 아닌 것을 골랐다
+                                      (('WEIGH', None, 'pick'), ValueError),          # 자세가 하나인데 point 를 줬다
+                                      (('RET_B',), ValueError),                       # 슬롯 번호를 안 줬다
+                                      (('RET_B', None, 0), ValueError),               # 슬롯 번호는 1 부터
+                                      (('RET_B', None, 3), ValueError),               # 없는 슬롯
+                                      (('RET_B', None, 2), KeyError)])                # 슬롯은 있는데 아직 안 찍었다
+def test_move_to_refuses_without_moving(robot, args, exc):
+    station, kind, point = (list(args) + [None, None])[:3]
     with pytest.raises(exc):
-        motion.move_to(station, False)
+        motion.move_to(station, False, kind, point)
     assert robot.calls == []
 
 

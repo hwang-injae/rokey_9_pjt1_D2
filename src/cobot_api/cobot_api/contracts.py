@@ -18,7 +18,7 @@ BOWL, CUP = 'BOWL', 'CUP'                                   # kind
 SPONGE, BRUSH = 'SPONGE', 'BRUSH'                           # tool
 PICK, RETURN = 'PICK', 'RETURN'                             # tool action
 RET_B, RET_C = 'RET_B', 'RET_C'                             # zone_id (반납 구역)
-RACK_SLOTS = ('RACK_B1', 'RACK_B2', 'RACK_C1', 'RACK_C2', 'RACK_C3', 'RACK_C4')
+RACK_SLOTS = ('RACK_B1', 'RACK_B2', 'RACK_C1', 'RACK_C2')       # 그릇 2칸 + 컵 2칸 (9/20 결정: 컵 4 → 2)
 STATIONS = ('HOME', 'WEIGH', 'WASTE', 'SPONGE_BED_B', 'SPONGE_BED_C',
             'TOOL_SPONGE', 'TOOL_BRUSH', 'SOAP', 'RINSE', 'ISOLATE')
 NORMAL, HOLD = 'NORMAL', 'HOLD'                             # 파지 힘 2단계

@@ -108,6 +108,9 @@ def unfilled(cfg: dict, sections=CELL_KEYS + PARAM_SECTIONS) -> list:
         elif isinstance(node, dict):
             for k, v in node.items():
                 walk(v, f'{path}.{k}')
+        elif isinstance(node, list) and any(isinstance(v, dict) for v in node):     # 슬롯 목록 (번호는 1 부터 — cc.move_to 의 point 와 같다)
+            for i, v in enumerate(node, start=1):
+                walk(v, f'{path}[{i}]')
     for s in sections:
         if isinstance(cfg.get(s), dict):
             for k, v in cfg[s].items():
