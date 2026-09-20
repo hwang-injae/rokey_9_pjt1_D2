@@ -56,7 +56,8 @@ class Run:
         self.climb = 0.0                                                 # 바닥에서 올라간 높이 mm (check 가 갱신)
         self.gap = 0.0                                                   # 반지름 방향으로 못 따라간 거리 mm (check 가 갱신)
         self.z_now = 0.0                                                 # 지금 실제 Z — 다음 걸음의 Z 명령으로 그대로 쓴다
-        self.compliance_on = False                                       # depth 방식에서 직접 켠 순응
+        self.compliance_on = False                                       # 직접 켠 순응
+        self.force_ctrl_on = False                                       # 직접 켠 힘제어
         self.z_contact = 0.0                                             # contact_down 으로 바닥을 찾은 높이
 
     def z(self):
@@ -163,46 +164,31 @@ class Run:
         return p['bowl_r_max_mm'] - p['brush_d_mm'] / 2 + p['r_max_margin_mm']
 
     def wipe_bottom(self):
-        """바닥 닦기 — 중심에서 시작해 **소용돌이처럼** 조금씩 벌어지며 돈다. 좌우 비틀기 없음.
+        """바닥 닦기 — 두산 **Move Spiral 한 번**. 중심에서 벽 반지름까지, 좌우 비틀기 없음.
 
-        반원 원호(Move C) 를 반지름을 키워 가며 이어 붙여 그린다. 원호는 이어 붙이기(radius)가 되는 모션이라
-        사이에서 멈추지 않는다(중급교육1 p.79).
-        🚨 두산 Move Spiral 은 쓰지 않는다 — 명령은 받아들여지지만 **로봇이 실행하지 않는다**(9/20 실기: 시작됨=False,
-           실제 최대 반지름 0.3 mm). 속도로 주면 아예 드라이버가 멈춘다.
+        · 순응은 켜 두고 **힘제어는 끈 채**로 돈다 — 나선은 툴 Z 축 모션이라 Z 힘제어와 같은 방향이어서
+          함께 쓸 수 없다(중급2 "힘 방향과 동일한 방향의 모션은 불가"). 켜 두면 명령만 받고 돌지 않는다(9/20 실기).
+        · 나선 속도는 **시간으로 지정**한다(중급1 p.69). 속도로 주면 드라이버가 멈춘다(9/20 확인).
+        · 순응 중이므로 Task 모션만 쓴다(Move J 계열 금지, 2.1903).
         """
-        p, d, s = self.p, self.d, cc.cfg()['run']['vel_scale']
+        p, d = self.p, self.d
         self.set_frame()
         self.x = self.y = self.rz = 0.0
-        x0, y0, _z, a, b, c = self.p0
         r_wall = min(self.wall_r(), self.r_max())
-        vel = [p['scrub_lin_vel_mm_s'] * s, p['scrub_rot_vel_deg_s'] * s]
-        acc = [p['scrub_lin_acc_mm_s2'], p['scrub_rot_acc_deg_s2']]
-        half = p['spiral_pitch_mm'] / 2.0                                # 반 바퀴마다 이만큼 벌어진다
-        n = max(1, int(math.ceil(r_wall / half)))
-        self.log.info(f'  바닥: 소용돌이 {n / 2:.1f}바퀴 · 반지름 0 → {r_wall:.1f} mm · 반원 {n}개 '
-                      f'(반 바퀴마다 {half:.1f} mm 벌어짐)')
-
-        def pose(r, th):
-            return [x0 + r * math.cos(th), y0 + r * math.sin(th), self.z_now, a, b, c]
-
-        th = 0.0
+        rev = max(1.0, round(r_wall / p['spiral_pitch_mm'], 1))
+        self.log.info(f'  바닥: 나선 {rev}바퀴 · 반지름 {r_wall:.1f} mm · {p["spiral_time_s"]:g} s (비틀기·힘제어 없음)')
         d.mwait()
-        for k in range(n):
-            r_mid = min(half * (k + 0.5), r_wall)
-            r_end = min(half * (k + 1), r_wall)
-            arc = math.pi * max(r_mid, 1.0)                              # 이 반원의 길이(대략)
-            blend = 0.0 if k == n - 1 else min(p['blend_radius_mm'], arc * 0.4)
-            if d.movec(pose(r_mid, th + math.pi / 2), pose(r_end, th + math.pi), vel=vel, acc=acc,
-                       radius=blend, ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS) != 0:
-                raise RuntimeError('movec(나선 반원) 실패')
-            th += math.pi
-            self.x, self.y = r_end * math.cos(th), r_end * math.sin(th)
-            if k % max(1, int(p['force_every'])) == 0:
-                self.force_only('spiral')
-        d.mwait()
+        ret = d.amove_spiral(rev=rev, rmax=r_wall, lmax=0.0, vel=[0.0, 0.0], acc=[0.0, 0.0],
+                             time=float(p['spiral_time_s']), axis=d.DR_AXIS_Z, ref=d.DR_TOOL)
+        if ret != 0:
+            raise RuntimeError(f'amove_spiral 실패 (반환 {ret!r})')
+        started = self.wait_start()
+        rmax_seen = self.sample_spiral()
+        self.log.info(f'  나선: 실제 최대 반지름 {rmax_seen:.1f} mm (목표 {r_wall:.1f}) · 시작됨={started}')
+        if rmax_seen < r_wall * 0.5:
+            raise RuntimeError('나선이 돌지 않았다 — 힘제어가 켜져 있는지 확인(중급2: 같은 축 모션 불가)')
         now = d.get_current_posx(ref=d.DR_BASE)[0]
-        self.x, self.y = float(now[0]) - x0, float(now[1]) - y0
-        self.log.info(f'  나선 끝: 실제 반지름 {math.hypot(self.x, self.y):.1f} mm (목표 {r_wall:.1f})')
+        self.x, self.y = float(now[0]) - self.p0[0], float(now[1]) - self.p0[1]
         return r_wall
 
     def wipe_wall(self, r_wall):
@@ -344,45 +330,57 @@ class Run:
         self.results.append((phase, target, mean, sd, mx, len(vals), ok))
         self.log.info(f'  {phase}: 목표 {target:.1f} N · 평균 {mean:.2f} · 흔들림 {sd:.2f} · 최대 {mx:.2f} N · {"OK" if ok else "FAIL"}')
 
-    def press_on(self, target):
-        """누르기 시작. press_mode 로 두 방식 중 하나 (9/20: 수세미는 물러서 힘제어로는 깊게 눌린다).
+    def compliance_on_here(self):
+        """순응제어 ON — **바닥을 찾은 그 자리에서** 켠다(중급2: 목표 TCP 근처에서 ON 권장).
 
-        'force' : 힘제어 — 목표 힘이 날 때까지 로봇이 알아서 내려간다. 무른 툴은 몇 mm 씩 깊게 들어간다.
-        'depth' : 순응만 켜고 **정해진 깊이(press_depth_mm)만** 내려간다. 눌리는 깊이를 직접 정하는 방식
-                  (SDD §9.9 의 대안). 걸리는 힘 ≈ Z 순응 강성 × 깊이 (500 N/m = 0.5 N/mm → 3 mm ≈ 1.5 N).
+        · 켜기 전에 mwait — 비동기·블렌딩 모션이 도는 중에 켜면 2.1903 오류(중급2 특징3).
+        · 켠 뒤에는 Task 모션만 쓴다(Move J 계열 금지, 2.1903). TCP 도 바꾸지 않는다.
         """
-        p = self.p
-        if p['press_mode'] == 'force':
-            # 🚨 목표에 **공중 기준값(센서 치우침·툴 무게)** 을 더한다. 안 더하면 실제 누르는 힘이 그만큼 모자란다
-            #    (9/19 실측: 목표 4 N → 실제 1.9 N, 공중 기준값이 약 2 N 이었다).
-            #    Z 높이는 명령하지 않는다 — 누르는 깊이는 힘제어가 정한다(위치와 싸우면 작업대를 친다).
-            fd = target + abs(self.baseline)
-            cc.force_on('z', fd, p['limit_n'])
-            self.log.info(f'  힘제어: 목표 {target:g} N 유지 (공중 기준값 {self.baseline:+.2f} N 보정 → 명령 {fd:.2f} N)')
-            return
-        if p['press_mode'] != 'depth':
-            raise ValueError(f"press_mode={p['press_mode']!r} — 'force'·'depth' 중 하나")
-        d = self.d
-        d.mwait()                                                        # 비동기 이동 중 순응 ON 은 오류 2.1903
+        p, d = self.p, self.d
+        d.mwait()
         stx = cc.cfg()['cell']['force']['compliance_stx']
         if d.task_compliance_ctrl(stx) != 0:
             raise RuntimeError('task_compliance_ctrl 실패')
         self.compliance_on = True
-        if self.z_contact <= 0:                                          # 바닥을 아직 안 찾았다 — 움직이지 않는다
-            raise RuntimeError('press_on: 바닥 높이를 모른다(contact_down 먼저)')
-        want = self.z_contact - p['after_contact_mm']                    # 바닥 기준 자리 (+ 면 더 누름, − 면 들어 올림)
-        dz = want - self.z()                                             # 지금 높이 대비 — 여러 번 불러도 누적되지 않는다
+        if self.z_contact <= 0:
+            raise RuntimeError('바닥 높이를 모른다(contact_down 먼저)')
+        want = self.z_contact - p['after_contact_mm']                    # + 면 더 누름, − 면 들어 올림
+        dz = want - self.z()
         if abs(dz) > 0.05:
             self.move_z(dz, p['press_vel_mm_s'], p['press_acc_mm_s2'])
-            self.log.info(f'  Z {self.z_contact:.1f} → {self.z():.1f} mm (바닥 대비 {self.z() - self.z_contact:+.1f})')
-        dz = p['after_contact_mm']
-        what = f'{dz:g} mm 더 누름 (Z 순응 {stx[2]:g} N/m → 약 {stx[2] / 1000 * dz:.1f} N)' if dz > 0 else \
-               (f'{-dz:g} mm 들어 올림 — 바닥에 살짝 띄워 문지른다' if dz < 0 else '바닥 찾은 자리 그대로')
-        self.log.info(f'  순응만 켜고: {what}')
+        self.log.info(f'  순응 ON · Z {self.z_contact:.1f} → {self.z():.1f} mm '
+                      f'(바닥 대비 {self.z() - self.z_contact:+.1f} · 순응 Z {stx[2]:g} N/m)')
+
+    def force_on_z(self, target):
+        """힘제어 ON (Z 로 target N 유지) — 벽면 구간에서만 쓴다.
+
+        🚨 중급2 "Force 명령어 – 모션 특성": **힘 방향과 같은 방향의 모션은 불가**.
+           나선(move_spiral)은 툴 Z 축 회전 모션이라 Z 힘제어와 같은 축이다 → 나선 중에는 힘제어를 켜지 않는다
+           (9/20 실기: 켜 두면 나선이 반환 0 인데 시작조차 하지 않았다).
+           벽면 원호는 이동이 X·Y 라 Z 힘제어와 함께 쓸 수 있다(폴리싱 예시와 같다).
+        🚨 힘제어는 순응 ON 이 먼저여야 한다(없으면 2.1903).
+        """
+        p = self.p
+        fd = target + abs(self.baseline)                                 # 공중 기준값(센서 치우침·툴 무게) 보정
+        self.d.mwait()
+        cc.force_on('z', fd, p['limit_n'])
+        self.force_ctrl_on = True
+        self.log.info(f'  힘제어 ON: 목표 {target:g} N (기준값 {self.baseline:+.2f} 보정 → 명령 {fd:.2f} N)')
+
+    def force_off_z(self):
+        """힘제어만 끈다(순응은 유지)."""
+        if self.force_ctrl_on:
+            self.d.mwait()
+            self.d.release_force()
+            self.force_ctrl_on = False
+            self.log.info('  힘제어 OFF')
 
     def press_off(self):
-        """누르기 끝 — force 방식은 cc.force_off(), depth 방식은 직접 켠 순응을 직접 끈다."""
-        cc.force_off()                                                   # 힘제어를 켠 적 있으면 끈다(아니면 아무 일도 안 함)
+        """끝내기 — 힘제어 → 순응 순서로 끈다(중급2: 순응 OFF 하면 힘제어도 자동 종료된다)."""
+        cc.force_off()                                                   # cc.force_on 으로 켠 것 정리
+        if self.force_ctrl_on:
+            self.d.release_force()
+            self.force_ctrl_on = False
         if self.compliance_on:
             self.d.release_compliance_ctrl()
             self.compliance_on = False
@@ -476,15 +474,17 @@ def main() -> int:
             log.error('바닥을 못 찾았다 → 힘제어를 켜지 않고 중단 (approach_down_mm·그릇 위치 확인)')
             return 1
 
-        log.info('① 순응 켜고 세척 자리로 (바닥 대비 after_contact_mm)')
-        run.press_on(p['wipe_target_n'])
-        run.force_only('settle')                                         # 대기 없이 바로 시작 (멈칫 제거)
+        log.info('① 순응 ON (바닥 찾은 자리에서) — 힘제어는 아직 켜지 않는다')
+        run.compliance_on_here()
 
-        log.info('② 바닥 — move_spiral 한 번 (비틀기 없음)')
+        log.info('② 바닥 — move_spiral 한 번 (비틀기 없음 · 힘제어 OFF: 나선은 Z 축 모션이라 Z 힘제어와 같은 방향)')
         r_wall = run.wipe_bottom()
 
-        log.info('③ 벽면 — 원호를 이어 붙여 반대 방향 %d바퀴 + 좌우 비틀기' % p['circle_turns'])
+        log.info('③ 벽면 — 힘제어 ON 뒤 원호로 반대 방향 %d바퀴 + 좌우 비틀기 (이동은 X·Y 라 Z 힘제어와 함께 가능)'
+                 % p['circle_turns'])
+        run.force_on_z(p['wipe_target_n'])
         run.wipe_wall(r_wall)
+        run.force_off_z()
 
         log.info('③ 그 높이에서 중심으로 복귀 → 순응 끄고 위로')
         run.back_to_center()
