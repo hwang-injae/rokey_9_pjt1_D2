@@ -1,0 +1,134 @@
+<!doctype html>
+<!-- F4-01·02 시험 페이지 — 꾸밈 없이 "값이 브라우저까지 오는가 · 버튼이 flow 까지 가는가"만 본다. 진짜 화면(Next.js)은 F4-03. -->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PreWash-Cell HMI — 시험 페이지</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1c2430; --dim:#6b7686; --line:#dde2ea; --ok:#1a8f4c; --bad:#c62f2f; --warn:#b7791f; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#12161c; --card:#1b212a; --ink:#e8ecf2; --dim:#93a0b3; --line:#2c3440; } }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui, "Noto Sans KR", sans-serif; }
+  h1 { font-size:18px; margin:0 0 12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .dot { width:14px; height:14px; border-radius:50%; background:var(--bad); display:inline-block; }
+  .dot.on { background:var(--ok); }
+  .grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .card h2 { font-size:13px; font-weight:600; color:var(--dim); margin:0 0 8px; }
+  .big { font-size:40px; font-weight:700; letter-spacing:1px; }
+  .big.PAUSED, .big.ERROR { color:var(--bad); } .big.DONE { color:var(--ok); } .big.ISOLATE { color:var(--warn); }
+  table { width:100%; border-collapse:collapse; } td { padding:3px 0; } td:last-child { text-align:right; font-variant-numeric:tabular-nums; font-weight:600; }
+  .msg { color:var(--bad); min-height:1.5em; word-break:keep-all; }
+  .bar { height:10px; background:var(--line); border-radius:5px; overflow:hidden; } .bar i { display:block; height:100%; background:var(--ok); width:0; }
+  .btns { display:flex; gap:10px; flex-wrap:wrap; margin:0 0 12px; }
+  button { font:600 18px/1 inherit; padding:16px 22px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; min-width:120px; }
+  button.go { background:var(--ok); color:#fff; border-color:var(--ok); } button.stop { background:var(--bad); color:#fff; border-color:var(--bad); }
+  button.warn { background:var(--warn); color:#fff; border-color:var(--warn); }
+  button:disabled { opacity:.35; cursor:not-allowed; }
+  #reply { min-height:1.5em; margin:0 0 12px; font-weight:600; } #reply.no { color:var(--bad); } #reply.yes { color:var(--ok); }
+  ol { margin:0; padding-left:20px; max-height:180px; overflow:auto; font-size:14px; } .dim { color:var(--dim); font-size:13px; }
+</style>
+</head>
+<body>
+<h1><span class="dot" id="dot"></span><span id="conn">연결 확인 중…</span><span class="dim" id="age"></span></h1>
+<div class="btns">
+  <button id="b-start" class="go" disabled>시작</button>
+  <button id="b-toggle" class="stop" disabled>일시정지</button>
+  <button id="b-abort" class="warn" disabled>중단 (이 용기 접기)</button>
+</div>
+<div id="reply" class="dim">버튼을 누르면 flow 의 대답이 여기에 나온다</div>
+<div class="grid">
+  <div class="card"><h2>지금 단계 (step)</h2><div class="big" id="step">-</div>
+    <div id="what" class="dim">-</div><div class="msg" id="message"></div></div>
+  <div class="card"><h2>수량</h2><table>
+    <tr><td>그릇</td><td id="bowl">-</td></tr><tr><td>컵</td><td id="cup">-</td></tr><tr><td>격리</td><td id="isolated">-</td></tr>
+    <tr><td>마지막 코드</td><td id="code">-</td></tr></table></div>
+  <div class="card"><h2>소모품</h2><table>
+    <tr><td>수세미 사용</td><td id="sponge">-</td></tr><tr><td>세제 담금</td><td id="soap">-</td></tr><tr><td>헹굼 담금</td><td id="rinse">-</td></tr></table></div>
+  <div class="card"><h2>그리퍼 · 닦는 힘</h2><table>
+    <tr><td>그리퍼</td><td id="grip">-</td></tr><tr><td>닦는 힘</td><td id="force">-</td></tr></table>
+    <div class="bar"><i id="forcebar"></i></div></div>
+  <div class="card" style="grid-column:1/-1"><h2>최근 이벤트 (용기 1개가 끝날 때마다 1건)</h2><ol id="events"><li class="dim">아직 없음</li></ol></div>
+</div>
+<p class="dim">시험 페이지 · 받는 방식: <b id="mode">-</b> · 받은 상태 메시지 <span id="received">0</span>건</p>
+<script>
+const $ = id => document.getElementById(id);
+const FORCE_FULL_N = 12;      // 막대가 꽉 차는 힘 — 시험 페이지의 눈금일 뿐이다
+const RUNNING = ['PICK', 'WEIGH', 'SHAKE', 'SEAT', 'SOAP', 'WIPE', 'RINSE', 'RACK', 'ISOLATE'];
+let d = {connected: false, state: null, gripping: null, force_n: null, events: [], plan: {}, received: 0, age_s: null};
+let forceAt = 0;
+
+function render() {
+  $('dot').className = 'dot' + (d.connected ? ' on' : '');
+  $('conn').textContent = d.connected ? 'flow 와 연결됨' : (d.state ? 'flow 연결 끊김 — 마지막 값을 보여 주는 중' : 'flow 의 방송을 아직 못 받았다');
+  $('age').textContent = d.connected || d.age_s == null ? '' : `(마지막 수신 ${d.age_s.toFixed(1)} s 전)`;
+  $('received').textContent = d.received;
+  const s = d.state;
+  if (s) {
+    $('step').textContent = s.step; $('step').className = 'big ' + s.step;
+    $('what').textContent = `${s.kind || '-'} · ${s.zone_id || '-'}`;
+    $('message').textContent = s.message || '';
+    $('bowl').textContent = `${s.done_bowl} / ${s.target_bowl}`; $('cup').textContent = `${s.done_cup} / ${s.target_cup}`;
+    $('isolated').textContent = s.isolated; $('code').textContent = s.last_code;
+    const c = (d.plan || {}).consumables || {};
+    $('sponge').textContent = s.sponge_uses + (c.sponge_max_uses ? ` / ${c.sponge_max_uses}` : '');
+    $('soap').textContent = s.soap_dips + (c.soap_max_dips ? ` / ${c.soap_max_dips}` : '');
+    $('rinse').textContent = s.rinse_dips;
+  }
+  $('grip').textContent = d.gripping == null ? '-' : (d.gripping ? '파지 중' : '파지 안 하는 중');
+  const wiping = d.force_n != null && Date.now() - forceAt < 600;          // 닦는 동안만 온다 → 끊기면 '닦는 중 아님'
+  $('force').textContent = wiping ? d.force_n.toFixed(1) + ' N' : '닦는 중 아님';
+  $('forcebar').style.width = wiping ? Math.min(100, d.force_n / FORCE_FULL_N * 100) + '%' : '0';
+  if (d.events.length) $('events').replaceChildren(...d.events.map(e => {
+    const li = document.createElement('li');                // 글자로만 넣는다(메시지 내용이 HTML 로 해석되지 않게)
+    li.textContent = `${e.result} · ${e.kind} · ${e.zone_id}${e.rack_slot ? ' → ' + e.rack_slot : ''} · code ${e.code} · ${e.duration_s.toFixed(1)} s`;
+    return li;
+  }));
+  // 버튼: 누를 수 있을 때만 켠다 (IRD §6 — 시작은 IDLE, 재개·중단은 PAUSED, 로봇 오류면 중단 불가)
+  const step = s ? s.step : null, paused = step === 'PAUSED';
+  $('b-start').disabled = !(d.connected && step === 'IDLE');
+  $('b-toggle').textContent = paused ? '재개' : '일시정지';
+  $('b-toggle').className = paused ? 'go' : 'stop';
+  $('b-toggle').disabled = !(d.connected && (paused || RUNNING.includes(step)));
+  $('b-abort').disabled = !(d.connected && paused && s.last_code !== 'ROBOT_ERROR');
+}
+
+async function press(name) {
+  $('reply').className = 'dim'; $('reply').textContent = `/api/${name} 보내는 중…`;
+  try {
+    const r = await (await fetch('/api/' + name, {method: 'POST'})).json();
+    $('reply').className = r.ok ? 'yes' : 'no';
+    $('reply').textContent = `${r.ok ? '✔' : '✖'} ${name}: ${r.message} (${r.latency_ms} ms)`;
+  } catch (e) { $('reply').className = 'no'; $('reply').textContent = `✖ ${name}: HMI 서버에 닿지 않는다`; }
+}
+$('b-start').onclick = () => press('start');
+$('b-toggle').onclick = () => press(d.state && d.state.step === 'PAUSED' ? 'resume' : 'stop');
+$('b-abort').onclick = () => press('abort');
+
+// 받는 방식 ①: WebSocket — 서버가 먼저 밀어 준다. 끊기면 2초 뒤 다시 건다. 그동안은 ②(물어보기)로 버틴다.
+let ws = null;
+function connect() {
+  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/state`);
+  ws.onopen = () => { $('mode').textContent = 'WebSocket (서버가 밀어 준다)'; };
+  ws.onmessage = m => {
+    const msg = JSON.parse(m.data);
+    if (msg.type === 'state') { const {type, ...body} = msg; d = {...d, ...body}; if (body.force_n != null) forceAt = Date.now(); }
+    else if (msg.type === 'event') d.events = [msg.event, ...d.events].slice(0, 50);
+    else if (msg.type === 'force') { d.force_n = msg.n; forceAt = Date.now(); }
+    else if (msg.type === 'gripping') d.gripping = msg.value;
+    else if (msg.type === 'conn') d.connected = msg.connected;
+    render();
+  };
+  ws.onclose = () => { ws = null; $('mode').textContent = '0.5초마다 물어보기 (WebSocket 이 끊겼다 — 다시 거는 중)'; setTimeout(connect, 2000); };
+}
+async function poll() {                                     // 받는 방식 ②: WebSocket 이 없을 때만
+  if (ws && ws.readyState === WebSocket.OPEN) return;
+  try { d = await (await fetch('/api/state', {cache: 'no-store'})).json(); if (d.force_n != null) forceAt = Date.now(); }
+  catch (e) { d.connected = false; $('conn').textContent = 'HMI 서버(hmi_bridge)에 닿지 않는다'; $('dot').className = 'dot'; return; }
+  render();
+}
+connect(); setInterval(poll, 500); setInterval(render, 500);
+</script>
+</body>
+</html>

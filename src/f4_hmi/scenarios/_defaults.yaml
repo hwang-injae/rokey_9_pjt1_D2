@@ -1,0 +1,32 @@
+# 모든 대본이 같이 쓰는 값 — 대본 파일(normal.yaml …)에서 같은 키를 적으면 그 값으로 덮어쓴다(step_s 처럼 일부만도 된다).
+# 🚨 여기 숫자는 **화면 개발용 흉내 값**이다. 실제 공정 시간·힘과 무관하다.
+loop: true                  # 한 바퀴가 끝나면 처음부터 다시 (fake_state_pub --once 로 끌 수 있다)
+idle_s: 3.0                 # 시작 전·끝난 뒤 IDLE 로 있는 시간
+done_hold_s: 2.0            # 전부 끝난 뒤 DONE 을 유지하는 시간 (실제 flow: flow.done_hold_s)
+pause_hold_s: 10.0          # 실패로 멈춘 PAUSED 를 유지하는 시간 (실제로는 사람이 재개·중단을 누를 때까지)
+step_s:                     # 단계마다 머무는 시간
+  PICK: 2.5
+  WEIGH: 2.0
+  SHAKE: 2.5
+  SEAT: 2.5
+  SOAP: 2.0
+  WIPE: 5.0
+  RINSE: 3.0
+  RACK: 3.0
+  ISOLATE: 2.5
+gripping:                   # 단계별 /cell/gripping 값 (true = 무언가 쥐고 있다)
+  IDLE: false
+  PICK: false               # 집으러 가는 중 — 아직 빈손
+  WEIGH: true
+  SHAKE: true
+  SEAT: true
+  SOAP: true                # 툴(수세미·솔)을 쥐고 있다
+  WIPE: true
+  RINSE: true
+  RACK: true
+  ISOLATE: true
+  DONE: false
+counts: {soap_dips: 3, rinse_dips: 2}                       # 용기 1개마다 늘어나는 소모품 횟수 (실제 flow: flow.counts)
+force: {target_n: 6.0, ripple_n: 1.5, period_s: 1.0}        # 닦는 동안의 /cell/force 흉내: 목표 힘 ± 출렁임
+weight_g: {BOWL: [310.0, 182.0], CUP: [165.0, 121.0]}       # 이벤트의 무게 [털기 전, 털기 후]
+rates: {state_hz: 2.0, gripping_hz: 2.0, force_hz: 10.0}    # 발행 주기 (IRD §6)

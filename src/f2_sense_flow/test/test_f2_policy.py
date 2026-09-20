@@ -21,7 +21,7 @@ CFG = {'flow': {
     'plan': [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 2},
              {'zone': 'RET_C', 'kind': 'CUP', 'count': 2}],
     'rack_order': {'BOWL': ['RACK_B1', 'RACK_B2'],
-                   'CUP': ['RACK_C1', 'RACK_C2', 'RACK_C3', 'RACK_C4']},
+                   'CUP': ['RACK_C1', 'RACK_C2']},
     'policy': {'EMPTY_ZONE': 'next_zone', 'LEFTOVER_REMAIN': 'isolate', 'SEAT_FAIL': 'isolate',
                'FORCE_LIMIT': 'retry:1->isolate', 'TIMEOUT': 'retry:1->isolate',
                'RACK_JAM': 'retry:1->isolate', 'TOOL_FAIL': 'retry:1->isolate',

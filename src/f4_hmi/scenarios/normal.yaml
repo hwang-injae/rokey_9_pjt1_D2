@@ -1,0 +1,7 @@
+# 정상 — 그릇 2개 + 컵 2개를 전부 닦아 팔레트에 꽂는다. 화면의 단계 표시줄·수량·팔레트 칸·힘 그래프·이력 표를 볼 때.
+title: 정상 — 그릇 2 + 컵 2
+items:
+  - {kind: BOWL, zone: RET_B, rack_slot: RACK_B1}
+  - {kind: BOWL, zone: RET_B, rack_slot: RACK_B2}
+  - {kind: CUP,  zone: RET_C, rack_slot: RACK_C1}
+  - {kind: CUP,  zone: RET_C, rack_slot: RACK_C2}
