@@ -28,6 +28,8 @@ from cobot_api import FORCE_LIMIT, OK, ROBOT_ERROR, TIMEOUT, Result, WipeBowlRes
 STATION_BOWL = 'SPONGE_BED_B'        # 그릇 홈 (cell.beds) — 닦기 자세는 point='wash'
 STATION_CUP = 'SPONGE_BED_C'         # 컵 홈
 
+_R_MIN_MM = 2.0                      # 나선 방향을 재기 시작하는 반지름 — 중심 근처에서는 각도가 튄다
+
 # SDD §4.2 힘 로그 열 (정본이라 그대로 둔다). 🔸 target 은 0 — 고정 좌표 방식이라 유지할 목표 힘이 없다(결정 E6)
 FORCE_LOG_HEADER = ('t', 'fx', 'fy', 'fz', 'target')
 
@@ -149,6 +151,7 @@ class _Log:
         self.samples, self.presses = [], []
         self.base = [0.0] * 6                                            # 공중 기준값 — 툴 무게·센서 치우침(V-03: 1.4~2.4 N)
         self.center = None                                               # 닦는 높이에 닿은 자리 = 나선의 중심
+        self.sweep = 0.0                                                 # 나선이 실제로 돈 각도(rad, BASE 기준 부호 있음)
 
     def start(self, force):
         self.base = list(force)
@@ -202,17 +205,35 @@ def _descend(p, log):
 
 
 def _spiral(p, log):
-    """바닥 나선 한 번 — 중심에서 벽 반지름까지. 좌우 비틀기 없음."""
+    """바닥 나선 한 번 — 중심에서 벽 반지름까지. 좌우 비틀기 없음.
+
+    🔸 도는 동안 **방향도 잰다**(log.sweep, BASE 기준 부호 있는 총 회전각). 벽면을 그 반대로 돌기 위해서다.
+       나선은 TOOL 기준이고 원호는 BASE 기준인데, 닦는 자세는 툴 Z 가 아래를 향한다(b=180)
+       → **툴에서 반시계로 돌면 베이스에서는 시계로 보인다.** 부호를 미리 정해 두면 두 동작이 같은 방향이 된다(9/21 실측).
+       두산 API 에는 방향 인자가 없고(rev > 0 만 허용) 강의자료에도 방향 설명이 없어서, 추측하지 않고 잰다.
+    """
     _halt_check('바닥 나선')
     r_wall = log.wall_r()
     rev = max(1.0, round(r_wall / p['spiral_pitch_mm'], 1))
+    every = max(1, int(p['force_every']))
     cc.move_spiral(rev, r_wall, p['spiral_time_s'])                      # 비동기 — 도는 동안 힘만 본다
+    k, last_th = 0, None
     while not cc.motion_done():
         if log.over_time():
             raise cc.MotionTimeout('wipe_bowl: 나선 시간 초과')
         log.watch('spiral')
+        k += 1
+        if k % every == 0:                                               # 위치는 가끔만 — 매번 읽으면 로봇이 선다(9/20)
+            now = cc.where()
+            if _radius(now, log.center) > _R_MIN_MM:                     # 중심 근처에서는 각도가 튄다
+                th = math.atan2(now[1] - log.center[1], now[0] - log.center[0])
+                if last_th is not None:
+                    log.sweep += _wrap(th - last_th)                     # 한 조각이 180° 미만이라 그대로 더하면 풀린다
+                last_th = th
         time.sleep(p['sample_s'])
     moved = _radius(cc.where(), log.center)
+    _info(f'wipe_bowl 나선 끝: 반지름 {moved:.1f} mm (목표 {r_wall:.1f}) · '
+          f'돈 각도 {math.degrees(log.sweep):+.0f}° (목표 {rev * 360:.0f}°) → 벽면은 반대로 돈다')
     if moved < r_wall * 0.5:                                             # 명령은 받았는데 돌지 않았다(9/20 실기 증상)
         raise RuntimeError(f'나선이 돌지 않았다(실제 {moved:.1f} mm / 목표 {r_wall:.1f} mm) — '
                            '회전 수·시간 조합을 확인(중급1 p.69)')
@@ -233,7 +254,9 @@ def _wall_laps(p, log):
         log.watch('wall')
     per = max(2, int(round(360.0 / p['wall_arc_deg'])))
     n = int(p['turns'] * per)
-    dth = -2 * math.pi / per                                             # 나선과 반대 방향
+    if log.sweep == 0.0:                                                 # 못 쟀다 — 도는 것부터 확인해야 한다
+        _warn('wipe_bowl: 나선이 돈 방향을 재지 못했다 — 벽면을 시계 방향으로 돈다(같은 방향일 수 있다)')
+    dth = -math.copysign(2 * math.pi / per, log.sweep or 1.0)            # 🔸 **잰 나선 방향의 반대**
     th0 = math.atan2(cc.where()[1] - y0, cc.where()[0] - x0)
     chord = 2 * r * abs(math.sin(dth / 2))
     blend = min(float(p['blend_radius_mm']), chord * 0.45)               # 이어 붙이는 거리가 호의 절반을 넘으면 안 된다
@@ -266,6 +289,11 @@ def _to_center(p, log):
 
 def _radius(pose, center):
     return math.hypot(pose[0] - center[0], pose[1] - center[1])
+
+
+def _wrap(rad):
+    """각도 차이를 −π~π 로. 조각마다 180° 미만이면 이것을 더해 가는 것만으로 총 회전각이 풀린다."""
+    return math.atan2(math.sin(rad), math.cos(rad))
 
 
 def _scale():

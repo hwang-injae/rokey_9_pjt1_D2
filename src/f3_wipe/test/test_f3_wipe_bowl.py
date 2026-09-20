@@ -31,6 +31,7 @@ CFG = {
     }},
 }
 POSE0 = [400.0, 0.0, 235.0, 45.0, 180.0, 45.0]      # 접근점 (닦는 자리 상공)
+CENTER = [POSE0[0], POSE0[1], POSE0[2] - UP]        # 닦는 높이에 닿은 자리 = 나선의 중심
 
 
 class _Logger:
@@ -47,12 +48,14 @@ class _Logger:
 class FakeCell:
     """가짜 셀 — 공용 함수 호출을 적어 두고, 그릇 안의 힘을 흉내 낸다."""
 
-    def __init__(self, press=1.5, lateral=1.0, spiral_moves=True, up=UP):
+    def __init__(self, press=1.5, lateral=1.0, spiral_moves=True, up=UP, spiral_dir=+1):
         self.calls = []
         self.press, self.lateral, self.up = press, lateral, up
         self.spiral_moves = spiral_moves                 # False = 명령은 받지만 돌지 않는다(9/20 실기 증상)
+        self.spiral_dir = spiral_dir                     # BASE 에서 본 나선 방향 (+1 반시계 · −1 시계)
         self.pose = list(POSE0)
         self.poses = []
+        self.spiral = None                               # 도는 중인 나선 (남은 조각 수, 반지름, 회전 수)
         self.moving = False
         self.touched = False                             # 닦는 높이까지 내려온 뒤부터 힘이 걸린 것으로 본다
         self.halted = False
@@ -100,15 +103,24 @@ class FakeCell:
         return list(self.pose)
 
     def motion_done(self):
-        was, self.moving = self.moving, False
-        return not was
+        """나선을 조각내어 실제로 돌려 준다 — 방향(부호)까지 흉내 내야 벽면 방향 시험이 뜻이 있다."""
+        if self.spiral is None:
+            return True
+        k, steps, rmax, rev = self.spiral
+        if k >= steps:
+            self.spiral = None
+            return True
+        self.spiral = (k + 1, steps, rmax, rev)
+        if self.spiral_moves:
+            f = (k + 1) / steps                          # 반지름·각도가 같이 커진다
+            th = self.spiral_dir * rev * 2 * math.pi * f
+            self.pose[0] = CENTER[0] + rmax * f * math.cos(th)
+            self.pose[1] = CENTER[1] + rmax * f * math.sin(th)
+        return False
 
     def move_spiral(self, rev, rmax_mm, time_s):
         self.calls.append(('spiral', rev, rmax_mm, time_s))
-        self.moving = True
-        if self.spiral_moves:                            # 나선 끝: 중심에서 rmax 만큼 나간 자리
-            self.pose[0] += rmax_mm
-            self.poses.append(list(self.pose))
+        self.spiral = (0, 40, rmax_mm, rev)              # 40 조각으로 나눠 돈다
 
     def move_arc(self, mid, end, vel_mm_s, vel_deg_s, radius_mm):
         self.calls.append(('arc', round(radius_mm, 1)))
@@ -179,9 +191,28 @@ def test_wall_laps_reverse_and_twist(cell):
     assert max(rr) == pytest.approx(WALL_R)
     twists = sorted({round(p[5] - POSE0[5], 1) for p in lap})
     assert twists == [-18.0, 0.0, 18.0]                                    # 좌우로만 비틀고, 마지막은 제자리
+    assert _arc_dir(cell) < 0                                              # 나선(반시계)과 반대 = 시계
+
+
+def _arc_dir(cell):
+    """벽면 원호가 도는 방향 부호 (BASE 기준, + 반시계)."""
+    lap = cell.poses[-13:-1]
     ang = [math.atan2(p[1] - _center(cell)[1], p[0] - _center(cell)[0]) for p in lap]
     step = [math.atan2(math.sin(b - a), math.cos(b - a)) for a, b in zip(ang, ang[1:])]
-    assert all(t < 0 for t in step)                                        # 나선과 반대 방향(시계)
+    assert all(t * step[0] > 0 for t in step), '한 바퀴 안에서 방향이 바뀐다'
+    return step[0]
+
+
+@pytest.mark.parametrize('spiral_dir', [+1, -1])
+def test_wall_turns_opposite_to_measured_spiral(cell, spiral_dir):
+    """🚨 나선 방향을 **재서** 그 반대로 돈다 — 나선은 TOOL · 원호는 BASE 기준이라 부호를 가정하면 같은 방향이 된다(9/21 실측).
+
+    두산 API 에는 나선 방향 인자가 없고(rev > 0) 강의자료에도 설명이 없다 → 어느 쪽으로 돌든 반대가 나와야 한다.
+    """
+    cell.spiral_dir = spiral_dir
+    r = wipe.wipe_bowl()
+    assert r.ok
+    assert _arc_dir(cell) * spiral_dir < 0
 
 
 def test_ends_at_center_same_height(cell):
