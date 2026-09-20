@@ -19,7 +19,7 @@ CFG = {
         'soap': {'depth_mm': 40.0, 'hold_s': 0.0, 'vel_mm_s': 80.0, 'log_dir': 'logs/f3'},
         'wipe_cup': {
             'tool': {'clean_h_mm': 95, 'd_mm': 55},
-            'fast_gap_mm': 10.0, 'find_max_mm': 25.0, 'insert_min_mm': 85.0,
+            'fast_gap_mm': 10.0, 'find_max_mm': 40.0, 'insert_min_mm': 85.0,
             'lift_mm': 2.0, 'lift_vel_mm_s': 40.0,
             'stroke_mm': 15.0, 'twist_deg': 45.0, 'period_s': 1.0, 'twist_period_ratio': 1.0,
             'cycles': 5, 'keep_in_mm': 10.0,
@@ -183,7 +183,7 @@ def test_cup_fast_then_finds_bottom_by_force(cell):
     names = [c[0] for c in cell.calls]
     fast = [c for c in cell.calls if c[0] == 'move_rel' and c[1] < 0][0]
     assert fast[1] == pytest.approx(-(80.0 - 10.0))                        # up − fast_gap_mm
-    assert ('contact_down', 25.0, 5.0) in cell.calls                       # find_max_mm · insert_limit_n
+    assert ('contact_down', 40.0, 5.0) in cell.calls                       # find_max_mm · insert_limit_n
     assert names.index('contact_down') < names.index('periodic')
     assert r.insert_depth_mm == pytest.approx(DEPTH)                       # 솔이 컵에 들어간 길이 (내려온 거리가 아니다)
     assert names[-2:] == ['force_off', 'safe_retreat']
@@ -246,7 +246,7 @@ def test_cup_blocked_before_bottom_is_force_limit(cell):
 
 
 def test_cup_no_bottom_found_is_error(cell):
-    cell.depth = 25.0                                                      # find_max_mm 까지 내려가도 못 찾음
+    cell.depth = 40.0                                                      # find_max_mm 까지 내려가도 못 찾음
     r = wipe.wipe_cup()
     assert not r.ok and r.code == ROBOT_ERROR
     assert 'periodic' not in [c[0] for c in cell.calls]
