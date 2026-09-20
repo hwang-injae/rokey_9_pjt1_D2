@@ -132,7 +132,7 @@ rokey_pjt01_ws/                ← 저장소 루트 (rokey_9_pjt1_D2)
 | `bootstrap.dsr()` · `setup_io(node)` | [H] **`cobot_common` 안에서만 쓰는 약속**(PR #3). 사람별 파일은 함수 **안에서** `from .bootstrap import dsr` → `dsr().movej(...)`로 두산 API를 얻는다(`init()` 전이거나 메인 스레드 밖이면 `RuntimeError` — §3.2 규칙 ②를 코드로 강제). 통신 노드에 구독·클라이언트가 필요하면 자기 파일에 `setup_io(node)`를 만든다 — `init()`이 실행기를 돌리기 전에 한 번 불러 준다(콜백은 값 저장만). 새 함수는 자기 파일의 `__all__`에 이름을 넣으면 `cc.함수()`로 보인다(`__init__.py`는 고치지 않는다). 기능 패키지(f1·f2·f3)는 `dsr()`를 쓰지 않는다 |
 | `shutdown()` | [H] 동작 정지 명령(**최선 시도**) → 실행기 종료 → `rclpy.shutdown()`. 설치된 `DSR_ROBOT2.py`에는 정지 함수가 없어(`stop`·`move_stop` 없음, 9/19 확인) `motion/move_stop` 서비스(`dsr_msgs2/srv/MoveStop`)를 직접 부른다. **Virtual에서는 모션 중에도 먹는 것을 확인**(9/19 INF-02a: 모션 중 Ctrl+C → 0.08 s에 중단, `move_stop` 0.16 s, 브링업 재시작 없이 재실행 정상). 실기 확인은 V-24. 응답이 없으면 "브링업 재시작 필요"를 로그로 남긴다. 정지 방식은 `DR_QSTOP`(Stop Category 2) — 🟡 안전 담당(박진용) 확인, DSN-03 |
 | Ctrl+C(SIGINT) | [H] **`init()`이 단독으로 맡는다.** rclpy의 기본 SIGINT 처리기는 Ctrl+C 때 컨텍스트를 먼저 닫아 버려 `finally`의 정지 명령을 보낼 수 없으므로, `init()`이 그 처리기를 끈다. `flow_node`·`rig_f*.py`는 **`try/finally: cc.shutdown()`만** 쓰고 `signal.signal`을 따로 걸지 않는다 |
-| `move_to(station, carrying) → 남은 높이 mm` | [H] 안전 높이(`cell.limits.safe_z_mm`)를 거쳐 station **상공**으로 간다(구현 #15). 🚨 **안전 높이 아래로는 내려가지 않는다** — 티칭 자세가 더 낮으면 그 상공에서 멈추고 **남은 높이(mm)를 돌려준다**(0.0이면 그 자세). 내려가는 것은 부르는 쪽이 `move_rel(0, 0, -up, 'BASE')`(자유 공간) 또는 `contact_down`(접촉)으로. 이름은 `cell.stations`·`cell.beds`·`cell.zones`(`RET_*`)를 받는다(🟡 BASE 좌표만 — 사용자 좌표계 `frame`·`RACK_*`는 아직). carrying이면 느린 속도. 속도 = `cell.motion.*_max_*`(100 % 기준) × `cell.limits.vel_*_pct` × `cfg()['run']['vel_scale']`. 값이 비어 있으면 **움직이지 않고 KeyError** |
+| `move_to(station, carrying, kind=None, point=None) → 남은 높이 mm` | [H] 안전 높이(`cell.limits.safe_z_mm`)를 거쳐 station **상공**으로 간다(구현 #15 · 양식 확장 #36). **자세 고르기**(#36, 9/20 CELL-04): `kind` = `'BOWL'`·`'CUP'` — 종류별 자리(WEIGH·WASTE·SOAP·RINSE·ISOLATE) / `point` = 한 자리에 자세가 여러 개일 때(툴 홀더 `'pick'`·`'return'` · 스펀지 홈 `'place'`·`'regrip'`·`'wash'` · 반납 구역은 **슬롯 번호 1부터**). 골라야 하는데 안 주거나 틀리면 **움직이지 않고 ValueError**(고를 수 있는 이름을 알려 준다), 안 찍은 자세는 KeyError. 🚨 **posx 자세는 안전 높이 아래로 내려가지 않는다** — 접근점(`approach_posx`)이 있으면 접근점까지(안전 높이보다 낮으면 안전 높이에서 멈춤), 없으면 끝점의 상공까지 가고 **끝점까지 남은 높이(mm)를 돌려준다**(0.0이면 그 자세). 내려가는 것은 부르는 쪽이 `move_rel(0, 0, -up, 'BASE')`(자유 공간) 또는 `contact_down`(접촉)으로. 🚨 **posj 자세(HOME · 잡는 자세 5개: `RET_*` 슬롯 · 툴 홀더 `pick` · `SPONGE_BED_C` `regrip`)는 안전 높이와 무관하게 그 자세까지 관절 이동한다**(돌려주는 값 0.0) — 물체 옆까지 바로 들어가므로 부르기 전에 그리퍼를 열고, 실기 경로는 V-22 에서 HOME 출발·앞 스테이션 출발 둘 다 확인한다. 이름은 `cell.stations`·`cell.beds`·`cell.zones`(`RET_*`)·`cell.rack.slots`(`RACK_*`)를 받는다(좌표는 전부 **BASE 절대 자세** — 사용자 좌표계 `frame` 은 못 쓴다). carrying이면 느린 속도. 속도 = `cell.motion.*_max_*`(100 % 기준) × `cell.limits.vel_*_pct` × `cfg()['run']['vel_scale']`. 값이 비어 있으면 **움직이지 않고 KeyError** |
 | `move_rel(dx, dy, dz, frame, *, vel_mm_s=None, acc_mm_s2=None)` | [H] 상대 이동(슬롯 간 이동·하강·접촉 하강의 한 단계·후퇴), 자세(방향)는 그대로. `frame`은 `'BASE'`·`'TOOL'`. 속도 선택 인자는 [이슈 #7](https://github.com/hwang-injae/rokey_9_pjt1_D2/issues/7) 요청(✅ 9/19 PM 수락) — 없으면 `vel_carry_pct`(느린 쪽), 주면 그 값(`vel_scale`은 부르는 쪽이 곱한다)을 쓰되 100 % 기준 × `vel_scale`을 넘지 못한다. 접촉 하강은 아주 느리게 줘야 한다. 🟡 회전을 포함한 상대 이동은 아직 없다(rack_place 기울임·wipe_cup 툴 축 회전에 필요 — 안건) |
 | `move_joint_rel(joint, delta_deg, *, time_s=None, carrying=True)` | [H] 관절 하나(1~6)만 지금 각도에서 상대 이동 — 털기·물 털기의 J5/J6 왕복(민범진 요청 B11, 구현 #15). `time_s`를 주면 그 시간에 맞춘다(`vel_scale` < 1이면 그만큼 늘어난다, 실측: 요청보다 약 0.13 s 길다). 🚨 순응·힘제어가 켜져 있으면 안 된다 → `force_off()` 뒤에. **평균 속도(|delta_deg| / 시간)가 `cell.motion.vel_joint_max_deg_s` × `vel_scale`을 넘으면 시간을 늘리고 경고**한다(#16) — 순간 최고 속도는 평균보다 높으므로 기준값은 여유 있게 |
 | `pause()` · `resume()` · `is_paused()` / `halt()` · `clear_halt()` · `is_halted()` · 예외 `MotionHalted` · `MoveTimeout` | [H] **이동 도중 즉시 일시 정지·재개·강제정지**(V-24, 구현 #34). 세 이동 함수는 속이 **비동기 이동(`amovej`/`amovel`) + `check_motion` 0.05 s 폴링**이다 — 부르는 쪽에서는 달라진 것이 없다(이동이 끝나야 돌아온다, 일시 정지 중에는 재개를 기다린다). `pause()·resume()·halt()`는 **깃발만** 세우므로 통신 노드 콜백에서 불러도 된다(실제 `move_pause`·`move_resume`·`move_stop` 요청은 메인 스레드의 폴링 루프가 보낸다). 일시 정지 = 그 자리에서 멈춤 → 재개하면 **같은 이동을 이어서**. 강제정지 = 하던 이동은 `MotionHalted`로 끝나고, `clear_halt()` 전까지 새 이동도 `MotionHalted`(정지 뒤 다음 명령이 다시 움직이게 하는 것을 막는다). 이동 1번이 `cell.motion.move_timeout_s`(일시 정지 시간 제외)를 넘으면 정지 명령 + `MoveTimeout`. 기능 함수는 두 예외를 **잡지 말고 위로 올린다**. 🚨 먹는 범위: 이동 함수를 거치는 모든 이동 — 접촉 하강·닦기의 걸음(`move_rel`)도 걸음 도중에 멈춘다(순응·힘제어는 켜진 채). 먹지 않는 것: `move_periodic`(안착 탐색)·그리퍼·무게 대기 — 그 동작이 끝난 뒤 다음 이동에서 멈춘다. 🟡 **실기 미검증**(Virtual rig_pause 10/10) — 9/21 저녁 첫 순서로 실기 확인 |
@@ -253,14 +253,20 @@ cell:                                   # 여러 기능이 같이 쓰는 값. �
     CUP:    {grip_width_mm: 70.0, grip_force_n: 15, hold_force_n: 30, width_tol_mm: 3.0, approach_z_mm: 40}   # 몸통을 통째로 파지(지름 방향, 9/18 V-17 확인) — 벽을 집는 그릇(≈ 2 mm)과 다르다
     SPONGE: {grip_width_mm: 30.0, grip_force_n: 30, width_tol_mm: 2.0}
     BRUSH:  {grip_width_mm: 22.0, grip_force_n: 30, width_tol_mm: 2.0}
-  stations: {HOME: {posj: [...]}, WEIGH: {posx: [...]}, WASTE: {...}, SOAP: {...}, RINSE: {...}, TOOL_SPONGE: {...}, TOOL_BRUSH: {...}, ISOLATE: {...}}
-  zones:                                # 반납 구역 — 고정 슬롯(9/19 결정): offsets_mm = 슬롯 위치, max_attempts = 슬롯 수
-    RET_B: {frame: RETURN, origin_posx: [...], search: {offsets_mm: [[0,0],[40,0],[-40,0],[0,40],[0,-40]], max_attempts: 5, descend_max_mm: 80}}
-    RET_C: {frame: RETURN, origin_posx: [...], search: {offsets_mm: [[0,0],[35,0],[-35,0],[0,35],[0,-35]], max_attempts: 5, descend_max_mm: 100}}
-  beds:                                 # 스펀지 홈(안착 놓기·재파지 위치)
-    SPONGE_BED_B: {frame: BED, origin_posx: [...], seat: {approach_z_mm: 30, contact_limit_n: 15, search_amp_mm: 3, search_period_s: 0.8, search_max_s: 6}}
-    SPONGE_BED_C: {frame: BED, origin_posx: [...], seat: {approach_z_mm: 30, contact_limit_n: 15, search_amp_mm: 3, search_period_s: 0.8, search_max_s: 6}}
-  rack: {origin_posx: [...], slots: {RACK_B1: {offset_mm: [..], tilt_deg: 30}, RACK_B2: {...}, RACK_C1: {...}, RACK_C2: {...}}}   # 컵 칸 4 → 2 (황인재 9/20)
+  # ── 자세 적는 법(9/20 CELL-04 · 결정 E4 · #36) — 정본은 cell.yaml 의 stations 위 설명. 좌표는 전부 BASE 절대 자세 ──
+  #   자세 1개 = {posj: [...]} 또는 {posx: [...]} 또는 {approach_posx: [...], posx: [...]}  (접근점 = 끝점 바로 위·같은 방향, test_config 가 검사)
+  stations:
+    HOME: {posj: [...]}
+    WEIGH: {BOWL: {posx: [...]}, CUP: {posx: [...]}}          # 종류별 → cc.move_to('WEIGH', True, 'BOWL').  WASTE·SOAP·RINSE·ISOLATE 도 같다
+    TOOL_SPONGE: {pick: {posj: [...]}, return: {posx: [...]}}  # 용도별 → cc.move_to('TOOL_SPONGE', False, point='pick').  TOOL_BRUSH 도 같다
+  zones:                                # 반납 구역 — 고정 슬롯(9/19 결정). 슬롯마다 집는 자세 → cc.move_to('RET_B', False, point=1)
+    RET_B: {slots: [{posj: [...]}, {posj: [...]}]}
+    RET_C: {slots: [{posj: [...]}, {posj: [...]}]}
+  beds:                                 # 스펀지 홈 — place 놓는 자리 · regrip 다시 잡는 자리(컵) · wash 닦기 시작하는 자리(끝점 z = **닦는 높이**, 결정 E6)
+    SPONGE_BED_B: {place: {approach_posx: [...], posx: [...]}, wash: {approach_posx: [...], posx: [...]},
+                   seat: {contact_limit_n: 15, search_amp_mm: 3, search_period_s: 0.8, search_max_s: 6}}
+    SPONGE_BED_C: {place: {...}, regrip: {posj: [...]}, wash: {...}, seat: {...}}
+  rack: {slots: {RACK_B1: {posx: [...]}, RACK_B2: {posx: [...]}, RACK_C1: {approach_posx: [...], posx: [...]}, RACK_C2: {...}}}   # 칸마다 절대 자세 · 컵 칸 4 → 2 (황인재 9/20)
 # ===== params.yaml (기능별 절 · 자기 절만 수정) =====
 f1: {insert_approach_mm: 30, tool_return_contact_n: 8}            # ── f1 절 (한석형) ──
 f2:                                                                 # ── f2 절 (민범진) ──
@@ -271,7 +277,7 @@ f2:                                                                 # ── f2 
   dip: {RINSE: {depth_mm: 60, hold_s: 1.0}}
 f3:                                                                 # ── f3 절 (박진용) ──
   soap: {depth_mm: 40, hold_s: 0.5}
-  wipe_bowl: {down_mm: 156.1, limit_n: 10.0, lateral_max_n: 25.0, bowl_inner_d_mm: 110, wall_press_mm: 3, turns: 2, duration_s: 30}   # 9/20 E6 고정 좌표(시작 자세 Z 215.1 → 59.0). 툴 지름은 tool.d_mm
+  wipe_bowl: {slow_mm: 20, limit_n: 10.0, lateral_max_n: 25.0, bowl_inner_d_mm: 110, wall_press_mm: 3, turns: 2, duration_s: 30}   # 9/20 E6 고정 좌표 — **닦는 높이는 cell.beds.SPONGE_BED_B.wash 끝점의 z(59.0)**, 여기는 반지름·바퀴 수·힘 상한. 툴 지름은 tool.d_mm
   wipe_cup:  {insert_depth_mm: 60, rot_deg: 180, cycles: 4, stroke_mm: 30, limit_n: 10.0}
 flow:                                                               # ── flow 절 (민범진) ──
   plan: [{zone: RET_B, kind: BOWL, count: 2}, {zone: RET_C, kind: CUP, count: 2}]
@@ -306,7 +312,7 @@ hmi: {port: 8000, state_rate_hz: 2, disconnect_after_s: 2.0, db_path: prewash.db
 | ID 값 | 종류·구역·칸·스테이션·코드는 IRD §2 **대문자 문자열 그대로** 키나 값으로 쓴다 | `zones: {RET_B: …}`, `policy: {SEAT_FAIL: isolate}` |
 | 공용이냐 전용이냐 | 두 기능 이상이 읽으면 `cell.yaml`(복사 금지, 한 곳에만), 한 기능만 읽으면 `params.yaml`의 자기 절 | 속도 상한·프리셋·좌표 → `cell` / 나선 반지름 → `f3` |
 | 좌표 | `posj`(관절 6개, deg) 또는 `posx`(x y z rx ry rz, mm·deg) 중 하나를 키 이름으로 명시 | `HOME: {posj: [...]}` |
-| 기본값·범위 | 값 옆 주석에 단위·허용 범위·바꾼 이유(날짜) | `down_mm: 156.1   # 시작 자세 Z 215.1 → 59.0, 9/20 실기(E6)` |
+| 기본값·범위 | 값 옆 주석에 단위·허용 범위·바꾼 이유(날짜) | `wall_press_mm: 3   # 벽을 누르는 양, 9/20 실기(E6)` |
 | 변경 공유 | **키 이름** 추가·변경은 팀 공유(채널), **값** 변경은 주인 재량 + 커밋 본문에 이유 | `fix(f3): wipe 상한 10→8 N (스펀지 밀림)` |
 
 ---
@@ -357,16 +363,15 @@ stateDiagram-v2
 ### 5.2 f1_handling — `handling.py` (한석형)
 **pick (고정 슬롯 파지 — 9/19 PM 결정)** — 반납 구역마다 **지정된 고정 슬롯 2개**에 용기를 겹치지 않게 놓고, 슬롯을 순서대로 집는다(이전 안 "구역 + 탐색 파지: 겹침·어긋남 허용"은 일정 방어로 제외):
 ```
-for i, (dx,dy) in enumerate(zone.search.offsets_mm):        # 슬롯 순서 (offsets_mm = 구역 기준점 대비 슬롯 위치)
-    move_to(슬롯 상공 = zone 기준점 + (dx,dy), carrying=False) # 안전 높이
-    release(); 그리퍼 열기(프리셋 폭 + 여유)
-    depth, f = contact_down(descend_max_mm, contact_limit_n) # 힘 상한 감시 하강 — 접촉 또는 최대 깊이에서 정지
+for i in 1..len(cell.zones[zone_id].slots):                  # 슬롯 순서 (슬롯마다 집는 자세 posj — 9/20 CELL-04, #36)
+    release(); 그리퍼 열기(프리셋 폭 + 여유)                   # 🚨 move_to 전에 연다 — posj 자세는 물체 옆까지 바로 들어간다
+    move_to(zone_id, carrying=False, point=i)                # 슬롯의 집는 자세까지 관절 이동 (V-22 에서 경로 확인)
     w = grip(닫는 목표 폭 < preset.grip_width, preset.grip_force)  # 파지 — 목표는 기대 폭보다 작게(아래 🚨)
-    if |w - preset.grip_width| <= width_tol:  성공 → 상승 → return ok, w, i+1, (dx,dy)
-    else: release(); safe_retreat()                          # 빈 슬롯·헛잡음 → 다음 슬롯
+    if |w - preset.grip_width| <= width_tol:  성공 → 상승 → return ok, w, attempts=i
+    else: release(); 상승                                     # 빈 슬롯·헛잡음 → 다음 슬롯
 return EMPTY_ZONE (attempts = 슬롯 수)
 ```
-- 슬롯 위치는 구역 기준점 대비 오프셋 목록(`config/cell.yaml`의 `zones.*.search.offsets_mm`, `max_attempts` = 슬롯 수). **키 이름·`pick` 서명·`EMPTY_ZONE` 코드는 그대로**라 `cobot_api`·flow·mock은 바뀌지 않는다.
+- 슬롯 위치는 **슬롯마다 티칭한 집는 자세**(`config/cell.yaml`의 `zones.*.slots[i].posj` — 9/20 CELL-04 에서 "기준점 + 오프셋" 양식을 버렸다, #36). **`pick` 서명·`EMPTY_ZONE` 코드는 그대로**라 `cobot_api`·flow·mock은 바뀌지 않는다.
 - **그릇은 옆면(벽)을 세로로 파지**한다(외경 114 mm > RG2 최대 폭 110 mm — 지름 파지 불가): 그리퍼를 아래로 향하고 핑거가 그릇 벽의 안팎을 집는다. 슬롯 중심이 아니라 **벽 위**로 가야 하므로 슬롯 오프셋에 벽까지의 거리(반지름 ≈ 55 mm)를 더한 위치를 쓴다(값은 한석형이 `cell.yaml`에). 컵은 **몸통을 통째로 파지**(지름 방향 — 벽을 집지 않는다, 폭 ≈ 컵 지름이라 빈손·그릇과 간격이 충분)(V-17).
 - 폭 판정(✅ 9/19 PM 결정 — **그릇도 파지 폭으로 가른다, 무게로 가르지 않는다**): 그릇을 옆면(벽)으로 세로 파지하면 파지 폭이 **≈ 2 mm**로 읽히고 **빈손(완전히 닫힘)과 구분되는 것까지 검증했다**(9/19 황인재) → 폭으로 구분한다. 그릇의 기대 폭(`presets.BOWL.grip_width_mm` ≈ 2)과 허용 오차(`width_tol_mm`)는 V-01에서 재서 `cell.yaml`에 넣는다 — 그릇의 허용 오차는 그릇 폭과 빈손 폭의 간격보다 작아야 한다(컵의 3 mm를 그대로 쓰면 빈손도 성공으로 읽힌다).
 - 🚨 **`grip`에 주는 닫는 목표 폭은 기대 폭보다 작아야 한다**(그릇은 0 mm 쪽). 목표를 기대 폭과 같게 주면 빈손도 그 폭에서 멈춰 "성공"으로 읽힌다. 새 키 없이 하려면 닫는 목표 = `grip_width_mm − 2 × width_tol_mm`(0보다 작으면 0)를 권장한다 — 용기가 있으면 용기 폭에서 멈추고(힘 도달), 없으면 목표까지 닫혀 허용 오차 밖이 된다.
@@ -395,7 +400,7 @@ return EMPTY_ZONE (attempts = 슬롯 수)
 
 ### 5.4 f3_wipe — `wipe.py` (박진용)
 - `soap`: 툴 든 채 SOAP 수조 담금 `count`회.
-- `wipe_bowl()` — ✅ **고정 좌표 방식(황인재 9/20, 결정기록 E6)**: 닦는 자리의 시작 자세(`cc.move_to`, 그릇 중심 위) → `down_mm` 하강(앞은 빠르게, **마지막 구간은 천천히 + 누르는 힘 상한**) → 바닥 닦기(중심 → 벽 반지름) → 벽에 **천천히** 붙인 뒤 반대 방향 `turns`바퀴(6번 축 좌우 비틀기) → 중심 복귀 → `safe_retreat`. 힘 로그 저장.
+- `wipe_bowl()` — ✅ **고정 좌표 방식(황인재 9/20, 결정기록 E6)**: `up = cc.move_to('SPONGE_BED_B', True, point='wash')`(그릇 중심 위) → **`up` 만큼 하강**해 끝점 = 닦는 높이(`cell.beds.SPONGE_BED_B.wash.posx` 의 z, **59.0**)까지 — 앞은 빠르게, **마지막 `slow_mm` 구간은 천천히 + 누르는 힘 상한** → 바닥 닦기(중심 → 벽 반지름) → 벽에 **천천히** 붙인 뒤 반대 방향 `turns`바퀴(6번 축 좌우 비틀기) → 중심 복귀 → `safe_retreat`. 힘 로그 저장.
   - **찾지 않는다**: 벽 찾기·바닥 찾기(`contact_down`)·목표 힘 유지(`force_on`)를 쓰지 않는다. 벽 반지름 = (`bowl_inner_d_mm` − `tool.d_mm`) / 2 + `wall_press_mm`. 이유: 수세미가 로봇 순응보다 훨씬 물러 "못 따라간 거리"가 생기지 않고, 바닥 마찰(5~14 N)이 벽 신호(1~2 N)를 덮는다(V-03).
   - **감시는 한다**(NFR-01): 시작 전 공중 기준값을 재고, 누르는 힘(기준 대비) > `limit_n` 또는 옆 힘 > `lateral_max_n` 이면 즉시 후퇴 → `FORCE_LIMIT`. 시간 상한 `duration_s` → `TIMEOUT`.
   - 🚨 순응을 켠 채 내리면 **명령한 Z 와 실제 Z 가 다르다**(Z 강성 200 N/m 면 3 N 에 15 mm 덜 내려간다) → 고정 높이는 **실제 Z** 기준. 순응을 끄거나 Z 강성을 높이고 실제 Z 를 로그로 확인한다.

@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v7.7'
+VERSION = 'v7.8'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -277,6 +277,17 @@ WIPE_0920 = {
 for _tid, _e in WIPE_0920.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/20 16:41 PR #36 merge: 한석형 좌표 26개가 cell.yaml 에 들어왔다
+PR36_0920 = {
+ 'CELL-04': dict(prog='0.7', note_add='✅ 9/20 16:41 PR #36 merge(황인재 F4 세션): 한석형 좌표 **26개가 cell.yaml 에 들어왔다**(값 그대로 · 기계 대조 일치 · Virtual 31번 이동 OK 51/FAIL 0 · 시험 243건). 양식 = 종류별(kind) · 용도별/슬롯(point) · 접근점+끝점, cc.move_to(station, carrying, kind, point). 🔴 **한석형에게 남은 것**: 새 자세 8개(WEIGH 그릇·컵 · SOAP 수세미·솔 · ISOLATE 그릇·컵 · 구역 슬롯 2 그릇·컵) + RACK_C2 접근점 재티칭(2.36 mm · 4.72°) + limits·motion 5개·presets 값 — 🚨 limits·motion 이 비어 있으면 실기에서 이동 함수가 KeyError 로 돌지 않는다 → **9/21 저녁 세션 전까지**'),
+ 'V-22':    dict(note_add='🚨 9/20 PR #36 검토에서 추가한 확인 항목: **posj 자세 5개**(RET_B·RET_C 슬롯 1 · TOOL_SPONGE/BRUSH pick · SPONGE_BED_C regrip)는 move_to 가 안전 높이와 무관하게 **그 자세까지 관절 이동**한다(물체 옆까지 바로) → HOME 출발 · 앞 스테이션 출발 두 경로를 vel_scale 0.3 으로 한 번씩. 위험하면 그 자세를 접근점+끝점(posx)으로 다시 읽는다. 그 밖에: 팔레트 그릇 칸은 접근점 없이 직접 들어감 · TOOL_SPONGE pick 의 J6 −220° · RINSE BOWL 하강 263 mm. 전제: 한석형이 limits·motion 을 채워야 시작할 수 있다'),
+ 'F1-01':   dict(note_add='9/20 #36: 좌표는 들어왔다 — cc.move_to(zone, False, point=슬롯) / (…, point=\'place\') 로 부른다. handling.py 설명글이 새 양식으로 바뀌었다(코드 변경 없음)'),
+ 'F2-01':   dict(note_add='9/20 #36: WEIGH·WASTE·RINSE 가 종류별 자리가 됐다 → sense.py 의 _goto 가 cc.move_to(station, carrying, kind) 로 kind 를 넘겨야 한다(지금은 진짜 cell.yaml 에서 ValueError). WEIGH 자세는 아직 🔴(한석형)'),
+ 'F3-02':   dict(note_add='9/20 #36: 닦기 시작 = cc.move_to(\'SPONGE_BED_B\', True, point=\'wash\') — 돌려주는 높이만큼 내려가면 wash 끝점(= 닦는 높이, E6 의 Z 59.0 · 지금 값 47.0 은 한석형 티칭 → 맞춰 본다). 세제 = cc.move_to(\'SOAP\', True, \'BOWL\') (아직 🔴)'),
+}
+for _tid, _e in PR36_0920.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -411,6 +422,9 @@ HISTORY27 = ['v7.6', '결정', 'CELL-04, V-22, F1-01', '황인재 9/20 17:40: �
 HISTORY28 = ['v7.7', '결정', 'V-03, F3-02, V-18', '황인재 9/20 16:30(결정기록 E6): 그릇 닦기를 고정 좌표 방식으로 — 벽 찾기 포기(반지름 고정) · 높이도 고정(Z 215.1 → 59.0) · 힘은 감시·기록만(상한 10 N · 옆 힘 25 N). 원인: 수세미가 로봇 순응보다 물러 닦는 도중에는 벽이 안 잡힌다(V-03). FR-08·SR-08·TR-05·SDD §5.4 수정. V-03 은 기록 PR 만 남음',
              '황인재 9/20 16:30', 'P']
 
+HISTORY29 = ['v7.8', '진척·리스크', 'CELL-04, V-22, F1-01, F2-01, F3-02', 'PR #36 merge — 한석형 좌표 26개가 cell.yaml 에(양식: kind · point · 접근점+끝점, cc.move_to 인자 2개 추가, 팔레트 컵 2칸 5곳). 🚨 리스크: 한석형의 새 자세 8개 + limits·motion·presets 가 9/21 저녁 세션 전에 없으면 실기 이동 불가. V-22 에 posj 자세 5개의 경로 확인 추가',
+             'PR #36 · PM 검토', 'S,M,P,H']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -505,7 +519,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
