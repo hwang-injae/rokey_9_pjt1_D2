@@ -9,19 +9,27 @@
 #   - 🟡 표시는 9/19 저녁 DSN-03 에서 방식이 정해진 뒤에 채우는 곳이다.
 cell:
   limits:                         # 속도·안전 높이·공통 힘 상한·타임아웃  (SDD §4.3 예시: 60 · 30 · 150 · 10 · 15 · 10)
-    vel_free_pct:                 # 빈손 이동 속도 %
-    vel_carry_pct:                # 용기·툴을 들고 이동할 때 속도 %
-    safe_z_mm:                    # 접촉 동작 뒤 **후퇴 높이**(cc.safe_retreat 가 여기까지 올린다) — 이동 경로와 무관(9/20 결정 E7: 이동의 안전 높이 경유는 없앴다)
-    contact_limit_n:              # 접촉(탐색 하강·안착) 힘 상한  — NFR-01
-    insert_limit_n:               # 삽입(팔레트·컵 솔) 힘 상한    — NFR-01
-    timeout_s:                    # 접촉 동작 공통 타임아웃
+    vel_free_pct: 60              # 빈손 이동 속도 % (SDD §4.3)
+    vel_carry_pct: 30             # 용기·툴을 들고 이동할 때 속도 % (SDD §4.3)
+    safe_z_mm: 235                # 접촉 동작 뒤 **후퇴 높이**(cc.safe_retreat 가 여기까지 올린다) — 이동 경로와 무관(9/20 결정 E7: 이동의 안전 높이 경유는 없앴다)
+                                  #   🚨 SDD §4.3 예시는 150 이지만 그러면 **컵을 닦던 솔이 컵 밖으로 안 나온다** → 235 로 정했다(황인재 9/21).
+                                  #   근거(CELL-02a 치수 + 9/20 실기 E13): 용기 안 바닥 TCP z = 33 · 그릇 내부 높이 45 → 그릇 입구 78 · 컵 내부 높이 95 → 컵 입구 128
+                                  #     그리퍼 끝 → 툴 끝 = 수세미 35 · 솔 95  ⇒ 툴 끝이 입구 위로 나오는 TCP = 그릇 78+35 = 113 · **컵 128+95 = 223**
+                                  #     223 + 여유 12 = 235. 한석형이 찍은 닦기 접근점(SPONGE_BED_B/C.wash.approach_posx z = 235)과 같은 높이라 서로 맞는다
+                                  #   🔎 실기에서 눈으로 확인할 것(V-22·V-25): 솔을 쥔 채 이 높이로 올라오면 컵 밖으로 완전히 나오는가
+    contact_limit_n: 10           # 접촉(탐색 하강·안착) 힘 상한  — NFR-01 "탐색 하강 10 N"
+                                  #   🔔 닦기 바닥 찾기는 이 값이 아니라 f3 쪽 2 N 을 쓴다(9/20 결정 E13, 박진용 실기)
+    insert_limit_n: 15            # 삽입(팔레트·컵 솔) 힘 상한    — NFR-01 "안착 15 N · 삽입 15 N"
+    timeout_s: 10                 # 접촉 동작 공통 타임아웃 (SDD §4.3)
 
   motion:                         # 이동 함수(motion.py) 공용 값 — INF-02. "100 % 기준 속도": 실제 속도 = 기준 × limits.vel_*_pct/100 × 실행 인자 vel_scale
-    vel_tcp_max_mm_s:             # 직선 이동(movel) 100 % 기준 속도.  로봇 사양의 최대가 아니라 **우리 셀에서 허용하는 최대**를 적는다
-    acc_tcp_max_mm_s2:            # 직선 이동 100 % 기준 가속도
-    vel_joint_max_deg_s:          # 관절 이동(movej) 100 % 기준 속도
-    acc_joint_max_deg_s2:         # 관절 이동 100 % 기준 가속도        (Virtual 시험 값: src/cobot_common/test/config_virtual/cell.yaml)
-    move_timeout_s:               # 이동 1번의 상한 시간(일시정지한 시간은 빼고). 넘으면 정지 명령을 보내고 오류 — V-24 에서 추가
+    vel_tcp_max_mm_s: 400         # 직선 이동(movel) 100 % 기준 속도.  (SDD §4.3)  로봇 사양의 최대가 아니라 **우리 셀에서 허용하는 최대**를 적는다
+                                  #   🚨 빈손 60 % = 240 mm/s — 컨트롤러 수동 모드 TCP 상한(≈250 mm/s)에 가깝다.
+                                  #      Virtual 에서 300 mm/s 는 잘렸고 275 를 넘으면 이동이 **정지**했다(9/20) → V-22 에서 vel_scale 을 올릴 때 확인한다
+    acc_tcp_max_mm_s2: 800        # 직선 이동 100 % 기준 가속도 (SDD §4.3)
+    vel_joint_max_deg_s: 100      # 관절 이동(movej) 100 % 기준 속도 (SDD §4.3)
+    acc_joint_max_deg_s2: 200     # 관절 이동 100 % 기준 가속도 (SDD §4.3)        (Virtual 시험 값: src/cobot_common/test/config_virtual/cell.yaml)
+    move_timeout_s: 30            # 이동 1번의 상한 시간(일시정지한 시간은 빼고). 넘으면 정지 명령을 보내고 오류 — V-24 에서 추가
 
   force:                          # 힘 함수(force.py) 공용 값 — 이슈 #7 ①. 값은 박진용(V-03 9/20 실기로 확정, 시험 기록 docs/test_logs/20260919_V-03_*)
     compliance_stx: [1000, 1000, 200, 100, 100, 100]   # 순응 강성 [x, y, z, rx, ry, rz] N/m · Nm/rad
@@ -118,11 +126,11 @@ cell:
       wash:                                                                 # 놓는 자리와 53 mm 떨어져 있다 — 그릇 벽을 잡아서 그리퍼가 한쪽으로 치우친 만큼
         approach_posx: [367.5, 8.0, 235.0, 157.2, 180.0, 157.0]             # (BOWL_WASH_WAIT)
         posx:          [367.5, 8.0, 47.0, 157.2, 180.0, 157.0]              # (BOWL_WASH_CONTACT) 참고 높이 — 실제 접촉은 cc.contact_down 이 힘으로 찾는다
-      seat:                       # 안착 놓기 파라미터 — V-04
-        contact_limit_n:
-        search_amp_mm:
-        search_period_s:
-        search_max_s:
+      seat:                       # 안착 놓기 파라미터 — V-04 (SDD §4.3 · F1-05 한석형이 V-04 결과로 조정)
+        contact_limit_n: 15
+        search_amp_mm: 3
+        search_period_s: 0.8
+        search_max_s: 6
     SPONGE_BED_C:
       place:
         approach_posx: [367.56, 114.2, 300.0, 89.0, 126.2, 86.0]            # (CUP_PLACE_1)
@@ -131,11 +139,11 @@ cell:
       wash:
         approach_posx: [369.19, 152.77, 235.0, 156.96, 180.0, 156.8]        # (CUP_WASH_WAIT)
         posx:          [369.19, 152.77, 156.54, 156.96, 180.0, 156.8]       # (CUP_WASH_CONTACT) 참고 높이
-      seat:
-        contact_limit_n:
-        search_amp_mm:
-        search_period_s:
-        search_max_s:
+      seat:                       # (SDD §4.3)
+        contact_limit_n: 15
+        search_amp_mm: 3
+        search_period_s: 0.8
+        search_max_s: 6
 
   rack:                           # 식기세척기용 팔레트 모형 — 그릇 2칸 + 컵 2칸(9/20 결정). 칸마다 절대 자세
     # 한석형 스크립트의 경로(참고): HOME(관절) → HOME 의 x·y 그대로 z 338 로 내려와서 → 접근점 → 끝점 → 놓기

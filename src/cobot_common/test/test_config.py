@@ -110,7 +110,8 @@ def test_repo_params_sections():
 
 def test_unfilled_lists_empty_cell_values():
     empty = config.unfilled(config.load(SRC_CONFIG))
-    assert 'cell.limits.safe_z_mm' in empty                       # INF-04 시점: cell 값은 한석형이 채우기 전
+    assert 'cell.presets.BOWL.grip_width_mm' in empty             # 아직 안 잰 값(V-01 에서 잰다)
+    assert 'cell.limits.safe_z_mm' not in empty                   # 9/21: limits·motion·seat 는 설계 문서 값으로 채웠다
     assert 'cell.stations.SOAP.BOWL.posx' in empty                # 9/20 CELL-04: 한석형이 찍은 자세는 찼고, 안 찍은 자세는 비어 있다(WEIGH 는 9/20 저녁에 참)
     assert 'cell.stations.HOME.posj' not in empty and 'cell.zones.RET_B.slots[1].posj' not in empty   # 슬롯 목록도 센다(번호는 1 부터)
     assert not [p for p in empty if not p.startswith('cell.')]
