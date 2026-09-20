@@ -11,6 +11,7 @@ cell:
     acc_tcp_max_mm_s2: 800
     vel_joint_max_deg_s: 100
     acc_joint_max_deg_s2: 200
+    move_timeout_s: 30
   force:                                # safe_retreat 가 읽는 값만 (Virtual 에는 힘이 없다 — 나머지 힘 함수는 Virtual 에서 시험하지 않는다)
     retreat_vel_mm_s: 100
     retreat_acc_mm_s2: 200
@@ -20,6 +21,9 @@ cell:
     TOOL_SPONGE: {posx: [468.0, -143.75, 200.0, 45.0, 180.0, 45.0]}     # 안전 높이보다 150 mm 낮다 → 상공에서 멈춘다
     SOAP:        {posx: }                                               # 일부러 비워 둠 → 움직이지 않고 KeyError
   beds:
-    SPONGE_BED_B: {frame: , origin_posx: [418.0, 6.25, 120.0, 45.0, 180.0, 45.0]}
+    SPONGE_BED_B:
+      place: {posx: [418.0, 6.25, 120.0, 45.0, 180.0, 45.0]}
   zones:
-    RET_B: {frame: , origin_posx: [300.0, 200.0, 100.0, 45.0, 180.0, 45.0]}
+    RET_B:
+      slots:
+        - {posx: [300.0, 200.0, 100.0, 45.0, 180.0, 45.0]}

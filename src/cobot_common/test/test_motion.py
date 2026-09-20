@@ -3,6 +3,8 @@
 실행: python3 -m pytest -q src/cobot_common/test/test_motion.py        Virtual 시험은 rig_motion.py
 """
 import copy
+import threading
+import time
 
 import pytest
 
@@ -14,14 +16,25 @@ CFG = {
     'cell': {
         'limits': {'vel_free_pct': 60, 'vel_carry_pct': 30, 'safe_z_mm': SAFE_Z},
         'motion': {'vel_tcp_max_mm_s': 500.0, 'acc_tcp_max_mm_s2': 1000.0,
-                   'vel_joint_max_deg_s': 100.0, 'acc_joint_max_deg_s2': 200.0},
+                   'vel_joint_max_deg_s': 100.0, 'acc_joint_max_deg_s2': 200.0, 'move_timeout_s': 5.0},
         'stations': {'HOME': {'posj': [0, 0, 90, 0, 90, 0]},
                      'WEIGH': {'posx': [400, 100, 450, 0, 180, 0]},          # 안전 높이보다 높다
                      'TOOL_SPONGE': {'posx': [300, -200, 120, 0, 180, 0]},   # 안전 높이보다 낮다
-                     'SOAP': {'posx': None}},                                 # 아직 티칭 전
-        'beds': {'SPONGE_BED_B': {'frame': None, 'origin_posx': [350, 0, 50, 0, 180, 0]},
-                 'SPONGE_BED_C': {'frame': 'BED', 'origin_posx': [350, 80, 50, 0, 180, 0]}},
-        'zones': {'RET_B': {'frame': None, 'origin_posx': [200, 300, 40, 0, 180, 0]}},
+                     'SOAP': {'posx': None},                                  # 아직 티칭 전
+                     'WASTE': {'BOWL': {'posx': [600, -170, 240, 0, 180, 0]},          # 종류별 자세 (9/20 CELL-04)
+                               'CUP': {'posx': [110, -400, 240, 90, -160, -160]}},
+                     'ISOLATE': {'BOWL': {'posx': None}, 'CUP': {'posx': None}},         # 종류별인데 아직 티칭 전
+                     'TOOL_BRUSH': {'pick': {'posj': [-28, 17, 84, 0, 79, -28]},         # 용도별 자세
+                                    'return': {'posx': [420, -220, 130, 0, 180, 0]}}},
+        'beds': {'SPONGE_BED_B': {'place': {'approach_posx': [350, 0, 450, 0, 180, 0],   # 접근점이 안전 높이보다 높다
+                                            'posx': [350, 0, 50, 0, 180, 0]},
+                                  'wash': {'approach_posx': [300, 0, 235, 0, 180, 0],     # 접근점이 안전 높이보다 낮다
+                                           'posx': [300, 0, 47, 0, 180, 0]},
+                                  'seat': {'contact_limit_n': None}},                     # 자세가 아닌 값 — point 로 고를 수 없다
+                 'SPONGE_BED_C': {'place': {'frame': 'BED', 'posx': [350, 80, 50, 0, 180, 0]}}},
+        'zones': {'RET_B': {'slots': [{'posj': [0, 23, 68, 0, 88, 0]}, {'posj': None}]}},
+        'rack': {'slots': {'RACK_B1': {'posx': [300, 600, 310, 90, 95, 7]},
+                           'RACK_C1': {'approach_posx': [331, 401, 411, 80, 72, -91], 'posx': [331, 401, 279, 80, 72, -91]}}},
     },
 }
 
@@ -30,29 +43,53 @@ class FakeDsr:
     """두산 API 흉내 — 부른 것을 적어 두기만 한다."""
     DR_BASE, DR_TOOL, DR_MV_MOD_ABS, DR_MV_MOD_REL = 0, 1, 0, 1
 
-    def __init__(self, z=500.0, ret=0):
+    def __init__(self, z=500.0, ret=0, busy_polls=2):
         self.z, self.ret, self.calls = z, ret, []
+        self.busy_polls = busy_polls            # 이동 하나가 끝나기까지 check_motion 이 '움직이는 중'을 몇 번 돌려주나
+        self.left = 0
+        self.paused = False                     # 드라이버가 일시정지 상태인가 (그동안은 계속 '움직이는 중')
 
     def get_current_posx(self, ref=None):
         return [100.0, 0.0, self.z, 0.0, 180.0, 0.0], 2
 
-    def movel(self, pos, **kw):
+    def amovel(self, pos, **kw):                # 비동기: 보내고 바로 돌아온다 (기록 이름은 그대로 movel — 나가는 명령은 같다)
         self.calls.append(('movel', list(pos), kw))
+        self.left = self.busy_polls
         return self.ret
 
-    def movej(self, pos, **kw):
+    def amovej(self, pos, **kw):
         self.calls.append(('movej', list(pos), kw))
+        self.left = self.busy_polls
         return self.ret
+
+    def check_motion(self):
+        if self.left > 0 and not self.paused:
+            self.left -= 1
+        return 2 if self.left > 0 else 0
 
 
 @pytest.fixture
 def robot(monkeypatch):
     cfg = copy.deepcopy(CFG)
     fake = FakeDsr()
+    fake.services = []                          # 드라이버로 나간 move_pause · move_resume · move_stop
+
+    def call(name):
+        fake.services.append(name)
+        if name == 'pause':
+            fake.paused = True
+        elif name == 'resume':
+            fake.paused = False
+        elif name == 'stop':
+            fake.left, fake.paused = 0, False
     monkeypatch.setattr(motion, 'cfg', lambda: cfg)
     monkeypatch.setattr(motion, 'dsr', lambda: fake)
+    monkeypatch.setattr(motion, '_call', call)
+    monkeypatch.setattr(motion, '_POLL_S', 0.001)
+    motion.clear_halt()
     fake.cfg = cfg
-    return fake
+    yield fake
+    motion.clear_halt()
 
 
 # ------------------------------------------------------------------ move_to
@@ -76,16 +113,52 @@ def test_move_to_never_goes_below_safe_height(robot):
     above = motion.move_to('TOOL_SPONGE', False)
     assert above == SAFE_Z - 120.0                                  # 남은 높이를 돌려준다 → 하강은 부르는 쪽이
     assert robot.calls[-1][1][2] == SAFE_Z
-    assert motion.move_to('SPONGE_BED_B', True) == SAFE_Z - 50.0    # beds · zones 의 이름도 받는다
-    assert motion.move_to('RET_B', False) == SAFE_Z - 40.0
 
 
-@pytest.mark.parametrize('station,exc', [('SOAP', KeyError),                # 좌표가 비어 있다
-                                         ('NOWHERE', KeyError),             # 그런 이름이 없다
-                                         ('SPONGE_BED_C', NotImplementedError)])   # 사용자 좌표계는 아직
-def test_move_to_refuses_without_moving(robot, station, exc):
+def test_move_to_picks_pose_by_kind(robot):
+    assert motion.move_to('WASTE', True, 'CUP') == SAFE_Z - 240.0
+    assert robot.calls[-1][1] == [110, -400, SAFE_Z, 90, -160, -160]        # 컵용 자세(옆에서 잡는 방향)의 상공
+    motion.move_to('WASTE', True, kind='BOWL')
+    assert robot.calls[-1][1][:2] == [600, -170]
+    motion.move_to('HOME', False, 'BOWL')                                   # 종류별이 아닌 자리에서는 kind 를 무시한다
+    assert robot.calls[-1][0] == 'movej'
+
+
+def test_move_to_picks_pose_by_point(robot):
+    assert motion.move_to('TOOL_BRUSH', False, point='pick') == 0.0         # 관절 자세 → 그 자세까지
+    assert robot.calls[-1][:2] == ('movej', [-28, 17, 84, 0, 79, -28])
+    assert motion.move_to('TOOL_BRUSH', True, point='return') == SAFE_Z - 130.0
+    assert motion.move_to('RET_B', False, point=1) == 0.0                   # 반납 구역은 슬롯 번호(1 부터)
+    assert robot.calls[-1][:2] == ('movej', [0, 23, 68, 0, 88, 0])
+
+
+def test_move_to_goes_to_approach_point_and_returns_height_to_end(robot):
+    up = motion.move_to('SPONGE_BED_B', True, point='place')
+    assert robot.calls[-1][1] == [350, 0, 450, 0, 180, 0] and up == 450.0 - 50.0     # 접근점까지 가고, 끝점까지 남은 높이
+    up = motion.move_to('SPONGE_BED_B', True, point='wash')
+    assert robot.calls[-1][1][2] == SAFE_Z and up == SAFE_Z - 47.0                  # 접근점이 낮으면 안전 높이에서 멈춘다
+    up = motion.move_to('RACK_C1', True, 'CUP')                                     # 팔레트 칸 이름도 받는다
+    assert robot.calls[-1][1][2] == 411 and up == 411.0 - 279.0
+    assert motion.move_to('RACK_B1', True) == 0.0                                   # 접근점이 없고 안전 높이보다 높다 → 그 자세까지
+
+
+@pytest.mark.parametrize('args,exc', [(('SOAP',), KeyError),                          # 좌표가 비어 있다
+                                      (('NOWHERE',), KeyError),                       # 그런 이름이 없다
+                                      (('SPONGE_BED_C', None, 'place'), NotImplementedError),   # 사용자 좌표계는 못 쓴다
+                                      (('WASTE',), ValueError),                       # 종류별인데 kind 를 안 줬다
+                                      (('WASTE', 'PLATE'), ValueError),               # 없는 종류
+                                      (('ISOLATE', 'CUP'), KeyError),                 # 종류별인데 아직 안 찍었다
+                                      (('TOOL_BRUSH',), ValueError),                  # 자세가 여러 개인데 point 를 안 줬다
+                                      (('SPONGE_BED_B', None, 'seat'), ValueError),   # 자세가 아닌 것을 골랐다
+                                      (('WEIGH', None, 'pick'), ValueError),          # 자세가 하나인데 point 를 줬다
+                                      (('RET_B',), ValueError),                       # 슬롯 번호를 안 줬다
+                                      (('RET_B', None, 0), ValueError),               # 슬롯 번호는 1 부터
+                                      (('RET_B', None, 3), ValueError),               # 없는 슬롯
+                                      (('RET_B', None, 2), KeyError)])                # 슬롯은 있는데 아직 안 찍었다
+def test_move_to_refuses_without_moving(robot, args, exc):
+    station, kind, point = (list(args) + [None, None])[:3]
     with pytest.raises(exc):
-        motion.move_to(station, False)
+        motion.move_to(station, False, kind, point)
     assert robot.calls == []
 
 
@@ -184,4 +257,75 @@ def test_move_joint_rel_time_needs_the_cap_value(robot):
 def test_move_joint_rel_bad_joint(robot, joint):
     with pytest.raises(ValueError):
         motion.move_joint_rel(joint, 10)
+    assert robot.calls == []
+
+
+# ------------------------------------------------------------------ 일시정지 · 재개 · 강제정지 (V-24)
+def _later(delay_s, fn):
+    t = threading.Timer(delay_s, fn)
+    t.start()
+    return t
+
+
+def test_motion_is_sent_async_and_polled(robot):
+    robot.busy_polls = 5
+    motion.move_joint_rel(5, 10)
+    assert robot.left == 0 and robot.services == []                 # 끝날 때까지 기다렸고, 아무것도 누르지 않았다
+
+
+def test_pause_during_motion_then_resume_continues(robot):
+    robot.busy_polls = 40
+    _later(0.01, motion.pause)                                      # 통신 노드 콜백이 깃발을 세우는 자리
+    _later(0.08, motion.resume)
+    t0 = time.monotonic()
+    motion.move_joint_rel(5, 10)                                    # 일시정지 동안에는 돌아오지 않는다
+    assert robot.services == ['pause', 'resume']                    # 드라이버에는 한 번씩만
+    assert robot.left == 0 and time.monotonic() - t0 >= 0.07        # 재개 뒤 **같은 이동**이 끝났다(새 이동 명령 없음)
+    assert [c[0] for c in robot.calls] == ['movej']
+
+
+def test_pause_while_idle_holds_the_next_move(robot):
+    motion.pause()
+    _later(0.05, motion.resume)
+    motion.move_joint_rel(5, 10)
+    assert robot.services == []                                     # 멈출 이동이 없었으니 드라이버에는 아무것도 안 보냈다
+    assert len(robot.calls) == 1
+
+
+def test_halt_stops_and_blocks_until_cleared(robot):
+    robot.busy_polls = 1000
+    _later(0.01, motion.halt)
+    with pytest.raises(motion.MotionHalted):
+        motion.move_to('WEIGH', False)
+    assert robot.services == ['stop'] and motion.is_halted()
+    sent = len(robot.calls)
+    with pytest.raises(motion.MotionHalted):                        # 정지 뒤 다음 명령이 나가면 로봇이 다시 움직인다(V-24a T4) → 막는다
+        motion.move_rel(0, 0, 10, 'BASE')
+    assert len(robot.calls) == sent
+    motion.clear_halt()
+    motion.move_rel(0, 0, 10, 'BASE')
+    assert len(robot.calls) == sent + 1
+
+
+def test_move_timeout_sends_stop(robot):
+    robot.busy_polls = 10 ** 9
+    robot.cfg['cell']['motion']['move_timeout_s'] = 0.02
+    with pytest.raises(motion.MoveTimeout):
+        motion.move_joint_rel(5, 10)
+    assert robot.services == ['stop']
+
+
+def test_paused_time_does_not_count_toward_timeout(robot):
+    robot.busy_polls = 5
+    robot.cfg['cell']['motion']['move_timeout_s'] = 0.05
+    _later(0.002, motion.pause)
+    _later(0.15, motion.resume)                                     # 상한(0.05 s)보다 오래 서 있어도
+    motion.move_joint_rel(5, 10)                                    # 시간 초과가 아니다
+    assert robot.left == 0
+
+
+def test_missing_timeout_value_means_no_motion(robot):
+    robot.cfg['cell']['motion']['move_timeout_s'] = None
+    with pytest.raises(KeyError, match='cell.motion.move_timeout_s'):
+        motion.move_joint_rel(5, 10)
     assert robot.calls == []

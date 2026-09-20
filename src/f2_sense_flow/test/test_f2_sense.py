@@ -1,0 +1,576 @@
+"""F2 기능 함수(weigh·leftover_loop·shake·dip) 시험 — 🚨 로봇·브링업·ROS 없이 돈다.
+
+sense.py 는 cobot_common 을 통해서만 로봇을 부르므로, 그 모듈을 가짜로 바꿔 끼우면
+호출 **순서와 인자**를 그대로 검사할 수 있다. 값은 params.yaml 이 아니라 아래 CFG 를 쓴다.
+
+이 시험이 지키려는 것
+  · 티칭 자세까지 내려가는가 (move_to 가 돌려준 남은 높이만큼)
+  · 한 주기 시간을 구간별로 나눠 쓰는가 (period/4 · period/2)
+  · HOLD 를 **반드시** NORMAL 로 되돌리는가 (실패해도)
+  · 미끄러짐을 폭으로 잡는가
+  · 예외가 밖으로 새지 않고 Result.fail(ROBOT_ERROR) 가 되는가
+"""
+import sys
+import types
+
+import pytest
+
+from cobot_api import GRIP_FAIL, LEFTOVER_REMAIN, OK, ROBOT_ERROR
+
+CFG = {'f2': {
+    'empty_weight_g': {'BOWL': 180.0, 'CUP': 120.0},
+    'leftover_threshold_g': 50.0,
+    'weigh_samples': 5,
+    'weigh_settle_s': 0.5,                     # 🚨 0 으로 두면 sleep 을 지워도 시험이 통과한다
+    'slip_tol_mm': 1.0,
+    'limits': {'max_amp_deg': 45.0, 'max_depth_mm': 150.0, 'max_hold_s': 5.0,
+               'max_settle_s': 5.0, 'min_net_g': -30.0},
+    'shake': {'WASTE': {'joint': 5, 'amp_deg': 15.0, 'cycles': 4, 'period_s': 0.6},
+              'RINSE': {'joint': 5, 'amp_deg': 10.0, 'period_s': 0.5}},
+    'dip': {'RINSE': {'depth_mm': 60.0, 'hold_s': 0.2}},
+}}
+
+
+class Rec:
+    """가짜 cobot_common — 부른 것을 순서대로 적어 둔다."""
+
+    def __init__(self, weights=(), widths=(), up=0.0, raise_on=None):
+        self.calls = []
+        self._weights = list(weights)
+        self._widths = list(widths)
+        self._up = up
+        self._raise_on = raise_on
+
+    # ── 기록용 도우미 ──
+    def _note(self, name, *args, **kw):
+        self.calls.append((name, args, kw))
+        if self._raise_on == name:
+            raise RuntimeError(f'{name} 일부러 실패')
+
+    def names(self):
+        return [c[0] for c in self.calls]
+
+    def of(self, name):
+        return [c for c in self.calls if c[0] == name]
+
+    # ── cobot_common 이 내주는 함수들 ──
+    def cfg(self):
+        return CFG
+
+    def io_node(self):
+        log = types.SimpleNamespace(info=lambda m: None, warn=lambda m: None, error=lambda m: None)
+        return types.SimpleNamespace(get_logger=lambda: log)
+
+    def move_to(self, station, carrying):
+        self._note('move_to', station, carrying)
+        return self._up
+
+    def move_rel(self, dx, dy, dz, frame, **kw):
+        self._note('move_rel', dx, dy, dz, frame)
+
+    def move_joint_rel(self, joint, delta_deg, *, time_s=None, carrying=True):
+        self._note('move_joint_rel', joint, delta_deg, time_s)
+
+    def force_off(self):
+        self._note('force_off')
+
+    def safe_retreat(self):
+        self._note('safe_retreat')
+
+    def grip_level(self, kind, level):
+        # 🚨 진짜 grip_level 도 폭을 돌려주지만 sense 는 그 값을 쓰지 않는다
+        #    (폭은 NORMAL 상태에서만 재야 비교가 되므로 grip_width 로 따로 잰다).
+        #    그래서 여기서도 widths 를 소비하지 않는다 — widths 는 grip_width 순서 그대로다.
+        self._note('grip_level', kind, level)
+        return 2.0
+
+    def grip_width(self):
+        self._note('grip_width')
+        return self._widths.pop(0) if self._widths else 2.0
+
+    def weigh(self, n):
+        self._note('weigh', n)
+        return self._weights.pop(0) if self._weights else 180.0
+
+
+@pytest.fixture
+def rec(monkeypatch):
+    r = Rec()
+    _install(monkeypatch, r)
+    return r
+
+
+def _install(monkeypatch, r):
+    """가짜 cobot_common 을 끼우고 sense 를 다시 읽어 들인다."""
+    fake = types.ModuleType('cobot_common')
+    for name in ('cfg', 'io_node', 'move_to', 'move_rel', 'move_joint_rel',
+                 'force_off', 'safe_retreat', 'grip_level', 'grip_width', 'weigh'):
+        setattr(fake, name, getattr(r, name))
+    monkeypatch.setitem(sys.modules, 'cobot_common', fake)
+    # 🚨 시험 사이에 가짜에 묶인 모듈이 남지 않게 되돌린다(L6)
+    monkeypatch.delitem(sys.modules, 'f2_sense_flow.sense', raising=False)
+    import importlib
+    mod = importlib.import_module('f2_sense_flow.sense')
+    monkeypatch.setattr(mod.time, 'sleep', lambda s: r._note('sleep', s))
+    return mod
+
+
+def _sense(monkeypatch, r):
+    return _install(monkeypatch, r)
+
+
+# ────────────────────────────────── weigh
+def test_weigh_subtracts_empty_container(monkeypatch):
+    """🔑 weigh 는 '측정값' 이 아니라 **잔반 무게**(측정값 − 빈 용기)를 돌려준다.
+
+    이 함수가 kind 를 받는 이유가 빈 용기 기준값을 고르기 위해서다(SDD §5.3).
+    로봇 하중 옵셋(V-02 의 +42~45 g)은 두 값을 같은 경로로 재면 상쇄된다.
+    """
+    r = Rec(weights=[223.0])                   # 그릇 180 + 잔반 43
+    s = _sense(monkeypatch, r)
+    out = s.weigh('BOWL')
+    assert out.ok and out.code == OK
+    assert out.weight_g == pytest.approx(43.0)
+
+
+def test_weigh_goes_down_remaining_height(monkeypatch):
+    """🚨 move_to 는 상공까지만 간다 — 남은 높이만큼 더 내려가야 티칭 자세다(SDD §5.3)."""
+    r = Rec(weights=[180.0], up=35.0)
+    s = _sense(monkeypatch, r)
+    s.weigh('BOWL')
+    assert ('move_to', ('WEIGH', True), {}) in r.calls
+    assert ('move_rel', (0.0, 0.0, -35.0, 'BASE'), {}) in r.calls
+
+
+def test_weigh_does_not_move_when_already_there(monkeypatch):
+    """남은 높이가 0 이면 쓸데없이 움직이지 않는다."""
+    r = Rec(weights=[180.0], up=0.0)
+    s = _sense(monkeypatch, r)
+    s.weigh('BOWL')
+    assert not r.of('move_rel')
+
+
+def test_weigh_uses_configured_sample_count(monkeypatch):
+    r = Rec(weights=[180.0])
+    s = _sense(monkeypatch, r)
+    s.weigh('BOWL')
+    assert r.of('weigh')[0][1] == (5,)         # params.yaml 의 weigh_samples
+
+
+def test_weigh_exception_becomes_robot_error(monkeypatch):
+    """🚨 기능 함수는 예외를 밖으로 내보내지 않는다 (AGENTS §4)."""
+    r = Rec(weights=[180.0], raise_on='move_to')
+    s = _sense(monkeypatch, r)
+    out = s.weigh('BOWL')
+    assert not out.ok and out.code == ROBOT_ERROR
+
+
+def test_weigh_missing_config_is_robot_error_not_crash(monkeypatch):
+    """설정이 비어 있으면 **조용히 기본값으로 돌지 않고** 실패로 알린다."""
+    r = Rec(weights=[180.0])
+    s = _sense(monkeypatch, r)
+    monkeypatch.setitem(CFG['f2'], 'empty_weight_g', None)
+    try:
+        out = s.weigh('BOWL')
+        assert not out.ok and out.code == ROBOT_ERROR
+    finally:
+        CFG['f2']['empty_weight_g'] = {'BOWL': 180.0, 'CUP': 120.0}
+
+
+# ────────────────────────────────── leftover_loop
+def test_leftover_passes_when_under_threshold(monkeypatch):
+    """임계 미만이면 털지 않고 통과한다(본세척은 식기세척기 담당)."""
+    r = Rec(weights=[210.0])                   # 잔반 30 g < 50
+    s = _sense(monkeypatch, r)
+    out = s.leftover_loop('BOWL', 2)
+    assert out.ok and out.rounds == 0
+    assert out.weight_before_g == pytest.approx(30.0)
+    assert not r.of('move_joint_rel'), '털지 않아야 한다'
+
+
+def test_leftover_shakes_until_clean(monkeypatch):
+    """넘으면 털고 다시 잰다 — 깨끗해지면 거기서 멈춘다."""
+    r = Rec(weights=[280.0, 190.0])            # 100 g → (털기) → 10 g
+    s = _sense(monkeypatch, r)
+    out = s.leftover_loop('BOWL', 2)
+    assert out.ok and out.rounds == 1
+    assert out.weight_before_g == pytest.approx(100.0)
+    assert out.weight_after_g == pytest.approx(10.0)
+
+
+def test_leftover_gives_up_after_max_rounds(monkeypatch):
+    """계속 넘으면 LEFTOVER_REMAIN — flow 의 정책이 격리로 보낸다."""
+    r = Rec(weights=[280.0, 280.0, 280.0])
+    s = _sense(monkeypatch, r)
+    out = s.leftover_loop('BOWL', 2)
+    assert not out.ok and out.code == LEFTOVER_REMAIN
+    assert out.rounds == 2
+    assert len(r.of('weigh')) == 3, '처음 1회 + 털고 2회'
+
+
+def test_leftover_stops_when_shake_fails(monkeypatch):
+    """털기가 실패하면 더 돌지 않고 그 코드를 그대로 올린다."""
+    r = Rec(weights=[280.0], widths=[2.0, 9.0], raise_on=None)
+    s = _sense(monkeypatch, r)
+    out = s.leftover_loop('BOWL', 2)
+    assert not out.ok and out.code == GRIP_FAIL      # 폭이 7 mm 변함 → 미끄러짐
+    assert len(r.of('weigh')) == 1, '실패한 뒤 다시 재지 않는다'
+
+
+# ────────────────────────────────── shake
+def test_shake_splits_period_into_segments(monkeypatch):
+    """🚨 period_s 는 **한 주기** 다. time_s 는 **한 구간** 이라 나눠 써야 한다(황인재 9/20).
+
+    가운데 → 끝 = period/4 · 끝 → 반대쪽 끝 = period/2 · 끝 → 가운데 = period/4
+    그대로 넘기면 4배 느려진다.
+    """
+    r = Rec()
+    s = _sense(monkeypatch, r)
+    s.shake('WASTE', 1, 'BOWL')
+    moves = [(c[1][0], c[1][1], c[1][2]) for c in r.of('move_joint_rel')]
+    assert moves == [(5, +15.0, 0.15), (5, -30.0, 0.30), (5, +15.0, 0.15)]
+
+
+def test_shake_returns_to_center(monkeypatch):
+    """🚨 한 주기가 끝나면 **가운데로 돌아온다** — 반복해도 자세가 밀리지 않는다."""
+    r = Rec()
+    s = _sense(monkeypatch, r)
+    s.shake('WASTE', 4, 'BOWL')
+    total = sum(c[1][1] for c in r.of('move_joint_rel'))
+    assert total == pytest.approx(0.0)
+    assert len(r.of('move_joint_rel')) == 12, '4 주기 × 3 구간'
+
+
+def test_shake_turns_force_off_first(monkeypatch):
+    """🚨 순응·힘제어가 켜져 있으면 관절 이동이 안 된다(2.1903) → 먼저 끈다."""
+    r = Rec()
+    s = _sense(monkeypatch, r)
+    s.shake('WASTE', 1, 'BOWL')
+    names = r.names()
+    assert names.index('force_off') < names.index('move_joint_rel')
+
+
+def test_shake_holds_then_restores(monkeypatch):
+    """시작할 때 HOLD, 끝날 때 NORMAL (IRD §4)."""
+    r = Rec()
+    s = _sense(monkeypatch, r)
+    s.shake('WASTE', 1, 'BOWL')
+    levels = [c[1][1] for c in r.of('grip_level')]
+    assert levels == ['HOLD', 'NORMAL']
+
+
+def test_shake_restores_normal_even_when_motion_fails(monkeypatch):
+    """🚨 **실패해도** NORMAL 로 되돌린다 — flow 는 '단계 사이는 NORMAL' 을 전제로 멈춘다(SDD §5.1)."""
+    r = Rec(raise_on='move_joint_rel')
+    s = _sense(monkeypatch, r)
+    out = s.shake('WASTE', 1, 'BOWL')
+    assert not out.ok and out.code == ROBOT_ERROR
+    levels = [c[1][1] for c in r.of('grip_level')]
+    assert levels == ['HOLD', 'NORMAL'], 'finally 가 되돌려야 한다'
+
+
+def test_shake_detects_slip_by_width(monkeypatch):
+    """전후 폭이 허용치보다 변하면 미끄러진 것으로 본다."""
+    r = Rec(widths=[2.0, 5.0])                 # HOLD 뒤 2.0 → 흔든 뒤 5.0
+    s = _sense(monkeypatch, r)
+    out = s.shake('WASTE', 1, 'BOWL')
+    assert not out.ok and out.code == GRIP_FAIL
+
+
+def test_shake_small_width_change_is_ok(monkeypatch):
+    """허용치 안이면 통과한다 — 폭 읽기는 원래 조금 흔들린다."""
+    r = Rec(widths=[2.0, 2.4])
+    s = _sense(monkeypatch, r)
+    assert s.shake('WASTE', 1, 'BOWL').ok
+
+
+def test_shake_zero_count_does_nothing(monkeypatch):
+    r = Rec()
+    s = _sense(monkeypatch, r)
+    assert s.shake('WASTE', 0, 'BOWL').ok
+    assert not r.of('move_joint_rel')
+
+
+def test_shake_rinse_uses_its_own_preset(monkeypatch):
+    """모드마다 다른 값을 쓴다 — 코드가 아니라 YAML 이 정한다."""
+    r = Rec()
+    s = _sense(monkeypatch, r)
+    s.shake('RINSE', 1, 'CUP')
+    first = r.of('move_joint_rel')[0][1]
+    assert first == (5, +10.0, 0.125)          # RINSE: amp 10, period 0.5 → 0.125
+
+
+def test_shake_unknown_mode_is_robot_error(monkeypatch):
+    r = Rec()
+    s = _sense(monkeypatch, r)
+    out = s.shake('없는모드', 1, 'BOWL')
+    assert not out.ok and out.code == ROBOT_ERROR
+
+
+# ────────────────────────────────── dip
+def test_dip_goes_down_and_comes_back_up(monkeypatch):
+    """🚨 매번 **올라와서** 끝난다 — 용기가 수조에 걸린 채 다음 이동으로 가면 안 된다."""
+    r = Rec()
+    s = _sense(monkeypatch, r)
+    s.dip('RINSE', 2, 'BOWL')
+    rel = [(c[1][2]) for c in r.of('move_rel')]
+    assert rel == [-60.0, +60.0, -60.0, +60.0]
+    assert sum(rel) == pytest.approx(0.0)
+
+
+def test_dip_holds_then_restores(monkeypatch):
+    r = Rec()
+    s = _sense(monkeypatch, r)
+    s.dip('RINSE', 1, 'BOWL')
+    assert [c[1][1] for c in r.of('grip_level')] == ['HOLD', 'NORMAL']
+
+
+def test_dip_restores_normal_even_when_motion_fails(monkeypatch):
+    r = Rec(raise_on='move_rel')
+    s = _sense(monkeypatch, r)
+    out = s.dip('RINSE', 1, 'BOWL')
+    assert not out.ok and out.code == ROBOT_ERROR
+    assert [c[1][1] for c in r.of('grip_level')] == ['HOLD', 'NORMAL']
+
+
+def test_dip_detects_slip(monkeypatch):
+    r = Rec(widths=[2.0, 6.0])
+    s = _sense(monkeypatch, r)
+    out = s.dip('RINSE', 1, 'BOWL')
+    assert not out.ok and out.code == GRIP_FAIL
+
+
+def test_dip_zero_count_does_nothing(monkeypatch):
+    r = Rec()
+    s = _sense(monkeypatch, r)
+    assert s.dip('RINSE', 0, 'BOWL').ok
+    assert not r.of('move_rel')
+
+
+# ══════════════════════════════════════════════════════════════════
+# 검토(2026-09-20 다중 에이전트)에서 "코드를 일부러 망가뜨려도 통과하던" 구멍들.
+# 아래 시험들은 그 변형을 각각 잡는다 — 무엇을 잡는지 주석에 적어 둔다.
+# ══════════════════════════════════════════════════════════════════
+
+# ── 🚨 실패하면 안전 높이로 물러나는가 (AGENTS §4)
+#    flow.call() 은 **예외가 올라올 때만** 후퇴한다. sense 는 예외를 Result 로 바꾸므로
+#    여기서 직접 후퇴해야 한다 — 안 하면 용기를 수조 안에 담근 채 멈춘다.
+def test_exception_retreats_to_safe_height(monkeypatch):
+    r = Rec(raise_on='move_joint_rel')
+    s = _sense(monkeypatch, r)
+    out = s.shake('WASTE', 1, 'BOWL')
+    assert not out.ok and out.code == ROBOT_ERROR
+    assert r.of('safe_retreat'), '실패했는데 후퇴하지 않았다'
+
+
+def test_slip_failure_also_retreats(monkeypatch):
+    """미끄러짐은 예외가 아니라 정상 반환이다 — 이쪽도 후퇴해야 한다."""
+    r = Rec(widths=[2.0, 8.0])
+    s = _sense(monkeypatch, r)
+    assert s.shake('WASTE', 1, 'BOWL').code == GRIP_FAIL
+    assert r.of('safe_retreat')
+
+
+def test_leftover_remain_retreats(monkeypatch):
+    r = Rec(weights=[280.0, 280.0, 280.0])
+    s = _sense(monkeypatch, r)
+    assert s.leftover_loop('BOWL', 2).code == LEFTOVER_REMAIN
+    assert r.of('safe_retreat')
+
+
+# ── 🚨 실패해도 원래 자리로 되돌아오는가
+def test_dip_comes_back_up_even_when_rise_fails(monkeypatch):
+    """하강은 됐는데 상승이 실패하면 — finally 가 되올려야 한다.
+
+    안 그러면 용기를 **수조 안 60 mm 아래**에 담근 채 멈추고, resume 하면
+    그 자세에서 다음 용기를 집으러 간다.
+    """
+    calls = {'n': 0}
+
+    class R2(Rec):
+        def move_rel(self, dx, dy, dz, frame, **kw):
+            calls['n'] += 1
+            if calls['n'] == 2:                 # 올라오는 이동만 실패시킨다
+                raise RuntimeError('상승 일부러 실패')   # 🚨 기록 전에 — 실제로 안 움직였다
+            self._note('move_rel', dx, dy, dz, frame)
+
+    r = R2()
+    s = _sense(monkeypatch, r)
+    out = s.dip('RINSE', 1, 'BOWL')
+    assert not out.ok
+    net = sum(c[1][2] for c in r.of('move_rel'))
+    assert net == pytest.approx(0.0), f'수조 안에 {-net:.0f} mm 내려간 채 끝났다'
+
+
+def test_shake_returns_to_center_even_when_motion_fails(monkeypatch):
+    """도중에 실패해도 관절이 가운데로 돌아와야 한다 — 기울어진 채 다음 용기로 가면 안 된다."""
+    calls = {'n': 0}
+
+    class R2(Rec):
+        def move_joint_rel(self, joint, delta_deg, *, time_s=None, carrying=True):
+            calls['n'] += 1
+            if calls['n'] == 2:
+                raise RuntimeError('두 번째 구간 일부러 실패')   # 🚨 기록 전에
+            self._note('move_joint_rel', joint, delta_deg, time_s)
+
+    r = R2()
+    s = _sense(monkeypatch, r)
+    out = s.shake('WASTE', 1, 'BOWL')
+    assert not out.ok
+    net = sum(c[1][1] for c in r.of('move_joint_rel'))
+    assert net == pytest.approx(0.0), f'J5 가 {net:+.0f}° 기울어진 채 끝났다'
+
+
+# ── 🚨 어느 스테이션으로 가는가 (전에는 목적지를 바꿔도 통과했다)
+def test_leftover_shakes_over_the_waste_bin(monkeypatch):
+    """잔반은 **잔반통 위에서** 턴다 — 헹굼 수조 위에서 털면 잔반이 헹굼물에 떨어진다."""
+    r = Rec(weights=[280.0, 190.0])
+    s = _sense(monkeypatch, r)
+    s.leftover_loop('BOWL', 2)
+    assert ('move_to', ('WASTE', True), {}) in r.calls
+    assert ('move_to', ('RINSE', True), {}) not in r.calls
+    n_cycles = CFG['f2']['shake']['WASTE']['cycles']
+    assert len(r.of('move_joint_rel')) == 3 * n_cycles, 'YAML 의 cycles 만큼 털어야 한다'
+
+
+def test_shake_and_dip_go_to_their_station(monkeypatch):
+    """전에는 _goto 를 지워도 25개가 통과했다 — 제자리에서 담그면 수조 밖에서 헛돈다."""
+    r = Rec(up=25.0)
+    s = _sense(monkeypatch, r)
+    s.dip('RINSE', 1, 'BOWL')
+    assert ('move_to', ('RINSE', True), {}) in r.calls
+    assert r.of('move_rel')[0][1][2] == pytest.approx(-25.0), '남은 높이만큼 먼저 내려가야 한다'
+
+    r2 = Rec()
+    s2 = _sense(monkeypatch, r2)
+    s2.shake('RINSE', 1, 'CUP')
+    assert ('move_to', ('RINSE', True), {}) in r2.calls
+
+
+def test_moves_are_carrying(monkeypatch):
+    """🚨 용기를 든 채 움직이므로 carrying=True — False 면 빈손 속도로 빨리 움직인다."""
+    r = Rec(weights=[180.0])
+    s = _sense(monkeypatch, r)
+    s.weigh('BOWL')
+    assert all(c[1][1] is True for c in r.of('move_to'))
+
+
+# ── 🚨 미끄러짐 — 폭이 **줄어드는** 쪽 (실제 낙하 방향)
+def test_slip_detected_when_width_shrinks(monkeypatch):
+    """실제 낙하는 그리퍼가 닫히며 폭이 **줄어든다**(2 mm → 0). 늘어나는 쪽만 보면 못 잡는다."""
+    r = Rec(widths=[2.0, 0.2])
+    s = _sense(monkeypatch, r)
+    assert s.shake('WASTE', 1, 'BOWL').code == GRIP_FAIL
+
+    r2 = Rec(widths=[2.0, 0.1])
+    s2 = _sense(monkeypatch, r2)
+    assert s2.dip('RINSE', 1, 'BOWL').code == GRIP_FAIL
+
+
+def test_slip_check_covers_both_force_changes(monkeypatch):
+    """🚨 폭을 **HOLD 로 바꾸기 전**과 **NORMAL 로 되돌린 뒤**에 잰다.
+
+    힘 전환은 드라이버상 '다시 잡기' 라서 그 순간에도 미끄러진다. 전환 사이에서만 재면
+    두 번의 전환이 검사 밖에 남는다.
+    """
+    r = Rec(widths=[2.0, 2.0])
+    s = _sense(monkeypatch, r)
+    s.shake('WASTE', 1, 'BOWL')
+    names = r.names()
+    first_w = names.index('grip_width')
+    first_level = names.index('grip_level')
+    last_w = len(names) - 1 - names[::-1].index('grip_width')
+    last_level = len(names) - 1 - names[::-1].index('grip_level')
+    assert first_w < first_level, 'HOLD 로 바꾸기 전에 재야 한다'
+    assert last_w > last_level, 'NORMAL 로 되돌린 뒤에 재야 한다'
+
+
+# ── 🚨 순응 끄기 · 대기
+def test_all_three_turn_force_off_before_moving(monkeypatch):
+    """순응이 켜진 채면 관절 이동이 거부되고(2.1903), 직교 이동도 힘제어가 눌러 안 간다."""
+    for fn, args in (('weigh', ('BOWL',)), ('shake', ('WASTE', 1, 'BOWL')),
+                     ('dip', ('RINSE', 1, 'BOWL'))):
+        r = Rec(weights=[180.0])
+        s = _sense(monkeypatch, r)
+        getattr(s, fn)(*args)
+        names = r.names()
+        assert 'force_off' in names, f'{fn} 이 force_off 를 안 부른다'
+        assert names.index('force_off') < names.index('move_to'), f'{fn}: 이동보다 먼저여야 한다'
+
+
+def test_weigh_waits_before_measuring(monkeypatch):
+    """🚨 움직이는 중에 재면 가속도가 섞인다(SDD §5.3) — 설정한 시간만큼 기다려야 한다."""
+    r = Rec(weights=[180.0])
+    s = _sense(monkeypatch, r)
+    s.weigh('BOWL')
+    slept = [c[1][0] for c in r.of('sleep')]
+    assert CFG['f2']['weigh_settle_s'] in slept
+    names = r.names()
+    assert names.index('sleep') < names.index('weigh'), '재기 전에 기다려야 한다'
+
+
+def test_dip_holds_at_the_bottom(monkeypatch):
+    r = Rec()
+    s = _sense(monkeypatch, r)
+    s.dip('RINSE', 1, 'BOWL')
+    assert CFG['f2']['dip']['RINSE']['hold_s'] in [c[1][0] for c in r.of('sleep')]
+
+
+# ── 🚨 빈손 감지
+def test_weigh_detects_lost_container(monkeypatch):
+    """용기를 놓치면 하중이 옵셋만 남아 잔반이 크게 음수가 된다 — 그냥 통과시키면
+    빈 그리퍼로 세제·닦기까지 전 공정을 돈다. F2 가 이걸 잡을 수 있는 유일한 자리다."""
+    r = Rec(weights=[43.0])                     # 빈 용기 180 없이 옵셋만 → net = -137
+    s = _sense(monkeypatch, r)
+    out = s.weigh('BOWL')
+    assert not out.ok and out.code == GRIP_FAIL
+    assert r.of('safe_retreat')
+
+
+def test_weigh_small_negative_is_still_ok(monkeypatch):
+    """조금 음수인 것은 측정 흔들림이다 — 하한 안이면 통과."""
+    r = Rec(weights=[170.0])                    # net = -10, 하한 -30 안
+    s = _sense(monkeypatch, r)
+    assert s.weigh('BOWL').ok
+
+
+# ── 🚨 오타 방어 (자릿수 실수가 그대로 로봇 명령이 되면 안 된다)
+def test_absurd_amplitude_is_refused_before_moving(monkeypatch):
+    """amp_deg 를 15 대신 150 으로 적으면 용기를 쥔 채 300° 를 왕복한다."""
+    r = Rec()
+    s = _sense(monkeypatch, r)
+    monkeypatch.setitem(CFG['f2']['shake']['WASTE'], 'amp_deg', 150.0)
+    out = s.shake('WASTE', 1, 'BOWL')
+    assert not out.ok and out.code == ROBOT_ERROR
+    assert not r.of('move_joint_rel'), '움직이기 전에 거절해야 한다'
+
+
+def test_absurd_depth_is_refused_before_moving(monkeypatch):
+    r = Rec()
+    s = _sense(monkeypatch, r)
+    monkeypatch.setitem(CFG['f2']['dip']['RINSE'], 'depth_mm', 600.0)
+    out = s.dip('RINSE', 1, 'BOWL')
+    assert not out.ok and out.code == ROBOT_ERROR
+    assert not r.of('move_rel')
+
+
+def test_negative_depth_is_refused(monkeypatch):
+    """음수 깊이는 위로 갔다 내려온다 — 순서가 뒤집힌다."""
+    r = Rec()
+    s = _sense(monkeypatch, r)
+    monkeypatch.setitem(CFG['f2']['dip']['RINSE'], 'depth_mm', -60.0)
+    assert s.dip('RINSE', 1, 'BOWL').code == ROBOT_ERROR
+    assert not r.of('move_rel')
+
+
+# ── 🚨 진단이 거짓말하지 않는가
+def test_rounds_counts_only_finished_rounds(monkeypatch):
+    """털기가 실패한 회차는 세지 않는다 — 'N회 털었는데 그대로' 는 거짓 보고다.
+
+    rounds 는 FlowEvent 로 HMI·기록에 나가는 값이라 시연에서 그대로 보인다.
+    """
+    r = Rec(weights=[280.0], widths=[2.0, 9.0])      # 1회차 털기에서 미끄러짐
+    s = _sense(monkeypatch, r)
+    out = s.leftover_loop('BOWL', 2)
+    assert out.code == GRIP_FAIL
+    assert out.rounds == 0, '한 번도 못 털었으면 0 이어야 한다'

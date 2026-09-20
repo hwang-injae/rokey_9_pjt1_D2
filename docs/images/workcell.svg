@@ -25,12 +25,12 @@
 <rect x="580" y="110" width="150" height="70" rx="8" fill="#E6F1FB" stroke="#185FA5"/><text x="655" y="135" text-anchor="middle" font-weight="600" fill="#042C53">세제 수조 SOAP</text><text x="655" y="155" text-anchor="middle" font-size="11" fill="#0C447C">담금 2~3회 (물 없음·모션)</text>
 <rect x="580" y="200" width="150" height="70" rx="8" fill="#E6F1FB" stroke="#185FA5"/><text x="655" y="225" text-anchor="middle" font-weight="600" fill="#042C53">⑤ 헹굼 수조 RINSE</text><text x="655" y="245" text-anchor="middle" font-size="11" fill="#0C447C">담금 → 물 털기</text>
 <!-- 랙 -->
-<rect x="580" y="320" width="330" height="180" rx="10" fill="#E1F5EE" stroke="#0F6E56"/><text x="745" y="343" text-anchor="middle" font-weight="600" fill="#04342C">⑥ 식기세척기용 팔레트 (식기세척기용 팔레트 모형: 그릇 2칸·컵 4칸)</text>
+<rect x="580" y="320" width="330" height="180" rx="10" fill="#E1F5EE" stroke="#0F6E56"/><text x="745" y="343" text-anchor="middle" font-weight="600" fill="#04342C">⑥ 식기세척기용 팔레트 (식기세척기용 팔레트 모형: 그릇 2칸·컵 2칸)</text>
 <g stroke="#0F6E56" fill="none"><line x1="610" y1="380" x2="610" y2="430"/><line x1="640" y1="380" x2="640" y2="430"/><line x1="670" y1="380" x2="670" y2="430"/><line x1="700" y1="380" x2="700" y2="430"/></g>
 <g fill="#F4C0D1" stroke="#993556"><path d="M612 428 L622 386 H634 L640 428 Z"/><path d="M642 428 L652 386 H664 L670 428 Z"/><path d="M672 428 L682 386 H694 L700 428 Z"/></g>
 <text x="655" y="448" text-anchor="middle" font-size="11" fill="#085041">RACK_B1~B2 (기울여 삽입)</text>
-<g fill="#F4C0D1" stroke="#993556"><rect x="770" y="386" width="30" height="36" rx="4"/><rect x="810" y="386" width="30" height="36" rx="4"/><rect x="850" y="386" width="30" height="36" rx="4"/></g>
-<text x="825" y="448" text-anchor="middle" font-size="11" fill="#085041">RACK_C1~C4</text>
+<g fill="#F4C0D1" stroke="#993556"><rect x="790" y="386" width="30" height="36" rx="4"/><rect x="830" y="386" width="30" height="36" rx="4"/></g>
+<text x="825" y="448" text-anchor="middle" font-size="11" fill="#085041">RACK_C1~C2</text>
 <text x="745" y="480" text-anchor="middle" font-size="11" fill="#085041">순응 + 삽입력 감시 · 걸림 → 후퇴·재시도 → 격리</text>
 <!-- 로봇 -->
 <circle cx="410" cy="420" r="34" fill="#D3D1C7" stroke="#5F5E5A"/><text x="410" y="425" text-anchor="middle" font-size="11" fill="#2C2C2A">M0609</text>

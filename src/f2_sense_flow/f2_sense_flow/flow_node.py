@@ -101,9 +101,17 @@ class Io:
 
     @safe_cb('/flow/resume')
     def _on_resume(self, req, res):
-        self.sig.raise_('resume')
-        res.success, res.message = True, '재개합니다'
-        return res
+        # 🚨 PAUSED 일 때만 받는다 (_on_start 와 같은 방식).
+        #    운전 중에 들어온 resume 을 그냥 세워 두면 깃발이 남아 있다가, 나중에
+        #    사람이 확인해야 하는 정지(ROBOT_ERROR·RACK_FULL — SDD §7)에서 그것을
+        #    바로 소비해 0 초 만에 재개해 버린다. HMI 가 버튼을 잠가도 REST /api/resume
+        #    이나 ros2 service call 로 직접 들어올 수 있으므로 서버에서도 막는다.
+        if self.flow.step == 'PAUSED':
+            self.sig.raise_('resume')
+            res.success, res.message = True, '재개합니다'
+        else:
+            res.success, res.message = False, f'PAUSED 가 아닙니다 (현재 {self.flow.step})'
+        return res                                   # 거절 이유는 HMI 가 그대로 보여 준다
 
     # ────────────────────────────────── 상태 발행 (메시지만 만든다)
     @safe_cb('/flow/state 타이머')

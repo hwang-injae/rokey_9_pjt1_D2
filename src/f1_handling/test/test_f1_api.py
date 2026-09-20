@@ -19,5 +19,5 @@ def test_return_types():
 def test_skeleton_returns_ok():
     """골격은 전부 ok=True · code='OK' 를 돌려준다 — V-20 에서 flow 가 끝까지 돌 수 있게."""
     results = [handling.pick('RET_C', 'CUP'), handling.place('WEIGH'), handling.move_to('WEIGH', True),
-               handling.tool('BRUSH', 'RETURN'), handling.rack_place('RACK_C4', 'CUP')]
+               handling.tool('BRUSH', 'RETURN'), handling.rack_place('RACK_C2', 'CUP')]
     assert all(r.ok and r.code == 'OK' for r in results)
