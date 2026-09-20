@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v6.2'
+VERSION = 'v6.3'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -145,8 +145,8 @@ CHUSEOK = {
  'DOC-04': dict(note_add=CH),
  'DOC-05': dict(note_add=CH + ' · 측정 결과(records·KPI)·사진도 9/23 저녁에 저장소·드라이브에'),
  'REH-01': dict(note_add=CH + ' · 온라인(화상)으로'),
- 'INT-4d': dict(note_add='🚨 추석에는 교육장에 못 들어간다 → 동결할 때 **영상 원본·측정 결과·사진·로그를 전부 드라이브·저장소에 올린다**(집에서 PPT·영상 편집에 쓴다) · 로봇·기구는 9/29 오전 리허설 때까지 그대로 둘 수 있는지 강사에게 확인'),
- 'REH-02': dict(note_add='추석 5일 동안 로봇을 못 만진다 → 9/29 오전은 브링업·좌표 재현(V-22 방식)부터 다시 확인한 뒤 리허설'),
+ 'INT-4d': dict(note='R · 9/23 저녁 동결 · 🚨 추석에는 교육장에 못 들어간다 → 동결할 때 **영상 원본·측정 결과·사진·로그를 전부 드라이브·저장소에 올린다**(집에서 PPT·영상 편집에 쓴다) · ✅ 로봇·기구는 추석 동안 **세팅 그대로 둔다**(황인재 확인 9/20) — 재배치·재티칭 불필요'),
+ 'REH-02': dict(note='R · 9/29 · ✅ 로봇·기구는 추석 동안 세팅 그대로(황인재 확인 9/20) → 재배치·재티칭 없이, 브링업 뒤 **좌표 재현 빠른 확인(V-22 방식, 10분)**만 하고 바로 리허설'),
 }
 REPLAN_0920.update({k: {**REPLAN_0920.get(k, {}), **v} for k, v in CHUSEOK.items()})
 for _tid, _e in REPLAN_0920.items():
@@ -239,6 +239,8 @@ HISTORY12 = ['v6.1', '재계획', 'CELL-04b, V-22, V-20, V-16, F1-01~05, V-04·0
              '황인재 9/20 (좌표 지연)', 'S,M,P,H']
 HISTORY13 = ['v6.2', '일정', 'DOC-02~05, REH-01, REH-02, INT-4d', '추석(9/24~28)은 교육장이 닫힌다(황인재 9/20) — 추석 칸의 일(PPT·영상 편집·대본·문서·온라인 리허설)은 집에서 각자 하는 원격 작업으로 명시. 9/23 저녁 동결 때 영상 원본·측정 결과·사진을 드라이브·저장소에 올린다. 9/29 오전은 브링업·좌표 재현부터 다시 확인',
              '황인재 9/20', 'S,M,P,H']
+HISTORY14 = ['v6.3', '확인', 'INT-4d, REH-02', '추석 동안 로봇·기구는 세팅 그대로 둘 수 있다(황인재 확인) → 9/29 오전은 재배치·재티칭 없이 좌표 재현 빠른 확인 뒤 바로 리허설',
+             '황인재 9/20', 'S,M,P,H']
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -324,7 +326,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
