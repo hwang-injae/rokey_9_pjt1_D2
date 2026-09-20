@@ -235,6 +235,11 @@ SEOK_0920 = {
 for _tid, _e in SEOK_0920.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
+USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
+for _tid, _e in USER_SET.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 
 
 
