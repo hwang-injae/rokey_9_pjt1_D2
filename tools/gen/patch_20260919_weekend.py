@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v7.6'
+VERSION = 'v7.7'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -268,6 +268,15 @@ HANDOFF_0920 = {
 for _tid, _e in HANDOFF_0920.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/20 16:30 황인재 결정 E6: 그릇 닦기 = 고정 좌표 방식 (벽·바닥을 힘으로 찾지 않는다)
+WIPE_0920 = {
+ 'V-03':  dict(prog='0.9', note_add='✅ 9/20 16:30 황인재 결정(E6): 검증 질문(힘제어 중 X·Y 이동)은 9/19 에 "가능"으로 답이 났다. 다만 수세미가 물러 닦는 도중에는 벽·힘을 잡을 수 없어(브랜치 커밋 56개 · 누르는 방식이 힘 → 깊이 → 띄우기 → 힘으로 한 바퀴) **닦기는 고정 좌표 방식으로 확정** — rig 다듬기는 여기서 끝. 남은 것: 시험 기록 PR(9/20 오후 회차 포함 · 판정 "가능") → 들어오면 완료'),
+ 'F3-02': dict(note_add='🆕 9/20 16:30 황인재 결정(E6): **고정 좌표 방식** — 시작 자세 Z 215.1 → 닦는 높이 Z 59.0(내려가는 거리 156.1 mm) · 벽 반지름 = (110 − 90) / 2 + 벽 누름 · 벽·바닥 찾기(contact_down)·목표 힘 유지(force_on) 없음 · 힘 감시는 남긴다(누르는 힘 10 N · 옆 힘 25 N → 후퇴, 힘 로그). 지금 브랜치(11:31 "나선으로 벽 찾기")는 이 방식으로 다시 맞춘다 · wipe.py 의 두산 API 직접 호출(199~211 줄)은 cobot_common 의 force.py 로 옮긴다 · 전제: 그릇이 받침에서 안 밀릴 것(SDD §5.4)'),
+ 'V-18':  dict(note_add='9/20 E6: 닦는 힘 기준이 "3~5 N"에서 "고정 높이로 누른 채"로 바뀜 — F3-02 첫 실기 3회 때 같이 본다(닦은 뒤 툴 자세 그대로인가)'),
+}
+for _tid, _e in WIPE_0920.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -399,6 +408,9 @@ HISTORY26 = ['v7.5', '진척', 'F2-01, F2-02', 'PR #35 merge — F2 기능 함�
              'PR #35', 'M']
 HISTORY27 = ['v7.6', '결정', 'CELL-04, V-22, F1-01', '황인재 9/20 17:40: 한석형이 정리한 좌표를 황인재가 작업 파일(cell.yaml 등)로 만들어 넘겨준다 — 양식을 데이터에 맞추고(종류별 자세·접근점·슬롯별 절대 자세), 한석형은 빠진 자세만 추가 티칭. F1-01 은 9/21 저녁으로',
              '황인재 9/20 17:40', 'S,H']
+HISTORY28 = ['v7.7', '결정', 'V-03, F3-02, V-18', '황인재 9/20 16:30(결정기록 E6): 그릇 닦기를 고정 좌표 방식으로 — 벽 찾기 포기(반지름 고정) · 높이도 고정(Z 215.1 → 59.0) · 힘은 감시·기록만(상한 10 N · 옆 힘 25 N). 원인: 수세미가 로봇 순응보다 물러 닦는 도중에는 벽이 안 잡힌다(V-03). FR-08·SR-08·TR-05·SDD §5.4 수정. V-03 은 기록 PR 만 남음',
+             '황인재 9/20 16:30', 'P']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -493,7 +505,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
