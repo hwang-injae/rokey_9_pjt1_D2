@@ -85,11 +85,34 @@ def main() -> int:
              dict(rev=1.0, rmax=RMAX, lmax=0.0, vel=[0.0, 0.0], acc=[0.0, 0.0], time=3.0,
                   axis=d.DR_AXIS_Z, ref=d.DR_TOOL)),
         ]
+        stx = cc.cfg()['cell']['force']['compliance_stx']
+        extra = [
+            ('⑥ 순응제어 켠 채 (task_compliance_ctrl)',
+             dict(rev=REV, rmax=RMAX, lmax=0.0, vel=[0.0, 0.0], acc=[0.0, 0.0], time=3.0,
+                  axis=d.DR_AXIS_Z, ref=d.DR_TOOL), 'compliance'),
+            ('⑦ 힘제어 켠 채 (set_desired_force 3 N)',
+             dict(rev=REV, rmax=RMAX, lmax=0.0, vel=[0.0, 0.0], acc=[0.0, 0.0], time=3.0,
+                  axis=d.DR_AXIS_Z, ref=d.DR_TOOL), 'force'),
+        ]
         best = []
         for name, kw in combos:
             r = run_one(d, log, name, **kw)
             best.append((r, name))
             d.movej(HOME, vel=40 * s, acc=40)                  # 다음 조합 전에 제자리로
+            d.mwait()
+
+        for name, kw, mode in extra:                               # 순응·힘제어를 켠 채로도 도는가 (공중)
+            d.mwait()
+            d.task_compliance_ctrl(stx)
+            if mode == 'force':
+                d.set_desired_force([0.0, 0.0, -3.0, 0.0, 0.0, 0.0], [0, 0, 1, 0, 0, 0], time=0,
+                                    mod=d.DR_FC_MOD_ABS)
+                time.sleep(0.3)
+            r = run_one(d, log, name, **kw)
+            best.append((r, name))
+            d.release_force()
+            d.release_compliance_ctrl()
+            d.movej(HOME, vel=40 * s, acc=40)
             d.mwait()
 
         log.info('── 결과 ──')
