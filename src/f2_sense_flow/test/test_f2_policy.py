@@ -3,13 +3,19 @@
 🚨 로봇·브링업·ROS 없이 돈다. flow.py 가 ROS 를 import 하지 않게 나눠 둔 덕분이다.
 실제 TC-10 은 flow_node 를 띄워 HMI·Ctrl+C 까지 확인한다(9/22 UT-FLOW).
 """
+import threading
 import types
 
 import pytest
 
 from cobot_api import F1Api, F2Api, F3Api
 from f2_sense_flow import mock
-from f2_sense_flow.flow import Flow, Signals, load_features
+from f2_sense_flow.flow import _POLL_S, Flow, Signals, load_features
+
+# 깃발을 들여다보는 간격(_POLL_S)의 몇 배만 기다려 보고 "아직 안 풀렸다" 를 판정한다.
+SETTLE_S = _POLL_S * 6
+# 🚨 스레드를 쓰는 시험은 **반드시** 상한을 둔다 — 안 풀리는 버그가 무한 대기가 되면 안 된다.
+TIMEOUT_S = _POLL_S * 100
 
 CFG = {'flow': {
     'plan': [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 2},
@@ -212,3 +218,123 @@ def test_stop_does_not_touch_the_gripper():
     body = '\n'.join(ln for ln in src.splitlines() if not ln.lstrip().startswith('#'))
     for banned in ('grip_level', 'release(', 'grip('):
         assert banned not in body, f'정지 경로에서 그리퍼를 건드린다: {banned}'
+
+
+# ────────────────────────────────── 미리 눌린 resume (감사 결함 A)
+def _in_thread(fn):
+    """fn 을 딴 스레드에서 돌리고 (끝났는지 알려 주는 Event, 반환값 리스트) 를 준다.
+
+    🚨 시험용이다. 운영에서 로봇 함수는 메인 스레드에서만 부른다(SDD §3.2) —
+       여기서는 가짜 모듈만 돌리고, "기다리는 쪽" 을 시험이 붙잡지 않으려고 쓴다.
+    """
+    done, out = threading.Event(), []
+
+    def body():
+        try:
+            out.append(fn())
+        finally:
+            done.set()
+
+    threading.Thread(target=body, daemon=True).start()
+    return done, out
+
+
+def test_pre_pressed_resume_does_not_release_next_pause():
+    """🚨 **멈추기 전에** 눌린 resume 이 다음 PAUSED 를 풀면 안 된다.
+
+    resume 깃발은 소비될 때까지 남는다. 운전 중에 눌렸거나 한 번의 정지에서 두 번 눌린
+    resume 이 그대로 걸려 있다가, 다음에 진짜로 PAUSED 가 되는 순간 사람이 아무것도 안 했는데
+    재개시켜 버린다. ROBOT_ERROR·RACK_FULL 처럼 사람이 확인해야 하는 정지(SDD §7)가
+    0 초 만에 풀리면 안 된다 — wait_resume 은 **멈춘 뒤에 눌린** 재개만 받는다.
+    """
+    f = Flow(CFG, Quiet())
+    sig = Signals()
+    sig.raise_('resume')                     # 운전 중(아직 PAUSED 가 아닐 때) 눌린 재개
+
+    # 실제 코드가 부르는 방식 그대로 — to_paused 가 'PAUSED' 로 바꾸기 **전**에 resume 을 지운다.
+    # (지우는 자리를 wait_resume 으로 옮기면 그 사이에 들어온 정당한 resume 이 조용히 사라진다)
+    f.to_paused('시험', sig)
+    done, _ = _in_thread(lambda: f.wait_resume(sig))
+
+    assert not done.wait(SETTLE_S), '미리 눌린 resume 으로 정지가 풀렸다 — 사람이 누르지 않았다'
+    assert f.step == 'PAUSED'
+
+    sig.raise_('resume')                     # 이제 사람이 진짜로 누른다
+    assert done.wait(TIMEOUT_S), '사람이 resume 을 눌렀는데도 재개되지 않았다'
+    assert f.step != 'PAUSED'
+
+
+def test_pre_pressed_resume_does_not_skip_stop_between_steps():
+    """미리 눌린 resume 이 **단계 사이 stop**(9/20 V-20 수정)까지 무력화하면 안 된다.
+
+    운전 중에 resume, 그 뒤에 stop 을 누른 상황 — 정지 버튼이 소프트 E-STOP 노릇을 하려면
+    사람이 다시 누를 때까지 그 자리에 서 있어야 한다.
+    """
+    mock.configure([])
+    f = Flow(CFG, Quiet())
+    f.f = load_features(['f1', 'f2', 'f3'])
+    f.zone_id, f.kind = 'RET_B', 'BOWL'
+
+    sig = Signals()
+    sig.raise_('resume')                     # 운전 중에 미리 눌린 재개
+    sig.raise_('stop')                       # 그 뒤에 정지 버튼
+
+    done, out = _in_thread(lambda: f.process_one(sig))
+
+    assert not done.wait(SETTLE_S), '미리 눌린 resume 이 stop 을 그냥 통과시켰다'
+    assert f.step == 'PAUSED'
+
+    sig.raise_('resume')
+    assert done.wait(TIMEOUT_S), 'resume 을 눌렀는데 용기를 끝까지 처리하지 않았다'
+    assert out == ['go_on'] and f.done_bowl == 1
+
+
+# ────────────────────────────────── 재시도 중 코드가 바뀐 경우 (감사 결함 B)
+class PauseWatcher(AutoResume):
+    """PAUSED 를 몇 번 거쳤는지 세는 시험용 깃발 (resume 은 AutoResume 처럼 눌러 준다)."""
+
+    def __init__(self):
+        super().__init__()
+        self.resumes = 0
+
+    def take(self, name):
+        if name == 'resume':
+            self.resumes += 1
+        return super().take(name)
+
+
+def test_new_code_in_retry_uses_new_policy():
+    """🚨 재시도에서 **다른 코드**로 실패하면 그 코드의 정책으로 마무리한다.
+
+    1차 RACK_JAM(retry:1->isolate) → 재시도에서 기능 함수가 예외를 던져 ROBOT_ERROR.
+    첫 실패 코드로 정한 옛 정책(isolate)을 그대로 쓰면 params.yaml 의 ROBOT_ERROR: pause 를
+    무시하고 격리해 버린다 — 로봇 위치를 모르는 채 격리함까지 이송하게 된다.
+    SDD §7 은 ROBOT_ERROR 를 "그 자리 정지 → PAUSED + 알림, 사람이 복구" 로 못 박는다.
+    """
+    mock.configure(['rack_place:RACK_JAM'])          # 1차는 RACK_JAM 으로 실패
+    mods = load_features(['f1', 'f2', 'f3'])
+    tries = []
+
+    def rack_place(rack_slot, kind):
+        tries.append(rack_slot)
+        if len(tries) > 1:                           # 재시도에서 드라이버가 터진다 → ROBOT_ERROR
+            raise RuntimeError('드라이버 응답 없음')
+        return mods['f1'].rack_place(rack_slot, kind)
+
+    f1 = types.SimpleNamespace(**{n: getattr(mods['f1'], n)
+                                  for n in dir(F1Api) if not n.startswith('_')})
+    f1.rack_place = rack_place
+
+    events = []
+    f = Flow(CFG, Quiet(), publish_event=events.append)
+    f.f = {'f1': f1, 'f2': mods['f2'], 'f3': mods['f3']}
+    f.plan = [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 1}]
+
+    sig = PauseWatcher()
+    f.run_plan(sig)
+
+    assert len(tries) == 2, f'재시도 정책(retry:1)을 안 탔다 (시도 {len(tries)}회)'
+    assert f.last_code == 'ROBOT_ERROR'
+    assert f.isolated == 0, 'ROBOT_ERROR 를 격리로 처리하면 안 된다 — 로봇 위치를 모른다'
+    assert sig.resumes >= 1, 'ROBOT_ERROR 인데 PAUSED 를 거치지 않았다 (SDD §7)'
+    assert [e['result'] for e in events] == [], 'PAUSE 는 용기 이벤트를 내지 않는다'

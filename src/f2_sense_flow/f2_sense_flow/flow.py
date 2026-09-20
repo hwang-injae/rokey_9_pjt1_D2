@@ -305,7 +305,24 @@ class Flow:
         return PAUSE, 0
 
     # ────────────────────────────────── 일시 정지 / 재개
-    def to_paused(self, why=''):
+    def to_paused(self, why='', sig=None):
+        """PAUSED 로 들어간다. sig 를 주면 그동안 남아 있던 resume 깃발을 함께 내린다.
+
+        🚨 지우는 자리가 중요하다 — **step 을 'PAUSED' 로 바꾸기 전**이다.
+           깃발은 take() 로 소비될 때까지 남아서, 운전 중(PAUSED 가 아닐 때) 눌렸거나
+           한 번의 정지에서 두 번 눌린 resume 이 **다음** PAUSED 를 사람이 아무것도 안 했는데
+           0 초 만에 풀어 버린다(SDD §7 — ROBOT_ERROR·RACK_FULL 은 사람이 확인해야 한다.
+           후퇴가 실패해 로봇 위치를 모르는 상태에서도 계속 움직이게 된다).
+
+           **왜 wait_resume 이 아니라 여기인가**: flow_node 의 /flow/resume 은
+           `step == 'PAUSED'` 일 때만 깃발을 세운다(두 번째 방어선). 그래서 지우는 자리가
+           'PAUSED' 로 바꾼 **뒤**이면, 그 사이에 들어온 **정당한** resume 을 지워 버린다 —
+           HMI 는 '재개합니다' 를 받았는데 아무 일도 안 일어난다. 바꾸기 **전**에 지우면
+           그 틈의 resume 은 노드가 'PAUSED 가 아닙니다' 로 **분명히 거절**한다.
+           조용히 사라지는 것보다 거절이 낫다.
+        """
+        if sig is not None:
+            sig.clear('resume')                       # 🚨 'PAUSED' 로 바꾸기 **전**에
         if self.step != 'PAUSED':
             self._prev_step = self.step
         self.step = 'PAUSED'
@@ -323,6 +340,9 @@ class Flow:
              · 실패 PAUSE      → 이 용기를 접고 **다음 용기**부터 (handle_failure 가 GO_ON)
            self.step 복원은 HMI 가 PAUSED 에 머무르지 않게 하려는 것뿐이다.
         """
+        # 🚨 여기서 resume 을 지우지 않는다 — 지우는 것은 to_paused 가 'PAUSED' 로
+        #    바꾸기 **전**에 한다(이유는 to_paused 주석). 여기서 지우면 to_paused 와
+        #    이 줄 사이에 들어온 **정당한** resume 이 조용히 사라진다.
         while not sig.take('resume'):
             time.sleep(_POLL_S)
         sig.clear('stop')
@@ -348,7 +368,7 @@ class Flow:
                 # 용기와 용기 사이. 단계 사이의 정지는 process_one 안에 따로 있다 (SDD §5.1)
                 if sig.peek('stop'):
                     self.log.info('stop 요청 — 용기 사이에서 정지')
-                    self.to_paused('stop 버튼')
+                    self.to_paused('stop 버튼', sig)
                     self.wait_resume(sig)
                 outcome = self.process_one(sig)
                 if outcome == HALT:
@@ -401,7 +421,7 @@ class Flow:
             #    resume 하면 이 단계부터 이어 간다.
             if sig.peek('stop'):
                 self.log.info(f'stop 요청 — {step} 앞에서 정지')
-                self.to_paused('stop 버튼')
+                self.to_paused('stop 버튼', sig)
                 self.wait_resume(sig)
             self.step = step
             r = self.call_fn(mod, fname, *args)
@@ -417,6 +437,18 @@ class Flow:
                     if r.ok:
                         break
                 if not r.ok:
+                    # 🚨 재시도 중에 **실패 코드가 바뀌었을 수 있다** (예: 1차 FORCE_LIMIT →
+                    #    재시도에서 기능 함수가 터져 ROBOT_ERROR). 첫 실패 코드로 정한 옛 정책으로
+                    #    마무리하면 params.yaml 의 ROBOT_ERROR: pause 를 무시하고 격리해 버려,
+                    #    로봇 위치를 모르는 채 격리함까지 이송하게 된다.
+                    #    SDD §7 은 ROBOT_ERROR 를 "그 자리 정지 → PAUSED + 알림, 사람이 복구" 로 못 박는다.
+                    #    → 마무리 직전에 **최신 코드**로 정책을 다시 읽는다.
+                    #    단 action 이 이미 PAUSE 면 다시 읽지 않는다 — 후퇴 실패로 강제한 PAUSE 라
+                    #    (위 `if not self._retreat()`) 덮어쓰면 다시 움직이게 된다.
+                    #    다시 읽은 값이 (RETRY, n) 이어도 그대로 넘긴다 — handle_failure 가
+                    #    "ISOLATE, 그리고 재시도를 다 쓴 RETRY" 를 같은 갈래로 처리한다.
+                    if action != PAUSE:
+                        action, _ = self.policy_for(r.code)
                     return self.handle_failure(sig, action)
             self.pause_between()
 
@@ -445,7 +477,7 @@ class Flow:
             action, _ = self.policy_for(self.last_code)
 
         if action == PAUSE:
-            self.to_paused(f'코드 {self.last_code}')
+            self.to_paused(f'코드 {self.last_code}', sig)
             return GO_ON if self.wait_resume(sig) else HALT
 
         if action == NEXT_ZONE:                 # 구역이 비었다 — 남은 count 도 의미 없다

@@ -153,10 +153,16 @@ def _anchor_force():
     🚨 **아무것도 쥐지 않은 상태에서만** 부른다. 'd' 는 "힘을 낮춰 **직전 폭으로 다시 파지**"라서,
        용기를 쥔 채 부르면 힘이 0 N 을 지나는 동안 놓친다(PM 9/20 · #17 검토 2번).
        부르는 자리는 두 곳뿐이다 — release()(연 뒤) · grip()(잡으러 가기 전).
+
+    🚨 내리는 **동안에는 기억을 지워 둔다**(`None`). 중간에 `_send` 가 실패하면 실제로는
+       몇 계단만 내려간 것인데 옛 값이나 0.0 이 남으면 그 오차가 프로그램 끝까지 간다.
+       기억이 없으면 다음 release()·grip()(= 빈손이 확실한 자리)에서 다시 맞추고,
+       그때까지 grip_level() 은 거부한다 — 보호가 안전한 쪽으로 작동한다.
     """
     global _force_n
     steps = int(_MAX_FORCE_N / _FORCE_STEP_N) + 1            # 넉넉히 내려 0 에 붙인다
     _log().info(f'그리퍼 힘 기준 맞추기 — 0 N 까지 내린다 ({steps}회)')
+    _force_n = None                                          # 다 내리기 전까지는 "모른다"
     for _ in range(steps):
         _send('d')
     _force_n = 0.0
@@ -167,15 +173,26 @@ def _set_force(target_n):
 
     기준(`_force_n`)이 잡혀 있어야 부를 수 있다 — 여기서 몰래 0 N 으로 내리지 않는다.
     기준을 맞춰도 되는 자리인지는 부르는 쪽(release·grip)이 판단한다.
+
+    🚨 기억은 **명령 한 번마다** 갱신한다. 마지막에 한꺼번에 갱신하면 중간에 `_send` 가
+       실패했을 때 실제 힘만 몇 계단 움직이고 기억은 옛 값으로 남아, 그 오차가 프로그램
+       끝까지 간다(약하게 쥐면 이송 중 낙하 — SDD §8).
+    🚨 실패하면 기억을 **버린다**(`None`) — 마지막 명령이 그리퍼에 닿았는지 알 수 없다.
+       그러면 다음 release()·grip() 에서 기준을 다시 맞추고 그때까지 grip_level() 은 거부한다.
     """
     global _force_n
     if _force_n is None:
         raise RuntimeError('그리퍼 힘 기준이 없다 — _anchor_force() 를 먼저 부른다')
     target_n = max(0.0, min(_MAX_FORCE_N, float(target_n)))
     steps = int(round((target_n - _force_n) / _FORCE_STEP_N))
+    delta = _FORCE_STEP_N if steps > 0 else -_FORCE_STEP_N
     for _ in range(abs(steps)):
-        _send('i' if steps > 0 else 'd')
-    _force_n = max(0.0, min(_MAX_FORCE_N, _force_n + steps * _FORCE_STEP_N))
+        try:
+            _send('i' if steps > 0 else 'd')
+        except Exception:                                # noqa: BLE001 — 어긋난 기억을 남기지 않는다
+            _force_n = None
+            raise
+        _force_n = max(0.0, min(_MAX_FORCE_N, _force_n + delta))
     if abs(_force_n - target_n) > 0.01:
         _log().warn(f'그리퍼 힘 {target_n:.1f} N 을 정확히 못 맞춘다 (2.5 N 계단) → {_force_n:.1f} N')
 
