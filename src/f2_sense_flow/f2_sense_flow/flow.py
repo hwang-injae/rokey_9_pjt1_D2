@@ -315,12 +315,19 @@ class Flow:
         """resume 을 기다린다. 기다리는 동안에도 /flow/state 는 계속 나간다.
 
         Ctrl+C 로 끝내려면 여기서 KeyboardInterrupt 가 올라가 main() 의 finally 로 간다.
+
+        🚨 재개 지점을 로그로 주장하지 않는다. `_prev_step` 은 **끝난** 단계라,
+           "그 단계부터 다시" 라고 찍으면 거짓이 된다 — 부르는 자리마다 재개 지점이 다르다:
+             · stop(단계 사이) → 멈춘 **다음** 단계부터   (멈출 때 "… 앞에서 정지" 로 이미 찍는다)
+             · stop(용기 사이) → 다음 용기의 PICK 부터
+             · 실패 PAUSE      → 이 용기를 접고 **다음 용기**부터 (handle_failure 가 GO_ON)
+           self.step 복원은 HMI 가 PAUSED 에 머무르지 않게 하려는 것뿐이다.
         """
         while not sig.take('resume'):
             time.sleep(_POLL_S)
         sig.clear('stop')
         self.step = self._prev_step
-        self.log.info(f'resume — {self.step} 부터 다시')
+        self.log.info('resume — 이어서 진행한다')
         return True
 
     # ────────────────────────────────── 메인 루프 (메인 스레드에서만)
