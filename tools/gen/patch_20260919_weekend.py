@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v8.4'
+VERSION = 'v8.5'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -88,6 +88,10 @@ NEW = [
   'M', '시작 전', S('9/22 오전', '9/22 오후'), 'src/f2_sense_flow/f2_sense_flow/flow.py · flow_node.py + test_f2_policy.py',
   'mock 으로: 일시 정지 → 재개(이어서) · 실패 PAUSE → 재개(그 단계부터 다시) · abort → ISOLATED 기록·다음 용기 · ROBOT_ERROR 에서 abort 거부 · rig_v20.py probe 통과',
   '9/20 황인재 결정(IRD §6 · SDD §5.1): 사람이 확인하고 문제없으면 마저(resume), 문제라고 판단하면 접는다(abort) · motion.py 의 pause/resume 호출(V-24)이 main 에 들어온 뒤 연결 · FLOW-01 의 격리 마무리 동작(9/22 오후)과 같은 코드라 같이 한다 · 힘제어·접촉 구간은 그 동작을 마친 뒤 멈춤(9/20 오전에 만든 단계 사이 정지 그대로)'),
+ ('V-25', 'F1-01', 'F1-01', '검증', 'V-25 F1-01 실기 확인 — f1.move_to · 일반 place 를 실기에서(가상 로봇에서는 진짜 그리퍼 release 를 못 돌린다)',
+  'H(S)', '시작 전', S('9/21 저녁'), 'docs/test_logs/20260921_F1-01_실기_황인재.md',
+  '3회 연속 OK · 용기가 홈 안에 놓임 · **놓은 뒤 올라올 때 용기를 끌지 않음** · MoveIncomplete 0회 · release 뒤 그리퍼 열림 (실패하면 접근점·place_clear_mm·presets 조정 후 재시도)',
+  '황인재 9/20 21:30: "F1-01 은 가상으로만 확인했으니 일정에 실기 검증을 넣는다". R · 20~30분 · vel_scale 0.3 · 황인재가 직접 실행, 한석형 입회. 절차: ① HOME → WEIGH(BOWL) → WASTE(BOWL) → HOME 3회 ② 그릇을 쥐여 주고 place SPONGE_BED_B 3회(진짜 release) ③ 컵으로 SPONGE_BED_C 3회 ④ 좌표가 있으면 ISOLATE 각 1회. 🚨 9/21 저녁 **V-22·V-19 바로 뒤**(같은 좌표·같은 전제: limits·motion·presets + E7 코드) — 넘치면 9/22 오후 F1-03·V-08 앞. F1-03 은 V-08(실기 10회)이 곧 실기 검증이라 따로 두지 않는다'),
  ('CELL-02b', 'CELL-02', 'CELL-02', '기구', '툴·홀더 확정(수세미 툴·솔·홀더 2종 — 잡는 자리·놓는 방향) + 그릇 받침 유격 보강 — 9/21 에 확정(황인재 9/20)',
   'P(H,S)', '시작 전', S('9/21 저녁'), '확정된 툴·홀더 실물 + 사진 · 치수(세척부 높이·지름) 갱신',
   '툴을 홀더에서 10번 집고 놓아도 같은 자리 · 그릇을 손으로 5 N 밀어 안 밀림(CELL-02 의 완료 기준)',
@@ -415,6 +419,17 @@ PR42_0920 = {
 for _tid, _e in PR42_0920.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/20 21:50 F1-01 Virtual 완료(실기 대기) · PR #43 보류(황인재 결정 대기)
+LATE_0920 = {
+ 'F1-01':  dict(status='진행 중', prog='0.7', note_add='9/20 21:35 F4 세션: 구현·Virtual 확인 끝(브랜치 injae/20260920-F1-01-move-place · PR 은 황인재 승인 대기) — move_to WEIGH 3/3 · place SPONGE_BED_B/C 3/3 · 안 찍은 ISOLATE 는 움직이지 않고 KeyError. 🚨 가상 그리퍼 드라이버가 힘 명령을 몰라 **진짜 release 는 못 돌렸다** → 실기 확인 V-25(9/21 저녁)'),
+ 'F3-02':  dict(prog='0.6', note_add='9/20 21:34 PR #43(박진용): wipe_bowl 을 9/20 실기 14회차 절차 그대로 + 공용 함수(force.py: move_spiral·move_arc·move_periodic·compliance_on·force_release) + PM 후속 전부 반영 · 시험 309건. ⏸ **보류 — 황인재 결정 대기**: 결정 E6(고정 높이 · 벽면 힘제어 없음)과 두 군데 다르다(바닥을 힘으로 찾기 · 벽면 1.5 N). 코드에는 막는 사유 없음. 실기는 아직(9/21 저녁)'),
+ 'F3-03':  dict(status='진행 중', prog='0.5', note_add='9/20 21:34 PR #43 에 같이: soap(count, kind) · wipe_cup = 바닥 찾기 → 띄우기 → **Move Periodic 한 명령으로 위아래 ±15 mm + 비틀기 ±45° 동시** 5회(SR-09 의 "J6 ±180°"와 다름 — 황인재 결정 대기). 코드는 9/20 밤에 미리 작성됨 — 실기·V-10 은 일정대로 9/22 오전'),
+ 'INF-02b': dict(prog='0.95', note_add='9/20 PR #43 에 후속 전부 포함(safe_retreat 이 force_off 실패에도 후퇴 · contact_down 시간 상한이 일시 정지 시간을 빼고 셈 · 닦기 공용 함수) — merge 되면 완료'),
+ 'CELL-02b': dict(note_add='9/20 PR #43 본문(박진용): "그릇 받침 유격은 이대로 두기로 했다" → 완료 기준에서 빼 달라는 요청 — 황인재 확인 대기'),
+}
+for _tid, _e in LATE_0920.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -486,7 +501,7 @@ SLOT['9/22 화'] = {'B': '**V-04·V-15 → F1-05 안착(S, P 참여)** / **V-24 
                    'D': '**F1-04·V-06 → UT-F1(S)** / L2: INT-12a(M·S) → INT-13(P·S) · 로봇 불필요: F4-03·NOTE-02 gif(H)'}
 # 9/20 20:40 재배치·분담 반영(v8.3)
 SLOT['9/21 월']['D'] = ('🚨 순서(로봇 약 3.5 h): ① **CELL-02b 툴·홀더 확정(P·H·S, 로봇 불필요 — 맨 먼저)** ② V-24 실기 확인(H, 30분) ③ 남은 티칭 CELL-04·04b(S, 1시간: ISOLATE·CUP_RACK2_1·그릇 칸 접근점·홀더·SOAP) '
-                        '④ V-22·V-19 흐름 순서대로 구간 확인(H·S) ⑤ 그리퍼·무게 세션 V-05·V-23·V-01·V-16·V-02(M, 1시간) ⑥ F3-02 고정 좌표 3회 + V-18(P) · 로봇 불필요: F1-01(H)·F1-02 코드(S)·F2 kind 수정(M)')
+                        '④ V-22·V-19 흐름 순서대로 구간 확인(H·S) → **V-25 F1-01 실기 확인(H, 20~30분)** ⑤ 그리퍼·무게 세션 V-05·V-23·V-01·V-16·V-02(M, 1시간) ⑥ F3-02 고정 좌표 3회 + V-18(P) · 로봇 불필요: F1-01(H)·F1-02 코드(S)·F2 kind 수정(M)')
 SLOT['9/22 화'] = {'B': '**F1-02 실기 + V-14(S)** / V-07·V-16 → F2 실기 rig_f2 empty 부터(M) / V-10 → F3-03(P) / V-24 접촉 중 일시 정지(H·P) · 로봇 불필요: CR-01(전원)·ENV-03·NOTE-01·SAFE-01·V-13(H)·FLOW-03(M)·INF-02b 후속(P)',
                    'C': '**V-04·V-15 → F1-05 안착(S, P 참여 — 🛡 단순 놓기부터)** / **F1-03·V-08 툴 집기·반납(H, S 검토)** / F3-03·UT-F3(P) / UT-F2(M) · 로봇 불필요: FLOW-02·FLOW-03·FLOW-01 마무리(M)·INT-4(H·M)',
                    'D': '**F1-04·V-06 → UT-F1(S·H)** / F1-03 잔여(H) / L2: INT-12a(M·S) → INT-13(P·S) · 로봇 불필요: UT-FLOW(M)·NOTE-02 gif(H)'}
@@ -576,6 +591,9 @@ HISTORY34 = ['v8.3', '분담', 'F1-01, F1-03, V-08, V-19, UT-F1, INT-12b, F1-05,
 
 HISTORY35 = ['v8.4', '진척', 'INF-02, V-19, V-22, V-24, CELL-04, F1-01, FLOW-01', 'PR #42 merge(9/20 21:00): E7 구현 — move_to 가 티칭 자세로 곧장 + 도착 확인 cc.MoveIncomplete(이동이 도중에 서면 오류) · WEIGH·그릇 집기(접근+그립) 값 · 구역 슬롯 1개(E9). V-22 확인 항목 추가(도착 확인 헛경보 · HOME → RACK_C1 구간 · RET_B 접근점 어긋남). SDD §3.1 · AGENTS §1 · 할일 시트 쉬운 말 3곳(V-24·V-19·F4-02) 정리',
              'PR #42 · PM 검토', 'S,M,H']
+
+HISTORY36 = ['v8.5', '진척·신규', 'V-25(신규), F1-01, F3-02, F3-03, INF-02b, CELL-02b', '9/20 21:50: F1-01 구현·Virtual 확인 끝(F4 세션) → 황인재 지시로 **실기 확인 V-25 신설**(9/21 저녁, V-22 바로 뒤). PR #43(박진용 F3-02·F3-03)은 코드에 막는 사유가 없지만 결정 E6·SR-09 와 다른 곳이 있어 **황인재 결정 대기로 보류**',
+             '황인재 9/20 21:30 · PR #43', 'H,S,P']
 
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
@@ -671,7 +689,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
