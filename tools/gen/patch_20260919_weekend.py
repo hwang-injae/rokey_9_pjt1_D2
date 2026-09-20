@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v6.1'
+VERSION = 'v6.2'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -138,6 +138,17 @@ REPLAN_0920 = {
  'DSN-03':   dict(status='완료', note_add='✅ 9/20 아침 황인재: B7(격리 순서·ROBOT_ERROR)·B11(move_joint_rel)·B12(mock_f2) 승인, 티칭 자세 규칙 확정 → 급한 안건 종료. 보류 안건은 필요할 때'),
  'DSN-04':   dict(prog='0.9', note_add='9/20: B7·B11·B12·티칭 자세 규칙을 IRD §10·SDD §5.3·§7·회의록에 반영 → 남은 것: contracts.py pick docstring(황인재)·cell.yaml zones/presets 주석(한석형)'),
 }
+CH = '🚨 추석(9/24~28)은 교육장이 닫힌다 — 집에서 하는 원격 작업(황인재 9/20)'
+CHUSEOK = {
+ 'DOC-02': dict(note_add=CH + ' · 기능별 1장은 각자, 취합은 황인재'),
+ 'DOC-03': dict(note_add=CH + ' · 영상 원본은 9/23 저녁에 드라이브에 올려 둔다(교육장 PC 에만 두지 않는다)'),
+ 'DOC-04': dict(note_add=CH),
+ 'DOC-05': dict(note_add=CH + ' · 측정 결과(records·KPI)·사진도 9/23 저녁에 저장소·드라이브에'),
+ 'REH-01': dict(note_add=CH + ' · 온라인(화상)으로'),
+ 'INT-4d': dict(note_add='🚨 추석에는 교육장에 못 들어간다 → 동결할 때 **영상 원본·측정 결과·사진·로그를 전부 드라이브·저장소에 올린다**(집에서 PPT·영상 편집에 쓴다) · 로봇·기구는 9/29 오전 리허설 때까지 그대로 둘 수 있는지 강사에게 확인'),
+ 'REH-02': dict(note_add='추석 5일 동안 로봇을 못 만진다 → 9/29 오전은 브링업·좌표 재현(V-22 방식)부터 다시 확인한 뒤 리허설'),
+}
+REPLAN_0920.update({k: {**REPLAN_0920.get(k, {}), **v} for k, v in CHUSEOK.items()})
 for _tid, _e in REPLAN_0920.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
@@ -160,6 +171,9 @@ TITLES = {'할일_한석형': '한석형 — 팀장 · F1 파지·이송·적재
           '할일_황인재': '황인재 — PM · F4 웹 HMI + cobot_api·cobot_msgs·cobot_common bootstrap·config·motion.py·런치·일정표·제출'}
 LECTURE = {'9/19 토 · 9/20 일': ('휴일(로봇 사용 가능 — 🚨 교육장 18시 마감, **저녁 칸 없음**)',
                                  '9/19 구조 변경 적용 → 티칭 1차(한석형) + 공용 함수·기능 골격 → 17:15 DSN-03 2차 회의 / 9/20 오전 그리퍼·무게·힘 검증 + 티칭 2차 → 오후 구현 + 함수별 TC · 발표 자료')}
+LECTURE['9/24 목~9/28 월'] = ('추석 — 🚨 **교육장 닫힘**(로봇·현장 작업 불가) · 집에서 각자 하는 원격 작업만(황인재 9/20)',
+                            'PPT(5장 양식)·영상 편집·대본·as-built 문서·온라인 리허설 — 전부 집에서. 필요한 자료(영상 원본·측정 결과·사진)는 **9/23 저녁 동결 때 드라이브·저장소에 올려 둔다**')
+LECTURE['9/19 토 · 9/20 일'] = (LECTURE['9/19 토 · 9/20 일'][0], '9/19 구조 변경 적용 → 티칭 1차(그릇 쪽) + 공용 함수 전부 main / 9/20 오전 좌표 마무리(컵 쪽)·그리퍼·무게·힘 검증 → 오후 티칭 2차·V-22·F1-01·구현 + 함수별 TC · 발표 자료')
 GATE = {
  'G1 리그·검증': {'B': '9/20 오후', 'C': '티칭 1·2차 완료, 기구 완성(✅ 9/19), 공용 함수(cobot_common: motion·gripper·force·weigh) v0, 실행 뼈대 확인(V-20), 설계를 정하는 검증(V-01·02·03·05·23) 결과 확보'},
  'G2 L1': {'B': '9/22 오후', 'C': 'UT-F1·F2·F3·FLOW 통과 + 녹화 (함수별 TC 는 구현 직후 바로 수행) + 코드리뷰 CR-01 · UT-F4 는 9/22 저녁'},
@@ -196,7 +210,7 @@ SLOT['9/23 수'] = {'B': 'UT-F1 잔여 → **INT-12b(S·M)** · INT-13 잔여 �
 RULES = {       # (A 열, B 열 글자) → (새 B, 새 C)
  ('마감', '9/22(화) 오전'): ('9/22(화) 오후', 'L1 단위기능 테스트(UT-F1·F2·F3·FLOW) 통과 — 함수별 TC 는 구현 직후 바로 수행. UT-F4 는 9/22 저녁. 미통과 기능은 범위 방어표대로 축소 · 코드리뷰(CR-01) · 노션에 노드 구조·HMI 화면·안전 자료 업로드 · GitHub 최신'),
  ('마감', '9/22(화) 저녁'): ('9/23(수) 오전', 'L2 단위기능 통합 완료 (flow_node 에서 실행, 나머지 기능은 use_mock) — 9/22 저녁 시작'),
- ('로봇', '비고 R'): ('비고 R', 'R 표시 작업은 실기 로봇 필요. 🚨 주말(9/19·20)은 교육장이 18시에 닫는다 → 하루 2슬롯(오전·오후), 저녁 칸 없음. 평일은 3슬롯(오전·오후·저녁). 배정은 전날 브리핑에서, 로봇 1대를 1시간씩 교대. 9/24~28 불가'),
+ ('로봇', '비고 R'): ('비고 R', 'R 표시 작업은 실기 로봇 필요. 🚨 추석(9/24~28)은 교육장이 닫힌다 — 로봇·현장 작업 불가, 집에서 하는 문서·PPT·영상만. 🚨 주말(9/19·20)은 교육장이 18시에 닫는다 → 하루 2슬롯(오전·오후), 저녁 칸 없음. 평일은 3슬롯(오전·오후·저녁). 배정은 전날 브리핑에서, 로봇 1대를 1시간씩 교대. 9/24~28 불가'),
 }
 NEW_RULES = [
  ('공용 파일', 'cobot_common · config', 'cobot_common 은 사람별 파일: bootstrap.py·config.py·__init__.py·motion.py = H / gripper.py·weigh.py = M / force.py = P (부르는 쪽은 그대로 cc.함수()). config/cell.yaml 은 한석형 혼자(단 cell.force 절의 값은 박진용이 그 절만 PR), params.yaml 은 자기 절만'),
@@ -223,6 +237,8 @@ HISTORY11 = ['v6.0', '일정', 'CELL-04, V-19, CELL-03, CELL-01', '9/20 아침 �
              '황인재 9/20', 'S,M']
 HISTORY12 = ['v6.1', '재계획', 'CELL-04b, V-22, V-20, V-16, F1-01~05, V-04·06·08·14·15, UT-F1, INT-12b, INT-3a·3b·4a, DSN-03', '좌표 작업 지연에 따른 재계획(황인재 지시): ① 9/20 오전 한석형은 좌표 마무리만 ② F1 사슬을 반 칸씩 뒤로(F1-01 9/20 오후 · F1-02 9/21 저녁 · F1-05 9/22 오전 · F1-03 9/22 오후 · F1-04·UT-F1 9/22 저녁~9/23 오전 · INT-12b 9/23 오전) ③ 한석형 몫 덜기: V-22·V-20 → 황인재 주도, V-16 민범진 단독 ④ L3·L4 는 9/23 오후·저녁, 동결 그대로 — 밀리면 범위 방어 ⑤ DSN-03 완료(B7·B11·B12 승인)',
              '황인재 9/20 (좌표 지연)', 'S,M,P,H']
+HISTORY13 = ['v6.2', '일정', 'DOC-02~05, REH-01, REH-02, INT-4d', '추석(9/24~28)은 교육장이 닫힌다(황인재 9/20) — 추석 칸의 일(PPT·영상 편집·대본·문서·온라인 리허설)은 집에서 각자 하는 원격 작업으로 명시. 9/23 저녁 동결 때 영상 원본·측정 결과·사진을 드라이브·저장소에 올린다. 9/29 오전은 브링업·좌표 재현부터 다시 확인',
+             '황인재 9/20', 'S,M,P,H']
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -308,7 +324,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
