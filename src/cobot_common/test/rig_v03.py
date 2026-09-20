@@ -53,6 +53,7 @@ class Run:
         self.t0 = time.monotonic()
         self.fake_wall_r = None                                          # Virtual 가짜 벽 반지름 mm (--fake-wall)
         self.climb = 0.0                                                 # 바닥에서 올라간 높이 mm (check 가 갱신)
+        self.gap = 0.0                                                   # 반지름 방향으로 못 따라간 거리 mm (check 가 갱신)
 
     def z(self):
         return self.d.get_current_posx(ref=self.d.DR_BASE)[0][2]
@@ -116,15 +117,22 @@ class Run:
         lx, ly = f[0] - self.fx0, f[1] - self.fy0
         lateral = math.hypot(lx, ly)
         radial = abs(lx * self.x / r + ly * self.y / r) if r > 1e-6 else 0.0
-        now = self.d.get_current_posx(ref=self.d.DR_BASE)[0]             # 실제 위치 — 명령과 얼마나 벌어지는지(이어 붙이기·순응)
+        now = self.d.get_current_posx(ref=self.d.DR_BASE)[0]             # 실제 위치 — 명령을 못 따라간 만큼이 벽에 막힌 양이다
         ax, ay = float(now[0]) - self.p0[0], float(now[1]) - self.p0[1]
+        if self.fake_wall_r is not None:                                 # Virtual 은 순응이 없어 늘 명령대로 간다 → 막히는 것도 흉내
+            wx, wy = self.x - p['fake_bowl_offset_mm'][0], self.y - p['fake_bowl_offset_mm'][1]
+            wr = math.hypot(wx, wy)
+            if wr > self.fake_wall_r:
+                k = (self.fake_wall_r + (wr - self.fake_wall_r) * 0.2) / wr     # 벽 너머는 20 %만 들어간다
+                ax, ay = p['fake_bowl_offset_mm'][0] + wx * k, p['fake_bowl_offset_mm'][1] + wy * k
+        self.gap = r - math.hypot(ax, ay) if r > 1e-6 else 0.0           # 반지름 방향으로 못 따라간 거리 mm (벽에 막힘)
         self.climb = float(now[2]) - self.p0[2]                          # 바닥에서 올라간 높이 — 솔이 벽을 타고 오르면 커진다
         # 실제 손목 비틀림: B≈180°(툴이 아래를 봄)에서는 툴 Z 회전이 A − C 로 나타난다 → −Δ(A − C)
         arz = -((float(now[3]) - float(now[5])) - (self.p0[3] - self.p0[5]) + 180.0) % 360.0 + 180.0
         arz = (arz + 180.0) % 360.0 - 180.0
         self.rows.append([phase, round(time.monotonic() - self.t0, 3), f[0], f[1], f[2], round(press, 3), p['wipe_target_n'],
                           round(self.x, 2), round(self.y, 2), round(radial, 3), round(ax, 2), round(ay, 2),
-                          round(arz, 1), round(self.rz, 1), round(self.climb, 2)])
+                          round(arz, 1), round(self.rz, 1), round(self.climb, 2), round(self.gap, 2)])
         if press > p['limit_n']:
             raise cc.ForceLimitError(f'{phase}: 누르는 힘 {press:.1f} N > {p["limit_n"]} N')
         if lateral > p['lateral_max_n']:
@@ -136,22 +144,12 @@ class Run:
         p = self.p
         return p['bowl_r_max_mm'] - p['brush_d_mm'] / 2 + p['r_max_margin_mm']
 
-    def learn_noise(self):
-        """가운데에서 제자리 비틀기 learn_twists 번 — 벽이 없을 때의 옆 힘 크기를 배운다 → 벽 판정 기준 N.
-
-        그릇이 솔만큼 작으면 가운데부터 벽이라 "벽 없는 구간"을 가정할 수 없다 → 옮겨 가지 않고 제자리에서 배운다.
-        기준 = max(배운 최대 + wall_margin_n, wall_min_n) — 움직일 때 마찰(9/19 실기 약 2 N)보다 낮아지지 않게.
-        """
-        p = self.p
-        lats = [self.scrub_to(0.0, 0.0, 'learn')[1] for _ in range(p['learn_twists'])]
-        wall_n = max(max(lats) + p['wall_margin_n'], p['wall_min_n'])
-        self.log.info(f'  제자리 비틀기 {len(lats)}번: 옆 힘 최대 {max(lats):.1f} N → 벽 판정 {wall_n:.1f} N')
-        return wall_n
-
     def spiral_find_wall(self):
         """중심에서 아르키메데스 나선(한 바퀴에 pitch 만큼)으로 넓혀 가며 문지른다. 벽이면 (반지름, 각도, 벽 기준 N) · 못 찾으면 None.
 
-        그릇 크기는 모른다 — 벽 = 반지름 방향 힘 > 벽 판정 기준, 또는 솔이 climb_max_mm 넘게 올라감(벽을 타고 오름, 안전 판정).
+        그릇 크기는 모른다 — 벽 = **명령한 반지름을 못 따라간 거리(gap) > wall_gap_mm**, 또는 솔이 climb_max_mm 넘게 올라감.
+        힘으로만 보면 안 된다(9/20 실기: 가운데에서 바깥으로 갈 때 마찰이 안쪽으로 5 N 걸려 벽으로 오판, 벽 힘과 구분 불가).
+        순응(X·Y 3 N/mm) 덕분에 벽에 막히면 실제 위치가 명령을 못 따라가고, 마찰은 진행 방향이라 반지름을 줄이지 않는다.
         벽 같으면 반지름을 더 넓히지 않는다. 나선 반지름 증가는 가운데에서도 한 걸음 약 pitch/2π 이하라 작은 그릇도 세게 밀지 않는다.
         """
         import math
@@ -160,7 +158,6 @@ class Run:
         self.twist = 1
         self.set_frame()
         r_max = self.r_max()
-        wall_n = self.learn_noise()
         theta, r, hits, presses = 0.0, 0.0, 0, []
         start = time.monotonic()
         while True:
@@ -172,24 +169,26 @@ class Run:
             press, lat, rad = self.scrub_to(r * math.cos(theta), r * math.sin(theta))
             presses.append(press)
             climbed = self.climb > p['climb_max_mm']
-            hits = hits + 1 if (rad > wall_n or climbed) else 0
+            blocked = self.gap > p['wall_gap_mm']
+            hits = hits + 1 if (blocked or climbed) else 0
             if hits >= p['wall_confirm']:
-                why = f'솔이 {self.climb:.1f} mm 올라감' if climbed else f'반지름 방향 힘 {rad:.1f} N > {wall_n:.1f} N'
-                self.log.info(f'  벽: 반지름 {r:.1f} mm · 각 {math.degrees(theta):.0f}° · {why} · 옆 힘 {lat:.1f} N '
-                              f'· 나선 {time.monotonic() - start:.1f} s')
+                why = (f'솔이 {self.climb:.1f} mm 올라감' if climbed
+                       else f'명령을 {self.gap:.1f} mm 못 따라감 > {p["wall_gap_mm"]:g} mm')
+                self.log.info(f'  벽: 반지름 {r:.1f} mm · 각 {math.degrees(theta):.0f}° · {why} · '
+                              f'반지름 방향 힘 {rad:.1f} N · 옆 힘 {lat:.1f} N · 나선 {time.monotonic() - start:.1f} s')
                 self.result('spiral', p['wipe_target_n'], presses)
-                return r, theta, wall_n
+                return r, theta
             dth = p['scrub_step_mm'] / max(r, p['scrub_step_mm'])       # 호 길이가 약 scrub_step_mm 가 되게
             theta += dth
             if hits == 0:                                                # 벽 같으면 반지름을 그대로 두고 한 번 더 본다
                 r += p['spiral_pitch_mm'] * dth / (2 * math.pi)
 
-    def circle_wall(self, r_hit, theta0, wall_n):
+    def circle_wall(self, r_hit, theta0):
         """벽에 닿은 자리에서 바로 circle_turns 바퀴 — 반지름 방향 힘을 보며 **벽에 붙어** 돈다(벽 따라가기).
 
-        그릇이 HOME 중심에서 조금 어긋나 있어도 벽을 따라가도록, 걸음마다 반지름을 고친다(9/19 5회차: 한쪽 벽만 닿음):
-          목표 = wall_n(벽 판정 기준) + follow_band_n/2 의 반지름 방향 힘.
-          모자라면(벽에서 떨어짐) 바깥으로, 넘으면(너무 밂) 안쪽으로 — 차이 × follow_gain_mm_per_n, 한 번에 follow_step_mm 까지.
+        그릇이 HOME 중심에서 어긋나 있어도 벽을 따라가도록, 걸음마다 반지름을 고친다(9/19 5회차: 한쪽 벽만 닿음):
+          목표 = 명령을 못 따라간 거리 follow_gap_mm(벽을 그만큼 눌러 솔 옆면이 벽에 붙는다).
+          덜 막히면 바깥으로, 더 막히면 안쪽으로 — 차이 × follow_gain, 한 걸음에 follow_step_mm 까지.
         반지름은 0 ~ r_max(). 솔이 climb_max_mm 넘게 올라가면 안쪽으로. 옆 힘 절대 상한(lateral_max_n)은 check() 가 지킨다.
         🔸 나선과 **반대 방향**으로 돈다(circle_reverse) — 나선 마지막 바퀴와 같은 길을 같은 방향으로 돌면 눈으로 구분이 안 되고
            (9/19 5회차 "2바퀴를 안 했다"), 반대로 문지르면 벽면을 양방향으로 닦는다. 시작 전에 circle_pause_s 만큼 멈춘다.
@@ -198,7 +197,7 @@ class Run:
         p = self.p
         r, th, done = r_hit, theta0, 0.0
         sign = -1.0 if p['circle_reverse'] else 1.0
-        presses, lats, rs = [], [], []
+        presses, lats, rs, gaps = [], [], [], []
         self.d.mwait()                                                   # 나선 끝 — 벽에 닿은 채 잠깐 멈춤(구분되게)
         self.sample('wall_pause', p['wipe_target_n'], seconds=p['circle_pause_s'])
         self.log.info(f'  벽 따라 {p["circle_turns"]}바퀴 시작 — {"반대 방향" if p["circle_reverse"] else "같은 방향"}')
@@ -212,14 +211,16 @@ class Run:
             presses.append(press)
             lats.append(lat)
             rs.append(r)
-            dr = (wall_n + p['follow_band_n'] / 2 - rad) * p['follow_gain_mm_per_n']
+            gaps.append(self.gap)
+            dr = (p['follow_gap_mm'] - self.gap) * p['follow_gain']
             if self.climb > p['climb_max_mm']:                           # 벽을 타고 오름 → 안쪽으로
                 dr = -p['follow_step_mm']
             dr = max(-p['follow_step_mm'], min(p['follow_step_mm'], dr))
             r = max(0.0, min(self.r_max(), r + dr))
         rc = statistics.mean(rs)
         self.log.info(f'  벽 따라 {p["circle_turns"]}바퀴: 반지름 평균 {rc:.1f} (최소 {min(rs):.1f} · 최대 {max(rs):.1f}) mm · '
-                      f'옆 힘 평균 {statistics.mean(lats):.1f} · 최대 {max(lats):.1f} N · {time.monotonic() - start:.1f} s')
+                      f'벽 누름 평균 {statistics.mean(gaps):.1f} mm · 옆 힘 평균 {statistics.mean(lats):.1f} · '
+                      f'최대 {max(lats):.1f} N · {time.monotonic() - start:.1f} s')
         self.result('circle', p['wipe_target_n'], presses)
 
     def sample(self, phase, target, seconds=None, until_motion=False):
@@ -232,7 +233,7 @@ class Run:
             press = abs(f[2] - self.baseline)
             now = time.monotonic()
             self.rows.append([phase, round(now - self.t0, 3), f[0], f[1], f[2], round(press, 3), target,
-                              '', '', '', '', '', '', '', ''])
+                              '', '', '', '', '', '', '', '', ''])
             if now - start >= p['settle_s']:
                 vals.append(press)
             if press > p['limit_n']:
@@ -268,7 +269,7 @@ class Run:
         with open(path, 'w', newline='') as f:
             w = csv.writer(f)
             w.writerow(['phase', 't', 'fx', 'fy', 'fz', 'press_n', 'target', 'x_mm', 'y_mm', 'radial_n',
-                        'actual_x_mm', 'actual_y_mm', 'actual_rz_deg', 'cmd_rz_deg', 'climb_mm'])
+                        'actual_x_mm', 'actual_y_mm', 'actual_rz_deg', 'cmd_rz_deg', 'climb_mm', 'gap_mm'])
             w.writerows(self.rows)
         return path
 
