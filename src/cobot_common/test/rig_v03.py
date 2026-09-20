@@ -181,8 +181,11 @@ class Run:
                              time=float(p['spiral_time_s']), axis=d.DR_AXIS_Z, ref=d.DR_TOOL)
         if ret != 0:
             raise RuntimeError(f'amove_spiral 실패 (반환 {ret!r})')
-        self.wait_start()
-        self.sample('spiral', p['wipe_target_n'], until_motion=True)
+        started = self.wait_start()
+        rmax_seen = self.sample_spiral()                                 # 도는 동안 실제 반지름을 훑는다(명령 하나라 끊기지 않는다)
+        self.log.info(f'  나선 도는 동안 실제 최대 반지름 {rmax_seen:.1f} mm (목표 {r_wall:.1f}) · 시작됨={started}')
+        if rmax_seen < r_wall * 0.5:
+            self.log.error('  🚨 나선이 거의 돌지 않았다 — 명령은 받아들여졌지만 움직이지 않는다')
         now = d.get_current_posx(ref=d.DR_BASE)[0]
         self.x, self.y = float(now[0]) - self.p0[0], float(now[1]) - self.p0[1]
         self.log.info(f'  나선 끝: 반지름 {math.hypot(self.x, self.y):.1f} mm')
@@ -247,6 +250,27 @@ class Run:
             raise cc.ForceLimitError(f'{phase}: 누르는 힘 {press:.1f} N > {p["limit_n"]} N')
         if math.hypot(f[0] - self.fx0, f[1] - self.fy0) > p['lateral_max_n']:
             raise cc.ForceLimitError(f'{phase}: 옆 힘 상한 {p["lateral_max_n"]} N 초과')
+
+    def sample_spiral(self):
+        """나선이 도는 동안 힘과 실제 위치를 기록 → 도달한 최대 반지름."""
+        p = self.p
+        rmax = 0.0
+        t0 = time.monotonic()
+        while True:
+            f = cc.read_force()
+            now = self.d.get_current_posx(ref=self.d.DR_BASE)[0]
+            x, y = float(now[0]) - self.p0[0], float(now[1]) - self.p0[1]
+            rmax = max(rmax, math.hypot(x, y))
+            press = abs(f[2] - self.baseline)
+            self.rows.append(['spiral', round(time.monotonic() - self.t0, 3), f[0], f[1], f[2], round(press, 3),
+                              p['wipe_target_n'], '', '', '', round(x, 2), round(y, 2), '', '', '', ''])
+            if press > p['limit_n']:
+                raise cc.ForceLimitError(f'나선: 누르는 힘 {press:.1f} N > {p["limit_n"]} N')
+            if self.d.check_motion() == 0:
+                return rmax
+            if time.monotonic() - t0 > p['spiral_time_s'] + 5.0:
+                raise cc.MotionTimeout('나선이 끝나지 않는다')
+            time.sleep(p['sample_s'])
 
     def wait_start(self, seconds=2.0):
         """비동기 동작이 실제로 시작될 때까지 기다린다 (check_motion 이 0 이 아니게 될 때까지)."""
