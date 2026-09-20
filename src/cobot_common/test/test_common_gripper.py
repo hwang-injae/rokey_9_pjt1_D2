@@ -97,13 +97,21 @@ def test_width_before_first_message_raises():
 
 
 # ────────────────────────────────── 🚨 힘은 2.5 N 계단 (드라이버 제약)
-def test_first_force_anchors_at_zero(fake):
-    """드라이버가 현재 힘을 안 알려 준다 → 처음엔 0 N 까지 내려 기준을 맞춘다."""
-    G._set_force(20.0)
+def test_grip_anchors_force_on_first_call(fake, monkeypatch):
+    """드라이버가 현재 힘을 안 알려 준다 → grip 은 **잡으러 가기 전(빈손)** 에 기준을 맞춘다."""
+    monkeypatch.setattr(G, '_joint_angle', 0.83)
+    G.grip(2.0, 20.0)
     sent = fake.client.sent
     assert sent.count('d') >= 16, '0 N 까지 내리는 계단이 부족하다'
     assert sent.count('i') == 8, '0 → 20 N 은 2.5 N × 8 계단'
     assert G._force_n == pytest.approx(20.0)
+
+
+def test_set_force_without_anchor_raises(fake):
+    """🚨 _set_force 는 이제 몰래 0 N 으로 내리지 않는다 — 기준이 없으면 거부한다."""
+    with pytest.raises(RuntimeError, match='기준'):
+        G._set_force(20.0)
+    assert fake.client.sent == [], '거부했으면 아무 명령도 안 보낸다'
 
 
 def test_second_force_moves_only_difference(fake, monkeypatch):
@@ -145,9 +153,20 @@ def test_grip_sends_width_in_tenths(fake, monkeypatch):
     assert '620' in fake.client.sent
 
 
-def test_release_sends_open(fake):
+def test_release_sends_open(fake, monkeypatch):
+    """기준이 이미 잡혀 있으면 release 는 열기만 한다."""
+    monkeypatch.setattr(G, '_force_n', 20.0)
     G.release()
     assert fake.client.sent == ['o']
+
+
+def test_release_anchors_force_after_opening(fake):
+    """🚨 기준이 없으면 release 가 맞춘다 — 반드시 **연 뒤에**(쥔 채 0 N 으로 내리면 놓친다)."""
+    G.release()
+    sent = fake.client.sent
+    assert sent[0] == 'o', '열기가 맨 먼저여야 한다'
+    assert sent.count('d') >= 16, '0 N 까지 내리는 계단이 부족하다'
+    assert G._force_n == pytest.approx(0.0)
 
 
 def test_width_out_of_range_is_clamped(fake, monkeypatch):
@@ -176,6 +195,17 @@ def test_grip_level_back_to_normal(fake, monkeypatch):
     fake.client.sent.clear()
     G.grip_level('CUP', 'NORMAL')                       # 35 → 15 N
     assert fake.client.sent == ['d'] * 8
+
+
+def test_grip_level_without_anchor_refuses(fake, monkeypatch):
+    """🚨 쥔 채 힘을 바꾸려는데 기준이 없으면 거부한다 — 맞추려면 0 N 을 지나야 해서 놓친다.
+
+    PM 9/20 · #17 검토 2번. 조용히 떨어뜨리는 대신 예외 → flow 가 ROBOT_ERROR 로 멈춘다.
+    """
+    monkeypatch.setattr(G, '_joint_angle', 0.83)
+    with pytest.raises(RuntimeError, match='기준'):
+        G.grip_level('BOWL', 'HOLD')
+    assert fake.client.sent == [], '거부했으면 아무 명령도 안 보낸다'
 
 
 def test_grip_level_bad_level(fake):

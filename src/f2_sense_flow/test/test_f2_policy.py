@@ -150,3 +150,65 @@ def test_full_order_calls_every_function():
     for need in ('pick', 'move_to', 'leftover_loop', 'place', 'tool',
                  'soap', 'wipe_bowl', 'dip', 'shake', 'rack_place'):
         assert need in called, f'{need} 가 안 불렸다'
+
+
+# ────────────────────────────────── stop 위치 (9/20 V-20 결함 · SDD §5.1)
+class StopAfter(AutoResume):
+    """resume 을 눌러 줄 때 "그때까지 몇 단계가 갔는지" 를 기록하는 시험용 깃발."""
+
+    def __init__(self):
+        super().__init__()
+        self.calls = []
+        self.calls_at_pause = None
+
+    def take(self, name):
+        if name == 'resume' and self.calls_at_pause is None:
+            self.calls_at_pause = len(self.calls)
+        return super().take(name)
+
+
+def test_stop_pauses_between_steps():
+    """🚨 정지 버튼은 **단계 사이마다** 먹어야 한다 — 용기 하나를 끝까지 하고서가 아니라.
+
+    V-20(황인재 9/20)에서 "stop 뒤에도 RINSE·RACK 을 더 갔다" 로 드러난 결함.
+    실기에서는 함수 하나가 수십 초라, 이게 없으면 정지 버튼이 소프트 E-STOP 이 못 된다.
+    """
+    mock.configure([])
+    f = Flow(CFG, Quiet())
+    f.f = load_features(['f1', 'f2', 'f3'])
+    f.plan = [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 1}]
+
+    sig = StopAfter()
+    orig = f.call_fn
+
+    def counting(mod_key, fn_name, *args):
+        r = orig(mod_key, fn_name, *args)
+        sig.calls.append(fn_name)
+        if len(sig.calls) == 3:              # 용기 중간(3단계째)에서 정지 버튼을 누른다
+            sig.raise_('stop')
+        return r
+
+    f.call_fn = counting
+    f.run_plan(sig)
+
+    assert sig.calls_at_pause is not None, 'stop 을 눌렀는데 PAUSED 가 안 됐다'
+    assert sig.calls_at_pause == 3, \
+        f'stop 뒤에 {sig.calls_at_pause - 3} 단계를 더 갔다 — 단계 사이에서 멈춰야 한다'
+    assert f.step != 'PAUSED', 'resume 뒤 끝까지 가야 한다'
+    assert len(sig.calls) == 13, f'resume 뒤 남은 단계를 다 못 갔다 ({len(sig.calls)}/13)'
+
+
+def test_stop_does_not_touch_the_gripper():
+    """🚨 멈출 때 그리퍼에 **아무 명령도 보내지 않는다** (SDD §5.1 · 황인재 9/20).
+
+    든 채 멈추는 구간이 생기는데, 힘을 바꾸면 드라이버가 다시 파지하면서 놓칠 수 있다.
+    기능 함수가 끝날 때 HOLD → NORMAL 로 되돌리므로 단계 사이는 이미 NORMAL 이다.
+    """
+    import inspect
+
+    from f2_sense_flow import flow as flow_mod
+
+    src = inspect.getsource(flow_mod.Flow.process_one) + inspect.getsource(flow_mod.Flow.run_plan)
+    body = '\n'.join(ln for ln in src.splitlines() if not ln.lstrip().startswith('#'))
+    for banned in ('grip_level', 'release(', 'grip('):
+        assert banned not in body, f'정지 경로에서 그리퍼를 건드린다: {banned}'

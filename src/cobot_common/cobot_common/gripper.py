@@ -75,6 +75,8 @@ def grip(width, force):
        같은 값을 주면 빈손으로 닫아도 그 폭에서 멈춘 것처럼 보인다 —
        그릇은 벽 파지라 기대 폭이 ≈ 2 mm 밖에 안 된다.
     """
+    if _force_n is None:
+        _anchor_force()                                    # 잡으러 가기 전 = 아직 빈손 → 안전한 자리
     _set_force(float(force))
     _send(str(int(round(_clamp_width(width) * 10))))       # 0.1 mm 단위
     _wait_done()
@@ -95,6 +97,12 @@ def grip_level(kind, level):
     key = 'grip_force_n' if level == 'NORMAL' else 'hold_force_n'
     if key not in preset:
         raise KeyError(f'cell.presets.{kind}.{key} 가 없다 — 프리셋을 확인한다')
+    if _force_n is None:
+        # 🚨 여기는 **이미 쥐고 있는** 자리다. 기준을 맞추려면 0 N 까지 내려야 하는데,
+        #    그러면 용기를 놓친다 → 조용히 떨어뜨리지 말고 멈춘다 (PM 9/20 · #17 검토 2번).
+        raise RuntimeError(
+            'grip_level: 그리퍼 힘 기준이 없다 — 쥔 채로 힘을 바꾸면 용기를 놓친다. '
+            '이 프로그램에서 cc.release() 나 cc.grip() 을 먼저 부른다')
     before = grip_width()
     _set_force(float(preset[key]))
     _wait_done()
@@ -104,9 +112,15 @@ def grip_level(kind, level):
 
 
 def release():
-    """그리퍼 열기. 힘 설정은 그대로 둔다(드라이버의 'o' 가 힘을 안 바꾼다)."""
+    """그리퍼 열기. 힘 설정은 그대로 둔다(드라이버의 'o' 가 힘을 안 바꾼다).
+
+    🚨 **연 뒤에** 힘 기준이 없으면 여기서 맞춘다 — 손이 빈 게 확실한 유일한 자리다.
+       그래서 그리퍼를 쓰는 프로그램은 아무것도 쥐지 않은 상태의 release() 로 시작한다.
+    """
     _send('o')
     _wait_done()
+    if _force_n is None:
+        _anchor_force()
 
 
 def grip_width():
@@ -133,20 +147,31 @@ def _send(command):
         raise RuntimeError(f'그리퍼 명령 {command!r} 실패 — {getattr(res, "message", "응답 없음")}')
 
 
+def _anchor_force():
+    """힘 기준 맞추기 — 0 N 까지 내려 우리가 아는 값에 붙인다(드라이버가 0 에서 더 안 내려간다).
+
+    🚨 **아무것도 쥐지 않은 상태에서만** 부른다. 'd' 는 "힘을 낮춰 **직전 폭으로 다시 파지**"라서,
+       용기를 쥔 채 부르면 힘이 0 N 을 지나는 동안 놓친다(PM 9/20 · #17 검토 2번).
+       부르는 자리는 두 곳뿐이다 — release()(연 뒤) · grip()(잡으러 가기 전).
+    """
+    global _force_n
+    steps = int(_MAX_FORCE_N / _FORCE_STEP_N) + 1            # 넉넉히 내려 0 에 붙인다
+    _log().info(f'그리퍼 힘 기준 맞추기 — 0 N 까지 내린다 ({steps}회)')
+    for _ in range(steps):
+        _send('d')
+    _force_n = 0.0
+
+
 def _set_force(target_n):
     """힘을 target_n 에 맞춘다. 🚨 2.5 N 계단으로만 되고, 드라이버는 현재 값을 안 알려준다.
 
-    그래서 처음 한 번은 **0 N 까지 내려 기준을 맞춘다**(드라이버가 0 에서 더 안 내려간다).
-    이후로는 우리가 기억한 값에서 차이만큼만 움직인다.
+    기준(`_force_n`)이 잡혀 있어야 부를 수 있다 — 여기서 몰래 0 N 으로 내리지 않는다.
+    기준을 맞춰도 되는 자리인지는 부르는 쪽(release·grip)이 판단한다.
     """
     global _force_n
-    target_n = max(0.0, min(_MAX_FORCE_N, float(target_n)))
     if _force_n is None:
-        steps = int(_MAX_FORCE_N / _FORCE_STEP_N) + 1        # 넉넉히 내려 0 에 붙인다
-        _log().info(f'그리퍼 힘 기준 맞추기 — 0 N 까지 내린다 ({steps}회)')
-        for _ in range(steps):
-            _send('d')
-        _force_n = 0.0
+        raise RuntimeError('그리퍼 힘 기준이 없다 — _anchor_force() 를 먼저 부른다')
+    target_n = max(0.0, min(_MAX_FORCE_N, float(target_n)))
     steps = int(round((target_n - _force_n) / _FORCE_STEP_N))
     for _ in range(abs(steps)):
         _send('i' if steps > 0 else 'd')
