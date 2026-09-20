@@ -161,74 +161,84 @@ class Run:
         p = self.p
         return p['bowl_r_max_mm'] - p['brush_d_mm'] / 2 + p['r_max_margin_mm']
 
-    def spiral_find_wall(self):
-        """중심에서 나선으로 넓혀 가며 문지르다 **정해진 반지름**에 닿으면 그 자리를 벽으로 본다 → (반지름, 각도).
+    def wipe_bottom(self):
+        """바닥 닦기 — **move_spiral 한 번**으로 중심에서 벽 반지름까지. 끊김이 없다(중급교육1 p.68).
 
-        🔸 9/20 결정: 수세미는 스펀지처럼 물러서 벽에 눌려도 잘 막히지 않는다(힘·못 따라간 거리로는 벽을 못 찾음)
-           → **그릇 안지름을 넣어** 벽 반지름 = (bowl_inner_d_mm − brush_d_mm) / 2 + wall_press_mm 로 계산한다.
-        그래도 그보다 **먼저 막히면**(gap·올라감) 거기서 멈춘다 — 그릇이 작거나 잘못 놓였을 때의 안전장치.
+        비틀기는 같이 못 한다: Move Spiral 은 다른 모션과 **중첩 불가**(중급교육1 p.79 — 중첩 가능은 Move L·C·J·JX 뿐).
+        순응을 켠 채 쓰는 것이 정석이라고 자료에 적혀 있다.
         """
         import math
-        p = self.p
-        self.x = self.y = self.rz = 0.0
-        self.twist, self.step_i = 1, 0
+        p, d, s = self.p, self.d, cc.cfg()['run']['vel_scale']
         self.set_frame()
+        self.x = self.y = self.rz = 0.0
         r_wall = min(self.wall_r(), self.r_max())
-        self.log.info(f'  벽 반지름 {r_wall:.1f} mm = (그릇 안지름 {p["bowl_inner_d_mm"]:g} − 툴 {p["brush_d_mm"]:g}) / 2 '
-                      f'+ 눌러 주기 {p["wall_press_mm"]:g} mm')
-        theta, r, hits, presses = 0.0, 0.0, 0, []
-        start = time.monotonic()
-        while True:
-            if time.monotonic() - start > p['scrub_timeout_s']:
-                raise cc.MotionTimeout('나선 문지르기 시간 초과')
-            press, lat, rad = self.scrub_to(r * math.cos(theta), r * math.sin(theta))
-            presses.append(press)
-            climbed = self.climb > p['climb_max_mm']
-            blocked = self.gap > p['wall_gap_mm']
-            hits = hits + 1 if (blocked or climbed) else 0
-            early = hits >= p['wall_confirm']                            # 계산한 반지름 전에 막혔다(안전장치)
-            if early or r >= r_wall:
-                why = (f'솔이 {self.climb:.1f} mm 올라감' if climbed and early else
-                       f'명령을 {self.gap:.1f} mm 못 따라감' if early else '정해진 반지름 도달')
-                self.log.info(f'  벽: 반지름 {r:.1f} mm · 각 {math.degrees(theta):.0f}° · {why} · '
-                              f'반지름 방향 힘 {rad:.1f} N · 옆 힘 {lat:.1f} N · 나선 {time.monotonic() - start:.1f} s')
-                self.result('spiral', p['wipe_target_n'], presses)
-                return r, theta
-            dth = p['scrub_step_mm'] / max(r, p['scrub_step_mm'])       # 호 길이가 약 scrub_step_mm 가 되게
-            theta += dth
-            r = min(r + p['spiral_pitch_mm'] * dth / (2 * math.pi), r_wall)
+        rev = max(1, round(r_wall / p['spiral_pitch_mm']))
+        self.log.info(f'  바닥: 나선 {rev}바퀴 · 반지름 {r_wall:.1f} mm '
+                      f'= (그릇 안지름 {p["bowl_inner_d_mm"]:g} − 툴 {p["brush_d_mm"]:g})/2 + {p["wall_press_mm"]:g}')
+        d.mwait()
+        ret = d.amove_spiral(rev=rev, rmax=r_wall, lmax=0.0,
+                             vel=[p['scrub_lin_vel_mm_s'] * s, p['scrub_rot_vel_deg_s'] * s],
+                             acc=[p['scrub_lin_acc_mm_s2'], p['scrub_rot_acc_deg_s2']],
+                             axis=d.DR_AXIS_Z, ref=d.DR_TOOL)
+        if ret != 0:
+            raise RuntimeError(f'amove_spiral 실패 (반환 {ret!r})')
+        self.sample('spiral', p['wipe_target_n'], until_motion=True)
+        now = d.get_current_posx(ref=d.DR_BASE)[0]
+        self.x, self.y = float(now[0]) - self.p0[0], float(now[1]) - self.p0[1]
+        self.log.info(f'  나선 끝: 반지름 {math.hypot(self.x, self.y):.1f} mm')
+        return r_wall
 
-    def circle_wall(self, r_hit, theta0):
-        """벽에 닿은 자리에서 바로 circle_turns 바퀴 — 반지름은 **고정**(벽을 만난 반지름 − circle_margin_mm).
+    def wipe_wall(self, r_wall):
+        """벽면 닦기 — **Move B 한 번**으로 반대 방향 circle_turns 바퀴, 구간마다 손목 좌우 비틀기.
 
-        🔸 나선과 **반대 방향**으로 돈다(circle_reverse) — 같은 방향이면 나선 마지막 바퀴와 구분이 안 된다(9/19 5회차).
-        🔸 걸음마다 반지름을 고치는 '벽 따라가기'는 9/20 결정으로 삭제했다. 그릇은 홈 가운데에 놓는 것이 전제이고,
-           한쪽을 세게 밀면 옆 힘 상한(lateral_max_n)에서 멈춘다.
+        Move B = 직선·원호 구간을 블렌딩으로 이어 **등속 이동**(중급교육1 p.85, 구간 최대 100개).
+        구간 끝 자세의 C 를 ±scrub_deg 로 번갈아 주면, 도는 동안 손목이 좌우로 비틀린다(슥삭).
         """
         import math
-        p = self.p
-        r = max(0.0, r_hit - p['circle_margin_mm'])
-        sign = -1.0 if p['circle_reverse'] else 1.0
-        th, done = theta0, 0.0
-        presses, lats, gaps = [], [], []
-        self.d.mwait()                                                   # 나선 끝 — 벽에 닿은 채 잠깐 멈춤(구분되게)
-        self.sample('wall_pause', p['wipe_target_n'], seconds=p['circle_pause_s'])
-        self.log.info(f'  벽 따라 {p["circle_turns"]}바퀴 시작 — {"반대 방향" if p["circle_reverse"] else "같은 방향"} '
-                      f'· 반지름 고정 {r:.1f} mm')
-        start = time.monotonic()
-        while done < 2 * math.pi * p['circle_turns']:
-            if time.monotonic() - start > p['scrub_timeout_s']:
-                raise cc.MotionTimeout('벽 따라 돌기 시간 초과')
-            dth = p['scrub_step_mm'] / max(r, p['scrub_step_mm'])
-            th, done = th + sign * dth, done + dth
-            press, lat, rad = self.scrub_to(r * math.cos(th), r * math.sin(th), 'wall')
-            presses.append(press)
-            lats.append(lat)
-            gaps.append(self.gap)
-        self.log.info(f'  벽 따라 {p["circle_turns"]}바퀴: 반지름 {r:.1f} mm · 벽 누름 평균 {statistics.mean(gaps):.1f} '
-                      f'(최소 {min(gaps):.1f} · 최대 {max(gaps):.1f}) mm · 옆 힘 평균 {statistics.mean(lats):.1f} · '
-                      f'최대 {max(lats):.1f} N · {time.monotonic() - start:.1f} s')
-        self.result('circle', p['wipe_target_n'], presses)
+        p, d, s = self.p, self.d, cc.cfg()['run']['vel_scale']
+        x0, y0, _z, a, b, c = self.p0
+        th0 = math.atan2(self.y, self.x) if math.hypot(self.x, self.y) > 1e-6 else 0.0
+        turns, per = p['circle_turns'], p['arcs_per_turn']
+        n = int(turns * per)
+        dth = -2 * math.pi / per                                         # 나선과 반대 방향
+        chord = 2 * r_wall * abs(math.sin(dth / 2))
+        radius = min(p['moveb_radius_mm'], chord / 2 * 0.9)              # 구간 이동거리의 절반을 넘으면 자동으로 줄어든다(p.79)
+        segs, twist = [], 1
+
+        def pose(th, rz):
+            return [x0 + r_wall * math.cos(th), y0 + r_wall * math.sin(th), self.z_now,
+                    a, b, (c + rz + 180.0) % 360.0 - 180.0]
+
+        for k in range(n):
+            th_mid = th0 + dth * (k + 0.5)
+            th_end = th0 + dth * (k + 1)
+            rz_prev = p['scrub_deg'] * twist
+            twist = -twist
+            rz_new = p['scrub_deg'] * twist
+            segs.append(d.posb(d.DR_CIRCLE, pose(th_mid, rz_prev), pose(th_end, rz_new), radius))
+        self.log.info(f'  벽면: {turns}바퀴 · 반지름 {r_wall:.1f} mm · 구간 {n}개(원호) · 이어붙이기 {radius:.1f} mm · '
+                      f'비틀기 ±{p["scrub_deg"]:g}° 구간마다')
+        d.mwait()
+        ret = d.amoveb(segs, vel=[p['scrub_lin_vel_mm_s'] * s, p['scrub_rot_vel_deg_s'] * s],
+                       acc=[p['scrub_lin_acc_mm_s2'], p['scrub_rot_acc_deg_s2']],
+                       ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS)
+        if ret != 0:
+            raise RuntimeError(f'amoveb 실패 (반환 {ret!r})')
+        self.sample('wall', p['wipe_target_n'], until_motion=True)
+        self.rz = p['scrub_deg'] * twist
+
+    def back_to_center(self):
+        """세척 끝 — 올리지 않고 **그 높이에서 중심(HOME X·Y)으로** 돌아온다. 손목도 0 으로."""
+        p, d, s = self.p, self.d, cc.cfg()['run']['vel_scale']
+        x0, y0, _z, a, b, c = self.p0
+        d.mwait()
+        ret = d.movel([x0, y0, self.z_now, a, b, c], vel=[p['scrub_lin_vel_mm_s'] * s, p['scrub_rot_vel_deg_s'] * s],
+                      acc=[p['scrub_lin_acc_mm_s2'], p['scrub_rot_acc_deg_s2']],
+                      ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS)
+        if ret != 0:
+            raise RuntimeError('중심 복귀 실패')
+        self.rz = 0.0
+        self.log.info('  중심으로 복귀 (그 높이에서)')
 
     def sample(self, phase, target, seconds=None, until_motion=False):
         """seconds 동안 또는 비동기 동작이 끝날 때까지 힘을 기록. limit_n 넘으면 ForceLimitError."""
@@ -393,20 +403,20 @@ def main() -> int:
             log.error('바닥을 못 찾았다 → 힘제어를 켜지 않고 중단 (approach_down_mm·그릇 위치 확인)')
             return 1
 
-        log.info('① 닿은 채 제자리 누르기')
-        for target in p['press_targets_n']:
-            run.press_on(target)
-            run.sample(f'press_{target:g}N', target, seconds=p['press_hold_s'])
-            run.press_off()
-
-        log.info('② 손목을 비틀며 나선으로 넓혀 가다 벽을 찾고 → 벽 따라 돌기')
+        log.info('① 순응 켜고 세척 자리로 (바닥 대비 after_contact_mm)')
         run.press_on(p['wipe_target_n'])
-        run.sample('wipe_settle', p['wipe_target_n'], seconds=p['settle_s'] * 2)
-        wall = run.spiral_find_wall()
-        if wall is not None:
-            run.circle_wall(*wall)
+        run.sample('settle', p['wipe_target_n'], seconds=p['settle_s'])
+
+        log.info('② 바닥 — move_spiral 로 중심에서 벽 반지름까지 (끊김 없음)')
+        r_wall = run.wipe_bottom()
+
+        log.info('③ 벽면 — Move B 로 반대 방향 %d바퀴, 구간마다 손목 좌우 비틀기' % p['circle_turns'])
+        run.wipe_wall(r_wall)
+
+        log.info('④ 그 높이에서 중심으로 복귀 → 순응 끄고 위로')
+        run.back_to_center()
         run.press_off()
-        code = 0 if wall is not None else 1
+        code = 0
     except KeyboardInterrupt:
         log.warning('Ctrl+C — 정지 명령을 보내고 끝낸다')
         code = 130
