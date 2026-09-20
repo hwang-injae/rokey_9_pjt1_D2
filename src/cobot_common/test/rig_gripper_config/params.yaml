@@ -1,0 +1,6 @@
+# rig_gripper.py 전용 — 로더가 두 파일을 모두 요구해서 둔 빈 절. 팀 params.yaml 이 아니다.
+f1: {}
+f2: {}
+f3: {}
+flow: {}
+hmi: {}
