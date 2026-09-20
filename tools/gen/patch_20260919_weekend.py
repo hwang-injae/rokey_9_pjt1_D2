@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v7.0'
+VERSION = 'v7.1'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -84,6 +84,10 @@ EDIT = {
 }
 # 새 행: id, 뒤에 붙일 행, 서식 복제 행, 구분, 작업, 담당, 상태, 칸, 산출물, 기준, 비고
 NEW = [
+ ('FLOW-03', 'FLOW-02', 'FLOW-02', '개발', '정지·재개·중단 연결 — /flow/stop = 즉시 일시 정지(이동 도중 멈춤) · /flow/resume = 하던 동작을 이어서(실패로 멈춘 경우는 실패한 단계부터 다시) · /flow/abort 신설(툴 반납 → 용기를 격리 구역에 → HOME → 다음 용기, ROBOT_ERROR 에서는 거부) · 이벤트 DONE/ISOLATED/ERROR',
+  'M', '시작 전', S('9/22 오전', '9/22 오후'), 'src/f2_sense_flow/f2_sense_flow/flow.py · flow_node.py + test_f2_policy.py',
+  'mock 으로: 일시 정지 → 재개(이어서) · 실패 PAUSE → 재개(그 단계부터 다시) · abort → ISOLATED 기록·다음 용기 · ROBOT_ERROR 에서 abort 거부 · rig_v20.py probe 통과',
+  '9/20 황인재 결정(IRD §6 · SDD §5.1): 사람이 확인하고 문제없으면 마저(resume), 문제라고 판단하면 접는다(abort) · motion.py 의 pause/resume 호출(V-24)이 main 에 들어온 뒤 연결 · FLOW-01 의 격리 마무리 동작(9/22 오후)과 같은 코드라 같이 한다 · 힘제어·접촉 구간은 그 동작을 마친 뒤 멈춤(9/20 오전에 만든 단계 사이 정지 그대로)'),
  ('INF-02d', 'INF-02', 'INF-02', '계약', 'cobot_common · gripper.py — 그리퍼 함수(저수준) grip · grip_level(NORMAL/HOLD) · release · grip_width(현재 폭 mm)',
   'M', '시작 전', S('9/20 오후'), 'src/cobot_common/cobot_common/gripper.py', '실기에서 명령 → 동작 → 폭(mm) 읽힘 · NORMAL↔HOLD 전환 · Virtual 에서는 가짜 그리퍼 노드로 호출 순서',
   'R · 9/19 분담 변경: 한석형(motion.py 안) → 민범진(새 파일) · V-05·V-23·V-01 결과가 곧 구현 · 박진용 제안서 참고, 박진용이 PR 리뷰 · F3 요청 grip_width() 포함 · 구독은 setup_io(node)'),
@@ -188,6 +192,33 @@ LATEST_0920PM = {
 for _tid, _e in LATEST_0920PM.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/20 15:30 황인재 결정: 즉시 일시 정지 → 재개로 이어서 · 중단(격리) · 웹 HMI 는 추석에도
+CH_ = '9/24~28'
+STOP_0920 = {
+ 'V-24':    dict(owner='H(M,P)', status='진행 중', prog='0.3',
+                 task='V-24 즉시 일시 정지 — motion.py 를 비동기 이동(amovej/amovel) + check_motion 폴링으로 · bootstrap 에 pause/resume/stop 호출과 정지 깃발 · Virtual 시험 → 9/22 오전 실기 확인(이동 도중 멈춤 → 재개로 같은 동작을 이어서)',
+                 slots=S('9/20 오후', '9/21 저녁', '9/22 오전'),
+                 deliv='src/cobot_common/cobot_common/motion.py · bootstrap.py + test/rig_stop.py · docs/test_logs',
+                 crit='Virtual: rig_motion 3바퀴 + rig_stop 통과(호출하는 쪽 코드 변경 없음) · 실기: 관절·직선·용기를 든 이동에서 멈춤 → 재개로 같은 동작 완료 3회',
+                 note_add='✅ 9/20 황인재 결정: **선택 과제 → 한다**(목적: 문제가 생겼을 때 바로 멈췄다가, 사람이 보고 문제없으면 이어서). 범위: 자유 공간 이동만 즉시 멈춤 — 힘제어·접촉 구간(접촉 하강·닦기·안착 탐색)은 그 동작을 마친 뒤 멈춤(실기 확인 뒤 넓힐 수 있다). 되돌아갈 자리: 9/22 오전까지 실기 확인이 안 되면 지금의 단계 사이 정지로 시연(서비스 이름이 같아 HMI 는 그대로). 민범진의 연결은 FLOW-03'),
+ 'F4-01':   dict(slots=S('9/21 저녁'), note_add='9/20 재배치: V-24(이동 함수 비동기 전환)를 먼저 하느라 9/20 오후 → 9/21 저녁'),
+ 'F4-02':   dict(task='REST/WS 브리지·버튼 4종(시작 · 일시 정지 · 재개 · 중단) — 멈추면 "일시 정지됨 — 어느 단계" 를 크게 표시("E-STOP" 이라 쓰지 않는다)',
+                 slots=S('9/21 저녁', '9/22 오전'), note_add='9/20 결정: /api/abort 추가(IRD §6) · 한계 문구 없음 · 9/20 재배치: 9/21 저녁~9/22 오전'),
+ 'V-13':    dict(slots=S('9/22 오전'), note_add='9/20 재배치: 9/21 저녁 → 9/22 오전(F4-02 뒤)'),
+ 'INT-4':   dict(task='INT-4 flow(mock)+HMI — 시작·일시 정지·재개·중단', slots=S('9/22 오후'), note_add='9/20 재배치: 9/21 저녁 → 9/22 오후 · 민범진의 FLOW-03 과 함께'),
+ 'F4-03':   dict(slots=S('9/22 오후', '9/22 저녁', CH_ + ' 오전'), note_add='🆕 9/20 황인재: **웹 HMI 는 추석에도 집에서 이어 간다**(로봇 불필요 — mock·fake_state_pub). 9/22 에는 시연·노션 gif 에 필요한 최소 화면(단계·버튼·연결 상태·힘 그래프 자리)까지, 다듬기는 추석에'),
+ 'NOTE-02': dict(slots=S('9/22 저녁'), note_add='9/20 재배치: 그날 저녁까지 나온 화면으로 gif(강사 9/22 요구) — 추석에 화면이 바뀌면 다시 올린다'),
+ 'F4-04':   dict(slots=S(CH_ + ' 오전', CH_ + ' 오후'), note_add='🆕 9/20 황인재: 추석에 집에서(mock 으로 /flow/event 를 받아 SQLite 기록·이력 API). 9/23 L3·L4 에는 없어도 된다(기록은 flow 의 records.csv 가 있다)'),
+ 'UT-F4':   dict(slots=S('9/23 오전', CH_ + ' 저녁'), note_add='9/20 재배치: 9/23 오전에 최소 범위(버튼 4종·상태·연결 끊김 표시) → 전체 TC-11 은 추석에 mock 으로'),
+ 'F4-05':   dict(slots=S('9/23 오전'), note_add='9/20 재배치: 9/23 오전만(INT-4c 측정 전에)'),
+ 'V-22':    dict(slots=S('9/20 오후', '9/21 저녁'), note_add='cell.yaml 의 limits·motion 값(한석형 PR)이 main 에 들어와야 한다 — 9/20 에 못 하면 9/21 저녁 첫 순서'),
+ 'INF-02b': dict(note_add='🆕 9/20 결정(V-24): force.py 의 접촉 하강·닦기·안착 탐색은 **즉시 멈춤을 보류하는 구간** — 그 동작을 마친 뒤 멈춘다. 표시 방법은 황인재의 motion/bootstrap API 가 나오면 맞춘다 · 9/22 오전 실기 확인에 참여(힘이 걸린 채 멈춤이 되는지는 그때 같이 본다)'),
+ 'FLOW-01': dict(note_add='🆕 9/20 황인재 결정 2건 → 구현은 FLOW-03(9/22): ① 일시 정지 = 즉시 멈춤 → 재개로 이어서 ② 실패로 멈춘 용기 = 사람이 확인해 마저(resume, 실패한 단계부터) 또는 접기(abort 신설 — 격리). 결정 요청 문서 2건에 답을 적었다'),
+}
+for _tid, _e in STOP_0920.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
+
 
 # 팀(구역) 이동: id → (새 팀, 이 ID 행 바로 뒤에 둔다) — 이미 그 구역에 있으면 PM 이 정한 행 순서를 건드리지 않는다
 MOVE = {'V-01': ('F2·flow', 'V-02'), 'V-05': ('F2·flow', 'V-01'), 'V-23': ('F2·flow', 'V-05')}
@@ -244,6 +275,13 @@ SLOT['9/22 화'] = {'B': '**V-04·V-15 → F1-05 안착(S, P 참여)** / F3-03 �
                    'D': '**F1-04·V-06 → UT-F1(S)** / L2: INT-12a(M·S) → INT-13(P·S)'}
 SLOT['9/23 수'] = {'B': 'UT-F1 잔여 → **INT-12b(S·M)** · INT-13 잔여 — G3(L2)', 'C': 'INT-3a 그릇 e2e → INT-3b 컵 e2e · FIX-01 — G4(L3)',
                    'D': 'INT-4a 연속 처리 → INT-4b 실패 주입 · INT-4c 측정 → INT-4d 영상·동결 (G5) · 🛡 범위 방어: 4개 → 2개, 실패 주입 4종 → 2종'}
+GATE['G2 L1']['C'] = 'UT-F2·F3·FLOW 통과 + 녹화 (함수별 TC 는 구현 직후 바로 수행) + 코드리뷰 CR-01 · 🚨 **F1(UT-F1)은 좌표 지연으로 9/22 저녁~9/23 오전 첫 순서** · UT-F4 는 9/23 오전(최소 범위 — 버튼·상태·연결), 전체는 추석에 mock 으로'
+SLOT['9/21 월']['D'] = '1시간씩 교대: **F1-02 pick + V-14(S)** / V-10 → F3-03(P) / F2-01·F2-02(M) · V-22(H·S — 9/20 에 못 했으면 첫 순서) · 로봇 불필요: V-24 Virtual 마무리·F4-01·F4-02·ENV-03(H·M)'
+SLOT['9/22 화'] = {'B': '**V-04·V-15 → F1-05 안착(S, P 참여)** / **V-24 실기 확인 — 이동 도중 일시 정지 → 재개(H·P, 1시간)** / F3-03 마무리(P) / UT-F2(M) · 로봇 불필요: FLOW-03·UT-FLOW·FLOW-02(M)·CR-01(전원)·F4-02·V-13·노션 업로드(H)',
+                   'C': '**F1-03·V-08(S)** / UT-F3(P) / UT-F2 잔여(M) — G2(L1) 마감(F1 제외) · 로봇 불필요: FLOW-03·FLOW-01 격리 마무리(M)·INT-4 flow(mock)+HMI(H·M)·F4-03(H)',
+                   'D': '**F1-04·V-06 → UT-F1(S)** / L2: INT-12a(M·S) → INT-13(P·S) · 로봇 불필요: F4-03·NOTE-02 gif(H)'}
+_b, _c = LECTURE['9/24 목~9/28 월']
+LECTURE['9/24 목~9/28 월'] = (_b, _c + ' · 🆕 **F4 웹 HMI**(F4-03 화면 다듬기·F4-04 기록/이력·UT-F4 전체)도 집에서 mock·fake_state_pub 로 이어 간다(황인재 9/20 — ROS 인터페이스·로봇 쪽 코드는 9/23 동결 그대로)')
 RULES = {       # (A 열, B 열 글자) → (새 B, 새 C)
  ('마감', '9/22(화) 오전'): ('9/22(화) 오후', 'L1 단위기능 테스트(UT-F1·F2·F3·FLOW) 통과 — 함수별 TC 는 구현 직후 바로 수행. UT-F4 는 9/22 저녁. 미통과 기능은 범위 방어표대로 축소 · 코드리뷰(CR-01) · 노션에 노드 구조·HMI 화면·안전 자료 업로드 · GitHub 최신'),
  ('마감', '9/22(화) 저녁'): ('9/23(수) 오전', 'L2 단위기능 통합 완료 (flow_node 에서 실행, 나머지 기능은 use_mock) — 9/22 저녁 시작'),
@@ -292,6 +330,8 @@ HISTORY20 = ['v6.9', '결정', 'CELL-04, CELL-01, FLOW-02, F3-02, F4-03', '황�
              '황인재 9/20', 'S,M,P,H']
 HISTORY21 = ['v7.0', '진척', '9/20 오전 칸의 미완료 작업 전부, F4-00, V-24', '9/20 14:50 최신화(황인재 지시): 끝나지 않은 일은 진행 중 + 9/20 오후 칸에 표시. 오늘 merge: PR #21~#24·#26·#28·#29 · TS-05 · F4-00 설계 확정(완료) · V-20 완료. V-24a 정지 가능성 시험 결과 기록(본작업은 결정 대기). 한석형 cell.yaml PR 은 아직 없음',
              '황인재 9/20 · GitHub 기록', 'S,M,P,H']
+HISTORY22 = ['v7.1', '결정·재배치', 'V-24, FLOW-03(신규), F4-01~05, UT-F4, V-13, INT-4, NOTE-02, V-22', '황인재 9/20 15:30: ① 일시 정지 = **즉시 멈춤 → 재개하면 하던 동작을 이어서**(V-24 를 선택 과제에서 본작업으로 — motion.py 비동기 전환, 황인재 · 연결은 민범진 FLOW-03 신규) ② 멈춘 용기는 사람이 확인해 마저(resume) 또는 접기(/flow/abort 신설 — 격리) ③ **웹 HMI 는 추석에도 집에서 이어 간다** → F4-01·02 는 9/21 저녁~9/22 오전, F4-03 다듬기·F4-04·UT-F4 전체는 추석으로. 범위: 힘제어·접촉 구간은 그 동작을 마친 뒤 멈춤. 되돌아갈 자리: 단계 사이 정지',
+             '황인재 9/20 (V-24a 시험 결과)', 'H,M,P']
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -385,7 +425,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
