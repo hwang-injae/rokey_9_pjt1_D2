@@ -344,7 +344,7 @@ stateDiagram-v2
   PAUSED --> (이전 상태): resume
 ```
 - 각 전이에서 `/flow/state` 발행(2 Hz 타이머 + 전이 즉시), 용기 종료 시 `/flow/event` + CSV 1행.
-- `stop`은 현재 기능 함수가 끝난 뒤 다음 호출을 보류. 하드웨어 비상정지는 로봇 E-Stop.
+- `stop`은 현재 기능 함수가 끝난 뒤 다음 호출을 보류 — **용기 사이뿐 아니라 `process_one()`의 단계 사이마다** `stop` 깃발을 본다(9/20 V-20에서 발견한 결함의 기준, 재검증은 `rig_v20.py probe`). 용기·툴을 든 채 멈출 수 있다: 그때 **파지는 `NORMAL` 그대로**(기능 함수는 끝날 때 `HOLD` → `NORMAL`로 되돌리므로 단계 사이는 이미 `NORMAL`이다) — 🚨 멈추는 시점에 **그리퍼 명령을 새로 보내지 않는다**(힘을 바꾸면 다시 파지하므로 놓칠 수 있다), 놓지도 않는다. `resume`하면 다음 단계부터 이어 간다. 하드웨어 비상정지는 로봇 E-Stop.
 - **실행 구조**(§3.2): `flow_node.py`의 `main()`이 ① `cobot_common.init('flow_node')` ② 통신 노드(`io_node()`)에 `/flow/start·stop·resume` 서비스, `/flow/state` 2 Hz 타이머, `/flow/event` 발행기를 단다 — **콜백은 깃발(`start`·`stop`·`resume`)만 세운다** ③ 메인 스레드는 `start` 깃발을 기다렸다가 plan대로 기능 함수를 차례로 부르고, **호출 사이마다 `stop` 깃발을 본다.**
 - **예외 보호**: 모든 기능 함수 호출은 한 곳(`Flow.call(fn, *args)`)을 지난다. 예외가 나면 로그를 남기고 `Result.fail(ROBOT_ERROR)`로 바꾼 뒤 `safe_retreat()` → `PAUSED`. 프로세스가 하나라 이 보호가 없으면 함수 하나의 오류가 셀 전체를 멈춘다.
 - **mock 전환**: `params.yaml`의 `flow.use_mock: [f1, f3]`에 있는 기능은 `f2_sense_flow.mock.mock_f1`처럼 같은 함수 이름의 가짜 모듈을 import한다. 전부 mock이면 `cobot_common.init(robot=False)`로 드라이버 없이 돈다.
