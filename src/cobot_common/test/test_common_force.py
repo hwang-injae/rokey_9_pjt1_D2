@@ -14,7 +14,8 @@ from cobot_common import force, motion
 CFG = {'cell': {
     'limits': {'safe_z_mm': 300.0, 'timeout_s': 10.0, 'vel_carry_pct': 30},
     'motion': {'vel_tcp_max_mm_s': 400.0, 'acc_tcp_max_mm_s2': 800.0,           # move_rel 속도 상한 (motion.py)
-               'vel_joint_max_deg_s': 100.0, 'acc_joint_max_deg_s2': 200.0},
+               'vel_joint_max_deg_s': 100.0, 'acc_joint_max_deg_s2': 200.0,
+               'move_timeout_s': 30.0},                                                # V-24: 이동 상한 시간 (motion.py)
     'force': {'compliance_stx': [3000, 3000, 500, 200, 200, 200], 'contact_step_mm': 2.0,
               'contact_vel_mm_s': 10.0, 'contact_acc_mm_s2': 50.0, 'retreat_vel_mm_s': 50.0,
               'retreat_acc_mm_s2': 100.0, 'force_max_n': 20.0, 'search_y_period_ratio': 2.0},
@@ -84,6 +85,12 @@ class FakeDsr:
         else:
             self.pos = list(pos)
         return self._r('movel')
+
+    def amovel(self, *a, **kw):                     # V-24(9/20): motion.py 는 비동기 이동을 보내고 check_motion 으로 끝을 기다린다
+        return self.movel(*a, **kw)                 #   가짜는 보내는 즉시 도착한 것으로 친다 → 아래 check_motion 이 바로 0
+
+    def check_motion(self):
+        return 0                                    # 0 = 끝남
 
     def move_periodic(self, amp, period, atime=None, repeat=None, ref=None):
         self.periodic = dict(amp=amp, period=period, repeat=repeat, ref=ref)

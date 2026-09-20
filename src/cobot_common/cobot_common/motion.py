@@ -6,6 +6,18 @@
     cc.move_rel(0, 0, -up, 'BASE')                     # 내려가는 것은 부르는 쪽이 한다 (접촉이면 cc.contact_down)
     cc.move_joint_rel(5, +15.0, time_s=0.3)            # 관절 하나만 상대 이동 (털기·물 털기)
 
+    cc.pause() · cc.resume()                           # 이동 **도중에** 즉시 멈췄다가 하던 동작을 이어서 (HMI 일시정지·재개, 9/20 결정)
+    cc.halt()  · cc.clear_halt()                       # 강제정지: 그 자세 그대로 멈추고, 풀기 전까지 새 이동을 내보내지 않는다
+
+이동을 보내는 방식 (9/20 V-24a 결과 → docs/test_logs/20260920_V-24a_정지가능성_황인재.md)
+    두산의 동기 이동(movej·movel)은 끝날 때까지 드라이버의 통로를 붙잡아 **일시정지 요청이 이동이 끝난 뒤에야** 처리된다.
+    그래서 세 함수 모두 **비동기 이동(amovej·amovel)을 보내고 check_motion() 을 짧게 반복해서 물어본다(폴링).**
+    부르는 쪽에서는 달라진 것이 없다 — 이동이 끝나야 함수가 돌아온다. 일시정지 중에는 돌아오지 않고 재개를 기다린다.
+  pause()·resume()·halt() 는 **깃발만 세운다**(통신 노드 콜백에서 불러도 된다 — SDD §3.2 규칙 ③).
+    실제 move_pause·move_resume·move_stop 요청은 이동을 기다리는 **메인 스레드의 폴링 루프**가 보낸다(늦어도 폴링 간격 안에).
+    이동이 없을 때 누른 일시정지는 다음 이동을 **출발시키지 않고** 재개를 기다린다.
+  🚨 폴링 루프가 없는 동작에는 먹지 않는다: 힘 함수의 move_periodic·순응 중 동작, 그리퍼·무게 대기 — 그 동작이 끝난 뒤 다음 이동에서 멈춘다.
+
 규칙
 - 🚨 **값이 비어 있으면 로봇을 움직이지 않고 KeyError** — 어느 키가 없는지 알려 준다(force.py 와 같은 방식).
   필요한 값을 **전부 읽은 뒤에** 첫 명령을 보낸다.
@@ -18,14 +30,33 @@
 
 🟡 아직 없는 것(PR 본문 참고): 사용자 좌표계(frame: RETURN·BED …)의 좌표 — 지금은 BASE 좌표만 · 팔레트 칸(RACK_*) 이동 · 회전을 포함한 상대 이동.
 """
-from .bootstrap import cfg, dsr
+import threading
+import time
 
-__all__ = ['move_to', 'move_rel', 'move_joint_rel']
+from .bootstrap import cfg, dsr, io_node
+
+__all__ = ['move_to', 'move_rel', 'move_joint_rel',
+           'pause', 'resume', 'is_paused', 'halt', 'clear_halt', 'is_halted', 'MotionHalted', 'MoveTimeout']
 
 FRAMES = ('BASE', 'TOOL')
 _POSE_KEYS = ('posj', 'posx', 'origin_posx')        # 자세를 담는 키 (SDD §4.3)
 _GROUPS = ('stations', 'beds', 'zones')             # move_to 가 이름을 찾는 곳 (IRD §2 의 station · zone_id)
 _Z = 2
+_POLL_S = 0.05                                      # check_motion 을 물어보는 간격 = 일시정지·정지가 먹는 데 걸리는 최대 지연
+_SRV = '/dsr01/dsr_controller2/motion/'             # 두산 드라이버의 이동 제어 서비스
+_STOP_MODE = 1                                      # DR_QSTOP — bootstrap.shutdown() 과 같은 값(박진용 확인 대상)
+
+_pause_flag = threading.Event()                     # HMI 가 일시정지를 눌렀다
+_halt_flag = threading.Event()                      # 강제정지 — clear_halt() 전까지 새 이동을 막는다
+_clients = {}                                       # 통신 노드의 서비스 클라이언트 (setup_io 가 만든다)
+
+
+class MotionHalted(RuntimeError):
+    """강제정지(halt)로 이동이 끊겼거나, 강제정지 중이라 이동을 내보내지 않았다."""
+
+
+class MoveTimeout(RuntimeError):
+    """이동이 cell.motion.move_timeout_s 안에 끝나지 않았다(일시정지한 시간은 빼고 잰다) — 정지 명령을 보내고 올린다."""
 
 
 # ------------------------------------------------------------------ 공개 함수
@@ -41,19 +72,22 @@ def move_to(station, carrying):
     pct = _limit('vel_carry_pct' if carrying else 'vel_free_pct')
     vel_l, acc_l = _tcp_speed(pct)
     vel_j, acc_j = _joint_speed(pct)
+    timeout = _move_timeout()
     d = dsr()                                       # 여기까지 오류가 없을 때만 로봇에 손댄다
 
     now, _ = d.get_current_posx(ref=d.DR_BASE)
     if float(now[_Z]) < safe_z:                     # ① 곧게 위로
-        _ok(d.movel([0.0, 0.0, safe_z - float(now[_Z]), 0.0, 0.0, 0.0], vel=vel_l, acc=acc_l,
-                    ref=d.DR_BASE, mod=d.DR_MV_MOD_REL), f'movel(안전 높이 {safe_z:g} mm 로 상승)')
+        lift = [0.0, 0.0, safe_z - float(now[_Z]), 0.0, 0.0, 0.0]
+        _run(f'amovel(안전 높이 {safe_z:g} mm 로 상승)', timeout,
+             lambda: d.amovel(lift, vel=vel_l, acc=acc_l, ref=d.DR_BASE, mod=d.DR_MV_MOD_REL))
     if pose_key == 'posj':                          # ② 관절 자세 (HOME)
-        _ok(d.movej([float(v) for v in pose], vel=vel_j, acc=acc_j), f'movej({station})')
+        joints = [float(v) for v in pose]
+        _run(f'amovej({station})', timeout, lambda: d.amovej(joints, vel=vel_j, acc=acc_j))
         return 0.0
     target = [float(v) for v in pose]
     above = max(0.0, safe_z - target[_Z])           # 티칭 자세가 안전 높이보다 낮으면 그만큼 위에서 멈춘다
     target[_Z] += above
-    _ok(d.movel(target, vel=vel_l, acc=acc_l, ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS), f'movel({station})')
+    _run(f'amovel({station})', timeout, lambda: d.amovel(target, vel=vel_l, acc=acc_l, ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS))
     return above
 
 
@@ -71,10 +105,12 @@ def move_rel(dx, dy, dz, frame, *, vel_mm_s=None, acc_mm_s2=None):
         vel = min(_positive('vel_mm_s', vel_mm_s), top_v)
     if acc_mm_s2 is not None:
         acc = min(_positive('acc_mm_s2', acc_mm_s2), top_a)
+    timeout = _move_timeout()
     d = dsr()
     ref = {'BASE': d.DR_BASE, 'TOOL': d.DR_TOOL}[frame]
-    _ok(d.movel([float(dx), float(dy), float(dz), 0.0, 0.0, 0.0], vel=vel, acc=acc, ref=ref, mod=d.DR_MV_MOD_REL),
-        f'movel(move_rel {frame} {dx:g},{dy:g},{dz:g})')
+    step = [float(dx), float(dy), float(dz), 0.0, 0.0, 0.0]
+    _run(f'amovel(move_rel {frame} {dx:g},{dy:g},{dz:g})', timeout,
+         lambda: d.amovel(step, vel=vel, acc=acc, ref=ref, mod=d.DR_MV_MOD_REL))
 
 
 def move_joint_rel(joint, delta_deg, *, time_s=None, carrying=True):
@@ -102,11 +138,100 @@ def move_joint_rel(joint, delta_deg, *, time_s=None, carrying=True):
     else:
         vel, acc = _joint_speed(_limit('vel_carry_pct' if carrying else 'vel_free_pct'))
         kwargs = {'vel': vel, 'acc': acc}
+    timeout = _move_timeout()
     d = dsr()
-    _ok(d.movej(delta, mod=d.DR_MV_MOD_REL, **kwargs), f'movej(move_joint_rel J{joint} {delta_deg:+g}°)')
+    _run(f'amovej(move_joint_rel J{joint} {delta_deg:+g}°)', timeout, lambda: d.amovej(delta, mod=d.DR_MV_MOD_REL, **kwargs))
+
+
+# ------------------------------------------------------------------ 일시정지 · 재개 · 강제정지 (깃발만 — 어느 스레드에서 불러도 된다)
+def pause():
+    """즉시 일시정지. 이동 중이면 그 자리에서 멈추고(늦어도 폴링 간격 안), 이동이 없으면 다음 이동이 출발하지 않는다."""
+    _pause_flag.set()
+
+
+def resume():
+    """재개 — 멈춘 이동을 **이어서** 끝까지 한다."""
+    _pause_flag.clear()
+
+
+def is_paused() -> bool:
+    return _pause_flag.is_set()
+
+
+def halt():
+    """강제정지 — 그 자세 그대로 멈춘다. 하던 이동은 MotionHalted 로 끝나고, clear_halt() 전까지 새 이동도 MotionHalted."""
+    _halt_flag.set()
+
+
+def clear_halt():
+    """강제정지를 푼다(운영자가 확인한 뒤 — 예: HOME 복귀 전에). 일시정지 깃발도 같이 내린다."""
+    _halt_flag.clear()
+    _pause_flag.clear()
+
+
+def is_halted() -> bool:
+    return _halt_flag.is_set()
+
+
+def setup_io(node):
+    """init() 이 불러 준다: 이동 제어 서비스의 클라이언트를 통신 노드에 단다(응답은 통신 노드의 실행기가 받는다)."""
+    from dsr_msgs2.srv import MovePause, MoveResume, MoveStop
+    for name, srv in (('pause', MovePause), ('resume', MoveResume), ('stop', MoveStop)):
+        _clients[name] = (node.create_client(srv, _SRV + 'move_' + name), srv)
 
 
 # ------------------------------------------------------------------ 내부
+def _run(what, timeout_s, send):
+    """비동기 이동 하나를 보내고 끝날 때까지 기다린다. 기다리는 동안 일시정지·재개·강제정지 깃발을 본다(메인 스레드)."""
+    while _pause_flag.is_set() and not _halt_flag.is_set():        # 이동이 없을 때 누른 일시정지 → 출발하지 않고 기다린다
+        time.sleep(_POLL_S)
+    if _halt_flag.is_set():
+        raise MotionHalted(f'강제정지 중이라 {what} 을 내보내지 않았다 — clear_halt() 뒤에 다시')
+    d = dsr()
+    _ok(send(), what)
+    driver_paused = False
+    waited = 0.0                                                    # 일시정지한 시간은 세지 않는다
+    while d.check_motion() != 0:                                    # 0 = 끝남. 일시정지 중에는 드라이버가 계속 '움직이는 중'이라고 답한다
+        if _halt_flag.is_set():
+            _call('stop')
+            while d.check_motion() != 0:
+                time.sleep(_POLL_S)
+            raise MotionHalted(f'{what} 도중 강제정지')
+        if _pause_flag.is_set() != driver_paused:                   # 깃발이 바뀌었다 → 드라이버에 전한다
+            driver_paused = _pause_flag.is_set()
+            _call('pause' if driver_paused else 'resume')
+        time.sleep(_POLL_S)
+        if not driver_paused:
+            waited += _POLL_S
+            if waited > timeout_s:
+                _call('stop')
+                raise MoveTimeout(f'{what} 이 {timeout_s:g} s 안에 끝나지 않았다 — 정지 명령을 보냈다')
+    if _halt_flag.is_set():                                         # 끝나는 순간에 눌린 강제정지도 놓치지 않는다
+        raise MotionHalted(f'{what} 직후 강제정지')
+
+
+def _call(name):
+    """move_pause·move_resume·move_stop 을 보낸다(기다리지 않는다 — 결과는 통신 노드가 받아 실패만 경고로 남긴다)."""
+    client, srv = _clients.get(name) or _make_client(name)
+    req = srv.Request()
+    if name == 'stop':
+        req.stop_mode = _STOP_MODE
+
+    def done(fut):
+        if not (fut.result() and fut.result().success):
+            _warn(f'드라이버가 move_{name} 을 받아들이지 않았다')
+    client.call_async(req).add_done_callback(done)
+
+
+def _make_client(name):
+    setup_io(io_node())                                             # setup_io 가 안 불린 경우(시험 등)
+    return _clients[name]
+
+
+def _move_timeout():
+    return float(_cell_key('motion', 'move_timeout_s'))
+
+
 def _ok(ret, what):
     if ret != 0:
         raise RuntimeError(f'{what} 실패 (반환 {ret!r})')
