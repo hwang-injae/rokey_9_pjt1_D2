@@ -146,8 +146,8 @@ class F2Api(Protocol):
 class F3Api(Protocol):
     """F3 접촉 닦기 — 박진용 · 모듈 f3_wipe.wipe"""
 
-    def soap(self, count: int) -> Result:
-        """툴 든 채 세제 수조 담금"""
+    def soap(self, count: int, kind: str = None) -> Result:
+        """툴 든 채 세제 수조 담금. kind(BOWL/CUP): SOAP 이 종류별 자리라 준다 — BOWL = 수세미를 쥔 자세 · CUP = 솔을 쥔 자세 (9/20 추가, #36)"""
 
     def wipe_bowl(self) -> WipeBowlResult:
         """그릇: 힘제어 나선 닦기. 상한 초과 FORCE_LIMIT"""

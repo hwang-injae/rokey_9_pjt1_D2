@@ -58,7 +58,7 @@
 ## 5. F3 접촉 닦기 (IR-03) · 박진용 · 모듈 `f3_wipe.wipe`
 | 함수 | 인자 | 반환 | 비고 |
 |---|---|---|---|
-| `soap(count)` | 횟수 | `Result` | 툴 든 채 세제 수조 담금 |
+| `soap(count, kind=None)` | 횟수, (선택) `BOWL`/`CUP` | `Result` | 툴 든 채 세제 수조 담금. ✅ 9/20 추가: **`kind`** — `SOAP` 이 종류별 자리가 됐다(`BOWL` = 수세미를 쥔 자세 · `CUP` = 솔을 쥔 자세, #36) |
 | `wipe_bowl()` | — | `WipeBowlResult`: `ok, code, force_log_path, duration_s, force_mean_n` | **그릇**: 수세미 툴로 힘제어(목표 힘 유지) 나선 닦기. 상한 초과 → `FORCE_LIMIT` |
 | `wipe_cup()` | — | `WipeCupResult`: `ok, code, force_log_path, duration_s, insert_depth_mm` | **컵**: 수세미 솔을 컵 안에 삽입(힘 감시) → J6 회전 + Z 상하 스트로크. 동작이 그릇과 달라 함수를 분리(9/18 팀 결정) |
 
@@ -125,7 +125,7 @@ from f3_wipe import wipe as f3                  # mock 이면 f2_sense_flow.mock
 # BOWL
 f1.pick('RET_B', 'BOWL') → f1.move_to('WEIGH', True, 'BOWL') → f2.leftover_loop('BOWL', 2)   # kind: 9/20 추가(종류별 자리)
 → f1.place('SPONGE_BED_B')                      # 안착 놓기(순응 하강·탐색, 실패 SEAT_FAIL)
-→ f1.tool('SPONGE', 'PICK') → f3.soap(3) → f3.wipe_bowl() → f1.tool('SPONGE', 'RETURN')
+→ f1.tool('SPONGE', 'PICK') → f3.soap(3, 'BOWL') → f3.wipe_bowl() → f1.tool('SPONGE', 'RETURN')
 → f1.pick('SPONGE_BED_B', 'BOWL')               # 홈에 놓인 그릇 재파지(고정 위치, 탐색점 1개)
 → f2.dip('RINSE', 1, 'BOWL') → f2.shake('RINSE', 3, 'BOWL')
 → f1.rack_place('RACK_Bn', 'BOWL') → f1.move_to('HOME', False)

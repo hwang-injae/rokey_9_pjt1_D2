@@ -8,7 +8,7 @@ from cobot_api import Result, WipeBowlResult, WipeCupResult
 from . import code_for
 
 
-def soap(count: int) -> Result:
+def soap(count: int, kind: str = None) -> Result:
     code = code_for('soap')
     return Result.fail(code) if code else Result()
 
