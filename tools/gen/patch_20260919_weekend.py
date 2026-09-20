@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v7.8'
+VERSION = 'v8.2'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -288,6 +288,91 @@ PR36_0920 = {
 for _tid, _e in PR36_0920.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/20 17:00 황인재 결정 E7(이동에서 안전 높이 삭제) · E8(F1 약속에 kind)
+E78_0920 = {
+ 'INF-02':  dict(note_add='🆕 9/20 17:00 결정 E7(한석형 요청 · 황인재 승인): **move_to 의 안전 높이 경유를 삭제** — 먼저 올라가기·안전 높이에서 멈추기를 없애고 티칭한 자세(접근점)로 직접 간다(팔레트 적재 자세가 안전 높이에서 안 나온다). 구현 = F4 세션 PR(motion.py · 시험 · rig_motion · rig_coords). safe_retreat 의 후퇴 높이(cell.limits.safe_z_mm)는 그대로'),
+ 'V-22':    dict(note_add='🆕 9/20 E7: 안전 높이 경유가 없어진다 → move_to 는 **앞 자리에서 다음 자리로 직접** 간다. 확인 방법을 바꾼다: 자세 하나씩이 아니라 **흐름 순서대로 구간마다**(슬롯 → WEIGH → WASTE → 스펀지 홈 → 툴 홀더 → SOAP → 닦는 자리 → 홀더 → 재파지 → RINSE → 팔레트 → HOME · 그릇 한 바퀴 + 컵 한 바퀴) vel_scale 0.3. 막히는 구간은 한석형이 접근점을 추가로 찍는다. 전제: F4 의 E7 PR 이 먼저 main 에'),
+ 'CELL-04': dict(note_add='9/20 E7: limits.safe_z_mm 은 이제 **접촉 동작 뒤 후퇴 높이**(safe_retreat)로만 쓴다 — 이동 경로와 무관. 닦는 자리·스펀지 홈에서 툴·용기가 그릇 밖으로 나오는 높이로 정한다(예: 닦는 자리 접근점 높이)'),
+ 'FLOW-01': dict(note_add='🆕 9/20 E8: F1 약속에 kind 선택 인자 — f1.move_to(station, carrying, kind=None) · f1.place(station, kind=None)(contracts·mock_f1·handling 골격은 PM 이 한 커밋으로 바꿈). 민범진: flow 의 (\'WEIGH\', \'f1\', \'move_to\', (\'WEIGH\', True)) 에 self.kind 추가 · sense.py _goto 에 kind · 시험의 가짜 cc/f1 서명'),
+ 'FLOW-03': dict(note_add='9/20 E7·E8: 격리로 옮길 때 f1.place(\'ISOLATE\', kind). 안전 높이 경유가 없어지므로 중단(abort) 정리 동작은 **임의 자세에서 출발**한다 → 첫 이동을 HOME(관절 이동)으로 두는 안을 PM 이 권고(황인재 확인 대기)'),
+ 'F1-01':   dict(note_add='9/20 E8: f1.move_to · f1.place 에 kind=None 추가됨(골격 서명은 이미 main) — 구현할 때 cc.move_to(station, carrying, kind) 로 그대로 넘긴다'),
+}
+for _tid, _e in E78_0920.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
+# ---------------------------------------------------------------- 9/20 17:15 PR #39·#40 merge · #37 수정 요청 · V-03 기록 main · 한석형 회신
+EVE_0920 = {
+ 'F4-01':   dict(status='완료', prog='1.0', note_add='✅ 9/20 17:10 PR #39 merge: 새 패키지 f4_hmi — 가짜 flow(fake_state_pub, 대본 5개) + hmi_bridge(GET /api/state) + 시험 페이지, 전체 시험 260건. 후속(F4-02 에 같이): cobot_msgs 시험에 importorskip · hmi.host 0.0.0.0 은 버튼이 붙기 전에 정한다'),
+ 'F4-02':   dict(note_add='9/20 #39 검토: 버튼(POST /api/start·abort)이 붙으면 같은 와이파이의 누구나 시작을 누를 수 있다 → hmi.host 기본값(127.0.0.1) 또는 버튼 확인 값 중 하나를 황인재가 정한다'),
+ 'V-03':    dict(status='완료', prog='1.0', note_add='✅ 9/20 17:00 시험 기록이 main 에(docs/test_logs/20260919_V-03_*, 15회차 · 강의자료 근거 · 두산 모션 API 에서 배운 것) — 판정 "가능". cell.force 값은 PR #40 으로 main 에. rig PR #37 은 수정 요청 1건(probe_spiral.py: 공중에서 순응·힘제어를 켜는 조합에 해제·상한이 없다 → 파일을 빼거나 감싸기)'),
+ 'CELL-04': dict(note_add='9/20 17:10 한석형 회신(결정기록 E9): ① 반납 구역은 **한 자리 공급 구조**(집으면 뒤 용기가 같은 자리로) → 슬롯 2 불필요(🟡 황인재 확인 대기 · 반복 정밀도 ±3 mm 확인 요청) ② WEIGH = 픽 자세 Z +100(값 받음) ③ 툴 집기·SOAP·툴 반납은 툴·홀더 확정 뒤(날짜 요청) ④ 그릇 칸의 "랙 밖 자리"를 접근점으로 추가 ⑤ 🚨 limits·motion·presets 값은 답이 없어 다시 요청 — 9/21 저녁 전'),
+ 'F1-04':   dict(note_add='9/20 한석형: 팔레트에서 나올 때 랙 안에서는 직선으로 되돌아 나온 뒤(컵 = 접근점까지 · 그릇 = Y 방향으로 랙 밖) HOME 은 관절 이동 — Virtual 확인 예정. 그릇 칸 접근점(랙 밖 자리) 티칭 필요'),
+}
+for _tid, _e in EVE_0920.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
+# ---------------------------------------------------------------- 9/20 17:25 황인재 결정 4건(E9 확인 · E10 · E11 · E12) + PR #41 merge
+DEC_0920E = {
+ 'F4-02':   dict(status='완료', prog='1.0', note_add='✅ 9/20 17:25 PR #41 merge: 버튼 4종(start·stop·resume·abort) + WebSocket /ws/state + 가짜 flow 의 버튼 응답(--wait-start), 전체 시험 262건. ✅ 결정 E10: **웹 화면은 이 PC 의 브라우저에서만**(hmi.host 127.0.0.1 이 최종 · 태블릿용 비밀번호 F4-02b 는 하지 않는다). 후속(F4-03 과 같이): 버튼 요청에 사용자 지정 헤더 요구(다른 웹 페이지가 몰래 POST 하는 것 막기)'),
+ 'CELL-04': dict(note_add='✅ 9/20 17:25 황인재 확인(E9): 반납 구역은 **내리막 공급 구조** — 꺼내면 뒤 용기가 같은 자리로 내려온다 → 구역마다 집는 자리 1개(슬롯 2 폐기). cell.yaml zones.*.slots 를 1개로 · test_config 의 "슬롯 2개" 단언 · rig_coords 의 슬롯 2 항목은 F4 세션이 좌표 갱신 PR 에서. 조건: 다음 용기가 같은 자리에 오는 반복 정밀도 ±3 mm(한석형 5회 확인)'),
+ 'F1-02':   dict(note_add='9/20 E9: 구역마다 집는 자리 1개(내리막 공급 구조) — 같은 자리에서 count 번 집는다. 코드는 slots 목록을 도는 그대로(목록이 1개짜리). 헛잡으면 EMPTY_ZONE'),
+ 'FLOW-03': dict(note_add='✅ 9/20 17:25 결정 E11: 중단(/flow/abort) 정리 순서 = **HOME 먼저** → 툴 반납 → 용기를 격리(f1.place(\'ISOLATE\', kind)) → HOME → 다음 용기. ✅ E12: **GRIP_FAIL 정책 = pause**(멈추고 사람이 확인) — params.yaml flow.policy.GRIP_FAIL: isolate → pause, 주석의 🔔(IRD·SDD 에 행이 없다)는 이제 해결됨(IRD §8 · SDD §7 에 추가)'),
+ 'FLOW-01': dict(note_add='9/20 E12: flow.policy.GRIP_FAIL 을 pause 로(민범진 자기 절) — IRD §8 · SDD §7 반영됨'),
+}
+for _tid, _e in DEC_0920E.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
+# ---------------------------------------------------------------- 9/20 18:00 저녁 취합(GitHub 기준) + 9/21 부터 재배치 — 9/20 에 못 끝난 실기 작업을 9/21 저녁·9/22 로
+R21 = '9/20 저녁 취합(GitHub 기준):'
+REPLAN_0921 = {
+ # ── 한석형 (F1·좌표) — 9/21 저녁은 남은 티칭 + V-22, F1 실기는 9/22 부터
+ 'CELL-04':  dict(prog='0.8', slots=S('9/19 오전', '9/19 오후', '9/20 오전', '9/20 오후', '9/21 저녁'),
+                  note_add=R21 + ' 한석형이 좌표 정리 문서를 브랜치에 올림(docs/test_logs/20260920_CELL-04_티칭좌표_한석형.md · 17:07 · PR 전) — 그릇 잡기1(접근 [529, 8, 171, 157, 180, 157])·잡기2·컵 그립·WEIGH 후보·팔레트 J 값 포함, "컵 WASTE 는 다시 확인". 남은 것(9/21 저녁 첫 1시간): ISOLATE 2 · CUP_RACK2_1 · 그릇 칸 접근점 2 · 공급 구조 반복 정밀도 5회 · 🚨 limits·motion·presets 값'),
+ 'CELL-04b': dict(status='진행 중', prog='0.5', slots=S('9/20 오후', '9/21 저녁', '9/22 오후'),
+                  note_add=R21 + ' 스펀지 홈(place·wash·regrip)은 티칭돼 main 에 있다(#36). 남은 것 = 툴 홀더(집기·반납)·SOAP — 🚨 툴·홀더를 제작 중이라 형상 확정 뒤에 찍는다(날짜 요청함). F1-03·F3-03 이 이 좌표를 기다린다'),
+ 'V-19':     dict(prog='0.5', slots=S('9/20 오전', '9/20 오후', '9/21 저녁'),
+                  note_add=R21 + ' Virtual 에서는 전 자세 도달(#36 rig_coords OK 51·FAIL 0). 결정 E7 로 "안전 높이 경유" 조건은 없어졌다 → 실기 확인은 V-22(흐름 순서대로 구간)와 한 세션으로'),
+ 'V-22':     dict(slots=S('9/21 저녁'), note_add='9/21 저녁 순서: ① V-24 실기 확인(H 30분) ② 한석형 남은 티칭(1시간) ③ V-22 구간 확인(H·S) — 전제: E7 PR merge + limits·motion 값'),
+ 'F1-01':    dict(slots=S('9/21 저녁'), note_add=R21 + ' F1 코드는 아직 없음(브랜치 없음) — 골격만 main. 9/21 저녁은 책상에서 move_to·일반 place 부터'),
+ 'F1-02':    dict(slots=S('9/21 저녁', '9/22 오전'), note_add=R21 + ' 9/21 저녁 = 코드(책상), 9/22 오전 = 실기. 집는 자리 1개(E9) · 접근점 + 그립 자세'),
+ 'V-14':     dict(slots=S('9/22 오전'), note_add='9/20 재배치: 9/21 저녁 → 9/22 오전(9/21 저녁 로봇은 V-24·남은 티칭·V-22·그리퍼 세션으로 찬다). 내용도 바뀜(E9): 슬롯 2개가 아니라 **같은 자리에서 연속 공급** — 집은 뒤 다음 용기가 같은 자리에 오는가 포함'),
+ 'F1-05':    dict(slots=S('9/22 오후')), 'V-04': dict(slots=S('9/22 오후'), note_add='9/20 재배치: 9/22 오전 → 오후(F1-02 실기가 오전으로 밀림)'),
+ 'V-15':     dict(slots=S('9/22 오후'), note_add='9/20 재배치: 9/22 오전 → 오후'),
+ 'F1-03':    dict(slots=S('9/22 오후', '9/22 저녁'), note_add='9/20 재배치: 🚨 툴·홀더 확정과 좌표(CELL-04b)가 전제 — 늦어지면 9/22 저녁으로'),
+ 'V-08':     dict(slots=S('9/22 오후', '9/22 저녁')),
+ # ── 민범진 (F2·flow) — 9/20 의 그리퍼·무게 실기 기록이 GitHub 에 없다 → 9/21 저녁 1시간
+ 'V-05':     dict(slots=S('9/20 오전', '9/20 오후', '9/21 저녁'), note_add=R21 + ' 실기 결과 기록이 GitHub 에 없다 → 9/21 저녁 그리퍼 세션(1시간: V-05 → V-23 → V-01 → V-16)으로'),
+ 'V-23':     dict(slots=S('9/20 오전', '9/20 오후', '9/21 저녁')), 'V-01': dict(slots=S('9/20 오전', '9/20 오후', '9/21 저녁')),
+ 'V-02':     dict(slots=S('9/20 오전', '9/20 오후', '9/21 저녁'), note_add=R21 + ' 실기 측정 기록이 아직 없다 — WEIGH 자세(픽 자세 Z +100)가 정해졌으니 9/21 저녁 그리퍼 세션에 이어서'),
+ 'INF-02d':  dict(slots=S('9/19 오후', '9/20 오전', '9/20 오후', '9/21 저녁')), 'INF-02c': dict(slots=S('9/20 오전', '9/20 오후', '9/21 저녁')),
+ 'V-16':     dict(slots=S('9/21 저녁', '9/22 오전'), note_add='9/20 재배치: 9/20 오후 → 9/21 저녁(그리퍼 세션 끝에)·9/22 오전'),
+ 'V-07':     dict(slots=S('9/22 오전'), note_add='9/20 재배치: 9/20 오후 → 9/22 오전. 🔴 민범진 Virtual 실측(브랜치 42dc294): 털기 한 주기가 설정 0.60 s 보다 1.6배(0.954 s) — period_s 를 정할 때 전제로'),
+ 'CELL-03':  dict(prog='0.7', slots=S('9/20 오전', '9/20 오후', '9/21 저녁'), note_add=R21 + ' WASTE·RINSE 자세가 티칭됐으므로 배치는 된 것으로 보인다 — 남은 것: 고정·배치 사진·잔반 대용품(≥100 g) 선정. 컵 WASTE 좌표는 한석형이 다시 확인'),
+ 'F2-01':    dict(prog='0.8', slots=S('9/20 오후', '9/21 저녁', '9/22 오전'), note_add=R21 + ' 코드는 main(#35). 민범진 브랜치에 Virtual 확인 추가(16:26 · 검사 13개 통과 · PR 전): weigh·shake·dip 연속 3회, 제자리 복귀 오차 0. 남은 것: _goto 에 kind(E8) · 실기(WEIGH 자세 확정 뒤, rig_f2.py empty 부터). 참고: "move_to 가 안전 높이를 왕복해 shake 1회의 37 % 가 이동" 은 E7 로 없어진다'),
+ 'F2-02':    dict(prog='0.75', slots=S('9/20 오후', '9/21 저녁', '9/22 오전')),
+ 'UT-F2':    dict(slots=S('9/22 오후'), note_add='9/20 재배치: 9/22 오전 → 오후(V-07·V-16·F2 실기가 오전)'),
+ 'FLOW-01':  dict(note_add=R21 + ' 남은 것: steps 의 f1.move_to·f3.soap 에 kind(E8) · policy.GRIP_FAIL = pause(E12)'),
+ 'FLOW-02':  dict(slots=S('9/22 오후'), note_add='9/20 재배치: 9/22 오전 → 오후(오전은 V-07·V-16·F2 실기와 FLOW-03 에 집중)'),
+ 'UT-FLOW':  dict(slots=S('9/22 저녁'), note_add='9/20 재배치: 9/22 오전 → 저녁(mock 시험이라 로봇 불필요 — INT-12a 교대 사이에)'),
+ # ── 박진용 (F3) — V-03 완료, F3-02 는 고정 좌표 방식으로 다시
+ 'INF-02b':  dict(slots=S('9/19 오후', '9/20 오전', '9/20 오후', '9/22 오전'), note_add=R21 + ' 남은 후속: safe_retreat 이 force_off 예외에도 후퇴 · contact_down 시간 상한이 일시 정지 시간을 세지 않게 · 나선·원호 공용 함수(F3-02 용) — 9/22 오전까지'),
+ 'F3-02':    dict(prog='0.4', slots=S('9/20 오전', '9/20 오후', '9/21 저녁', '9/22 오전'), note_add=R21 + ' 브랜치는 11:31 기준(벽 찾기) 그대로 — 고정 좌표 방식(E6)으로 다시 맞추는 일이 남음. 9/21 저녁: 코드 + 실기 연속 3회(V-18 같이) · 9/22 오전 마무리. PR #37(rig)은 probe_spiral.py 수정 요청 중'),
+ 'V-18':     dict(slots=S('9/20 오전', '9/20 오후', '9/21 저녁'), note_add='9/20 재배치: F3-02 실기 3회 때 같이(9/21 저녁)'),
+ 'V-10':     dict(slots=S('9/22 오전'), note_add='9/20 재배치: 9/21 저녁 → 9/22 오전(9/21 저녁은 F3-02 실기). 🚨 솔·홀더 확정이 전제'),
+ 'F3-03':    dict(slots=S('9/22 오전', '9/22 오후'), note_add='9/20 재배치: 9/21 저녁·9/22 오전 → 9/22 오전·오후. 🚨 SOAP·툴 좌표(CELL-04b)가 전제 — 늦어지면 soap 은 임시 좌표로 모션만'),
+ 'UT-F3':    dict(slots=S('9/22 오후', '9/22 저녁')),
+ # ── 황인재 (F4·PM) — F4-01·F4-02 가 하루 앞서 끝남
+ 'V-13':     dict(status='진행 중', prog='0.7', slots=S('9/22 오전'), note_add=R21 + ' PR #41 에서 브라우저 시작 → 민범진 mock flow 반응 확인(1 ms · 이벤트 4건), 일시 정지·재개는 가짜 flow 로 확인. 남은 것: 실제 flow 의 PAUSED·재개 반영(FLOW-03 뒤) + 캡처'),
+ 'INT-4':    dict(status='진행 중', prog='0.3', note_add=R21 + ' 시작은 mock flow 와 연결 확인(#41). 일시 정지(이동 도중)·중단은 FLOW-03 이 main 에 들어온 뒤'),
+ 'F4-03':    dict(slots=S('9/21 저녁', '9/22 오후', '9/22 저녁', '9/24~28 오전'), note_add=R21 + ' F4-01·F4-02 가 하루 앞서 끝나 9/21 저녁부터 착수 가능. 후속: 버튼 요청에 사용자 지정 헤더'),
+ 'ARCH-01':  dict(status='진행 중', prog='0.6', slots=S('9/20 오후', '9/21 오전'), note_add=R21 + ' docs/images/system_architecture_pc.svg·drawio 는 최신 약속(kind 인자)까지 반영돼 있다(PM 도구로 생성). 남은 것: draw.io 다듬기·노션 업로드 — MID-01 과 같이'),
+ 'MID-01':   dict(note_add='🚨 9/21 14:00 중간점검(조별 30분 발표 + 30분 토론). 9/21 오전은 강의(강의 중 프로젝트 준비 금지 — 강사 노션) → **9/20 밤~9/21 아침·점심에 끝내야 한다.** 아직 시작 전 — PM 에이전트가 문서에서 초안을 뽑을 수 있다'),
+ 'V-24':     dict(note_add=R21 + ' E7(안전 높이 경유 삭제) 구현이 F4 브랜치에 올라옴(17:47 · PR 전) — 9/21 저녁 실기 확인은 그 코드로'),
+ 'REH-02':   dict(note_add='강사 노션(9/29 공지) 재확인 9/20: 오전 "통합테스트 진행" → 로봇으로 통합 디버깅 가능. 🛡 9/23 에 밀린 L4 항목(실패 주입·측정)의 예비 칸으로만 쓴다 — 새 기능은 넣지 않는다'),
+}
+for _tid, _e in REPLAN_0921.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -425,6 +510,18 @@ HISTORY28 = ['v7.7', '결정', 'V-03, F3-02, V-18', '황인재 9/20 16:30(결정
 HISTORY29 = ['v7.8', '진척·리스크', 'CELL-04, V-22, F1-01, F2-01, F3-02', 'PR #36 merge — 한석형 좌표 26개가 cell.yaml 에(양식: kind · point · 접근점+끝점, cc.move_to 인자 2개 추가, 팔레트 컵 2칸 5곳). 🚨 리스크: 한석형의 새 자세 8개 + limits·motion·presets 가 9/21 저녁 세션 전에 없으면 실기 이동 불가. V-22 에 posj 자세 5개의 경로 확인 추가',
              'PR #36 · PM 검토', 'S,M,P,H']
 
+HISTORY30 = ['v7.9', '결정·인터페이스', 'INF-02, V-22, CELL-04, FLOW-01, FLOW-03, F1-01', '황인재 9/20 17:00: ① E7 이동에서 안전 높이 경유 삭제(한석형 요청 — 팔레트 적재 자세가 안 나온다) → move_to 는 티칭한 접근점으로 직접, V-22 는 흐름 순서대로 구간 확인, 구현은 F4 세션 PR ② E8 F1 약속에 kind 선택 인자(move_to · place) — contracts·mock_f1·handling 골격 반영, flow·sense 호출부는 민범진',
+             '황인재 9/20 17:00', 'S,M,P,H']
+
+HISTORY31 = ['v8.0', '진척', 'F4-01, V-03, CELL-04, F1-04, F4-02', '9/20 17:15: PR #39(F4-01 HMI 뼈대)·#40(cell.force 값) merge → F4-01·V-03 완료. #37(V-03 rig)은 수정 요청 1건. 한석형 회신(E9): 반납 구역은 한 자리 공급 구조 · WEIGH = 픽 +100 · 툴 좌표는 홀더 확정 뒤 · limits·motion·presets 재요청. E7 확인: 후퇴 높이는 남기고 안전 높이는 없앤다',
+             'PR #39·#40 · 한석형 회신 · 황인재 9/20 17:10', 'S,M,P,H']
+
+HISTORY32 = ['v8.1', '결정', 'F4-02, CELL-04, F1-02, FLOW-03, FLOW-01', '황인재 9/20 17:25: E9 확인(반납 구역 = 내리막 공급 구조 → 집는 자리 1개) · E10 웹 화면은 이 PC 에서만 · E11 중단의 첫 이동은 HOME · E12 GRIP_FAIL = pause. PR #41(F4-02 버튼·WebSocket) merge → F4-02 완료. FR-02·IRD §2·§6·§8 · SDD §5.2·§7 반영',
+             '황인재 9/20 17:25 · PR #41', 'S,M,H']
+
+HISTORY33 = ['v8.2', '진척·재배치', 'CELL-04·04b, V-19·22, F1-01~05, V-14·04·15·08, V-05·23·01·02·16·07, F2-01·02, UT-F2, F3-02·03, V-18·10, UT-F3, V-13, INT-4, F4-03, ARCH-01, MID-01', '9/20 저녁 취합(GitHub 기준) + 9/21 부터 재배치. 9/20 에 못 끝난 실기(그리퍼·무게 세션 · F3-02 고정 좌표 · 남은 티칭)를 9/21 저녁으로 → F1-02 실기·V-14·V-10 은 9/22 오전, F1-05·V-04·V-15·UT-F2 는 9/22 오후로 한 칸씩. F4-01·02 가 하루 앞서 끝나 F4-03 을 9/21 저녁부터. 강사 노션 재확인 — 일정 변동 없음(9/21 오후 중간점검 · 9/29 오전 통합테스트·14시 시연 · 9/30 11시 발표). 🚨 위험: F1 은 코드가 아직 없다 / 툴·홀더 미확정 / MID-01 미착수',
+             'GitHub 9/20 17:50 · 강사 노션', 'S,M,P,H']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -519,7 +616,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)

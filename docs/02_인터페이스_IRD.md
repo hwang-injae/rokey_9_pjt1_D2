@@ -27,7 +27,7 @@
 |---|---|---|
 | 용기 종류 `kind` | `BOWL` `CUP` | |
 | 툴 `tool` | `SPONGE`(그릇용 수세미 툴) `BRUSH`(컵용 수세미 솔) | |
-| 반납 구역 `zone_id` | `RET_B` `RET_C` | 공정 입구. **구역마다 고정 슬롯 2개**(트레이에 자리 표시) — 용기는 슬롯에 겹치지 않게 하나씩 놓는다(9/19 결정: 구역 + 탐색 파지 → 고정 슬롯). ID·함수 서명은 그대로 |
+| 반납 구역 `zone_id` | `RET_B` `RET_C` | 공정 입구. **구역마다 고정 슬롯 2개**(트레이에 자리 표시) — 용기는 슬롯에 겹치지 않게 하나씩 놓는다(9/19 결정: 구역 + 탐색 파지 → 고정 슬롯). ID·함수 서명은 그대로 ✅ **9/20 변경(결정기록 E9)**: 반납 구역은 **내리막 공급 구조** — 용기를 꺼내면 뒤 용기가 같은 자리로 내려온다 → 구역마다 집는 자리는 **1개**이고 같은 자리에서 차례로 집는다(슬롯 2개 안은 폐기). |
 | 팔레트 칸 `rack_slot` | `RACK_B1` `RACK_B2` / `RACK_C1` `RACK_C2` | 공정 출구. 그릇 2칸·컵 2칸 (✅ 황인재 9/20: 컵 칸 4 → 2 — `RACK_C3`·`RACK_C4` 삭제. 코드(`cobot_api.RACK_SLOTS`·`cell.yaml`·`params.yaml`)는 한석형의 좌표 PR과 함께 바꾼다) |
 | 스테이션 `station` | `HOME` `WEIGH` `WASTE` `SPONGE_BED_B` `SPONGE_BED_C` `TOOL_SPONGE` `TOOL_BRUSH` `SOAP` `RINSE` `ISOLATE` | 작업대 위 고정 위치 |
 | 실패 코드 `code` | `OK` `GRIP_FAIL` `EMPTY_ZONE` `LEFTOVER` `LEFTOVER_REMAIN` `SEAT_FAIL` `TOOL_FAIL` `FORCE_LIMIT` `TIMEOUT` `RACK_JAM` `RACK_FULL` `ROBOT_ERROR` `STOPPED` | |
@@ -37,8 +37,8 @@
 | 함수 | 인자 | 반환 | 비고 |
 |---|---|---|---|
 | `pick(zone_id, kind)` | `RET_B`/`RET_C`/`SPONGE_BED_*`, `BOWL`/`CUP` | `PickResult`: `ok, code, width_mm, attempts, offset_x_mm, offset_y_mm` | **고정 슬롯 파지**: 구역의 슬롯을 정해진 순서로 — 슬롯 상공 → 힘 상한 감시 하강 → 파지 → 폭 판정. 폭 범위 밖(빈 슬롯·헛잡음)이면 놓고 다음 슬롯. 슬롯을 다 돌면 `EMPTY_ZONE`. `attempts` = 시도한 슬롯 수, `offset_*` = 집은 슬롯의 오프셋. **그릇은 옆면(벽)을 세로로 파지**, 컵은 **몸통을 통째로 파지**(지름 방향 — 벽을 집지 않는다, 폭 ≈ 컵 지름이라 빈손·그릇과 간격이 충분). `SPONGE_BED_*`면 고정 위치 재파지(슬롯 1개) |
-| `place(station)` | 스테이션 | `PlaceResult`: `ok, code, offset_mm` | 상공 → 하강 → 놓기 → 후퇴. **항상 놓기(release)까지 한다.** **`SPONGE_BED_B/C`면 안착 놓기**: 쥔 채 순응 하강 → 깊이+힘으로 홈에 들어갔는지 판정 → 안 들어가면 Move Periodic 탐색 → 들어가면 놓기 / 한도 초과 → 들고 후퇴 + `SEAT_FAIL` |
-| `move_to(station, carrying)` | 스테이션, `bool` | `Result` | 안전 높이 경유, 들고 있으면 저속. 안전 자세 복귀 = `move_to('HOME', False)` |
+| `place(station, kind=None)` | 스테이션, (선택) `BOWL`/`CUP` | `PlaceResult`: `ok, code, offset_mm` | 상공 → 하강 → 놓기 → 후퇴. **항상 놓기(release)까지 한다.** **`SPONGE_BED_B/C`면 안착 놓기**: 쥔 채 순응 하강 → 깊이+힘으로 홈에 들어갔는지 판정 → 안 들어가면 Move Periodic 탐색 → 들어가면 놓기 / 한도 초과 → 들고 후퇴 + `SEAT_FAIL` · ✅ 9/20 추가: **`kind`** = 종류별 자리(`ISOLATE` 등)에 놓을 때 준다(좌표가 종류별이 됐다, #36). 스펀지 홈처럼 이름에 종류가 들어 있는 자리는 생략 |
+| `move_to(station, carrying, kind=None)` | 스테이션, `bool`, (선택) `BOWL`/`CUP` | `Result` | 티칭한 자세로 이동, 들고 있으면 저속. 안전 자세 복귀 = `move_to('HOME', False)`. ✅ 9/20 추가: **`kind`** = 종류별 자리(`WEIGH`·`WASTE`·`SOAP`·`RINSE`·`ISOLATE`)로 갈 때 준다 — 그릇은 위에서·컵은 옆에서 잡아 같은 자리라도 자세가 다르다(#36). `HOME` 은 생략. ("안전 높이 경유"는 9/20 결정 E7 로 삭제) |
 | `tool(tool, action)` | `SPONGE`/`BRUSH`, `PICK`/`RETURN` | `ToolResult`: `ok, code, width_mm` | 홀더에서 툴 픽업·반납. 폭 범위 밖 → `TOOL_FAIL` |
 | `rack_place(rack_slot, kind)` | 칸, 종류 | `Result` | 지정 각도 삽입, 순응 + 삽입력 감시, 걸림 → `RACK_JAM` |
 
@@ -58,7 +58,7 @@
 ## 5. F3 접촉 닦기 (IR-03) · 박진용 · 모듈 `f3_wipe.wipe`
 | 함수 | 인자 | 반환 | 비고 |
 |---|---|---|---|
-| `soap(count)` | 횟수 | `Result` | 툴 든 채 세제 수조 담금 |
+| `soap(count, kind=None)` | 횟수, (선택) `BOWL`/`CUP` | `Result` | 툴 든 채 세제 수조 담금. ✅ 9/20 추가: **`kind`** — `SOAP` 이 종류별 자리가 됐다(`BOWL` = 수세미를 쥔 자세 · `CUP` = 솔을 쥔 자세, #36) |
 | `wipe_bowl()` | — | `WipeBowlResult`: `ok, code, force_log_path, duration_s, force_mean_n` | **그릇**: 수세미 툴로 힘제어(목표 힘 유지) 나선 닦기. 상한 초과 → `FORCE_LIMIT` |
 | `wipe_cup()` | — | `WipeCupResult`: `ok, code, force_log_path, duration_s, insert_depth_mm` | **컵**: 수세미 솔을 컵 안에 삽입(힘 감시) → J6 회전 + Z 상하 스트로크. 동작이 그릇과 달라 함수를 분리(9/18 팀 결정) |
 
@@ -70,7 +70,7 @@
 | `/flow/start` | srv `std_srvs/Trigger` | 구역 계획대로 전부 처리 시작 (IDLE에서만). **즉시 응답**하고 실행은 메인 스레드가 한다 |
 | `/flow/stop` | srv `std_srvs/Trigger` | ✅ **즉시 일시 정지**(황인재 9/20): 로봇이 **하던 이동을 그 자리에서 멈추고** `PAUSED` — 두산 `move_pause`(이동 함수는 비동기 + 폴링, V-24). 구현은 `cobot_common`의 `cc.pause()`·`cc.resume()`(#34). 🚨 먹는 범위: 이동 함수를 거치는 모든 이동(접촉 하강·닦기의 걸음 포함 — 순응·힘제어는 켜진 채 선다). **안착 탐색(`move_periodic`)·그리퍼·무게 대기는 그 동작을 마친 뒤** 멈춘다. 힘이 걸린 채 멈추는 동작은 9/22 실기 확인 대상. 이동 중이 아니면 다음 단계로 가기 전에 멈춘다. HMI의 **일시 정지** 버튼("E-STOP"이라 부르지 않는다). 이름·타입은 그대로 → `cobot_msgs` 변경 없음 |
 | `/flow/resume` | srv `std_srvs/Trigger` | `PAUSED`일 때만 받는다. ✅ 사람이 확인하고 **문제없으면 마저 한다**(황인재 9/20): 일시 정지였으면 **하던 이동을 이어서**(`move_resume`), 실패로 멈춘 경우(`RACK_FULL` 등)는 **실패한 그 단계부터 다시** |
-| `/flow/abort` | srv `std_srvs/Trigger` | 🆕 ✅ 신설(황인재 9/20) — `PAUSED`일 때만. 사람이 **문제가 있다고 판단하면 지금 용기를 접는다**: 쥐고 있는 툴 반납 → 용기를 격리 구역(`ISOLATE`)에 놓기 → `HOME` → **다음 용기**부터. 이벤트는 `ISOLATED`. 🚨 `ROBOT_ERROR`로 멈춘 경우는 **거부**한다(로봇 위치를 모른다 — 사람이 복구, SDD §7) |
+| `/flow/abort` | srv `std_srvs/Trigger` | 🆕 ✅ 신설(황인재 9/20) — `PAUSED`일 때만. 사람이 **문제가 있다고 판단하면 지금 용기를 접는다**: **먼저 `HOME` 자세로**(✅ 황인재 9/20 17:25 — 이동에서 안전 높이 경유를 없앴으므로 임의의 자세에서 다음 자리로 곧장 가지 않게) → 쥐고 있는 툴 반납 → 용기를 격리 구역(`ISOLATE`)에 놓기(`f1.place('ISOLATE', kind)`) → `HOME` → **다음 용기**부터. 이벤트는 `ISOLATED`. 🚨 `ROBOT_ERROR`로 멈춘 경우는 **거부**한다(로봇 위치를 모른다 — 사람이 복구, SDD §7) |
 | `/flow/state` | msg `cobot_msgs/FlowState` @2 Hz | 아래 정의. HMI는 2 s 이상 안 오면 "연결 끊김" 표시 |
 | `/flow/event` | msg `cobot_msgs/FlowEvent` | 용기 1개 완료·격리·오류마다 1건 → HMI가 SQLite에 저장 |
 | `/cell/force` | msg `std_msgs/Float32` @10 Hz(**닦는 동안만**) | ✅ 확정(황인재 9/20 — HMI에 닦는 힘 그래프를 넣는다). 접촉 힘의 크기(N, 누르는 축 기준 양수). 닦지 않을 때는 발행하지 않는다. **발행 = `flow_node`의 통신 노드**(민범진), 값은 닦기 루프가 `force.py`에 **저장만** 한다(박진용) — 기능 함수 안에서 발행기를 만들지 않는다(SDD §3.2). 발행 쪽 기한 9/22 오전 |
@@ -123,9 +123,9 @@ from f3_wipe import wipe as f3                  # mock 이면 f2_sense_flow.mock
 # plan (params.yaml flow 절): [{zone: RET_B, kind: BOWL, count: 2}, {zone: RET_C, kind: CUP, count: 2}]
 # 구역마다 count 회 또는 EMPTY_ZONE 까지 반복:
 # BOWL
-f1.pick('RET_B', 'BOWL') → f1.move_to('WEIGH', True) → f2.leftover_loop('BOWL', 2)
+f1.pick('RET_B', 'BOWL') → f1.move_to('WEIGH', True, 'BOWL') → f2.leftover_loop('BOWL', 2)   # kind: 9/20 추가(종류별 자리)
 → f1.place('SPONGE_BED_B')                      # 안착 놓기(순응 하강·탐색, 실패 SEAT_FAIL)
-→ f1.tool('SPONGE', 'PICK') → f3.soap(3) → f3.wipe_bowl() → f1.tool('SPONGE', 'RETURN')
+→ f1.tool('SPONGE', 'PICK') → f3.soap(3, 'BOWL') → f3.wipe_bowl() → f1.tool('SPONGE', 'RETURN')
 → f1.pick('SPONGE_BED_B', 'BOWL')               # 홈에 놓인 그릇 재파지(고정 위치, 탐색점 1개)
 → f2.dip('RINSE', 1, 'BOWL') → f2.shake('RINSE', 3, 'BOWL')
 → f1.rack_place('RACK_Bn', 'BOWL') → f1.move_to('HOME', False)
@@ -138,6 +138,7 @@ f1.pick('RET_B', 'BOWL') → f1.move_to('WEIGH', True) → f2.leftover_loop('BOW
 | `EMPTY_ZONE` | 구역 종료 → 다음 구역 (기록 SKIPPED) |
 | `LEFTOVER_REMAIN` `SEAT_FAIL` | ISOLATE 후 다음 용기 |
 | `FORCE_LIMIT` `TIMEOUT` `RACK_JAM` `TOOL_FAIL` | 후퇴 후 재시도 1회 → ISOLATE |
+| `GRIP_FAIL` (f2: 털기·담금 중 미끄러짐 · 무게로 본 빈손) | ✅ **PAUSED + HMI 알림 → 사람이 확인**(황인재 9/20 17:25). 놓쳤다면 용기가 손에 없을 수 있어 격리 동작이 의미 없고, 떨어진 용기를 다음 동작이 칠 수 있다. 확인 뒤 `resume` = 그 단계부터 다시 / `abort` = 그 용기를 접고 다음 용기 |
 | `RACK_FULL` | PAUSED + HMI 알림 → 팔레트 교체 후 **resume = 실패한 단계(적재)부터 다시** / **abort = 그 용기를 격리**하고 다음 용기 |
 | `ROBOT_ERROR` (기능 함수에서 새어 나온 예외 포함) | 그 자리 정지 → PAUSED + 알림 → **사람이 복구**(SDD §7). `abort`는 거부, 복구 뒤 `resume`하면 다음 용기부터(그 용기는 `ERROR`로 기록) |
 | 일시 정지 버튼 | **즉시** 그 자리에서 멈춤 → PAUSED (안착 탐색·그리퍼·무게 대기는 그 동작을 마친 뒤) → **재개**(하던 동작을 이어서) 또는 **중단**(`abort` — 격리 후 다음 용기) |

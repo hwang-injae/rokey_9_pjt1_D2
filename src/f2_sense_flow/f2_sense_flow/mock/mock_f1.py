@@ -20,14 +20,14 @@ def pick(zone_id: str, kind: str) -> PickResult:
                       offset_x_mm=0.0, offset_y_mm=0.0)
 
 
-def place(station: str) -> PlaceResult:
+def place(station: str, kind: str = None) -> PlaceResult:
     code = code_for('place')
     if code:
         return PlaceResult.fail(code)
     return PlaceResult(offset_mm=0.0)
 
 
-def move_to(station: str, carrying: bool) -> Result:
+def move_to(station: str, carrying: bool, kind: str = None) -> Result:
     code = code_for('move_to')
     return Result.fail(code) if code else Result()
 

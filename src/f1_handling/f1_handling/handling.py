@@ -32,10 +32,10 @@ def pick(zone_id: str, kind: str) -> PickResult:
     return PickResult()
 
 
-def place(station: str) -> PlaceResult:
+def place(station: str, kind: str = None) -> PlaceResult:
     """놓기 — **항상 release 까지** 한다. 코드 OK / SEAT_FAIL / FORCE_LIMIT / TIMEOUT / ROBOT_ERROR. — F1-03·F1-05
 
-    일반 station: 상공 → 하강 → release → 후퇴 (offset_mm = 0).
+    일반 station: 상공 → 하강 → release → 후퇴 (offset_mm = 0). kind(BOWL/CUP) = 종류별 자리(ISOLATE …)에 놓을 때 — 9/20 약속 추가.
     SPONGE_BED_B/C 면 **안착 놓기**(SDD §5.2): 쥔 채 홈 상공(cell.beds.*.seat.approach_z_mm) → force_on(z) 순응 하강
       → contact_down 으로 접촉·깊이 판정 → 깊이 미달이면 periodic_search(amp, period, max_s) 중 접촉 조건 감시
       → 들어가면 release → 후퇴(OK, offset_mm = 탐색으로 보정된 거리) / 한도 초과면 **들고** 후퇴 + SEAT_FAIL.
@@ -43,10 +43,11 @@ def place(station: str) -> PlaceResult:
     return PlaceResult()
 
 
-def move_to(station: str, carrying: bool) -> Result:
+def move_to(station: str, carrying: bool, kind: str = None) -> Result:
     """안전 높이 경유 이동. 들고 있으면(carrying) 저속. 안전 자세 복귀는 move_to('HOME', False). — F1-01
 
-    cobot_common.move_to(station, carrying) 를 감싼 것(좌표는 cell.stations · cell.beds 에서, 읽기만).
+    cobot_common.move_to(station, carrying, kind) 를 감싼 것(좌표는 cell.stations · cell.beds 에서, 읽기만).
+    kind(BOWL/CUP): 종류별 자리(WEIGH·WASTE·SOAP·RINSE·ISOLATE)로 갈 때 flow 가 넘겨 준다 — 9/20 약속 추가. HOME 은 생략.
     """
     return Result()
 
