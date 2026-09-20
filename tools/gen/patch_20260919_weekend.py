@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v7.4'
+VERSION = 'v7.5'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -247,6 +247,17 @@ V24_0920 = {
 for _tid, _e in V24_0920.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/20 17:30 PR #35(F2-01·F2-02) merge
+F2_0920 = {
+ 'F2-01': dict(status='진행 중', prog='0.7', slots=S('9/20 오후', '9/21 저녁'),
+               note_add='✅ 9/20 17:30 PR #35 merge — weigh(잔반 무게 = 측정값 − 빈 용기 기준값, 빈손이면 GRIP_FAIL)·leftover_loop·shake(WASTE) 구현 + 시험 44건(전체 229건). 값은 전부 임시 → 남은 것: **첫 실기 전에 rig_f2.py empty 로 빈 용기 기준값**, V-07·V-16 뒤 값 확정, 실기 단독 시험(9/21 저녁 — 황인재의 V-24 실기 확인 뒤에). 후속: _as_result 가 cc.MotionHalted 는 위로 올리게(FLOW-03 전)'),
+ 'F2-02': dict(status='진행 중', prog='0.6', slots=S('9/20 오후', '9/21 저녁'),
+               note_add='✅ 9/20 17:30 PR #35 merge(예정 9/21 저녁보다 빠름) — dip(RINSE)·shake(RINSE), HOLD 적용·실패하면 쥔 채 먼저 올라온 뒤 힘 복귀·전후 폭으로 미끄러짐 판정. 남은 것: 실기(V-07: 빈 수조·vel_scale 0.3·작은 깊이부터)'),
+ 'FLOW-01': dict(note_add='🟡 9/20 #35: flow.policy 에 GRIP_FAIL: isolate 추가됨 — **황인재 결정 대기**(PM 권고 = pause: 용기를 놓친 경우 잔반통·수조에 남은 용기를 다음 용기가 찍을 수 있다). IRD §8·SDD §7 표 행 추가는 그 결정과 함께'),
+}
+for _tid, _e in F2_0920.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -374,6 +385,8 @@ HISTORY24 = ['v7.3', '진척', 'CELL-04', '한석형 브랜치 확인: 좌표 �
              'PM 확인 9/20 16:20', 'S']
 HISTORY25 = ['v7.4', '진척', 'V-24, V-22, FLOW-03, INF-02b, CELL-04', 'PR #34 merge — V-24 본작업(이동 함수 비동기 + 폴링 · pause/resume/halt)이 예정(9/21 저녁)보다 빨리 main 에 들어옴. 실기 미검증이라 **9/21 저녁 첫 순서 = V-24 실기 확인 → V-22 → 접촉 동작**. 새 키 cell.motion.move_timeout_s(한석형). FLOW-03 연결 가능',
              'PR #34', 'H,M,P,S']
+HISTORY26 = ['v7.5', '진척', 'F2-01, F2-02', 'PR #35 merge — F2 기능 함수 4개(weigh·leftover_loop·shake·dip) 구현, 전체 시험 229건. 값은 임시라 실기 전에 빈 용기 기준값 측정부터. GRIP_FAIL 정책(isolate vs pause)은 황인재 결정 대기',
+             'PR #35', 'M']
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -468,7 +481,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
