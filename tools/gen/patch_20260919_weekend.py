@@ -8,12 +8,12 @@
 이 파일이 9/19 오후 이후의 최신 패치다. patch_20260919_audit.py·rebalance.py 는 다시 실행하지 않는다(여기서 옮긴 칸이 되돌아간다)."""
 import sys, os, re, tempfile, collections
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from xlsx_patch import open_gantt_cols,  Book, Row, new_timeline_row, rebuild_todo, set_slots
+from xlsx_patch import open_gantt_cols, gantt_col,  Book, Row, new_timeline_row, rebuild_todo, set_slots
 from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v6.9'
+VERSION = 'v7.0'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -158,6 +158,37 @@ REPLAN_0920.update({k: {**REPLAN_0920.get(k, {}), **v} for k, v in CHUSEOK.items
 for _tid, _e in REPLAN_0920.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/20 14:50 최신화 (황인재 지시)
+# "아직 끝나지 않은 일은 진행 중으로, 오늘 오후에도 이어서 하니 9/20 오후 칸에 표시" — 근거: main 의 PR #21~#29·문서, 팀원 브랜치 커밋, F4 세션 보고
+AM, PM_ = '9/20 오전', '9/20 오후'
+CONT = '9/20 오후에도 이어서 진행(황인재 9/20 14:50)'
+LATEST_0920PM = {
+ # 한석형 — 오늘 GitHub 기록 없음(cell.yaml PR 아직). 좌표 작업이 이어진다
+ 'CELL-04':  dict(status='진행 중', slots=S('9/19 오전', '9/19 오후', AM, PM_), note_add=CONT + ' · cell.yaml PR 은 아직 없다(limits·motion 값을 팀 전체가 기다린다)'),
+ 'CELL-01':  dict(status='진행 중', slots=S('9/18 오후', '9/18 저녁', '9/19 오전', '9/19 오후', AM, PM_), note_add=CONT),
+ 'V-19':     dict(status='진행 중', slots=S(AM, PM_), note_add=CONT + ' · 좌표가 끝난 직후에'),
+ # 민범진 — 오전에 PR #26·#28·#29(코드)와 결정 요청 문서 2건. 그리퍼·무게 실기 세션 결과는 아직 올라오지 않았다
+ 'CELL-03':  dict(status='진행 중', slots=S(AM, PM_), note_add=CONT),
+ 'V-02':     dict(status='진행 중', slots=S(AM, PM_), note_add=CONT),
+ 'V-01':     dict(status='진행 중', slots=S(AM, PM_), note_add=CONT + ' · 시험대 rig_gripper.py 준비됨(#26·#29)'),
+ 'V-05':     dict(status='진행 중', prog='0.4', slots=S(AM, PM_), note_add=CONT + ' · 시험대 rig_gripper.py 준비됨(#26·#29) — 실기 결과 대기'),
+ 'V-23':     dict(status='진행 중', prog='0.3', slots=S(AM, PM_), note_add=CONT + ' · 🚨 시험대가 빈손으로도 통과하던 결함을 고침(#29 — 닫는 목표를 기대 폭보다 작게, 최초 파지 폭이 기대 범위 밖이면 중단)'),
+ 'INF-02c':  dict(status='진행 중', slots=S(AM, PM_), note_add=CONT),
+ 'INF-02d':  dict(status='진행 중', prog='0.85', slots=S('9/19 오후', AM, PM_), note_add='9/20 오후: PR #28(힘 기억을 명령마다 갱신·실패하면 버림) · #29(V-23 시험대) merge — 남은 것은 실기 세션 결과'),
+ 'FLOW-01':  dict(status='진행 중', prog='0.9', slots=S('9/19 오전', '9/19 오후', AM, PM_, '9/22 오후'), note_add='9/20 오후: PR #28 merge — 남은 resume 깃발이 다음 정지를 0초 만에 풀던 길 · 재시도 뒤 최신 실패 코드로 정책 재조회(ROBOT_ERROR 가 격리로 새던 길). 황인재 결정 대기 2건: 정지 방식(D1~D4) · PAUSE 로 멈춘 용기 처리(D1·D2) — docs/meetings/20260920_결정요청_*_민범진.md'),
+ # 박진용 — PR #23·#24·TS-05. V-03 은 실기 7회차까지(브랜치의 기록), wipe_bowl 은 브랜치에서 작성 중
+ 'INF-02b':  dict(status='진행 중', slots=S('9/19 오후', AM, PM_), note_add=CONT),
+ 'V-03':     dict(status='진행 중', prog='0.8', slots=S('9/19 오후', AM, PM_), note_add='9/20: 실기 7회차까지(브랜치 jinyong/20260920-V-03-log 의 시험 기록 — 아직 PR 전) · rig 갱신 13:17 · ' + CONT),
+ 'V-18':     dict(status='진행 중', slots=S(AM, PM_), note_add=CONT),
+ 'F3-02':    dict(status='진행 중', prog='0.3', note_add='9/20: 브랜치 jinyong/20260920-F3-02-wipe-bowl 에서 작성 중(나선 → 벽 따라 2바퀴, 옆 힘 비상 정지) — 아직 PR 전'),
+ # 황인재(F4 세션)
+ 'F4-00':    dict(status='완료', note_add='✅ 9/20 13:55 설계 확정 문서 merge(docs/ref/20260920_F4-00_HMI_설계초안.md): Next.js 15 + Node 18 · [MOCK] 표시 없음 · 힘 그래프 · 파지 중/아님 · 팔레트 4칸 — 정지 버튼 구성은 정지 방식 결정 뒤 갱신'),
+ 'V-24':     dict(status='진행 중', prog='0.3', slots=S(PM_), note_add='9/20 V-24a 가능성 시험(Virtual, F4 세션 — 브랜치 injae/20260920-V-24a-stop-feasibility, PR 은 황인재 확인 뒤): ✅ 동기 이동 중 move_stop 은 0.05 s 에 멈춘다(단 끊긴 movej 가 0(성공)을 돌려주고, 다음 명령을 보내면 다시 움직인다 → 정지 깃발·가드 필요) · ❌ 동기 이동 중 move_pause 는 안 먹는다 · ✅ 비동기(amovej + check_motion 폴링)에서는 pause → resume 으로 같은 동작이 이어진다 → "즉시 멈추고 재개"는 motion.py 를 비동기로 바꿔야 한다. 🚨 힘제어 중의 일시정지는 실기 확인 필요. **본작업 여부는 황인재 결정 대기**'),
+}
+for _tid, _e in LATEST_0920PM.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
+
 # 팀(구역) 이동: id → (새 팀, 이 ID 행 바로 뒤에 둔다) — 이미 그 구역에 있으면 PM 이 정한 행 순서를 건드리지 않는다
 MOVE = {'V-01': ('F2·flow', 'V-02'), 'V-05': ('F2·flow', 'V-01'), 'V-23': ('F2·flow', 'V-05')}
 EASY = {
@@ -259,6 +290,8 @@ HISTORY19 = ['v6.8', '진척', 'V-20, FLOW-01, INF-02d', 'PR #26(민범진) merg
              'PR #26', 'M,H']
 HISTORY20 = ['v6.9', '결정', 'CELL-04, CELL-01, FLOW-02, F3-02, F4-03', '황인재 9/20: ① 팔레트 컵 칸 4 → 2(RACK_C1·C2) ② HMI 토픽 확정 — /cell/force(힘 그래프) · /cell/gripping(파지 중/아님) 신설, /cell/grip_width 삭제 — 발행은 flow_node, 9/22 오전까지 ③ HMI 정지 버튼 이름 = "일시 정지"(E-STOP 이라 부르지 않는다)',
              '황인재 9/20', 'S,M,P,H']
+HISTORY21 = ['v7.0', '진척', '9/20 오전 칸의 미완료 작업 전부, F4-00, V-24', '9/20 14:50 최신화(황인재 지시): 끝나지 않은 일은 진행 중 + 9/20 오후 칸에 표시. 오늘 merge: PR #21~#24·#26·#28·#29 · TS-05 · F4-00 설계 확정(완료) · V-20 완료. V-24a 정지 가능성 시험 결과 기록(본작업은 결정 대기). 한석형 cell.yaml PR 은 아직 없음',
+             '황인재 9/20 · GitHub 기록', 'S,M,P,H']
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -291,8 +324,8 @@ def main(out):
         if 'prog' in e: r.set('E', e['prog'])
         if 'slots' in e:
             try: set_slots(r, e['slots'])
-            except ValueError:                           # 색 칸이 하나도 없는 행(이미 비운 행)
-                if e['slots']: raise
+            except ValueError:                           # 색 칸이 하나도 없는 행(이미 비운 행 · 보류였던 행)
+                if e['slots']: _paint_like_neighbor(tl, r, e['slots'])
         if has(d, 'A', tid):
             q = d.rows[d.find('A', tid)]
             for c, k in (('C', 'task'), ('D', 'owner'), ('E', 'deliv'), ('F', 'crit'), ('G', 'note')):
@@ -352,7 +385,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
@@ -376,6 +409,22 @@ def main(out):
     b.save(out); print('->', out)
     report(rows)
     return rows
+
+
+def _paint_like_neighbor(tl, row, slots):
+    """색 칸이 하나도 없는 행(보류였던 행 등)에 칸을 칠한다 — 색은 가까운 이웃 행의 작업 칸 색을 빌린다(회색 = 완료 색은 빼고)."""
+    ocols = open_gantt_cols()
+    styles = [row.style(c) for c in ocols if row.style(c) is not None]
+    blank = max(set(styles), key=styles.count)
+    gray = tl.rows[tl.find(ID, 'DOC-01a')].style('G')
+    i = tl.rows.index(row)
+    near = [j for d in range(1, 20) for j in (i - d, i + d) if 0 <= j < len(tl.rows)]
+    donor = next((tl.rows[j].style(c) for j in near for c in ocols
+                  if tl.rows[j].style(c) not in (None, blank, gray)), None)
+    if donor is None:
+        raise ValueError('이웃 행에도 색 칸이 없다')
+    for d, p in slots:
+        row.set(gantt_col(d, p), style=donor)
 
 
 def report(rows):
