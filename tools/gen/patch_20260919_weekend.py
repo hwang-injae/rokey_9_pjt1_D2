@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v8.9'
+VERSION = 'v9.0'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -495,6 +495,29 @@ DELEG_0921 = {
 for _tid, _e in DELEG_0921.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 08:30 황인재가 08:00 경 V-22 그릇 한 바퀴를 혼자 돌렸다 — 결함 2건
+R22 = '🔬 9/21 08:00 V-22 실기(황인재 · 그릇 한 바퀴 1~17번):'
+REAL_0921 = {
+ 'V-22':     dict(status='진행 중', prog='0.5',
+                  note_add=R22 + ' ✅ **좌표 정확도는 매우 좋다 — 전부 오차 0.11~0.24 mm · 관절 0.01~0.03°**(기준 2 mm). 스펀지 홈·닦는 자리 하강도 끝점에 정확히 도달. '
+                  '❌ 결함 2건(아래 CELL-04 비고) · ⚠ RET_B 접근 → 그립 어긋남은 실기 **2.91 mm**(가상 2.78 과 일치) · 컵 한 바퀴(18~33)는 오늘 저녁에'),
+ 'V-19':     dict(prog='0.7', note_add=R22 + ' 도달 범위는 문제없다(WASTE BOWL 도 팔 길이 683 mm / 한계 900 — 안 닿는 게 아니라 특이점)'),
+ 'CELL-04':  dict(prog='0.9', note_add=R22 + ' 🚨 **오늘 저녁 티칭 최우선 2건(실기에서 실제로 막힌 것)**: '
+                  '**① WASTE BOWL 재티칭** — 목표 6.0 mm 앞에서 컨트롤러가 세웠다(MoveIncomplete). ry = 179° 로 **손목 특이점(180°)에서 1°** 다 → 특이점에서 떨어진 자세로 다시 찍는다. 🔔 잔반 터는 자세라 방향이 바뀌면 털기(F2)에 영향 → **한석형·민범진과 같이 정한다**. '
+                  '**② 팔레트 그릇 칸(RACK_B1·B2) 접근점 2개** — 접근점이 없어 꽂은 자리에서 HOME 으로 곧장 가다가 **그리퍼가 팔레트에 걸린다**(황인재 목격). 한석형 스크립트의 "y −25 → z +200 으로 빠진다"가 좌표로 안 옮겨져 있었다. 컵 칸(C1·C2)에는 접근점이 있다. '
+                  '그다음 ③ 툴 홀더 집기·반납 2종 + SOAP 2 ④ 그릇 집기 접근점 재티칭(2.91 mm). 🟡 9/22 오전: ISOLATE 2 · CUP_RACK2_1 · 컵 집기 접근'),
+ 'CELL-04b': dict(note_add='9/21 08:30: F4 가 **값 21개를 채웠다**(브랜치 injae/20260921-CELL-04b-limits-motion · PR 은 황인재 확인 뒤) — limits 6 · motion 5 · seat 8 · 닦는 자리 z 2(E13). '
+                  '🔑 safe_z_mm = **235**(SDD 예시 150 이 아니다): E7 로 뜻이 "접촉 뒤 후퇴 높이"가 됐는데 150 이면 **컵을 닦던 솔이 컵 밖으로 안 나온다**(용기 안 바닥 33 + 컵 깊이 95 = 입구 128, 솔 95 → 223 필요). 한석형의 닦기 접근점과 같은 높이다. '
+                  '🟡 presets 16개는 **비워 둔다**(F4 권고 · 황인재 확인 대기): 비면 안 움직이고(안전) 임시값이면 틀린 값으로 실기가 돈다. 오늘 저녁 V-24·V-22·V-25 는 presets 를 읽지 않는다 — 필요한 곳은 F1-02 집기·F1-03 툴(9/22)뿐'),
+ 'F1-04':    dict(note_add=R22 + ' 🚨 팔레트에서 빠져나오는 동작이 **좌표로 없다** — 그릇 칸 접근점 2개를 찍은 뒤 rack_place 가 release → 접근점으로 되돌아 나오게 만든다(컵 칸과 같은 방식)'),
+ 'V-06':     dict(note_add=R22 + ' 그릇 칸 접근점이 생긴 뒤에 본다'),
+ 'V-07':     dict(note_add=R22 + ' 🔔 WASTE BOWL 자세가 특이점 회피로 바뀐다 → 털기 진폭·방향을 그 자세에서 다시 본다(한석형 재티칭 때 민범진 입회)'),
+ 'F2-01':    dict(note_add=R22 + ' 🔔 WASTE BOWL 재티칭으로 터는 자세가 바뀔 수 있다 — 저녁 티칭에 민범진 입회'),
+ 'V-24':     dict(note_add='9/21 08:00: 어제 넣은 도착 확인(MoveIncomplete)이 **실기에서 실제로 결함을 잡았다** — WASTE BOWL 이 6 mm 앞에서 섰는데 예전 코드였으면 성공으로 넘어갔다. 일시 정지·재개 자체의 실기 확인은 오늘 저녁 그대로'),
+}
+for _tid, _e in REAL_0921.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -568,7 +591,7 @@ SLOT['9/22 화'] = {'B': '**V-04·V-15 → F1-05 안착(S, P 참여)** / **V-24 
 SLOT['9/21 월']['D'] = ('🚨 **18:30~22:00 (3.5 h) — 시간으로 끊는다**(전부 넣으면 약 5 h). ①②④⑤ 의 전제 = cell.yaml 이동 값 11개(limits 4 + motion 5). '
                         '**18:30 ① 툴·홀더 확정(P 주도·H·S)** — 이동 값 11개는 **황인재(F4)가 18:30 전에 파일에 넣는다**(9/21 위임 · 없으면 뒤가 전부 KeyError) / '
                         '**18:50 ② V-24 실기**(H · rig_pause --real, 빈손 → 용기 → 용기 3회차) / '
-                        '**19:20 ③ 티칭**(S, 1 h — 툴 홀더 집기·반납 2종 → SOAP 2 → 그릇 집기 접근점 재티칭) / '
+                        '**19:20 ③ 티칭**(S, 1 h — 🚨 아침 실기에서 막힌 2건 먼저: **WASTE BOWL 특이점 회피 재티칭**(M 입회 — 털기 자세가 바뀐다) → **팔레트 그릇 칸 접근점 2개** → 툴 홀더 2종 + SOAP 2 → 그릇 집기 접근점) / '
                         '**20:20 ④ V-22·V-19**(H·S · rig_coords --real, 막히면 --from 으로 이어서) / '
                         '**21:00 ⑤ V-25 F1-01 실기**(H, 20~30분) / '
                         '**21:25 ⑥ 그리퍼 세션**(M, 35분 — 🔴 **BOWL·CUP 의 폭·힘·허용 오차 6개만**(V-05 → V-01): 내일 오전 집기가 이것만 기다린다. HOLD 힘(V-16)·무게(V-02)·SPONGE·BRUSH 는 9/22 오전) · 로봇 불필요: F1-02 코드(S)·F2 kind·GRIP_FAIL(M)·F3-02 준비(P) · 🛡 밀리면 ⑤⑥ 을 9/22 오전 앞으로')
@@ -677,6 +700,9 @@ HISTORY39 = ['v8.8', '재배치', 'CELL-04, CELL-04b, V-24, V-22, V-25, V-05, F3
 HISTORY40 = ['v8.9', '위임', 'CELL-04, CELL-04b, V-22, F1-02', '황인재 9/21 08:15: 좌표 작업 담당을 한석형 → 황인재(F4 세션)로 위임 — 한석형 쪽이 계속 길어져서. cell.yaml 파일 작업은 F4 가 기다리지 않고 진행(어제의 "값이 올 때까지 넣지 말라" 제한 해제) · 티치펜던트 티칭은 위임되지 않음(로봇 앞에서 사람이) · 한석형은 F1 함수 3개에 집중',
              '황인재 9/21 08:15', 'S,H']
 
+HISTORY41 = ['v9.0', '실기 결과', 'V-22, V-19, CELL-04, CELL-04b, F1-04, V-06, V-07, F2-01, V-24', '황인재 9/21 08:00 V-22 그릇 한 바퀴 실기: ✅ 좌표 정확도 0.11~0.24 mm(기준 2 mm) · ❌ WASTE BOWL 이 손목 특이점(ry 179°)으로 6 mm 앞에서 멈춤 → 재티칭(털기 자세 영향, 민범진 입회) · ❌ 팔레트 그릇 칸에 접근점이 없어 그리퍼가 팔레트에 걸림 → 접근점 2개. 두 건을 저녁 티칭 최우선으로. F4 가 값 21개를 채움(safe_z_mm 235 — 솔이 컵 밖으로 나오는 높이) · presets 16개는 비워 두는 안(황인재 확인 대기)',
+             '황인재 실기 · F4 세션 9/21 08:30', 'S,M,H']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -771,7 +797,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
