@@ -189,23 +189,22 @@ class Run:
                 r += p['spiral_pitch_mm'] * dth / (2 * math.pi)
 
     def circle_wall(self, r_hit, theta0):
-        """벽에 닿은 자리에서 바로 circle_turns 바퀴 — 반지름 방향 힘을 보며 **벽에 붙어** 돈다(벽 따라가기).
+        """벽에 닿은 자리에서 바로 circle_turns 바퀴 — 반지름은 **고정**(벽을 만난 반지름 − circle_margin_mm).
 
-        그릇이 HOME 중심에서 어긋나 있어도 벽을 따라가도록, 걸음마다 반지름을 고친다(9/19 5회차: 한쪽 벽만 닿음):
-          목표 = 명령을 못 따라간 거리 follow_gap_mm(벽을 그만큼 눌러 솔 옆면이 벽에 붙는다).
-          덜 막히면 바깥으로, 더 막히면 안쪽으로 — 차이 × follow_gain, 한 걸음에 follow_step_mm 까지.
-        반지름은 0 ~ r_max(). 솔이 climb_max_mm 넘게 올라가면 안쪽으로. 옆 힘 절대 상한(lateral_max_n)은 check() 가 지킨다.
-        🔸 나선과 **반대 방향**으로 돈다(circle_reverse) — 나선 마지막 바퀴와 같은 길을 같은 방향으로 돌면 눈으로 구분이 안 되고
-           (9/19 5회차 "2바퀴를 안 했다"), 반대로 문지르면 벽면을 양방향으로 닦는다. 시작 전에 circle_pause_s 만큼 멈춘다.
+        🔸 나선과 **반대 방향**으로 돈다(circle_reverse) — 같은 방향이면 나선 마지막 바퀴와 구분이 안 된다(9/19 5회차).
+        🔸 걸음마다 반지름을 고치는 '벽 따라가기'는 9/20 결정으로 삭제했다. 그릇은 홈 가운데에 놓는 것이 전제이고,
+           한쪽을 세게 밀면 옆 힘 상한(lateral_max_n)에서 멈춘다.
         """
         import math
         p = self.p
-        r, th, done = r_hit, theta0, 0.0
+        r = max(0.0, r_hit - p['circle_margin_mm'])
         sign = -1.0 if p['circle_reverse'] else 1.0
-        presses, lats, rs, gaps = [], [], [], []
+        th, done = theta0, 0.0
+        presses, lats, gaps = [], [], []
         self.d.mwait()                                                   # 나선 끝 — 벽에 닿은 채 잠깐 멈춤(구분되게)
         self.sample('wall_pause', p['wipe_target_n'], seconds=p['circle_pause_s'])
-        self.log.info(f'  벽 따라 {p["circle_turns"]}바퀴 시작 — {"반대 방향" if p["circle_reverse"] else "같은 방향"}')
+        self.log.info(f'  벽 따라 {p["circle_turns"]}바퀴 시작 — {"반대 방향" if p["circle_reverse"] else "같은 방향"} '
+                      f'· 반지름 고정 {r:.1f} mm')
         start = time.monotonic()
         while done < 2 * math.pi * p['circle_turns']:
             if time.monotonic() - start > p['scrub_timeout_s']:
@@ -215,16 +214,9 @@ class Run:
             press, lat, rad = self.scrub_to(r * math.cos(th), r * math.sin(th), 'wall')
             presses.append(press)
             lats.append(lat)
-            rs.append(r)
             gaps.append(self.gap)
-            dr = (p['follow_gap_mm'] - self.gap) * p['follow_gain']
-            if self.climb > p['climb_max_mm']:                           # 벽을 타고 오름 → 안쪽으로
-                dr = -p['follow_step_mm']
-            dr = max(-p['follow_step_mm'], min(p['follow_step_mm'], dr))
-            r = max(0.0, min(self.r_max(), r + dr))
-        rc = statistics.mean(rs)
-        self.log.info(f'  벽 따라 {p["circle_turns"]}바퀴: 반지름 평균 {rc:.1f} (최소 {min(rs):.1f} · 최대 {max(rs):.1f}) mm · '
-                      f'벽 누름 평균 {statistics.mean(gaps):.1f} mm · 옆 힘 평균 {statistics.mean(lats):.1f} · '
+        self.log.info(f'  벽 따라 {p["circle_turns"]}바퀴: 반지름 {r:.1f} mm · 벽 누름 평균 {statistics.mean(gaps):.1f} '
+                      f'(최소 {min(gaps):.1f} · 최대 {max(gaps):.1f}) mm · 옆 힘 평균 {statistics.mean(lats):.1f} · '
                       f'최대 {max(lats):.1f} N · {time.monotonic() - start:.1f} s')
         self.result('circle', p['wipe_target_n'], presses)
 
