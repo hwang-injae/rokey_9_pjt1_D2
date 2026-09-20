@@ -284,10 +284,12 @@ class Run:
         if d.task_compliance_ctrl(stx) != 0:
             raise RuntimeError('task_compliance_ctrl 실패')
         self.compliance_on = True
-        if p['press_depth_mm'] > 0:
-            self.move_z(-p['press_depth_mm'], p['press_vel_mm_s'], p['press_acc_mm_s2'])
-        self.log.info(f'  순응만 켜고 누르기: 더 내려감 {p["press_depth_mm"]:g} mm (Z 순응 {stx[2]:g} N/m → 약 '
-                      f'{stx[2] / 1000 * p["press_depth_mm"]:.1f} N). 0 이면 바닥 찾은 자리 그대로')
+        dz = p['after_contact_mm']                                       # + 면 더 누르고, − 면 그만큼 들어 올린다
+        if abs(dz) > 1e-6:
+            self.move_z(-dz, p['press_vel_mm_s'], p['press_acc_mm_s2'])
+        what = f'{dz:g} mm 더 누름 (Z 순응 {stx[2]:g} N/m → 약 {stx[2] / 1000 * dz:.1f} N)' if dz > 0 else \
+               (f'{-dz:g} mm 들어 올림 — 바닥에 살짝 띄워 문지른다' if dz < 0 else '바닥 찾은 자리 그대로')
+        self.log.info(f'  순응만 켜고: {what}')
 
     def press_off(self):
         """누르기 끝 — force 방식은 cc.force_off(), depth 방식은 직접 켠 순응을 직접 끈다."""
