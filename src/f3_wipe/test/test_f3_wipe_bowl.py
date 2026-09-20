@@ -19,7 +19,7 @@ CFG = {
     'cell': {'limits': {'contact_limit_n': 3.0}},
     'f3': {'wipe_bowl': {
         'tool': {'clean_h_mm': 45, 'd_mm': 90},
-        'target_force_n': 4.0, 'limit_n': 10.0, 'lateral_max_n': 15.0,
+        'target_force_n': 4.0, 'limit_n': 10.0, 'lateral_max_n': 25.0,
         'contact_max_depth_mm': 30.0,
         'step_mm': 15.0, 'pitch_mm': 15.0, 'twist_deg': 18.0, 'twist_every': 2,
         'blend_radius_mm': 4.0, 'lin_vel_mm_s': 450.0, 'lin_acc_mm_s2': 1200.0,
