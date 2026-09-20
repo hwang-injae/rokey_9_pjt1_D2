@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v9.1'
+VERSION = 'v9.2'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -532,6 +532,26 @@ FULLDEL_0921 = {
 for _tid, _e in FULLDEL_0921.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 08:50 황인재: 일정 재분담 — 민범진·황인재에 몰린 것을 한석형(좌표가 빠져 여유)·박진용(오늘 저녁이 빔)으로
+RB = '🔀 9/21 08:50 재분담(황인재):'
+REBAL_0921 = {
+ # ① 민범진 — 그리퍼 세션에 시간을 준다(9/20 에 못 한 것으로 보인다 · 결과 기록 없음)
+ 'V-05':    dict(note_add=RB + ' 오늘 저녁 그리퍼 세션을 **35분 → 60분(21:00~22:00)** 으로 늘린다 — V-25(F1-01 실기)를 9/22 오후로 빼서 만든 25분. 절차는 박진용 제안서(docs/ref/20260919_제안_RG2_폭_힘_경로.md §5)라 **박진용이 옆에서 도울 수 있다**(오늘 저녁 박진용은 툴·홀더 확정 뒤 비어 있다)'),
+ 'V-01':    dict(note_add=RB + ' 그리퍼 세션 60분 안에서'),
+ 'V-25':    dict(slots=S('9/22 오후'), note_add=RB + ' 9/21 저녁 → **9/22 오후, F1-03·V-08 바로 앞**(같은 황인재 · 같은 place/release 경로라 이어서 보면 된다). 그리퍼 세션에 시간을 주려고 옮겼다 — F1-02 실기는 f1.move_to 가 아니라 cc.move_to 를 쓰므로 V-25 를 기다리지 않는다'),
+ # ② INT-12b 주도를 한석형에게 되돌린다 — 어제 옮긴 이유(좌표 작업으로 과부하)가 없어졌다
+ 'INT-12b': dict(owner='S(M)', note_add=RB + ' **주도를 한석형에게 되돌린다.** 9/20 밤에 민범진으로 옮긴 이유(한석형이 좌표 작업으로 과부하)가 9/21 아침 좌표 전담 이관으로 없어졌고, 지금은 민범진이 가장 무겁다. INT-12b 는 F1(재파지·적재) + F2(헹굼·물 털기)라 F1 주인이 끌고 민범진이 F2 쪽을 돕는다'),
+ # ③ SAFE-01 을 박진용이 주도 — 안전 파라미터 담당이고 오늘 저녁이 비어 있다
+ 'SAFE-01': dict(owner='P(H)', slots=S('9/21 저녁', '9/22 오전'),
+                 note_add=RB + ' **박진용이 주도한다**(안전 파라미터 담당 · 오늘 저녁 툴·홀더 확정 뒤 비어 있다). PM 에이전트가 SDD §7·§8 에서 뽑은 초안을 넘기고, 박진용이 값(힘 상한·속도·후퇴 높이 235·정지 종류 DR_QSTOP)을 확인해 완성한다 → 황인재는 노션 업로드만(NOTE-01 과 묶음). 9/22 오전 황인재 부담을 던다'),
+ 'CR-01':   dict(note_add=RB + ' 9/22 오전 전원 — 안전 파라미터 절은 SAFE-01 을 만든 박진용이 설명'),
+ # ④ 민범진 9/22 — 오전은 로봇(실기)만, 책상 작업은 오후·저녁으로 편다
+ 'FLOW-03': dict(slots=S('9/22 오후'), note_add=RB + ' 9/22 오전·오후 → **오후만**. 오전은 민범진이 로봇 실기(V-07·V-16·F2)에 집중하고, 정지·재개·중단 연결(mock 으로 되는 책상 작업)은 오후에 몰아서'),
+ 'FLOW-02': dict(slots=S('9/22 저녁'), note_add=RB + ' 9/22 오후 → **저녁**(FLOW-03 이 오후로 와서). 기록(records.csv)·소모품 카운트는 mock 으로 되는 책상 작업 — INT-12a 교대 사이에'),
+}
+for _tid, _e in REBAL_0921.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -607,12 +627,12 @@ SLOT['9/21 월']['D'] = ('🚨 **18:30~22:00 (3.5 h) — 시간으로 끊는다*
                         '**18:50 ② V-24 실기**(H · rig_pause --real, 빈손 → 용기 → 용기 3회차) / '
                         '**19:20 ③ 티칭 + 그 자리에서 확인**(H 전담, 1 h 20 — 🚨 아침에 막힌 2건 먼저: **WASTE BOWL 특이점 회피**(M 입회 — 털기 자세가 바뀐다) → **팔레트 그릇 칸 접근점 2개** → 툴 홀더 2종 + SOAP 2 → 그릇 집기 접근점. 한 자세 찍을 때마다 rig_coords --from 으로 바로 확인) / '
                         '**20:40 ④ V-22·V-19 컵 한 바퀴**(H · 그릇 한 바퀴는 아침에 봤다 — 18~33번) / '
-                        '**21:00 ⑤ V-25 F1-01 실기**(H, 20~30분) / '
-                        '**21:25 ⑥ 그리퍼 세션**(M, 35분 — 🔴 **BOWL·CUP 의 폭·힘·허용 오차 6개만**(V-05 → V-01): 내일 오전 집기가 이것만 기다린다. HOLD 힘(V-16)·무게(V-02)·SPONGE·BRUSH 는 9/22 오전) · 로봇 불필요: **한석형은 저녁 내내 F1-02 집기 코드**(로봇 순서 없음) · F2 kind·GRIP_FAIL(M) · F3-02 준비(P) · 🛡 밀리면 ⑤⑥ 을 9/22 오전 앞으로')
+                        
+                        '**21:00 ⑤ 그리퍼 세션**(M, **60분** · P 가 옆에서 — 🔴 먼저 **BOWL·CUP 의 폭·힘·허용 오차 6개**(V-05 → V-01, 내일 오전 집기가 기다린다), 시간이 남으면 V-23·V-16. 무게(V-02)·SPONGE·BRUSH 는 9/22 오전) · 로봇 불필요: **한석형은 저녁 내내 F1-02 집기 코드**(로봇 순서 없음) · F2 kind·GRIP_FAIL(M) · **박진용은 SAFE-01 완성 + F3-02 준비** · 🛡 밀리면 ⑤ 를 9/22 오전 첫 순서로')
 SLOT['9/22 화'] = {'B': '🚨 순서: **① F3-02 닦기 3회 + V-18(P, 40분 — 어제 밀린 것)** → ② 한석형 나머지 티칭(ISOLATE 2·CUP_RACK2_1·팔레트 그릇 칸 접근점 2·컵 집기 접근) → ③ **F1-02 집기 + V-14(S)** — presets 가 어제 저녁 그리퍼 세션에서 나왔어야 한다 → ④ V-07·V-16 → F2 실기 rig_f2 empty 부터(M) · 로봇 불필요: CR-01(전원)·ENV-03·NOTE-01·SAFE-01·V-13(H)·FLOW-03(M)·INF-02b 후속(P)',
-                   'C': '**V-04·V-15 → F1-05 안착(S, P 참여 — 🛡 단순 놓기부터)** / **F1-03·V-08 툴 집기·반납(H, S 검토)** / F3-03·UT-F3(P) / UT-F2(M) · 로봇 불필요: FLOW-02·FLOW-03·FLOW-01 마무리(M)·INT-4(H·M)',
+                   'C': '**V-04·V-15 → F1-05 안착(S, P 참여 — 🛡 단순 놓기부터)** / **V-25 F1-01 실기 → F1-03·V-08 툴 집기·반납(H, S 검토)** / F3-03·UT-F3(P) / UT-F2(M) · 로봇 불필요: FLOW-02·FLOW-03·FLOW-01 마무리(M)·INT-4(H·M)',
                    'D': '**F1-04·V-06 → UT-F1(S·H)** / F1-03 잔여(H) / L2: INT-12a(M·S) → INT-13(P·S) · 로봇 불필요: UT-FLOW(M)·NOTE-02 gif(H)'}
-SLOT['9/23 수']['B'] = 'UT-F1 잔여(S·H) → **INT-12b(M 주도·S)** · INT-13 잔여(P·S) · UT-F4·F4-05(H) — G3(L2)'
+SLOT['9/23 수']['B'] = 'UT-F1 잔여(S·H) → **INT-12b(S 주도·M)** · INT-13 잔여(P·S) · UT-F4·F4-05(H) — G3(L2)'
 _b, _c = LECTURE['9/24 목~9/28 월']
 LECTURE['9/24 목~9/28 월'] = (_b, _c + ' · 🆕 **F4 웹 HMI**(F4-03 화면 다듬기·F4-04 기록/이력·UT-F4 전체)도 집에서 mock·fake_state_pub 로 이어 간다(황인재 9/20 — ROS 인터페이스·로봇 쪽 코드는 9/23 동결 그대로)')
 RULES = {       # (A 열, B 열 글자) → (새 B, 새 C)
@@ -720,6 +740,9 @@ HISTORY41 = ['v9.0', '실기 결과', 'V-22, V-19, CELL-04, CELL-04b, F1-04, V-0
 HISTORY42 = ['v9.1', '전담', 'CELL-04, CELL-04b, V-19, V-22, F1-02, F1-05, V-14', '황인재 9/21 08:45: 좌표는 **티칭·파일·확인까지 전부 황인재(F4 세션) 전담** — 08:15 위임에서 남겨 뒀던 티치펜던트 티칭도 포함. 한석형은 F1 함수에만 집중(오늘 저녁 로봇 순서 없음 → F1-02 코드를 앞당긴다). 저녁 ③④를 묶어 티칭 직후 그 자세를 바로 확인',
              '황인재 9/21 08:45', 'S,H']
 
+HISTORY43 = ['v9.2', '재분담', 'V-05, V-01, V-25, INT-12b, SAFE-01, CR-01, 로봇 슬롯', '황인재 9/21 08:50 재분담 — 민범진·황인재에 몰린 것을 옮김: ① 그리퍼 세션 35 → 60분(V-25 F1-01 실기를 9/22 오후 F1-03 앞으로 빼서) · 박진용이 옆에서(절차 제안서 작성자) ② INT-12b 주도를 한석형에게 되돌림(좌표가 빠져 여유가 생겼다) ③ SAFE-01 을 박진용이 주도(안전 파라미터 담당 · 오늘 저녁이 비어 있다)',
+             '황인재 9/21 08:50', 'S,M,P,H']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -814,7 +837,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
