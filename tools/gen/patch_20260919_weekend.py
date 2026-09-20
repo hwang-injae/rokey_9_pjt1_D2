@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v9.0'
+VERSION = 'v9.1'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -518,6 +518,20 @@ REAL_0921 = {
 for _tid, _e in REAL_0921.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 08:45 황인재: 좌표는 티칭·파일·확인까지 전부 F4(황인재) 전담
+FULL = '🔀 9/21 08:45 전담(황인재):'
+FULLDEL_0921 = {
+ 'CELL-04':  dict(owner='H', note_add=FULL + ' **티칭까지 포함해 좌표 작업 전부를 황인재(F4 세션)가 한다.** 08:15 위임에서 "티치펜던트 티칭은 위임 안 됨"이라 했던 것도 황인재가 직접 하는 것으로 정리 — 황인재가 로봇 앞에 있다(오늘 08:00 V-22 를 혼자 돌렸다). 한석형은 **F1 함수에만** 집중하고, 기구 배치·의도를 묻는 질문에만 답한다'),
+ 'CELL-04b': dict(owner='H(P)', note_add=FULL + ' 티칭도 황인재. 툴 홀더 자리는 박진용의 기구 확정(CELL-02b)과 붙어 있어 P 만 남긴다'),
+ 'V-19':     dict(owner='H', note_add=FULL + ' 확인도 황인재 전담(한석형 입회 불필요)'),
+ 'V-22':     dict(owner='H', note_add=FULL + ' 확인도 황인재 전담. 🔸 티칭과 확인을 한 사람이 하므로 **티칭 직후 그 자세를 바로 rig_coords --from 으로 확인**하는 편이 빠르다(저녁 ③④를 묶는다)'),
+ 'F1-02':    dict(note_add=FULL + ' 한석형은 오늘 저녁 로봇 순서가 없다 → **저녁 내내 F1-02 집기 코드**(9/22 오전 실기). 그만큼 앞당길 수 있다'),
+ 'F1-05':    dict(note_add=FULL + ' 한석형이 저녁에 코드를 앞당길 수 있으면 9/22 오후가 수월해진다'),
+ 'V-14':     dict(note_add='9/21: 집기 검증은 한석형 몫 그대로(자기 함수) — 좌표 확인(V-22·V-19)만 황인재가 전담'),
+}
+for _tid, _e in FULLDEL_0921.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -591,10 +605,10 @@ SLOT['9/22 화'] = {'B': '**V-04·V-15 → F1-05 안착(S, P 참여)** / **V-24 
 SLOT['9/21 월']['D'] = ('🚨 **18:30~22:00 (3.5 h) — 시간으로 끊는다**(전부 넣으면 약 5 h). ①②④⑤ 의 전제 = cell.yaml 이동 값 11개(limits 4 + motion 5). '
                         '**18:30 ① 툴·홀더 확정(P 주도·H·S)** — 이동 값 11개는 **황인재(F4)가 18:30 전에 파일에 넣는다**(9/21 위임 · 없으면 뒤가 전부 KeyError) / '
                         '**18:50 ② V-24 실기**(H · rig_pause --real, 빈손 → 용기 → 용기 3회차) / '
-                        '**19:20 ③ 티칭**(S, 1 h — 🚨 아침 실기에서 막힌 2건 먼저: **WASTE BOWL 특이점 회피 재티칭**(M 입회 — 털기 자세가 바뀐다) → **팔레트 그릇 칸 접근점 2개** → 툴 홀더 2종 + SOAP 2 → 그릇 집기 접근점) / '
-                        '**20:20 ④ V-22·V-19**(H·S · rig_coords --real, 막히면 --from 으로 이어서) / '
+                        '**19:20 ③ 티칭 + 그 자리에서 확인**(H 전담, 1 h 20 — 🚨 아침에 막힌 2건 먼저: **WASTE BOWL 특이점 회피**(M 입회 — 털기 자세가 바뀐다) → **팔레트 그릇 칸 접근점 2개** → 툴 홀더 2종 + SOAP 2 → 그릇 집기 접근점. 한 자세 찍을 때마다 rig_coords --from 으로 바로 확인) / '
+                        '**20:40 ④ V-22·V-19 컵 한 바퀴**(H · 그릇 한 바퀴는 아침에 봤다 — 18~33번) / '
                         '**21:00 ⑤ V-25 F1-01 실기**(H, 20~30분) / '
-                        '**21:25 ⑥ 그리퍼 세션**(M, 35분 — 🔴 **BOWL·CUP 의 폭·힘·허용 오차 6개만**(V-05 → V-01): 내일 오전 집기가 이것만 기다린다. HOLD 힘(V-16)·무게(V-02)·SPONGE·BRUSH 는 9/22 오전) · 로봇 불필요: F1-02 코드(S)·F2 kind·GRIP_FAIL(M)·F3-02 준비(P) · 🛡 밀리면 ⑤⑥ 을 9/22 오전 앞으로')
+                        '**21:25 ⑥ 그리퍼 세션**(M, 35분 — 🔴 **BOWL·CUP 의 폭·힘·허용 오차 6개만**(V-05 → V-01): 내일 오전 집기가 이것만 기다린다. HOLD 힘(V-16)·무게(V-02)·SPONGE·BRUSH 는 9/22 오전) · 로봇 불필요: **한석형은 저녁 내내 F1-02 집기 코드**(로봇 순서 없음) · F2 kind·GRIP_FAIL(M) · F3-02 준비(P) · 🛡 밀리면 ⑤⑥ 을 9/22 오전 앞으로')
 SLOT['9/22 화'] = {'B': '🚨 순서: **① F3-02 닦기 3회 + V-18(P, 40분 — 어제 밀린 것)** → ② 한석형 나머지 티칭(ISOLATE 2·CUP_RACK2_1·팔레트 그릇 칸 접근점 2·컵 집기 접근) → ③ **F1-02 집기 + V-14(S)** — presets 가 어제 저녁 그리퍼 세션에서 나왔어야 한다 → ④ V-07·V-16 → F2 실기 rig_f2 empty 부터(M) · 로봇 불필요: CR-01(전원)·ENV-03·NOTE-01·SAFE-01·V-13(H)·FLOW-03(M)·INF-02b 후속(P)',
                    'C': '**V-04·V-15 → F1-05 안착(S, P 참여 — 🛡 단순 놓기부터)** / **F1-03·V-08 툴 집기·반납(H, S 검토)** / F3-03·UT-F3(P) / UT-F2(M) · 로봇 불필요: FLOW-02·FLOW-03·FLOW-01 마무리(M)·INT-4(H·M)',
                    'D': '**F1-04·V-06 → UT-F1(S·H)** / F1-03 잔여(H) / L2: INT-12a(M·S) → INT-13(P·S) · 로봇 불필요: UT-FLOW(M)·NOTE-02 gif(H)'}
@@ -703,6 +717,9 @@ HISTORY40 = ['v8.9', '위임', 'CELL-04, CELL-04b, V-22, F1-02', '황인재 9/21
 HISTORY41 = ['v9.0', '실기 결과', 'V-22, V-19, CELL-04, CELL-04b, F1-04, V-06, V-07, F2-01, V-24', '황인재 9/21 08:00 V-22 그릇 한 바퀴 실기: ✅ 좌표 정확도 0.11~0.24 mm(기준 2 mm) · ❌ WASTE BOWL 이 손목 특이점(ry 179°)으로 6 mm 앞에서 멈춤 → 재티칭(털기 자세 영향, 민범진 입회) · ❌ 팔레트 그릇 칸에 접근점이 없어 그리퍼가 팔레트에 걸림 → 접근점 2개. 두 건을 저녁 티칭 최우선으로. F4 가 값 21개를 채움(safe_z_mm 235 — 솔이 컵 밖으로 나오는 높이) · presets 16개는 비워 두는 안(황인재 확인 대기)',
              '황인재 실기 · F4 세션 9/21 08:30', 'S,M,H']
 
+HISTORY42 = ['v9.1', '전담', 'CELL-04, CELL-04b, V-19, V-22, F1-02, F1-05, V-14', '황인재 9/21 08:45: 좌표는 **티칭·파일·확인까지 전부 황인재(F4 세션) 전담** — 08:15 위임에서 남겨 뒀던 티치펜던트 티칭도 포함. 한석형은 F1 함수에만 집중(오늘 저녁 로봇 순서 없음 → F1-02 코드를 앞당긴다). 저녁 ③④를 묶어 티칭 직후 그 자세를 바로 확인',
+             '황인재 9/21 08:45', 'S,H']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -797,7 +814,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
