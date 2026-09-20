@@ -141,6 +141,7 @@ def main() -> int:
             if not ok:
                 fails.append(label)
 
+        stopped = False
         log.info(f'──── ① ② 찍은 자세 {len(ROUTE)}번 이동 — 자세에서 자세로 곧장(9/20 E7) ────')
         for n, (station, carrying, kind, point) in enumerate(ROUTE, start=1):
             label = station + (f' {kind}' if kind else '') + (f' point={point}' if point is not None else '')
@@ -153,16 +154,25 @@ def main() -> int:
                     raise KeyboardInterrupt
             try:
                 up = cc.move_to(station, carrying, kind, point)
-            except cc.MoveIncomplete as e:                              # 컨트롤러가 이동을 도중에 세웠다 — move_to 가 알려 준다(9/20)
-                if station in p['known_path_stop']:
+            except Exception as e:                                      # noqa: BLE001
+                if opt.real:
+                    # 🚨 9/21 실기 사고: 이동이 도중에 멈춘 뒤 이 도구가 **자동으로 HOME 으로 가려 했다**.
+                    #    그때 로봇은 6번 관절이 돌아 케이블이 꼬인 채 멈춰 있었다 — 자동으로 움직이면 더 꼬이거나 부딪힌다.
+                    #    MoveIncomplete 의 약속대로(motion.py) 로봇 위치를 모르면 **사람이 복구**한다. 실기에서는 여기서 끝낸다.
+                    record(label, False, f'move_to 오류: {type(e).__name__}: {e}')
+                    log.error('🚨 실기에서 이동이 실패했다 — 로봇을 **자동으로 움직이지 않고** 여기서 멈춘다.')
+                    log.error(f'   티치펜던트로 상태를 확인·복구한 뒤 이어서 돌린다:  --real --from {n}')
+                    stopped = True
+                    break
+                if not isinstance(e, cc.MoveIncomplete):
+                    record(label, False, f'move_to 오류: {type(e).__name__}: {e}')
+                    continue
+                if station in p['known_path_stop']:                     # (Virtual 전용) 이미 아는 경로 문제 — HOME 으로 돌아가 계속
                     log.warn(f'⚠  {label}: {e}')
                     log.warn('⚠    └ 이미 아는 경로 문제(rig_coords.yaml known_path_stop) — 실패로 세지 않고 HOME 으로 돌아가 계속한다')
                 else:
                     record(label, False, f'move_to 오류: MoveIncomplete: {e}')
                 cc.move_to('HOME', carrying)
-                continue
-            except Exception as e:                                      # noqa: BLE001 — 어느 자세에서 막혔는지 표에 남긴다
-                record(label, False, f'move_to 오류: {type(e).__name__}: {e}')
                 continue
             time.sleep(p['settle_s'])
             if 'posj' in spec:
@@ -195,7 +205,7 @@ def main() -> int:
                 log.info(f'  ↳ 빠져나오기 {k}: Δ({dx:g}, {dy:g}, {dz:g}) mm — 여기서 팔레트에 안 걸리는지 본다')
 
         log.info('──── ③ 아직 안 찍은 자세 — 움직이지 않고 KeyError ────')
-        for station, kind, point in UNTAUGHT:
+        for station, kind, point in ([] if stopped else UNTAUGHT):
             before = posj()
             try:
                 cc.move_to(station, False, kind, point)
