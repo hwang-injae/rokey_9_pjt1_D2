@@ -79,8 +79,8 @@ def main() -> int:
             dt = time.monotonic() - t0
             check('move_rel 속도 선택 인자(느리게)', near([posx()[0] - after[0]], [s['dx_mm']], tol) and dt >= s['min_time_s'],
                   f"{s['dx_mm']} mm 를 {dt:.1f} s")
-            bed = cell['beds']['SPONGE_BED_B']['origin_posx']
-            up = cc.move_to('SPONGE_BED_B', True)                     # 안전 높이 아래에서 출발 → 먼저 곧게 상승
+            bed = cell['beds']['SPONGE_BED_B']['place']['posx']
+            up = cc.move_to('SPONGE_BED_B', True, point='place')                     # 안전 높이 아래에서 출발 → 먼저 곧게 상승
             check('move_to SPONGE_BED_B(아래에서 출발)', up == safe_z - bed[2] and near(posx()[:3], [bed[0], bed[1], safe_z], tol))
 
             # move_joint_rel: 시간 지정 왕복(털기) · 기본 속도
