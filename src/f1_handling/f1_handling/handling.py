@@ -7,7 +7,7 @@ Result.fail(code) 로 돌려준다. 좌표·숫자는 전부 cell.yaml · params
 물리 인계: F1 이 놓은 자리에서 F3 가 시작한다 → 단독 시험은 용기·툴을 손으로 놓아 주면 된다.
 어떤 실패에서도 로봇은 안전 높이로(cc.safe_retreat), 툴 반납은 flow 가 tool(RETURN) 을 부른다.
 
-진행: ✅ F1-01 move_to · 일반 place (9/20 재분담 — 황인재 세션이 구현, 한석형 검토) / 🚧 pick(F1-02) · tool(F1-03) · rack_place(F1-04) · 안착 놓기(F1-05)
+진행: ✅ F1-01 move_to · 일반 place · ✅ F1-03 tool (9/20 재분담 — 황인재 세션이 구현, 한석형 검토) / 🚧 pick(F1-02) · rack_place(F1-04) · 안착 놓기(F1-05)
   🚧 표시 함수는 아직 약속된 반환 타입만 돌려준다(로봇 동작 없음, V-20 재료). **패키지 주인은 한석형**(결정 기록 W5).
   본문은 cobot_common 의 motion · gripper · force 함수로 채운다:
       import cobot_common as cc
@@ -23,9 +23,33 @@ Result.fail(code) 로 돌려준다. 좌표·숫자는 전부 cell.yaml · params
     — 여기서 삼켜 코드만 돌려주면 "왜 멈췄는지"가 사라진다. 🚨 그래서 이동이 실패한 뒤에는 **release 하지 않는다**(공중에서 놓지 않는다).
 """
 import cobot_common as cc
-from cobot_api import PickResult, PlaceResult, Result, ToolResult
+from cobot_api import (BRUSH, FORCE_LIMIT, PICK, RETURN, SPONGE, TIMEOUT, TOOL_FAIL,
+                       PickResult, PlaceResult, Result, ToolResult)
 
 _PLACE_POINT = 'place'          # 스펀지 홈(cell.beds.*)에서 '용기를 놓는 자리'의 point 이름 (cell.yaml 의 자세 적는 법)
+_TOOL_STATION = {SPONGE: 'TOOL_SPONGE', BRUSH: 'TOOL_BRUSH'}    # 툴 이름 → 홀더 자리 이름 (IRD §2)
+
+
+def _need(mapping, key, where):
+    """값이 없거나 **비어 있으면**(골격의 None) 로봇을 움직이기 전에 KeyError — 어느 키인지 알려 준다(motion.py 와 같은 방식)."""
+    value = (mapping or {}).get(key)
+    if value is None:
+        raise KeyError(f'{where}.{key} 가 없거나 비어 있다 — 채운 뒤에 쓴다. 값이 없으면 로봇을 움직이지 않는다')
+    return value
+
+
+def _retreat():
+    """실패를 돌려주기 전에 안전 높이로 물러난다. 후퇴가 실패해도 **원래 실패 코드를 잃지 않게** 로그만 남긴다.
+
+    (f2 sense.py 와 같은 방식 — flow.call() 의 후퇴는 예외가 올라올 때만 걸리는데, 우리는 코드로 돌려주기 때문에 여기서 해야 한다.)
+    """
+    try:
+        cc.safe_retreat()
+    except Exception as e:                                          # noqa: BLE001 — 후퇴 실패가 실패 코드를 덮으면 안 된다
+        try:
+            cc.io_node().get_logger().error(f'safe_retreat 실패 — {type(e).__name__}: {e}')
+        except Exception:                                           # noqa: BLE001 — 로그가 죽어도 결과는 돌려준다
+            pass
 
 
 def pick(zone_id: str, kind: str) -> PickResult:
@@ -55,7 +79,7 @@ def place(station: str, kind: str = None) -> PlaceResult:
       지금은 스펀지 홈에서도 위 일반 놓기로 돈다(9/20 범위 방어: "단순 놓기부터").
     """
     point = _PLACE_POINT if station in (cc.cfg().get('cell') or {}).get('beds', {}) else None
-    clear = float(cc.cfg()['f1']['place_clear_mm'])                 # 값이 없으면 움직이기 **전에** KeyError
+    clear = float(_need(cc.cfg().get('f1'), 'place_clear_mm', 'params.yaml 의 f1'))   # 값이 없으면 움직이기 **전에** KeyError
     up = float(cc.move_to(station, True, kind, point) or 0.0)       # ① 접근점(없으면 끝점)
     if up > 0.0:
         cc.move_rel(0.0, 0.0, -up, 'BASE')                          # ② 끝점까지 곧게
@@ -78,12 +102,71 @@ def move_to(station: str, carrying: bool, kind: str = None) -> Result:
 
 
 def tool(tool: str, action: str) -> ToolResult:
-    """툴 픽업/반납. tool = SPONGE/BRUSH, action = PICK/RETURN. 폭 범위 밖이면 TOOL_FAIL. — F1-03
+    """툴 픽업/반납. tool = SPONGE/BRUSH, action = PICK/RETURN. 코드 OK / TOOL_FAIL / FORCE_LIMIT / TIMEOUT. — F1-03
 
-    PICK: 홀더(TOOL_SPONGE/TOOL_BRUSH) 상공 → 하강 → grip(프리셋) → 폭 확인(범위 밖 → release·후퇴·TOOL_FAIL) → 상승.
-    RETURN: 홀더 상공 → 하강 → 힘 접촉으로 바닥 확인(f1.tool_return_contact_n, 상한·타임아웃) → release → 후퇴.
+    PICK  : 홀더의 집는 자세(cell.stations.TOOL_*.pick)로 → 접근점이 있으면 끝점까지 하강 → grip(프리셋 폭·힘)
+            → 폭이 프리셋 ± width_tol_mm 이면 OK 로 홀더에서 빼낸다. 범위 밖이면 release(툴을 홀더에 두고) → 후퇴 → TOOL_FAIL.
+    RETURN: 홀더의 반납 자세(cell.stations.TOOL_*.return)로 **툴을 들고** → cc.contact_down 으로 홀더 바닥을 찾는다
+            (접촉 힘 f1.tool_return_contact_n · 최대 깊이 = 접근점까지의 높이 또는 f1.tool_return_depth_mm ·
+             힘 상한과 타임아웃은 contact_down 이 본다 — AGENTS 규칙 2) → release → 되올라오기.
+            🚨 **바닥을 못 찾으면 release 하지 않는다**(공중에서 툴을 떨어뜨리지 않는다) → 후퇴 + TOOL_FAIL.
     🔔 툴을 쥐면 툴 무게가 바뀐다 — 툴 무게 설정이 틀리면 힘 값이 틀어진다(CELL-02a §3-5, 박진용과 협의).
+       contact_down 은 **시작할 때 대비 힘 변화량**으로 본다(절대값 아님)라 이 함정은 이미 피해 간다.
+    🟡 폭 판정: grip() 머리말의 "목표 폭을 기대보다 작게" 함정 — 명령한 폭과 기대 폭이 같으면 **빈손으로 닫아도 통과**할 수 있다.
+       툴(수세미 손잡이·솔)은 그릇(벽 파지 ≈ 2 mm)과 달리 두께가 커서 빈손(≈ 0 mm)과 간격이 충분할 것으로 본다 →
+       프리셋 값을 그렇게 정한다(한석형). **V-08(집기·반납 10회)에서 빈손을 실제로 넣어 확인한다.**
     """
+    station = _TOOL_STATION.get(tool)
+    if station is None:
+        raise ValueError(f'tool: tool={tool!r} — {tuple(_TOOL_STATION)} 중 하나')
+    if action not in (PICK, RETURN):
+        raise ValueError(f'tool: action={action!r} — {PICK!r} 또는 {RETURN!r}')
+    conf = cc.cfg()
+    f1 = conf.get('f1')
+    clear = float(_need(f1, 'tool_clear_mm', 'params.yaml 의 f1'))   # 필요한 값을 **전부 읽은 뒤에** 로봇에 손댄다
+    if action == PICK:
+        preset = ((conf.get('cell') or {}).get('presets') or {}).get(tool)
+        if not preset:
+            raise KeyError(f'cell.presets.{tool} 가 없다 — 툴 파지 폭·힘을 cell.yaml 에 채운다(한석형)')
+        return _tool_pick(station, tool, preset, clear)
+    return _tool_return(station, f1, clear)
+
+
+def _tool_pick(station, tool, preset, clear) -> ToolResult:
+    where = f'cell.presets.{tool}'
+    want = float(_need(preset, 'grip_width_mm', where))
+    tol = float(_need(preset, 'width_tol_mm', where))
+    force = float(_need(preset, 'grip_force_n', where))
+    up = float(cc.move_to(station, False, point='pick') or 0.0)     # 빈손으로 간다
+    if up > 0.0:
+        cc.move_rel(0.0, 0.0, -up, 'BASE')
+    width = float(cc.grip(want, force))
+    if abs(width - want) > tol:                                     # 헛잡음 — 툴을 홀더에 두고 물러난다
+        cc.release()
+        _retreat()
+        return ToolResult.fail(TOOL_FAIL, width_mm=width)
+    cc.move_rel(0.0, 0.0, up if up > 0.0 else clear, 'BASE')        # 홀더에서 빼낸다
+    return ToolResult(width_mm=width)
+
+
+def _tool_return(station, f1, clear) -> ToolResult:
+    limit = float(_need(f1, 'tool_return_contact_n', 'params.yaml 의 f1'))
+    depth_budget = float(_need(f1, 'tool_return_depth_mm', 'params.yaml 의 f1'))   # 🚨 값을 **전부 읽은 뒤에** 로봇에 손댄다
+    up = float(cc.move_to(station, True, point='return') or 0.0)    # 툴을 들고 간다
+    budget = up if up > 0.0 else depth_budget
+    try:
+        depth, _force = cc.contact_down(budget, limit)               # 힘 상한·타임아웃은 contact_down 안에서 본다
+    except cc.ForceLimitError:
+        _retreat()
+        return ToolResult.fail(FORCE_LIMIT)
+    except cc.MotionTimeout:
+        _retreat()
+        return ToolResult.fail(TIMEOUT)
+    if depth >= budget:                                             # 🚨 바닥을 못 찾았다 → 놓지 않는다
+        _retreat()
+        return ToolResult.fail(TOOL_FAIL)
+    cc.release()
+    cc.move_rel(0.0, 0.0, depth + (0.0 if up > 0.0 else clear), 'BASE')   # 접근점이 있으면 접근점까지, 없으면 그 위로
     return ToolResult()
 
 
