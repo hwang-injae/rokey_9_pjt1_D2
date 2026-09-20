@@ -6,6 +6,7 @@
     cc.force_on('z', target=4.0, limit=10.0) → (닦기) → cc.force_off() → cc.safe_retreat()
     cc.move_spiral(rev=2.8, rmax_mm=14, time_s=3) → while not cc.motion_done(): (힘 확인)   # 바닥 나선 (비동기)
     cc.move_arc(mid, end, vel_mm_s=180, vel_deg_s=400, radius_mm=3)                        # 벽면 원호 (이어 붙임)
+    cc.move_periodic([0,0,15,0,0,45], [0,0,1,0,0,1], repeat=5)                             # 위아래 + 비틀기 동시 (비동기)
 
 약속
 - 좌표계는 BASE. axis 는 'x'·'y'·'z'. target·limit·min·max 는 **양수 크기(N)** 이고, 누르는 방향(−axis)은 여기서 붙인다.
@@ -34,7 +35,8 @@ from .motion import is_paused, move_rel
 
 __all__ = ['force_on', 'force_off', 'force_reached', 'force_check', 'compliance_on', 'compliance_off',
            'contact_down', 'periodic_search', 'safe_retreat', 'read_force',
-           'where', 'motion_done', 'move_spiral', 'move_arc', 'ForceLimitError', 'MotionTimeout']
+           'where', 'motion_done', 'move_spiral', 'move_arc', 'move_periodic',
+           'ForceLimitError', 'MotionTimeout']
 
 _AXES = ('x', 'y', 'z')
 _state = {'compliance': False, 'force': False, 'limit': None}   # 지금 켜져 있는 것 (safe_retreat 가 본다)
@@ -288,6 +290,32 @@ def move_spiral(rev, rmax_mm, time_s, axis='z', ref='TOOL'):
     d.mwait()
     _ok(d.amove_spiral(rev=float(rev), rmax=float(rmax_mm), lmax=0.0, vel=[0.0, 0.0], acc=[0.0, 0.0],
                        time=float(time_s) / _vel_scale(), axis=axis_c, ref=ref_c), 'amove_spiral')
+
+
+def move_periodic(amp, period, repeat, ref='TOOL', atime=None):
+    """Move Periodic 을 **비동기로 시작**한다 — 끝을 기다리지 않는다(부르는 쪽이 motion_done() 으로 본다).
+
+    amp · period 는 **[x, y, z, rx, ry, rz]** 6개. 길이 mm · 회전 deg · 주기 s.
+    한 명령으로 **이동과 회전을 같이** 왕복한다(중급교육1 p.71 "일정한 진폭과 주기로 왕복 이동/회전 모션",
+    p.73~75 실습 50 mm/2 s · 15°/2 s · 축마다 다른 주기). 컵 닦기의 "위아래 + 좌우 비틀기 동시"가 이것이다.
+    🚨 어떤 축에 진폭을 주면 **같은 축의 주기도 줘야 한다**(반대도 마찬가지) — 빠지면 두산 오류 2.1218 (p.71~72).
+    repeat = 왕복 횟수. 한 번 왕복하면 출발한 자리로 돌아온다(진폭은 편진폭 — 총 이동거리는 2배, p.71 그림).
+    vel_scale < 1 이면 주기를 그만큼 늘려 느리게 한다(진폭은 그대로 — periodic_search 와 같은 방식).
+    """
+    if len(amp) != 6 or len(period) != 6:
+        raise ValueError('move_periodic: amp · period 는 [x, y, z, rx, ry, rz] 6개로 준다')
+    for i, (a, t) in enumerate(zip(amp, period)):
+        if (a != 0) != (t != 0):                           # 한쪽만 준 축 → 2.1218
+            raise ValueError(f'move_periodic: {i}번 축은 진폭({a})과 주기({t}) 중 하나만 있다 — '
+                             '같은 축의 둘을 함께 준다(중급1 p.71, 두산 오류 2.1218)')
+    if repeat < 1:
+        raise ValueError(f'move_periodic: repeat={repeat} — 1 이상')
+    d = dsr()
+    slow = 1.0 / _vel_scale()
+    d.mwait()
+    _ok(d.amove_periodic(amp=[float(v) for v in amp], period=[float(v) * slow for v in period],
+                         atime=0.0 if atime is None else float(atime),
+                         repeat=int(repeat), ref={'BASE': d.DR_BASE, 'TOOL': d.DR_TOOL}[ref]), 'amove_periodic')
 
 
 def move_arc(mid, end, vel_mm_s, vel_deg_s, radius_mm=0.0):

@@ -19,10 +19,12 @@ CFG = {
         'soap': {'depth_mm': 40.0, 'hold_s': 0.0, 'vel_mm_s': 80.0, 'log_dir': 'logs/f3'},
         'wipe_cup': {
             'tool': {'clean_h_mm': 95, 'd_mm': 55},
-            'insert_depth_mm': 90.0, 'insert_min_mm': 40.0,
-            'rot_deg': 180.0, 'rot_time_s': 1.0, 'cycles': 4,
-            'stroke_mm': 30.0, 'stroke_vel_mm_s': 60.0,
-            'limit_n': 10.0, 'lateral_max_n': 25.0, 'duration_s': 120, 'log_dir': 'logs/f3',
+            'fast_gap_mm': 10.0, 'find_max_mm': 25.0, 'insert_min_mm': 40.0,
+            'lift_mm': 2.0, 'lift_vel_mm_s': 40.0,
+            'stroke_mm': 15.0, 'twist_deg': 45.0, 'period_s': 1.0, 'twist_period_ratio': 1.0,
+            'cycles': 5, 'keep_in_mm': 10.0,
+            'limit_n': 10.0, 'lateral_max_n': 25.0, 'sample_s': 0.0,
+            'duration_s': 120, 'log_dir': 'logs/f3',
         },
     },
 }
@@ -43,13 +45,14 @@ class _Logger:
 class FakeCell:
     """가짜 셀 — 공용 함수 호출을 순서대로 적어 둔다."""
 
-    def __init__(self, up=0.0, depth=85.0, press=2.0, lateral=1.0):
+    def __init__(self, up=80.0, depth=8.0, press=2.0, lateral=1.0):
         self.calls = []
-        self.up, self.depth = up, depth
+        self.up, self.depth = up, depth          # up = 접근점 → 닦는 높이 · depth = 거기서 바닥까지(찾기 구간)
         self.press, self.lateral = press, lateral
         self.pose = list(POSE0)
         self.inserted = False
         self.halted = False
+        self.periodic = 0                        # 남은 왕복 조각 수
         self.logger = _Logger()
 
     def cfg(self):
@@ -64,14 +67,21 @@ class FakeCell:
         self.calls.append(('move_rel', round(dz, 1), round(kw.get('vel_mm_s') or 0.0, 1)))
         self.pose = [self.pose[0] + dx, self.pose[1] + dy, self.pose[2] + dz] + self.pose[3:]
 
-    def move_joint_rel(self, joint, delta_deg, *, time_s=None, carrying=True):
-        self.calls.append(('joint', joint, delta_deg, time_s))
+    def move_periodic(self, amp, period, repeat, ref='TOOL', atime=None):
+        self.calls.append(('periodic', list(amp), list(period), repeat, ref))
+        self.periodic = 5
+
+    def motion_done(self):
+        if self.periodic > 0:
+            self.periodic -= 1
+            return False
+        return True
 
     def contact_down(self, max_depth, limit):
         self.calls.append(('contact_down', max_depth, limit))
         self.inserted = True
         self.pose[2] -= self.depth
-        return self.depth, limit
+        return self.depth, limit                 # 바닥을 찾은 깊이(찾기 구간 안에서)
 
     def read_force(self):
         if not self.inserted:
@@ -101,18 +111,23 @@ class FakeCell:
 def cell(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     c = FakeCell()
-    for name in ('cfg', 'move_to', 'move_rel', 'move_joint_rel', 'contact_down', 'read_force',
-                 'force_off', 'safe_retreat', 'io_node', 'is_halted', 'where'):
+    for name in ('cfg', 'move_to', 'move_rel', 'move_periodic', 'motion_done', 'contact_down',
+                 'read_force', 'force_off', 'safe_retreat', 'io_node', 'is_halted', 'where'):
         monkeypatch.setattr(wipe.cc, name, getattr(c, name), raising=False)
     return c
 
 
 # ------------------------------------------------------------------ soap
+def _dips(cell):
+    """담금 이동만 (접근점에서 내려가는 이동은 속도를 주지 않아 구분된다)."""
+    return [c for c in cell.calls if c[0] == 'move_rel' and c[2] > 0]
+
+
 def test_soap_dips_count_times(cell):
     r = wipe.soap(3, 'BOWL')
     assert r.ok and r.code == OK
-    downs = [c for c in cell.calls if c[0] == 'move_rel' and c[1] < 0]
-    ups = [c for c in cell.calls if c[0] == 'move_rel' and c[1] > 0]
+    downs = [c for c in _dips(cell) if c[1] < 0]
+    ups = [c for c in _dips(cell) if c[1] > 0]
     assert len(downs) == len(ups) == 3                                     # 넣은 만큼 뺀다
     assert downs[0][1] == pytest.approx(-40.0) and ups[0][1] == pytest.approx(40.0)
     assert downs[0][2] == pytest.approx(80.0 * 0.3)                        # 담금 속도 × vel_scale
@@ -134,7 +149,7 @@ def test_soap_is_not_a_contact_motion(cell):
 
 def test_soap_zero_count_is_ok(cell):
     r = wipe.soap(0)
-    assert r.ok and not [c for c in cell.calls if c[0] == 'move_rel']
+    assert r.ok and not _dips(cell)                                        # 담그지 않는다(자리로는 간다)
 
 
 def test_soap_negative_count_is_error(cell):
@@ -157,46 +172,75 @@ def test_soap_halt_is_raised(cell):
 
 
 # ------------------------------------------------------------------ wipe_cup
-def test_cup_inserts_by_force_then_scrubs_by_position(cell):
-    """삽입은 힘으로(contact_down), 문지르기는 관절 이동 — 순응 중에는 관절 이동이 안 된다(2.1903)."""
+DEPTH = 80.0 - 0.0 + 8.0 - 8.0          # 계산은 아래에서 — up(80) 빠른 구간 70 + 찾기 8 = 78 mm 들어간다
+
+
+def test_cup_fast_then_finds_bottom_by_force(cell):
+    """① 바닥 fast_gap 위까지 빠르게 → ② 나머지는 힘으로 찾는다(시나리오 1·2)."""
     r = wipe.wipe_cup()
-    assert r.ok and r.code == OK and r.insert_depth_mm == pytest.approx(85.0)
+    assert r.ok and r.code == OK
     names = [c[0] for c in cell.calls]
-    assert names.index('contact_down') < names.index('joint')
-    assert ('contact_down', 90.0, 5.0) in cell.calls                       # 최대 깊이 · insert_limit_n
+    fast = [c for c in cell.calls if c[0] == 'move_rel' and c[1] < 0][0]
+    assert fast[1] == pytest.approx(-(80.0 - 10.0))                        # up − fast_gap_mm
+    assert ('contact_down', 25.0, 5.0) in cell.calls                       # find_max_mm · insert_limit_n
+    assert names.index('contact_down') < names.index('periodic')
+    assert r.insert_depth_mm == pytest.approx(78.0)                        # 70 빠르게 + 8 찾기
     assert names[-2:] == ['force_off', 'safe_retreat']
 
 
-def test_cup_scrub_cycles_rotate_both_ways_and_stroke(cell):
+def test_cup_lifts_to_middle_then_ends_at_bottom(cell):
+    """③ 왕복 가운데로 띄우고 → ⑥ 위 말고 **아래**에서 끝낸다(시나리오 3·6)."""
     wipe.wipe_cup()
-    joints = [c for c in cell.calls if c[0] == 'joint']
-    assert len(joints) == 8                                                # 4 회 × (정방향 + 역방향)
-    assert all(j[1] == 6 for j in joints)                                  # J6 만 돌린다
-    assert [j[2] for j in joints[:2]] == [180.0, -180.0]                   # 돌린 만큼 되돌린다
-    assert sum(j[2] for j in joints) == pytest.approx(0.0)                 # 손목이 풀린 채 끝나지 않는다
-    strokes = [c for c in cell.calls if c[0] == 'move_rel']
-    assert len(strokes) == 8 and sum(s[1] for s in strokes) == pytest.approx(0.0)
-    assert strokes[0][1] == pytest.approx(30.0)                            # 삽입 85 mm 라 30 mm 그대로
+    ups = [c for c in cell.calls if c[0] == 'move_rel' and c[1] > 0]
+    assert ups[-1][1] == pytest.approx(2.0 + 15.0)                         # lift_mm + stroke
+    last_rel = max(i for i, c in enumerate(cell.calls) if c[0] == 'move_rel')
+    assert cell.calls[last_rel][1] == pytest.approx(-15.0)                 # 마지막 이동은 내려가며 끝난다
+    assert [c[0] for c in cell.calls].index('periodic') < last_rel         # 왕복이 끝난 **뒤**에 내려간다
 
 
-def test_cup_stroke_shrinks_when_shallow(cell):
-    """얕게 들어갔으면 솔이 빠지지 않게 스트로크를 줄인다 (설정이 서로 안 맞을 때의 안전장치)."""
-    CFG['f3']['wipe_cup']['insert_min_mm'] = 10.0                          # 기본값(40)에서는 걸릴 일이 없다
-    cell.depth = 25.0
+def test_cup_stroke_and_twist_are_one_periodic_command(cell):
+    """④⑤ 위아래와 좌우 비틀기를 **한 명령**으로 (중급1 p.71 왕복 이동/회전)."""
+    wipe.wipe_cup()
+    periodics = [c for c in cell.calls if c[0] == 'periodic']
+    assert len(periodics) == 1                                             # 한 번만 부른다
+    _n, amp, period, repeat, ref = periodics[0]
+    assert amp == [0.0, 0.0, 15.0, 0.0, 0.0, 45.0]                         # z 진폭 · rz 비틀기
+    assert period == [0.0, 0.0, 1.0, 0.0, 0.0, 1.0]
+    assert repeat == 5 and ref == 'TOOL'
+
+
+def test_cup_amp_and_period_paired_on_every_axis(cell):
+    """🚨 진폭을 준 축은 주기도 줘야 한다 — 빠지면 두산 오류 2.1218 (중급1 p.71~72)."""
+    wipe.wipe_cup()
+    _n, amp, period, _r, _ref = [c for c in cell.calls if c[0] == 'periodic'][0]
+    assert all((a != 0) == (t != 0) for a, t in zip(amp, period))
+
+
+def test_cup_stroke_shrinks_so_brush_stays_in(cell):
+    """얕게 들어갔으면 솔이 컵 밖으로 나오지 않게 진폭을 줄인다."""
+    cell.up = 30.0                                                         # 20 빠르게 + 8 찾기 = 28 mm 만 들어간다
+    CFG['f3']['wipe_cup']['insert_min_mm'] = 10.0
     try:
         wipe.wipe_cup()
     finally:
         CFG['f3']['wipe_cup']['insert_min_mm'] = 40.0
-    strokes = [c for c in cell.calls if c[0] == 'move_rel' and c[1] > 0]
-    assert strokes[0][1] == pytest.approx(20.0)                            # 25 − 여유 5 (30 이 아니라)
+    _n, amp, _p, _r, _ref = [c for c in cell.calls if c[0] == 'periodic'][0]
+    assert amp[2] == pytest.approx((28.0 - 2.0 - 10.0) / 2)                # (깊이 − lift − keep_in)/2 = 8
 
 
 def test_cup_blocked_too_shallow_is_force_limit(cell):
-    cell.depth = 20.0                                                      # insert_min_mm 40 보다 얕다
+    cell.up = 20.0                                                         # 10 + 8 = 18 mm < insert_min 40
     r = wipe.wipe_cup()
     assert not r.ok and r.code == FORCE_LIMIT
-    assert 'joint' not in [c[0] for c in cell.calls]                       # 문지르지 않는다
-    assert r.insert_depth_mm == pytest.approx(20.0)                        # 어디서 막혔는지는 돌려준다
+    assert 'periodic' not in [c[0] for c in cell.calls]                    # 문지르지 않는다
+    assert r.insert_depth_mm == pytest.approx(18.0)                        # 어디서 막혔는지는 돌려준다
+
+
+def test_cup_no_bottom_found_is_error(cell):
+    cell.depth = 25.0                                                      # find_max_mm 까지 내려가도 못 찾음
+    r = wipe.wipe_cup()
+    assert not r.ok and r.code == ROBOT_ERROR
+    assert 'periodic' not in [c[0] for c in cell.calls]
 
 
 def test_cup_press_over_limit_is_force_limit(cell):
@@ -220,7 +264,13 @@ def test_cup_over_time_is_timeout(cell):
     assert not r.ok and r.code == TIMEOUT
 
 
+def test_cup_halt_is_raised(cell):
+    cell.halted = True
+    with pytest.raises(wipe.cc.MotionHalted):
+        wipe.wipe_cup()
+
+
 def test_cup_logs_depth_and_saves_force_log(cell):
     r = wipe.wipe_cup()
-    assert any('삽입 깊이' in m for lvl, m in cell.logger.lines if lvl == 'info')
+    assert any('바닥' in m for lvl, m in cell.logger.lines if lvl == 'info')
     assert r.force_log_path.endswith('.csv')
