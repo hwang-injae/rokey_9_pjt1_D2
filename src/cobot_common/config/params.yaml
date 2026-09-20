@@ -23,11 +23,27 @@ f2:                                   # ── f2 절 (민범진) ── 값은 
   weigh_samples: 5                    # weigh() 평균 횟수
   weigh_settle_s: 0.5                 # 재기 전 정지 대기 — 하중은 흔들리면 튄다 (SDD §5.3)
   weigh_reset_timeout_s: 3.0          # 0점 재설정 응답 상한. 넘으면 포기하고 계속 (TS-03)
-  shake:
-    WASTE: {amp_deg: 15, cycles: 4, period_s: 0.6}    # 잔반 털기, V-07 에서 조정
-    RINSE: {amp_deg: 10, cycles: 3, period_s: 0.5}    # 물 털기
-  dip:
-    RINSE: {depth_mm: 60, hold_s: 1.0}                # 헹굼 담금
+  limits:                             # 🚨 오타 방어 — 넘는 값이 들어오면 **움직이기 전에** 거절한다
+                                      #    (amp_deg 를 15 대신 150 으로 적으면 용기를 쥔 채 300° 를 왕복한다)
+    max_amp_deg: 45                   # 털기 진폭 상한
+    max_depth_mm: 150                 # 담금 깊이 상한 (수조 깊이 − 용기 높이보다 작아야 한다 — V-07)
+    max_hold_s: 5.0                   # 한 번 유지 시간 상한
+    max_settle_s: 5.0                 # 재기 전 정지 대기 상한
+    min_net_g: -30.0                  # 🚨 잔반 무게가 이보다 작으면 **용기를 놓친 것**으로 본다(GRIP_FAIL)
+                                      #    빈손이면 하중이 옵셋만 남아 net 이 크게 음수가 된다
+  slip_tol_mm: 1.0                    # 🟡 임시 — 털기·담금 전후 그리퍼 폭이 이보다 변하면 미끄러진 것(GRIP_FAIL)
+                                      #    확정은 V-05(폭 흔들림) · V-01(3상태 간격) 결과로.
+                                      #    🚨 너무 작으면 멀쩡한데 실패, 너무 크면 놓쳐도 성공이다
+                                      #    (그릇 파지 폭이 ≈ 2 mm 라 흔들림보다 크고 2 mm 보다 작아야 한다)
+  shake:                              # joint = 흔들 관절(1~6). 🟡 V-07 에서 J5/J6 중 확정 (SDD §5.3)
+                                      # period_s = **한 주기** 시간. shake() 가 구간별로 나눠 쓴다
+                                      #   (가운데↔끝 = period/4, 끝↔반대끝 = period/2 — 황인재 9/20)
+    WASTE: {joint: 5, amp_deg: 15, cycles: 4, period_s: 0.6}    # 잔반 털기, V-07 에서 조정
+    RINSE: {joint: 5, amp_deg: 10, period_s: 0.5}               # 물 털기
+    # 🔔 물 털기 **횟수**는 여기가 아니라 flow.counts.rinse_shakes 다(부르는 쪽이 flow 라서).
+    #    WASTE 에만 cycles 가 있는 것은 leftover_loop 이 스스로 부르기 때문이다.
+  dip:                                # depth_mm = **티칭 자세에서** 내려가는 거리 (SDD §5.3)
+    RINSE: {depth_mm: 60, hold_s: 1.0}                # 헹굼 담금, 60 확인은 V-07
 
 f3:                                   # ── f3 절 (박진용) ── 값의 주인은 박진용. 초안 출처: docs/test_logs/20260918_CELL-02a_용기치수측정.md §4 (SDD §4.3 예시와 다름)
   soap:
@@ -56,6 +72,10 @@ flow:                                 # ── flow 절 (민범진) ── 🟡 
   policy:                             # 실패 정책 (IRD §8): next_zone · isolate · retry:N->isolate · pause
     EMPTY_ZONE: next_zone
     LEFTOVER_REMAIN: isolate
+    GRIP_FAIL: isolate                # 털기·담금 중 미끄러짐(f2) · 빈손 감지(f2 weigh)
+                                      # 🔔 IRD §8·SDD §7 표에는 아직 이 행이 없다 — "GRIP_FAIL 은 pick 내부에서
+                                      #    소화" 를 전제로 쓰였는데, IRD §4 가 f2 의 GRIP_FAIL 을 인정하므로
+                                      #    표에 행을 추가해야 한다(인터페이스 — 4명 확인, 민범진이 이슈로 올림)
     SEAT_FAIL: isolate
     FORCE_LIMIT: "retry:1->isolate"
     TIMEOUT: "retry:1->isolate"
