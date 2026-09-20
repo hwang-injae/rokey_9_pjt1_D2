@@ -11,15 +11,9 @@
 import argparse
 import sys
 
+import cobot_common as cc
 from cobot_api import F3Api, check_api
 from f3_wipe import wipe
-
-try:
-    import cobot_common as cc
-except ModuleNotFoundError as e:
-    if e.name != 'cobot_common':  # cobot_common 은 있는데 그 안에서 난 import 오류(DR_init 등)는 그대로 보여 준다
-        raise
-    cc = None  # INF-02a(bootstrap) 가 main 에 들어오기 전 — 로봇 없이 함수 호출만 확인
 
 
 def main():
@@ -35,20 +29,27 @@ def main():
 
     fn = {'soap': lambda: wipe.soap(a.soap_count), 'bowl': wipe.wipe_bowl, 'cup': wipe.wipe_cup}[a.which]
 
-    if cc is not None:
-        cc.init('rig_f3')                                   # ① 맨 앞에서 한 번
-        log = cc.io_node().get_logger()
-    else:
-        import rclpy.logging
-        log = rclpy.logging.get_logger('rig_f3')
-        log.warning('cobot_common 없음(INF-02a 전) — 로봇 없이 함수 반환만 확인')
+    cc.init('rig_f3')                                       # ① 맨 앞에서 한 번
+    log = cc.io_node().get_logger()
+    log.info(f'vel_scale {cc.cfg().get("run", {}).get("vel_scale", 1.0):g} · {a.which} {a.n} 회 '
+             '· 🚨 실기면 E-Stop 에 손을 두고 본다')
+    means = []
     try:
         for i in range(a.n):                                # ② 연속 3회 이상
-            log.info(f'{i + 1}/{a.n} {a.which} → {fn()}')
+            r = fn()
+            log.info(f'{i + 1}/{a.n} {a.which} → {r}')
+            if getattr(r, 'force_mean_n', None):
+                means.append(r.force_mean_n)
+            if not r.ok:
+                log.error(f'{a.which} 실패({r.code}) — 원인을 고치기 전에는 반복하지 않는다')
+                return 1
+        if means:                                           # 마감 기준(TC-06): 3회의 누르는 힘 평균을 보고한다
+            log.info(f'누르는 힘 평균 {sum(means) / len(means):.2f} N '
+                     f'(회차별 {" · ".join(f"{m:.2f}" for m in means)}) — 이 값이 기준값이 된다')
     finally:
-        if cc is not None:
-            cc.shutdown()                                   # ③ 끝낼 때 (Ctrl+C 포함)
+        cc.shutdown()                                       # ③ 끝낼 때 (Ctrl+C 포함)
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

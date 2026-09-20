@@ -8,7 +8,8 @@
     motion.py                                황인재   move_to · move_rel · move_joint_rel
     gripper.py                               민범진   grip · grip_level · release · grip_width
     weigh.py                                 민범진   weigh
-    force.py                                 박진용   force_on/off · force_reached · contact_down · periodic_search · safe_retreat
+    force.py                                 박진용   force_on/off · force_reached · contact_down · periodic_search · safe_retreat ·
+                                                      where · motion_done · move_spiral · move_arc (닦기 접촉 모션)
 
 함수를 추가할 때 이 파일은 고치지 않는다. 자기 파일의 `__all__` 에 이름을 넣으면 `cc.함수()` 로 보인다.
 이 파일은 두산 API 를 import 하지 않는다(import 만으로는 드라이버·ws_dsr 이 필요 없다).
