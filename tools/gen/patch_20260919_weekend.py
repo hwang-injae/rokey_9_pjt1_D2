@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v8.8'
+VERSION = 'v8.9'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -484,6 +484,17 @@ MORNING_0921 = {
 for _tid, _e in MORNING_0921.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 08:15 황인재 지시: 좌표 작업 담당을 한석형 → 황인재(F4 세션)로 위임
+DEL = '🔀 9/21 08:15 위임(황인재 — 한석형 쪽 좌표 작업이 계속 길어져서):'
+DELEG_0921 = {
+ 'CELL-04':  dict(owner='H(S)', note_add=DEL + ' **좌표 작업 담당을 황인재(F4 세션)로.** 이미 PR #36·#42 로 해 오던 것을 공식화한다 — 파일(cell.yaml) 작업은 F4 가 한석형 확인을 기다리지 않고 진행하고, 한석형은 검토·입회. 어제까지 걸어 둔 "한석형 값이 올 때까지 넣지 말라"는 제한을 푼다. 🚨 다만 **티치펜던트로 자세를 찍는 것은 위임되지 않는다** — 로봇 앞에서 사람이 해야 한다(오늘 저녁 슬롯에서 한석형이 찍거나 황인재가 직접)'),
+ 'CELL-04b': dict(owner='H(S,P)', note_add=DEL + ' 스펀지 홈·툴 홀더 좌표도 같이 — 찍는 것은 로봇 앞에서, 파일에 넣는 것은 F4'),
+ 'V-22':     dict(note_add=DEL + ' 좌표 파일의 주인이 바뀌어도 확인 절차는 그대로(H 주도·S 입회)'),
+ 'F1-02':    dict(note_add=DEL + ' 한석형은 이제 **F1 함수 3개(집기·안착·팔레트)에만** 집중한다 — 좌표 파일 작업은 없다'),
+}
+for _tid, _e in DELEG_0921.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -555,7 +566,7 @@ SLOT['9/22 화'] = {'B': '**V-04·V-15 → F1-05 안착(S, P 참여)** / **V-24 
                    'D': '**F1-04·V-06 → UT-F1(S)** / L2: INT-12a(M·S) → INT-13(P·S) · 로봇 불필요: F4-03·NOTE-02 gif(H)'}
 # 9/20 20:40 재배치·분담 반영(v8.3)
 SLOT['9/21 월']['D'] = ('🚨 **18:30~22:00 (3.5 h) — 시간으로 끊는다**(전부 넣으면 약 5 h). ①②④⑤ 의 전제 = cell.yaml 이동 값 11개(limits 4 + motion 5). '
-                        '**18:30 ① 툴·홀더 확정(P 주도·H·S) + 동시에 한석형이 이동 값 11개 입력**(책상, 로봇 불필요 — 이게 없으면 뒤가 전부 KeyError) / '
+                        '**18:30 ① 툴·홀더 확정(P 주도·H·S)** — 이동 값 11개는 **황인재(F4)가 18:30 전에 파일에 넣는다**(9/21 위임 · 없으면 뒤가 전부 KeyError) / '
                         '**18:50 ② V-24 실기**(H · rig_pause --real, 빈손 → 용기 → 용기 3회차) / '
                         '**19:20 ③ 티칭**(S, 1 h — 툴 홀더 집기·반납 2종 → SOAP 2 → 그릇 집기 접근점 재티칭) / '
                         '**20:20 ④ V-22·V-19**(H·S · rig_coords --real, 막히면 --from 으로 이어서) / '
@@ -663,6 +674,9 @@ HISTORY38 = ['v8.7', '진척', 'V-24, V-22, V-19, V-25, F1-03, F4-02', 'PR #45 m
 HISTORY39 = ['v8.8', '재배치', 'CELL-04, CELL-04b, V-24, V-22, V-25, V-05, F3-02, V-18, V-10, 로봇 슬롯', '9/21 아침 점검: 한석형 값이 밤사이 하나도 안 들어왔다 → ① cell.yaml 빈 값 39개를 3단계로 나눔(이동 11 / 그리퍼 16 = 오늘 저녁 세션 산출물 / 닦기 3) ② 저녁 3.5 h 에 7가지(약 5 h)는 안 들어가 **시간으로 끊고** 박진용 닦기 실기·V-18 을 9/22 오전 첫 순서로 ③ 오늘 저녁 티칭은 툴 홀더·SOAP·그릇 접근점만, 나머지는 9/22 오전',
              'PM 9/21 07:45', 'S,M,P,H']
 
+HISTORY40 = ['v8.9', '위임', 'CELL-04, CELL-04b, V-22, F1-02', '황인재 9/21 08:15: 좌표 작업 담당을 한석형 → 황인재(F4 세션)로 위임 — 한석형 쪽이 계속 길어져서. cell.yaml 파일 작업은 F4 가 기다리지 않고 진행(어제의 "값이 올 때까지 넣지 말라" 제한 해제) · 티치펜던트 티칭은 위임되지 않음(로봇 앞에서 사람이) · 한석형은 F1 함수 3개에 집중',
+             '황인재 9/21 08:15', 'S,H']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -757,7 +771,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
