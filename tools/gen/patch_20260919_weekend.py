@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v8.7'
+VERSION = 'v8.8'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -460,6 +460,30 @@ PR45_0920 = {
 for _tid, _e in PR45_0920.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 07:45 아침 점검 — 값이 하나도 안 들어왔다 → 저녁을 시간으로 끊고 넘치는 것을 9/22 오전으로
+A21 = '🔎 9/21 아침 점검:'
+TIERS = ('🚨 **cell.yaml 빈 값 39개를 3단계로 나눈다**(무엇이 무엇을 막는지): '
+         '**① 이동 11개** = limits 의 vel_free_pct·vel_carry_pct·safe_z_mm·timeout_s + motion 5개 → V-24·V-22·V-19·V-25 와 **모든 실기 이동**의 전제. 로봇 없이 책상에서 10분이면 채운다(스크립트 값: 관절 20 deg/s·40, 직선 60 mm/s·120). '
+         '**② 그리퍼 16개** = presets BOWL·CUP·SPONGE·BRUSH → 집기(F1-02)·툴(F1-03)·V-14 의 전제. 9/21 저녁 그리퍼 세션(민범진)의 **산출물**이다. '
+         '**③ 닦기 3개** = limits.contact_limit_n 2.0 + 닦는 자리 z(그릇 47→68 · 컵 156.54→128) → F3-02·F3-03 의 전제. '
+         '그 밖: SOAP 2·ISOLATE 2·seat 8개는 그 기능을 돌릴 때까지만 있으면 된다')
+MORNING_0921 = {
+ 'CELL-04':  dict(note_add=A21 + ' 밤사이 값이 **하나도 안 들어왔다**(한석형 마지막 커밋 9/20 17:07 = 좌표 정리 문서). ' + TIERS),
+ 'CELL-04b': dict(slots=S('9/20 오후', '9/21 저녁', '9/22 오전', '9/22 오후'),
+                  note_add=A21 + ' 오늘 저녁 티칭은 1시간뿐이라 **급한 순서로 자른다** — 🔴 오늘: 툴 홀더 집기·반납 2종 + SOAP 2(툴·홀더 확정 직후 · F1-03·F3-03 이 9/22 오후에 이걸 기다린다) + 그릇 집기 접근점 재티칭(수평 2.8 mm). 🟡 9/22 오전: ISOLATE 2 · CUP_RACK2_1 · 팔레트 그릇 칸 접근점 2 · 컵 집기 접근 자세'),
+ 'V-24':     dict(note_add=A21 + ' 전제는 위 ①(이동 11개)뿐이다 — presets 는 필요 없다'),
+ 'V-22':     dict(note_add=A21 + ' 전제는 ①뿐. 안 찍은 자세(SOAP·ISOLATE)는 rig 가 건너뛴다'),
+ 'V-25':     dict(note_add=A21 + ' 전제는 ①. place 는 release 만 쓰므로 presets 없이도 돈다'),
+ 'V-05':     dict(note_add=A21 + ' 🔴 이 세션의 산출물이 **presets** 다. 저녁 슬롯이 35분뿐이라 **BOWL·CUP 의 grip_width_mm·grip_force_n·width_tol_mm 6개만** 오늘 확정한다(9/22 오전 F1-02 집기·V-14 가 이것만 기다린다) — HOLD 힘(V-16)·approach_z_mm·SPONGE·BRUSH(툴은 9/22 오후 F1-03) 와 무게(V-02)는 9/22 오전'),
+ # 넘치는 것을 9/22 오전으로
+ 'F3-02':    dict(slots=S('9/20 오전', '9/20 오후', '9/22 오전'),
+                  note_add=A21 + ' 저녁 3.5 h 에 7가지는 들어가지 않는다(합쳐 약 5 h) → **닦기 실기 3회를 9/22 오전 첫 순서로** 옮긴다. 전제는 위 ③(닦기 3개) — 그 값은 오늘 저녁 티칭 때 같이 받는다. 코드는 main 에 있으니 오늘 저녁은 책상에서 준비만'),
+ 'V-18':     dict(slots=S('9/20 오전', '9/20 오후', '9/22 오전'), note_add=A21 + ' F3-02 실기와 함께 9/22 오전으로'),
+ 'V-10':     dict(slots=S('9/22 오전', '9/22 오후'), note_add=A21 + ' F3-02 실기가 9/22 오전 앞으로 와서 V-10 은 오전 뒤~오후로 걸친다'),
+}
+for _tid, _e in MORNING_0921.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -530,9 +554,14 @@ SLOT['9/22 화'] = {'B': '**V-04·V-15 → F1-05 안착(S, P 참여)** / **V-24 
                    'C': '**F1-03·V-08(S)** / UT-F3(P) / UT-F2 잔여(M) — G2(L1) 마감(F1 제외) · 로봇 불필요: FLOW-03·FLOW-01 격리 마무리(M)·INT-4 flow(mock)+HMI(H·M)·F4-03(H)',
                    'D': '**F1-04·V-06 → UT-F1(S)** / L2: INT-12a(M·S) → INT-13(P·S) · 로봇 불필요: F4-03·NOTE-02 gif(H)'}
 # 9/20 20:40 재배치·분담 반영(v8.3)
-SLOT['9/21 월']['D'] = ('🚨 순서(로봇 약 3.5 h): ① **CELL-02b 툴·홀더 확정(P·H·S, 로봇 불필요 — 맨 먼저)** ② V-24 실기 확인(H, 30분) ③ 남은 티칭 CELL-04·04b(S, 1시간: ISOLATE·CUP_RACK2_1·그릇 칸 접근점·홀더·SOAP) '
-                        '④ V-22·V-19 흐름 순서대로 구간 확인(H·S) → **V-25 F1-01 실기 확인(H, 20~30분)** ⑤ 그리퍼·무게 세션 V-05·V-23·V-01·V-16·V-02(M, 1시간) ⑥ F3-02 고정 좌표 3회 + V-18(P) · 로봇 불필요: F1-01(H)·F1-02 코드(S)·F2 kind 수정(M)')
-SLOT['9/22 화'] = {'B': '**F1-02 실기 + V-14(S)** / V-07·V-16 → F2 실기 rig_f2 empty 부터(M) / V-10 → F3-03(P) / V-24 접촉 중 일시 정지(H·P) · 로봇 불필요: CR-01(전원)·ENV-03·NOTE-01·SAFE-01·V-13(H)·FLOW-03(M)·INF-02b 후속(P)',
+SLOT['9/21 월']['D'] = ('🚨 **18:30~22:00 (3.5 h) — 시간으로 끊는다**(전부 넣으면 약 5 h). ①②④⑤ 의 전제 = cell.yaml 이동 값 11개(limits 4 + motion 5). '
+                        '**18:30 ① 툴·홀더 확정(P 주도·H·S) + 동시에 한석형이 이동 값 11개 입력**(책상, 로봇 불필요 — 이게 없으면 뒤가 전부 KeyError) / '
+                        '**18:50 ② V-24 실기**(H · rig_pause --real, 빈손 → 용기 → 용기 3회차) / '
+                        '**19:20 ③ 티칭**(S, 1 h — 툴 홀더 집기·반납 2종 → SOAP 2 → 그릇 집기 접근점 재티칭) / '
+                        '**20:20 ④ V-22·V-19**(H·S · rig_coords --real, 막히면 --from 으로 이어서) / '
+                        '**21:00 ⑤ V-25 F1-01 실기**(H, 20~30분) / '
+                        '**21:25 ⑥ 그리퍼 세션**(M, 35분 — 🔴 **BOWL·CUP 의 폭·힘·허용 오차 6개만**(V-05 → V-01): 내일 오전 집기가 이것만 기다린다. HOLD 힘(V-16)·무게(V-02)·SPONGE·BRUSH 는 9/22 오전) · 로봇 불필요: F1-02 코드(S)·F2 kind·GRIP_FAIL(M)·F3-02 준비(P) · 🛡 밀리면 ⑤⑥ 을 9/22 오전 앞으로')
+SLOT['9/22 화'] = {'B': '🚨 순서: **① F3-02 닦기 3회 + V-18(P, 40분 — 어제 밀린 것)** → ② 한석형 나머지 티칭(ISOLATE 2·CUP_RACK2_1·팔레트 그릇 칸 접근점 2·컵 집기 접근) → ③ **F1-02 집기 + V-14(S)** — presets 가 어제 저녁 그리퍼 세션에서 나왔어야 한다 → ④ V-07·V-16 → F2 실기 rig_f2 empty 부터(M) · 로봇 불필요: CR-01(전원)·ENV-03·NOTE-01·SAFE-01·V-13(H)·FLOW-03(M)·INF-02b 후속(P)',
                    'C': '**V-04·V-15 → F1-05 안착(S, P 참여 — 🛡 단순 놓기부터)** / **F1-03·V-08 툴 집기·반납(H, S 검토)** / F3-03·UT-F3(P) / UT-F2(M) · 로봇 불필요: FLOW-02·FLOW-03·FLOW-01 마무리(M)·INT-4(H·M)',
                    'D': '**F1-04·V-06 → UT-F1(S·H)** / F1-03 잔여(H) / L2: INT-12a(M·S) → INT-13(P·S) · 로봇 불필요: UT-FLOW(M)·NOTE-02 gif(H)'}
 SLOT['9/23 수']['B'] = 'UT-F1 잔여(S·H) → **INT-12b(M 주도·S)** · INT-13 잔여(P·S) · UT-F4·F4-05(H) — G3(L2)'
@@ -631,6 +660,9 @@ HISTORY37 = ['v8.6', '결정·진척', 'F3-02, F3-03, V-10, V-03, INF-02b, CELL-
 HISTORY38 = ['v8.7', '진척', 'V-24, V-22, V-19, V-25, F1-03, F4-02', 'PR #45 merge(9/20 23:00): 9/21 저녁 실기 준비물 — rig_pause·rig_coords 실기 모드(작은 이동 · 단계마다 Enter · vel_scale 0.3 상한 · E-Stop 확인 · --from 으로 이어서) + 절차서·기록 양식 3종. F4 선작업 2건은 PR 전(F1-03 툴 집기·반납 · F4-02b 버튼 헤더) — 황인재가 실기에서 보고 승인',
              'PR #45 · F4 세션', 'H']
 
+HISTORY39 = ['v8.8', '재배치', 'CELL-04, CELL-04b, V-24, V-22, V-25, V-05, F3-02, V-18, V-10, 로봇 슬롯', '9/21 아침 점검: 한석형 값이 밤사이 하나도 안 들어왔다 → ① cell.yaml 빈 값 39개를 3단계로 나눔(이동 11 / 그리퍼 16 = 오늘 저녁 세션 산출물 / 닦기 3) ② 저녁 3.5 h 에 7가지(약 5 h)는 안 들어가 **시간으로 끊고** 박진용 닦기 실기·V-18 을 9/22 오전 첫 순서로 ③ 오늘 저녁 티칭은 툴 홀더·SOAP·그릇 접근점만, 나머지는 9/22 오전',
+             'PM 9/21 07:45', 'S,M,P,H']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -725,7 +757,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
