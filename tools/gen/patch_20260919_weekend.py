@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v7.5'
+VERSION = 'v7.6'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -258,6 +258,16 @@ F2_0920 = {
 for _tid, _e in F2_0920.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/20 17:40 황인재 결정: 한석형의 좌표를 황인재가 작업 파일로 만들어 넘긴다
+HANDOFF_0920 = {
+ 'CELL-04': dict(owner='S(H)', slots=S('9/19 오전', '9/19 오후', '9/20 오전', '9/20 오후', '9/21 저녁'),
+                 note_add='✅ 9/20 17:40 황인재 결정: **한석형이 정리한 좌표를 황인재가 받아 작업 파일(cell.yaml 등)로 만들어 넘겨준다**(파일 주인은 그대로 한석형) — 양식을 데이터에 맞춘다(종류별 자세 · 접근점+끝점 · 슬롯별 절대 자세, move_to 에 kind). 한석형: 빠진 자세(WEIGH·SOAP·ISOLATE·구역 두 번째 슬롯)만 추가로 찍고 BOWL_RINSE_READY z(−13.6) 확인. 팔레트 컵 2칸 코드 변경(5곳)도 같은 PR. 재료 정리: _upload/0920_좌표이전_작업브리프.md'),
+ 'V-22':    dict(note_add='9/20 17:40: 옮긴 cell.yaml 값으로 확인한다(황인재가 만든 파일) — 9/21 저녁, V-24 실기 확인 다음'),
+ 'F1-01':   dict(slots=S('9/21 저녁'), note_add='9/20 17:40: 좌표가 cell.yaml 에 들어온 뒤(황인재 작업 PR) — 9/20 오후 → 9/21 저녁. 한석형의 Virtual 경로 스크립트(rig_f1.py v6)는 그대로 PR 하지 않고, cc.move_to 로 같은 경로를 도는 짧은 rig 로 바꾼다'),
+}
+for _tid, _e in HANDOFF_0920.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -387,6 +397,8 @@ HISTORY25 = ['v7.4', '진척', 'V-24, V-22, FLOW-03, INF-02b, CELL-04', 'PR #34 
              'PR #34', 'H,M,P,S']
 HISTORY26 = ['v7.5', '진척', 'F2-01, F2-02', 'PR #35 merge — F2 기능 함수 4개(weigh·leftover_loop·shake·dip) 구현, 전체 시험 229건. 값은 임시라 실기 전에 빈 용기 기준값 측정부터. GRIP_FAIL 정책(isolate vs pause)은 황인재 결정 대기',
              'PR #35', 'M']
+HISTORY27 = ['v7.6', '결정', 'CELL-04, V-22, F1-01', '황인재 9/20 17:40: 한석형이 정리한 좌표를 황인재가 작업 파일(cell.yaml 등)로 만들어 넘겨준다 — 양식을 데이터에 맞추고(종류별 자세·접근점·슬롯별 절대 자세), 한석형은 빠진 자세만 추가 티칭. F1-01 은 9/21 저녁으로',
+             '황인재 9/20 17:40', 'S,H']
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -481,7 +493,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
