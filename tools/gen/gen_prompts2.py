@@ -132,7 +132,7 @@ ROLES={
 'F3':dict(file='F3_박진용_프롬프트.md',name='박진용',title='F3 접촉 닦기 (스펀지 고정틀·수세미 툴·수세미 솔) + cobot_common 힘 함수·패키지 정리·리뷰 + 안전 파라미터',
  one='용기를 **스펀지 홈에 안착**시키고(안 맞으면 Move Periodic으로 찾고), **툴을 쥔 채 일정한 힘으로 안쪽을 닦는** 동작. 프로젝트에서 가장 어렵고 가장 티 나는 기능. 안전 파라미터 소유.',
  tasks='''- **함수 모듈 `src/f3_wipe/f3_wipe/wipe.py`** (노드 아님): `soap(count, kind=None)`(9/20: **kind** — SOAP 이 종류별 자리: BOWL = 수세미 쥔 자세 · CUP = 솔 쥔 자세 → `cc.move_to('SOAP', True, kind)`) `wipe_bowl()` `wipe_cup()` — 서명·반환은 `cobot_api`(`WipeBowlResult` 등) 그대로(그릇·컵 닦는 동작이 달라 함수 분리). 안착은 F1 `place`가 한다(9/18 결정) — 나는 "용기가 홈에 안착돼 있고 툴을 쥔 상태"에서 시작
-- 설정: **`config/params.yaml`의 `f3` 절 주인**(공용 좌표·힘 상한은 `cell`에서 읽기만): 세제 담금 깊이·시간, 그릇 닦기(9/20 결정 E6: **고정 좌표** — 내려가는 거리 `down_mm`·벽 누름·바퀴 수·힘 상한 10 N·옆 힘 25 N·시간. 벽·바닥을 힘으로 찾지 않는다), 컵 회전 각·스트로크·횟수
+- 설정: **`config/params.yaml`의 `f3` 절 주인**(공용 좌표·힘 상한은 `cell`에서 읽기만): 세제 담금 깊이·시간, 그릇 닦기(9/20 결정 E13: 바닥은 `contact_down` 으로 찾고 벽면은 목표 힘 1.5 N 유지 · 벽은 찾지 않고 치수로 계산 — `find_gap_mm`·`target_force_n`·`bowl_inner_d_mm`·`wall_press_mm`·`spiral_time_s`·`turns`·`twist_deg`·힘 상한 10 N·옆 힘 25 N), 컵 닦기(Move Periodic 로 위아래 + 비틀기 동시 — `stroke_mm`·`twist_deg`·`period_s`·`lift_mm` 는 🟡 V-10 에서 확정)
 - 공용 함수는 F1의 탐색 파지·안착 놓기·팔레트 삽입과 내 닦기가 **같이 쓴다** → 함수 시그니처를 먼저 정해 채널에 공유하고(SDD §3.1), V-03·V-04 결과로 힘 함수를 다듬는다
 - `soap`: 툴 든 채 세제 수조 담금 N회(모션만)
 - `wipe_bowl`: 홈 중심 상공 → 힘제어(툴 Z, 목표 힘) → r1→r2 나선 `turns`회 → 힘 로그 저장 → OFF → 후퇴. **힘 상한·타임아웃 초과 즉시 후퇴**
