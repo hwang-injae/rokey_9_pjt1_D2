@@ -317,6 +317,8 @@ def wipe_cup() -> WipeCupResult:
 
     🚨 그릇(고정 좌표, 결정 E6)과 달리 컵은 **바닥을 힘으로 찾는다** — 컵이 깊고(95 mm) 솔이 단단해
        높이가 어긋나면 바로 세게 박히고, 그릇과 달리 물러서 완충해 줄 것이 없다.
+    🔸 솔 세척부 길이 = 컵 내부 높이(둘 다 95 mm, CELL-02a) → 바닥에 닿으면 세척부가 통째로 들어가고
+       그리퍼 끝은 컵 입구와 나란하다. 그래서 **삽입 깊이는 솔 길이 기준으로 센다**(내려온 거리가 아니다).
     🚨 왕복은 **순응·힘제어를 끈 상태**로 한다(시나리오 3 "힘 풀기") — 명령한 진폭이 실제 진폭이어야 한다.
        안전은 힘 감시가 맡는다: 누르는 힘 limit_n · 옆 힘 lateral_max_n · duration_s · 힘 로그.
     진폭·비틀기 각·주기는 V-10(실기)에서 확정한다.
@@ -336,14 +338,17 @@ def wipe_cup() -> WipeCupResult:
             cc.move_rel(0.0, 0.0, -(up - gap), 'BASE')                   # ① 바닥 gap 위까지 빠르게
         found, _f = cc.contact_down(float(p['find_max_mm']), limits['insert_limit_n'])   # ② 바닥 찾기
         log.center = cc.where()
-        depth = z_top - log.center[2]                                    # 접근점에서 바닥까지 = 들어간 깊이
-        _info(f'wipe_cup 바닥: 들어간 깊이 {depth:.1f} mm (찾기 구간 {found:.1f} / 최대 {p["find_max_mm"]:g}) '
-              f'· 실제 Z {log.center[2]:.1f} mm')
+        # 🔸 삽입 깊이 = **솔이 컵 안에 들어간 길이**다 — 접근점에서 내려온 거리가 아니다(컵 위 빈 공간이 섞인다).
+        #    솔 세척부 길이 = 컵 내부 높이 이므로(CELL-02a), 바닥에 닿으면 세척부가 통째로 들어간 것이고
+        #    gap 을 다 내려가기 전에 막혔으면 그만큼 덜 들어간 것이다.
+        depth = max(0.0, float(p['tool']['clean_h_mm']) - (gap - found))
+        _info(f'wipe_cup 바닥: 솔이 {depth:.1f} mm 들어갔다 (찾기 구간 {found:.1f} / {gap:g} mm) '
+              f'· 실제 Z {log.center[2]:.1f} mm (접근점에서 {z_top - log.center[2]:.1f} mm 하강)')
         if found >= float(p['find_max_mm']) - 0.5:                       # 끝까지 내려가도 바닥이 없다
             raise RuntimeError(f'wipe_cup: {p["find_max_mm"]:g} mm 를 내려가도 바닥을 못 찾았다 — 컵·좌표 확인')
-        if depth < float(p['insert_min_mm']):                            # 너무 얕은 데서 막혔다
-            raise cc.ForceLimitError(f'wipe_cup: 깊이 {depth:.1f} mm 에서 막혔다 '
-                                     f'(최소 {p["insert_min_mm"]:g} mm) — 컵·솔 자리를 확인')
+        if depth < float(p['insert_min_mm']):                            # 바닥에 닿기 전에 막혔다
+            raise cc.ForceLimitError(f'wipe_cup: 솔이 {depth:.1f} mm 밖에 못 들어갔다 '
+                                     f'(최소 {p["insert_min_mm"]:g} mm) — 컵이 제자리인지·솔에 걸리는 것이 없는지 확인')
         _scrub_cup(p, log, depth)                                        # ③④⑤⑥
         code = OK
     except cc.MotionHalted:
@@ -367,7 +372,8 @@ def _scrub_cup(p, log, depth):
     가운데를 바닥 + lift + stroke 에 두면 **가장 낮은 자리가 바닥 + lift** 가 된다 — 바닥을 찧지 않는다.
     """
     lift = float(p['lift_mm'])
-    room = max(0.0, depth - lift - float(p['keep_in_mm']))               # 솔이 컵 밖으로 나오지 않을 여유
+    # 왕복의 꼭대기에서도 솔이 keep_in_mm 만큼은 컵 안에 남아야 한다. 꼭대기 = 바닥에서 lift + 2 × stroke.
+    room = max(0.0, depth - lift - float(p['keep_in_mm']))               # depth = 지금 컵 안에 들어가 있는 솔 길이
     stroke = min(float(p['stroke_mm']), room / 2.0)
     if stroke <= 0:
         raise RuntimeError(f'wipe_cup: 깊이 {depth:.1f} mm 로는 왕복할 자리가 없다 — 좌표·설정 확인')

@@ -19,7 +19,7 @@ CFG = {
         'soap': {'depth_mm': 40.0, 'hold_s': 0.0, 'vel_mm_s': 80.0, 'log_dir': 'logs/f3'},
         'wipe_cup': {
             'tool': {'clean_h_mm': 95, 'd_mm': 55},
-            'fast_gap_mm': 10.0, 'find_max_mm': 25.0, 'insert_min_mm': 40.0,
+            'fast_gap_mm': 10.0, 'find_max_mm': 25.0, 'insert_min_mm': 85.0,
             'lift_mm': 2.0, 'lift_vel_mm_s': 40.0,
             'stroke_mm': 15.0, 'twist_deg': 45.0, 'period_s': 1.0, 'twist_period_ratio': 1.0,
             'cycles': 5, 'keep_in_mm': 10.0,
@@ -172,7 +172,8 @@ def test_soap_halt_is_raised(cell):
 
 
 # ------------------------------------------------------------------ wipe_cup
-DEPTH = 80.0 - 0.0 + 8.0 - 8.0          # 계산은 아래에서 — up(80) 빠른 구간 70 + 찾기 8 = 78 mm 들어간다
+# 삽입 깊이 = 솔 길이 95 − (fast_gap 10 − 실제로 찾은 거리). 가짜는 8 mm 에서 바닥을 만나니 95 − 2 = 93 mm.
+DEPTH = 95.0 - (10.0 - 8.0)
 
 
 def test_cup_fast_then_finds_bottom_by_force(cell):
@@ -184,7 +185,7 @@ def test_cup_fast_then_finds_bottom_by_force(cell):
     assert fast[1] == pytest.approx(-(80.0 - 10.0))                        # up − fast_gap_mm
     assert ('contact_down', 25.0, 5.0) in cell.calls                       # find_max_mm · insert_limit_n
     assert names.index('contact_down') < names.index('periodic')
-    assert r.insert_depth_mm == pytest.approx(78.0)                        # 70 빠르게 + 8 찾기
+    assert r.insert_depth_mm == pytest.approx(DEPTH)                       # 솔이 컵에 들어간 길이 (내려온 거리가 아니다)
     assert names[-2:] == ['force_off', 'safe_retreat']
 
 
@@ -218,22 +219,30 @@ def test_cup_amp_and_period_paired_on_every_axis(cell):
 
 def test_cup_stroke_shrinks_so_brush_stays_in(cell):
     """얕게 들어갔으면 솔이 컵 밖으로 나오지 않게 진폭을 줄인다."""
-    cell.up = 30.0                                                         # 20 빠르게 + 8 찾기 = 28 mm 만 들어간다
+    cell.depth = 2.0                                                       # 8 mm 일찍 막힘 → 95 − 8 = 87... 을 더 줄여 본다
+    CFG['f3']['wipe_cup']['tool']['clean_h_mm'] = 40.0                     # 짧은 솔이라 치고
     CFG['f3']['wipe_cup']['insert_min_mm'] = 10.0
     try:
         wipe.wipe_cup()
     finally:
-        CFG['f3']['wipe_cup']['insert_min_mm'] = 40.0
+        CFG['f3']['wipe_cup']['tool']['clean_h_mm'] = 95
+        CFG['f3']['wipe_cup']['insert_min_mm'] = 85.0
     _n, amp, _p, _r, _ref = [c for c in cell.calls if c[0] == 'periodic'][0]
-    assert amp[2] == pytest.approx((28.0 - 2.0 - 10.0) / 2)                # (깊이 − lift − keep_in)/2 = 8
+    inserted = 40.0 - (10.0 - 2.0)                                         # 32 mm 들어감
+    assert amp[2] == pytest.approx((inserted - 2.0 - 10.0) / 2)            # (들어간 길이 − lift − keep_in)/2 = 10
 
 
-def test_cup_blocked_too_shallow_is_force_limit(cell):
-    cell.up = 20.0                                                         # 10 + 8 = 18 mm < insert_min 40
-    r = wipe.wipe_cup()
+def test_cup_blocked_before_bottom_is_force_limit(cell):
+    """바닥에 닿기 전에 막히면 — 솔이 덜 들어갔다는 뜻이다(내려온 거리와 무관)."""
+    cell.depth = 1.0                                                       # gap 10 중 1 mm 만에 막힘 → 95 − 9 = 86... 아래 참조
+    CFG['f3']['wipe_cup']['insert_min_mm'] = 90.0                          # 90 mm 는 들어가야 한다고 두면
+    try:
+        r = wipe.wipe_cup()
+    finally:
+        CFG['f3']['wipe_cup']['insert_min_mm'] = 85.0
     assert not r.ok and r.code == FORCE_LIMIT
     assert 'periodic' not in [c[0] for c in cell.calls]                    # 문지르지 않는다
-    assert r.insert_depth_mm == pytest.approx(18.0)                        # 어디서 막혔는지는 돌려준다
+    assert r.insert_depth_mm == pytest.approx(95.0 - 9.0)                  # 어디까지 들어갔는지는 돌려준다
 
 
 def test_cup_no_bottom_found_is_error(cell):
