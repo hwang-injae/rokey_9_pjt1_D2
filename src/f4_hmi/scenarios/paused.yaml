@@ -1,0 +1,12 @@
+# 일시정지 — 운영자가 닦는 도중 일시정지를 눌렀다가 재개한다(IRD §6: 그 자리에서 멈췄다 하던 동작을 이어서).
+# 화면의 "일시정지 ↔ 재개" 버튼 전환과 PAUSED 표시를 볼 때.
+title: 일시정지 → 재개
+items:
+  - kind: BOWL
+    zone: RET_B
+    rack_slot: RACK_B1
+    pause: {at: WIPE, after_s: 2.0, hold_s: 6.0, message: '일시 정지 — 운영자 요청'}
+  - kind: CUP
+    zone: RET_C
+    rack_slot: RACK_C1
+    pause: {at: RACK, after_s: 1.0, hold_s: 4.0, message: '일시 정지 — 운영자 요청'}

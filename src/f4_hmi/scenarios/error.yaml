@@ -1,0 +1,8 @@
+# 오류 — 닦는 도중 로봇 오류(ROBOT_ERROR → pause). 사람이 복구해야 하는 상황. 화면의 붉은 알람·"운영자 복구 필요" 안내를 볼 때.
+title: 오류 — 닦는 중 ROBOT_ERROR 로 멈춤
+pause_hold_s: 15.0
+items:
+  - {kind: BOWL, zone: RET_B, rack_slot: RACK_B1}
+  - kind: BOWL
+    zone: RET_B
+    fail: {at: WIPE, code: ROBOT_ERROR, action: pause, message: 'wipe_bowl: 후퇴 실패 — 로봇 위치를 알 수 없다. 사람이 확인해야 한다'}
