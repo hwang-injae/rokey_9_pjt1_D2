@@ -175,8 +175,10 @@ class Run:
         rev = max(1.0, round(r_wall / p['spiral_pitch_mm'], 1))
         self.log.info(f'  바닥: 나선 {rev}바퀴 · 반지름 {r_wall:.1f} mm · {p["spiral_time_s"]:g} s 동안 (비틀기 없음)')
         d.mwait()
-        ret = d.amove_spiral(rev=rev, rmax=r_wall, lmax=0.0, time=float(p['spiral_time_s']),
-                             axis=d.DR_AXIS_Z, ref=d.DR_TOOL)
+        # 🚨 vel·acc 를 **반드시 넘긴다**(파이썬 API 가 없으면 거부: 'Invalid value : vel, v').
+        #    값은 0 으로 두고 time 으로 속도를 정한다(중급교육1 p.69). 속도를 실제 값으로 주면 드라이버가 멈춘다.
+        ret = d.amove_spiral(rev=rev, rmax=r_wall, lmax=0.0, vel=[0.0, 0.0], acc=[0.0, 0.0],
+                             time=float(p['spiral_time_s']), axis=d.DR_AXIS_Z, ref=d.DR_TOOL)
         if ret != 0:
             raise RuntimeError(f'amove_spiral 실패 (반환 {ret!r})')
         self.wait_start()
