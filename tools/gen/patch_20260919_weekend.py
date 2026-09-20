@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v6.6'
+VERSION = 'v6.7'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -97,7 +97,7 @@ PROGRESS = {
  'INF-02a': dict(note_add='후속 수정 merge: #10(콜백 예외로 통신 스레드가 끝나던 문제) · #18(robot=False 면 setup_io 훅 실패를 건너뛴다 — ws_dsr 없이도 init)'),
  'INF-02c': dict(prog='0.7'),
  'INF-02d': dict(prog='0.6', note_add='9/20 민범진: 힘 기준 맞추는 시점 수정은 **로봇 세션 전(오전)에** 한다(V-23 전) · 실측값 반영은 그리퍼 세션 뒤에 이어서'),
- 'INF-02b': dict(prog='0.8', note_add='✅ 9/19 17:40 PR #20 merge — force.py(순응·힘제어·접촉 하강·탐색·안전 후퇴·read_force·예외 2종) + pytest 23건 + Virtual rig · 남은 것: cell.force 값 PR(V-03 뒤)·force_off 끝까지 시도·force_on limit 감시 도우미·periodic_search 힘 감시(V-04 전) · (이전 메모) 9/19 17:16 기준(커밋 기록): 브랜치 jinyong/20260919-INF-02b-force-funcs 에 force.py·test_force.py·rig_force (15커밋), PR 은 아직 · motion.move_rel 이 main 에 들어왔으니(#15) 임시 stub 을 지우고 PR'),
+ 'INF-02b': dict(prog='0.85', note_add='✅ 9/20 PR #24 merge: contact_down 을 시작 힘 대비 변화량으로(실기에서 공중 2 N 때문에 깊이 0.1 mm 에서 접촉 오판) · force_off 끝까지 시도 · force_check 추가 · PR #23 시험 파일 이름 · TS-05 문서 · 남은 것: safe_retreat 가 force_off 실패에도 후퇴하게 · 절대 힘 뒷받침 · periodic_search 힘 감시(V-04 전) · cell.force 값 PR · (이전) ✅ 9/19 17:40 PR #20 merge — force.py(순응·힘제어·접촉 하강·탐색·안전 후퇴·read_force·예외 2종) + pytest 23건 + Virtual rig · 남은 것: cell.force 값 PR(V-03 뒤)·force_off 끝까지 시도·force_on limit 감시 도우미·periodic_search 힘 감시(V-04 전) · (이전 메모) 9/19 17:16 기준(커밋 기록): 브랜치 jinyong/20260919-INF-02b-force-funcs 에 force.py·test_force.py·rig_force (15커밋), PR 은 아직 · motion.move_rel 이 main 에 들어왔으니(#15) 임시 stub 을 지우고 PR'),
  'V-03': dict(prog='0.6', note_add='9/19 오후 실기 4회차까지(커밋 기록 16:04~17:16): 힘제어 중 X·Y 이동 확인, 문지르기 방식 = 손목을 비틀며 나선으로 넓혀 벽을 찾고 벽 따라 2바퀴(8자 삭제) · 남은 것: 결과 문서(docs/test_logs)와 cell.force 값 PR'),
  'V-01': dict(prog='0.7', note_add='✅ 9/19 황인재 확인: 그릇(옆면 세로 파지 ≈ 2 mm)은 빈손과 폭으로 구분된다 · 컵은 벽이 아니라 **몸통을 통째로 파지**(폭 ≈ 컵 지름)라 빈손·그릇과 간격이 충분하다 → 3상태 구분은 사실상 확인됨 · 남은 것: 드라이버 경로(V-05)로 10회씩 기록 + 그릇 전용 허용 오차 값을 cell.yaml 에'),
  'V-05': dict(status='진행 중', prog='0.3', note_add='9/19: 드라이버 소스 분석으로 폭 읽는 경로를 구현(#17 — 관절각 → 폭 환산, 장치가 읽은 0.1 mm 폭과 같다) → 9/20 오전에 실기로 확인(닫힌 쪽 0~5 mm 반복 흔들림 포함), 확정은 그 뒤'),
@@ -250,6 +250,8 @@ HISTORY16 = ['v6.5', '진척·결함', 'V-20, FLOW-01', 'V-20 Virtual 실행(PR 
              'PR #22 · F4 세션 보고', 'M,H']
 HISTORY17 = ['v6.6', '진척', 'FLOW-01, INF-02d, V-02', '민범진 회신(9/20): stop 위치는 문서대로(단계 사이마다 정지)로 고친다 — 든 채 멈출 때 파지는 NORMAL 그대로 · gripper.py 수정은 오전 로봇 세션 전에 · V-02 도구 브랜치는 유지(끝나면 PR)',
              '민범진 회신', 'M']
+HISTORY18 = ['v6.7', '진척', 'INF-02b', 'PR #23(f3 시험 파일 이름 — 이제 pytest -q src 가 제외 없이 166건)·#24(contact_down 을 시작 힘 대비 변화량으로 · force_off 끝까지 · force_check 추가) merge, TS-05(두산 오류 뒤 복구) 문서 merge',
+             'PR #23·#24', 'P,S']
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -343,7 +345,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
