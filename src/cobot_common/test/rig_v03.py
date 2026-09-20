@@ -213,6 +213,14 @@ class Run:
 
         twist = 1
         d.mwait()
+        # 벽까지는 **천천히 밀어 붙이며** 나간다 — 나선이 어디서 끝났든 한 번에 튀어나가면 벽을 세게 박는다(9/20: 25 N 초과)
+        approach_vel = [p['wall_approach_vel_mm_s'] * s, p['scrub_rot_vel_deg_s'] * s]
+        if d.movel(pose(th0, p['scrub_deg']), vel=approach_vel, acc=acc,
+                   radius=0.0, ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS) != 0:
+            raise RuntimeError('벽으로 이동 실패')
+        self.x, self.y = r_wall * math.cos(th0), r_wall * math.sin(th0)
+        self.force_only('wall_touch')
+        self.log.info(f'  벽에 붙임: 반지름 {r_wall:.1f} mm · {p["wall_approach_vel_mm_s"] * s:.0f} mm/s 로 접근')
         for k in range(n):
             th_mid, th_end = th0 + dth * (k + 0.5), th0 + dth * (k + 1)
             rz_mid = p['scrub_deg'] * twist
