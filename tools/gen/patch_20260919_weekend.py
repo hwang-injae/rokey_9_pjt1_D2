@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v6.7'
+VERSION = 'v6.8'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -96,7 +96,7 @@ PROGRESS = {
  'PKG-01': dict(status='완료', note_add='✅ 9/19 완료 — F1 골격 PR #12 · F2 PR #8 · F3 PR #4 전부 main'),
  'INF-02a': dict(note_add='후속 수정 merge: #10(콜백 예외로 통신 스레드가 끝나던 문제) · #18(robot=False 면 setup_io 훅 실패를 건너뛴다 — ws_dsr 없이도 init)'),
  'INF-02c': dict(prog='0.7'),
- 'INF-02d': dict(prog='0.6', note_add='9/20 민범진: 힘 기준 맞추는 시점 수정은 **로봇 세션 전(오전)에** 한다(V-23 전) · 실측값 반영은 그리퍼 세션 뒤에 이어서'),
+ 'INF-02d': dict(prog='0.8', note_add='✅ 9/20 PR #26 merge: 힘 기준 맞추기를 빈손이 확실한 자리(release 뒤·grip 앞)로만, grip_level 은 기준이 없으면 거부 + 실기 시험대 rig_gripper.py(V-05·V-23·V-01 을 재고 판정, 팔은 안 움직임) → 남은 것은 실기 세션 결과 · 9/20 민범진: 힘 기준 맞추는 시점 수정은 **로봇 세션 전(오전)에** 한다(V-23 전) · 실측값 반영은 그리퍼 세션 뒤에 이어서'),
  'INF-02b': dict(prog='0.85', note_add='✅ 9/20 PR #24 merge: contact_down 을 시작 힘 대비 변화량으로(실기에서 공중 2 N 때문에 깊이 0.1 mm 에서 접촉 오판) · force_off 끝까지 시도 · force_check 추가 · PR #23 시험 파일 이름 · TS-05 문서 · 남은 것: safe_retreat 가 force_off 실패에도 후퇴하게 · 절대 힘 뒷받침 · periodic_search 힘 감시(V-04 전) · cell.force 값 PR · (이전) ✅ 9/19 17:40 PR #20 merge — force.py(순응·힘제어·접촉 하강·탐색·안전 후퇴·read_force·예외 2종) + pytest 23건 + Virtual rig · 남은 것: cell.force 값 PR(V-03 뒤)·force_off 끝까지 시도·force_on limit 감시 도우미·periodic_search 힘 감시(V-04 전) · (이전 메모) 9/19 17:16 기준(커밋 기록): 브랜치 jinyong/20260919-INF-02b-force-funcs 에 force.py·test_force.py·rig_force (15커밋), PR 은 아직 · motion.move_rel 이 main 에 들어왔으니(#15) 임시 stub 을 지우고 PR'),
  'V-03': dict(prog='0.6', note_add='9/19 오후 실기 4회차까지(커밋 기록 16:04~17:16): 힘제어 중 X·Y 이동 확인, 문지르기 방식 = 손목을 비틀며 나선으로 넓혀 벽을 찾고 벽 따라 2바퀴(8자 삭제) · 남은 것: 결과 문서(docs/test_logs)와 cell.force 값 PR'),
  'V-01': dict(prog='0.7', note_add='✅ 9/19 황인재 확인: 그릇(옆면 세로 파지 ≈ 2 mm)은 빈손과 폭으로 구분된다 · 컵은 벽이 아니라 **몸통을 통째로 파지**(폭 ≈ 컵 지름)라 빈손·그릇과 간격이 충분하다 → 3상태 구분은 사실상 확인됨 · 남은 것: 드라이버 경로(V-05)로 10회씩 기록 + 그릇 전용 허용 오차 값을 cell.yaml 에'),
@@ -117,8 +117,8 @@ REPLAN_0920 = {
  'CELL-04':  dict(owner='S', note_add='9/20 재계획: 9/19 민범진 참여, 9/20 오전 컵 쪽은 한석형 단독(민범진은 그리퍼 세션이 먼저)'),
  'CELL-04b': dict(slots=S('9/20 오후'), note_add=WHY + ' 오전 → 9/20 오후 첫 순서(박진용 참여 — F3-02 가 SPONGE_BED_B 를 기다린다)'),
  'V-22':     dict(owner='H(S)', slots=S('9/20 오후'), note_add=WHY + ' 한석형 → **황인재 주도**(motion.py 주인이 실기에서 YAML 좌표 재현을 확인한다, 한석형은 좌표 제공·입회) · 티칭 2차 뒤에'),
- 'V-20':     dict(owner='H(M)', prog='0.8', slots=S('9/19 오후', '9/20 오전', '9/20 오후'),   # 9/20 오전 칸은 황인재가 시트에서 직접 추가(9/20)
-             note_add='🟡 9/20 10:35 Virtual 실행(PR #22, 기록 docs/test_logs/20260920_V-20_황인재.md): **4개 중 3개 통과** — 세 모듈 실제 import·robot=True 로 용기 4개 × 함수 13회 ✅ · 모션 중 /flow/state 2.000 Hz ✅ · IDLE 에서 Ctrl+C 뒤 재실행 ✅ · 🔴 **stop 이 함수 사이가 아니라 용기 사이에서만 먹는다**(flow.py run_plan 에서만 stop 을 봄 — IRD §6·SDD §5.1 과 다름) → 민범진이 flow.py 수정 뒤 rig_v20.py probe 로 재검증(5분)하면 완료 · 9/20 재계획: 민범진 → 황인재 주도'),
+ 'V-20':     dict(owner='H(M)', status='완료', slots=S('9/19 오후', '9/20 오전', '9/20 오후'),   # 9/20 오전 칸은 황인재가 시트에서 직접 추가(9/20)
+             note_add='✅ 9/20 완료 — stop 위치 수정(PR #26) 뒤 rig_v20.py probe **4/4 통과**(민범진 재검증, 기록 docs/test_logs/20260920_V-20재검증_FLOW-01_민범진.md · 정지까지 5.8 s → 0.6 s) · (이전) 🟡 9/20 10:35 Virtual 실행(PR #22, 기록 docs/test_logs/20260920_V-20_황인재.md): **4개 중 3개 통과** — 세 모듈 실제 import·robot=True 로 용기 4개 × 함수 13회 ✅ · 모션 중 /flow/state 2.000 Hz ✅ · IDLE 에서 Ctrl+C 뒤 재실행 ✅ · 🔴 **stop 이 함수 사이가 아니라 용기 사이에서만 먹는다**(flow.py run_plan 에서만 stop 을 봄 — IRD §6·SDD §5.1 과 다름) → 민범진이 flow.py 수정 뒤 rig_v20.py probe 로 재검증(5분)하면 완료 · 9/20 재계획: 민범진 → 황인재 주도'),
  'V-16':     dict(owner='M', note_add='9/20 재계획: 한석형 참여 제외 — 찾은 HOLD 값만 한석형에게 전달(cell.yaml 프리셋)'),
  'F1-01':    dict(slots=S('9/20 오후'), note_add=WHY + ' 오전 → 9/20 오후(티칭 2차 뒤) · 그릇 좌표로 먼저'),
  'F1-02':    dict(slots=S('9/21 저녁'), note_add=WHY + ' 9/20 오후 → **9/21 저녁**(로봇 1시간 교대의 한석형 순서) · 코드는 9/20 오후~9/21 에 Virtual 로 미리'),
@@ -137,7 +137,7 @@ REPLAN_0920 = {
  'INT-4a':   dict(slots=S('9/23 저녁'), note_add='9/20 재계획: 9/23 오후 → 저녁 · 🛡 밀리면 4개 연속 → 2개'),
  'FIX-01':   dict(slots=S('9/23 오후', '9/23 저녁')),
  'F3-02':    dict(note_add='9/20 재계획: 셀 좌표(SPONGE_BED_B)는 9/20 오후 티칭 2차 뒤에 나온다 — 그 전에는 V-03 rig 좌표로 만든다'),
- 'FLOW-01':  dict(slots=S('9/19 오전', '9/19 오후', '9/20 오후', '9/22 오후'), note_add='✅ 9/20 민범진 확인: (a) 문서대로 단계 사이마다 정지로 고친다 — 든 채 멈출 때 파지는 NORMAL 그대로·그리퍼 명령을 새로 보내지 않는다(SDD §5.1) · 🔴 9/20 V-20 에서 발견: **stop 을 process_one() 의 단계 사이에서도 봐야 한다**(지금은 용기 사이에서만 → 정지 버튼을 눌러도 용기 1개를 끝낸 뒤에야 멈춘다, IRD §6·SDD §5.1 과 다름) — 9/21 저녁 INT-4·V-13 전에 수정, rig_v20.py probe 로 재검증 · 9/20 재계획: 남은 것(격리 마무리 동작)은 로봇이 필요 없어 비어 있는 9/22 오후로 — 9/20 오전 민범진 7건을 덜어 준다(L2 9/22 저녁 전까지면 된다) · ✅ 9/20 황인재 확정: 격리 마무리 순서 = 툴 반납 → 용기를 ISOLATE 에 놓기 → HOME · ROBOT_ERROR = 그 자리 정지 + PAUSED + 사람이 복구(SDD §7)'),
+ 'FLOW-01':  dict(prog='0.9', slots=S('9/19 오전', '9/19 오후', '9/20 오전', '9/22 오후'), note_add='✅ 9/20 PR #26 merge: stop 을 단계 사이마다(멈출 때 그리퍼 명령 없음) — V-20 4/4 · 남은 것: 격리 마무리 동작(9/22 오후)·재시도/격리 도중의 stop 시험 1건 · 정지 방식 결정 요청 D1~D4(docs/meetings, 민범진 → 황인재) 대기 · ✅ 9/20 민범진 확인: (a) 문서대로 단계 사이마다 정지로 고친다 — 든 채 멈출 때 파지는 NORMAL 그대로·그리퍼 명령을 새로 보내지 않는다(SDD §5.1) · 🔴 9/20 V-20 에서 발견: **stop 을 process_one() 의 단계 사이에서도 봐야 한다**(지금은 용기 사이에서만 → 정지 버튼을 눌러도 용기 1개를 끝낸 뒤에야 멈춘다, IRD §6·SDD §5.1 과 다름) — 9/21 저녁 INT-4·V-13 전에 수정, rig_v20.py probe 로 재검증 · 9/20 재계획: 남은 것(격리 마무리 동작)은 로봇이 필요 없어 비어 있는 9/22 오후로 — 9/20 오전 민범진 7건을 덜어 준다(L2 9/22 저녁 전까지면 된다) · ✅ 9/20 황인재 확정: 격리 마무리 순서 = 툴 반납 → 용기를 ISOLATE 에 놓기 → HOME · ROBOT_ERROR = 그 자리 정지 + PAUSED + 사람이 복구(SDD §7)'),
  'DSN-03':   dict(status='완료', note_add='✅ 9/20 아침 황인재: B7(격리 순서·ROBOT_ERROR)·B11(move_joint_rel)·B12(mock_f2) 승인, 티칭 자세 규칙 확정 → 급한 안건 종료. 보류 안건은 필요할 때'),
  'DSN-04':   dict(status='완료', note_add='✅ 9/20 완료: 결정분을 BR-SR·IRD(§2·§10)·SDD(§3.1·§4.3·§5.2·§5.3·§7)·AGENTS·프롬프트·일정표에 반영, contracts.py pick 설명은 PR #21 · cell.yaml 의 zones/presets 주석은 한석형의 좌표 PR(CELL-04)에서'),
 }
@@ -252,6 +252,8 @@ HISTORY17 = ['v6.6', '진척', 'FLOW-01, INF-02d, V-02', '민범진 회신(9/20)
              '민범진 회신', 'M']
 HISTORY18 = ['v6.7', '진척', 'INF-02b', 'PR #23(f3 시험 파일 이름 — 이제 pytest -q src 가 제외 없이 166건)·#24(contact_down 을 시작 힘 대비 변화량으로 · force_off 끝까지 · force_check 추가) merge, TS-05(두산 오류 뒤 복구) 문서 merge',
              'PR #23·#24', 'P,S']
+HISTORY19 = ['v6.8', '진척', 'V-20, FLOW-01, INF-02d', 'PR #26(민범진) merge: flow 의 stop 을 단계 사이마다 · 그리퍼 힘 기준 맞추기를 빈손 자리로만 · 그리퍼 실기 시험대 → **V-20 완료(4/4)**, FLOW-01 0.9, INF-02d 0.8. 민범진의 정지 방식 결정 요청 D1~D4 접수(황인재 결정 대기)',
+             'PR #26', 'M,H']
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -345,7 +347,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
