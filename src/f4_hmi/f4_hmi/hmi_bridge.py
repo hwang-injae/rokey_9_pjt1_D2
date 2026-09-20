@@ -44,8 +44,11 @@ def main():
     link = RosLink(store, hmi.get('service_timeout_s', 1.0))
     link.start()
     log = link.node.get_logger()
-    host, port = str(hmi.get('host', '0.0.0.0')), int(hmi['port'])
-    log.info(f'HMI 서버를 연다 → http://localhost:{port}  (같은 망의 태블릿은 http://<이 PC 의 IP>:{port})')
+    host, port = str(hmi.get('host', '127.0.0.1')), int(hmi['port'])
+    local_only = host in ('127.0.0.1', 'localhost')
+    log.info(f'HMI 서버를 연다 → http://localhost:{port}  ('
+             + ('이 PC 에서만 접속된다 — 태블릿에서 보려면 params.yaml 의 hmi.host 를 0.0.0.0 으로' if local_only
+                else f'🚨 같은 망의 누구나 접속·버튼 조작이 된다(hmi.host={host}) → http://<이 PC 의 IP>:{port}') + ')')
     try:
         uvicorn.run(create_app(store, cfg, link.call), host=host, port=port, log_level='warning', lifespan='off')     # Ctrl+C 까지 여기서 돈다 (시작·종료 훅은 안 쓴다 → 끌 때 조용하다)
     except KeyboardInterrupt:                           # 런치에서 끄면 Ctrl+C 가 두 번 온다(터미널 + 런치가 전달) → 두 번째는 조용히 넘긴다
