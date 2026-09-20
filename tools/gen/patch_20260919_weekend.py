@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v8.3'
+VERSION = 'v8.4'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -402,6 +402,19 @@ SHARE_0920 = {
 for _tid, _e in SHARE_0920.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/20 21:00 PR #42 merge — E7 구현(안전 높이 경유 삭제) + 도착 확인(MoveIncomplete)
+PR42_0920 = {
+ 'INF-02':  dict(note_add='✅ 9/20 21:00 PR #42 merge(F4 세션 · 황인재가 rig_coords 를 직접 돌려 승인): move_to 가 티칭 자세로 곧장(E7) · 🆕 도착 확인 cc.MoveIncomplete — 이동이 끝났는데 목표에서 2 mm/1° 넘게 떨어져 있으면 오류(컨트롤러가 이동을 도중에 세워도 비동기 이동은 "끝남"으로만 보인다 — Virtual 에서 HOME → RACK_C1 이 122 mm 앞에서 섬). 시험 265건'),
+ 'V-19':    dict(task='V-19 도달 범위·특이점 — 모든 스테이션에 **티칭 경로대로(자리에서 자리로 곧장)** 도달 가능한가', note_add='9/20 #42: 작업명에서 "안전 높이 경유" 삭제(E7)'),
+ 'V-22':    dict(note_add='🚨 9/20 #42: ① 짧은 이동 3~4개로 **도착 확인(2 mm/1°)이 실기에서 헛경보를 내지 않는지** 먼저 ② **HOME → RACK_C1** 직선 이동을 가장 먼저·가장 천천히 — Virtual 에서 가상 컨트롤러가 수동 모드 속도 감시를 걸고 뜬 날에 122 mm 앞에서 섰다(원인 미확정). 서면 MoveIncomplete 로 멈추는 것이 맞는 동작 — 이어 내려가지 않는지 확인, 필요하면 경유 자세를 접근점으로 추가 ③ RET_B 접근 → 그립이 수평 2.78 mm 어긋남(그릇은 벽 2 mm 파지) — 그립 자세에서 z 만 올려 접근점 재티칭 ④ RET_C 는 접근 자세가 없어 관절 이동으로 그립 자세에 곧장 들어간다'),
+ 'V-24':    dict(note_add='9/20 #42: E7 코드가 main 에 → 9/21 저녁 실기 확인은 이 코드로(절차서·기록 양식은 F4 세션이 9/21 낮까지)'),
+ 'CELL-04': dict(prog='0.85', note_add='9/20 #42: WEIGH 2(픽 자세 Z +100) · 그릇 집기(접근 + 그립) 값이 cell.yaml 에 · 구역 슬롯 1개(E9). 남은 것: ISOLATE 2 · CUP_RACK2_1 · 그릇 칸 접근점 2 · RET_B 접근점 재티칭 · 컵 집기 접근 자세 · 툴·SOAP(홀더 확정 뒤) · limits·motion·presets'),
+ 'F1-01':   dict(note_add='9/20 #42 merge 됨 → F4 세션이 착수(황인재 확인 뒤)'),
+ 'FLOW-01': dict(note_add='9/20 #42: cc.MoveIncomplete 는 잡지 말고 위로(ROBOT_ERROR → PAUSED — 재시도·이어 하강 금지)'),
+}
+for _tid, _e in PR42_0920.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -561,6 +574,9 @@ HISTORY33 = ['v8.2', '진척·재배치', 'CELL-04·04b, V-19·22, F1-01~05, V-1
 HISTORY34 = ['v8.3', '분담', 'F1-01, F1-03, V-08, V-19, UT-F1, INT-12b, F1-05, F4-03, ENV-03, NOTE-01, SAFE-01, MID-01·02', '황인재 9/20 20:40: 한석형의 밀린 F1 과업 분담 — F1-01(이동·일반 놓기)·F1-03(툴 집기·반납)+V-08 → 황인재(F4 세션, 한석형 검토) · V-19 실기 확인은 V-22 와 한 세션(황인재 주도) · INT-12b 주도 → 민범진 · 한석형은 집기·안착·팔레트 3개에 집중(🛡 안착은 단순 놓기부터). 황인재 자리: F4-03 은 추석으로, ENV-03 은 9/22 오전, NOTE-01·SAFE-01 초안은 PM 에이전트. 중간점검(MID-01·02)은 9/21 강사 확인 뒤 수정. PR #37 merge',
              '황인재 9/20 20:40', 'S,H,M,P']
 
+HISTORY35 = ['v8.4', '진척', 'INF-02, V-19, V-22, V-24, CELL-04, F1-01, FLOW-01', 'PR #42 merge(9/20 21:00): E7 구현 — move_to 가 티칭 자세로 곧장 + 도착 확인 cc.MoveIncomplete(이동이 도중에 서면 오류) · WEIGH·그릇 집기(접근+그립) 값 · 구역 슬롯 1개(E9). V-22 확인 항목 추가(도착 확인 헛경보 · HOME → RACK_C1 구간 · RET_B 접근점 어긋남). SDD §3.1 · AGENTS §1 · 할일 시트 쉬운 말 3곳(V-24·V-19·F4-02) 정리',
+             'PR #42 · PM 검토', 'S,M,H']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -655,7 +671,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
