@@ -26,7 +26,7 @@ CFG = {
         'rot_vel_deg_s': 740.0, 'rot_acc_deg_s2': 1500.0,
         'bowl_r_max_mm': 150.0, 'r_max_margin_mm': 5.0,
         'wall_gap_mm': 2.0, 'climb_max_mm': 8.0, 'wall_confirm': 1,
-        'follow_gap_mm': 2.0, 'follow_gain': 1.0, 'follow_step_mm': 3.0,
+        'circle_margin_mm': 0.0,
         'turns': 2, 'duration_s': 120, 'log_dir': 'logs/f3',
     }},
 }
@@ -106,6 +106,14 @@ def cell(monkeypatch, tmp_path):
 
 def _radii(c):
     return [math.hypot(p[0] - POSE0[0], p[1] - POSE0[1]) for p in c.poses]
+
+
+def test_circle_radius_is_fixed(cell):
+    """벽을 만난 뒤 2바퀴는 반지름을 고정해서 돈다 (9/20 결정)."""
+    wipe.wipe_bowl()
+    rr = _radii(cell)
+    lap = rr[-20:]                                                         # 마지막 20 걸음 = 벽 따라 도는 중
+    assert max(lap) - min(lap) < 0.01
 
 
 def test_wall_found_and_two_laps_in_reverse(cell):

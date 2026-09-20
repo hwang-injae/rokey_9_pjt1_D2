@@ -43,7 +43,7 @@ def wipe_bowl() -> WipeBowlResult:
       ③ force_on('z', target_force_n, limit_n) — 닿은 채 켠다
       ④ 손목을 좌우로 비틀며(슥삭) 나선으로 반경을 넓혀 간다
       ⑤ **명령한 반경을 못 따라가면(벽에 막힘) 벽** — 힘 크기로 보지 않는다(마찰이 안쪽으로 걸려 구분 불가, V-03 9/20)
-      ⑥ 그 자리에서 **반대 방향으로 turns 바퀴** — 벽을 follow_gap_mm 만큼 누른 채 돌며 벽면을 닦는다
+      ⑥ 그 자리에서 **반대 방향으로 turns 바퀴** — 벽을 만난 반지름 그대로(고정) 돌며 벽면을 닦는다
       ⑦ force_off → safe_retreat (어떤 실패에서도 이 둘은 반드시 한다)
     걸음마다 force_check 로 누르는 힘·옆 힘을 보고 힘 로그(SDD §4.2)에 남긴다.
     """
@@ -174,22 +174,19 @@ def _spiral_find_wall(p, st):
 
 
 def _circle_wall(p, st, r_hit, theta0):
-    """벽에 닿은 자리에서 **나선과 반대 방향**으로 turns 바퀴 — 벽을 follow_gap_mm 만큼 누른 채 돈다.
+    """벽에 닿은 자리에서 **나선과 반대 방향**으로 turns 바퀴 — 반지름은 **고정**(벽을 만난 반지름 − circle_margin_mm).
 
-    그릇이 중심에서 어긋나 있어도 벽을 따라가도록 걸음마다 반지름을 고친다(덜 막히면 바깥, 더 막히면 안쪽).
+    걸음마다 반지름을 고치지 않는다(9/20 결정). 그릇이 가운데에서 많이 어긋나 있으면 한쪽만 닿을 수 있고,
+    반대로 한쪽을 세게 밀면 옆 힘 상한(lateral_max_n)에서 중단된다 — 그릇을 홈 가운데에 놓는 것이 전제다.
     """
-    r, th, done = r_hit, theta0, 0.0
+    r = max(0.0, r_hit - p['circle_margin_mm'])
+    th, done = theta0, 0.0
     while done < 2 * math.pi * p['turns']:
         if st.over_time():
             raise cc.MotionTimeout('wipe_bowl: 벽 따라 돌기 시간 초과')
         dth = p['step_mm'] / max(r, p['step_mm'])
         th, done = th - dth, done + dth                          # 반대 방향
         st.step_to(r * math.cos(th), r * math.sin(th))
-        dr = (p['follow_gap_mm'] - st.gap) * p['follow_gain']
-        if st.climb > p['climb_max_mm']:                         # 벽을 타고 오름 → 안쪽으로
-            dr = -p['follow_step_mm']
-        dr = max(-p['follow_step_mm'], min(p['follow_step_mm'], dr))
-        r = max(0.0, min(st.r_max(), r + dr))
 
 
 # ------------------------------------------------------------------ 🟡 임시 stub (AGENTS §2 — 남의 함수가 아직 없을 때)
