@@ -41,7 +41,7 @@ PC-A ↔ 컨트롤러는 두산 전용 TCP(DDS 아님). PC-A ↔ PC-B는 ROS 2 D
 |---|---|---|---|
 | `/flow/state` | `cobot_msgs/msg/FlowState` (2 Hz) | flow_node → hmi_bridge | PC-A → PC-B (DDS) |
 | `/flow/event` | `cobot_msgs/msg/FlowEvent` | flow_node → hmi_bridge | PC-A → PC-B (DDS) |
-| 🟡 `/cell/force` · `/cell/grip_width` | `std_msgs/msg/Float32` | flow_node → hmi_bridge | PC-A → PC-B (DDS) · 제안, DSN-03 |
+| `/cell/force`(`std_msgs/msg/Float32` @10 Hz, 닦는 동안만) · `/cell/gripping`(`std_msgs/msg/Bool`, 바뀔 때 + 2 Hz) | `std_msgs` | flow_node → hmi_bridge | PC-A → PC-B (DDS) · ✅ 황인재 9/20(힘 그래프 · "파지 중/아님" 표시 — `/cell/grip_width`는 삭제) · IRD §6 |
 | `/flow/start` `/flow/stop` `/flow/resume` | `std_srvs/srv/Trigger` | hmi_bridge → flow_node | PC-B → PC-A (DDS) |
 | **기능 함수 12개** `f1.pick` `place` `move_to` `tool` `rack_place` · `f2.weigh` `leftover_loop` `shake` `dip` · `f3.soap` `wipe_bowl` `wipe_cup` | **파이썬 함수 호출** (반환 타입 `cobot_api.*Result`) | flow_node 메인 스레드 → 기능 패키지 | PC-A 같은 프로세스 (ROS 통신 아님) |
 | `/dsr01/dsr_controller2/motion/move_joint` · `move_line` … | `dsr_msgs2/srv/MoveJoint` · `MoveLine` | cobot_common(DSR_ROBOT2) → dsr_controller2 | PC-A 내부 |
@@ -98,7 +98,7 @@ PC-A ↔ 컨트롤러는 두산 전용 TCP(DDS 아님). PC-A ↔ PC-B는 ROS 2 D
 | `SPONGE_BED_B` / `_C` | 스펀지 고정틀 홈 | UC2 `BED` | 작업대 고정. 닦기 후 재파지 위치(고정) |
 | `TOOL_SPONGE` / `TOOL_BRUSH` | 툴 홀더 | UC2 | 손잡이 방향 고정 |
 | `SOAP` / `RINSE` | 수조 2개(빈) | UC3 `TUB` | 컨트롤러 반대편 |
-| `RACK_B1..2` / `RACK_C1..4` | 식기세척기용 팔레트 모형 | UC4 `RACK` | 기준점 1 + 오프셋(Pallet), 칸별 각도 |
+| `RACK_B1..2` / `RACK_C1..2` | 식기세척기용 팔레트 모형(그릇 2칸·컵 2칸 — 9/20 변경) | UC4 `RACK` | 기준점 1 + 오프셋(Pallet), 칸별 각도 |
 | `ISOLATE` | 격리 구역 | base | 2개 이상 |
 | `HOME` | 안전 자세 | joint | 모든 이동의 시작·끝 |
 
@@ -259,7 +259,7 @@ cell:                                   # 여러 기능이 같이 쓰는 값. �
   beds:                                 # 스펀지 홈(안착 놓기·재파지 위치)
     SPONGE_BED_B: {frame: BED, origin_posx: [...], seat: {approach_z_mm: 30, contact_limit_n: 15, search_amp_mm: 3, search_period_s: 0.8, search_max_s: 6}}
     SPONGE_BED_C: {frame: BED, origin_posx: [...], seat: {approach_z_mm: 30, contact_limit_n: 15, search_amp_mm: 3, search_period_s: 0.8, search_max_s: 6}}
-  rack: {origin_posx: [...], slots: {RACK_B1: {offset_mm: [..], tilt_deg: 30}, RACK_B2: {...}, RACK_C1: {...}, RACK_C2: {...}, RACK_C3: {...}, RACK_C4: {...}}}
+  rack: {origin_posx: [...], slots: {RACK_B1: {offset_mm: [..], tilt_deg: 30}, RACK_B2: {...}, RACK_C1: {...}, RACK_C2: {...}}}   # 컵 칸 4 → 2 (황인재 9/20)
 # ===== params.yaml (기능별 절 · 자기 절만 수정) =====
 f1: {insert_approach_mm: 30, tool_return_contact_n: 8}            # ── f1 절 (한석형) ──
 f2:                                                                 # ── f2 절 (민범진) ──
@@ -274,7 +274,7 @@ f3:                                                                 # ── f3 
   wipe_cup:  {insert_depth_mm: 60, rot_deg: 180, cycles: 4, stroke_mm: 30, limit_n: 10.0}
 flow:                                                               # ── flow 절 (민범진) ──
   plan: [{zone: RET_B, kind: BOWL, count: 2}, {zone: RET_C, kind: CUP, count: 2}]
-  rack_order: {BOWL: [RACK_B1, RACK_B2], CUP: [RACK_C1, RACK_C2, RACK_C3, RACK_C4]}
+  rack_order: {BOWL: [RACK_B1, RACK_B2], CUP: [RACK_C1, RACK_C2]}
   policy: {EMPTY_ZONE: next_zone, LEFTOVER_REMAIN: isolate, SEAT_FAIL: isolate,
            FORCE_LIMIT: retry:1->isolate, TIMEOUT: retry:1->isolate, RACK_JAM: retry:1->isolate, TOOL_FAIL: retry:1->isolate,
            RACK_FULL: pause, ROBOT_ERROR: pause}
@@ -401,9 +401,9 @@ return EMPTY_ZONE (attempts = 슬롯 수)
 - 화면 구성(강의 HMI 요소 반영):
   | 영역 | 내용 |
   |---|---|
-  | 제어 | 시작 · 정지(소프트 E-STOP, 항상 보임, 붉은색) · 재개. 활성 조건은 §6 |
+  | 제어 | 시작 · **일시 정지**(항상 보임) · 재개. 활성 조건은 §6. 🚨 9/20 결정: 이 버튼을 **"E-STOP"이라 부르지 않는다** — 지금 동작을 마친 뒤 멈추는 버튼이고, 비상정지는 로봇의 E-Stop 버튼뿐이다 |
   | 상태 | 모드/단계(step), 현재 용기·구역, 진행률(done/target), 사이클 타임 |
-  | 구역·팔레트 | 반납 구역 2칸(대기/처리중/완료), 팔레트 칸 6개(비어 있음/적재) |
+  | 구역·팔레트 | 반납 구역 2칸(대기/처리중/완료), 팔레트 칸 4개(그릇 2·컵 2 — 비어 있음/적재) |
   | 수량·소모품 | 그릇·컵 성공/격리, 수세미 사용·세제/헹굼 담금 바(임계 도달 시 색) |
   | 통신 | ROS 연결 점(초록/빨강, `/flow/state` 2 s 이상 없으면 빨강), 마지막 수신 시각 |
   | 오류·알람 | 마지막 코드 + 메시지, 오류 로그 목록(붉은 경고 우선) |
@@ -416,7 +416,7 @@ return EMPTY_ZONE (attempts = 슬롯 수)
 | 요소 | 동작 |
 |---|---|
 | 시작 | IDLE에서만 활성. plan 순서대로 처리 |
-| 정지(소프트 E-STOP) | 현재 기능 함수가 끝난 뒤 PAUSED. 항상 표시 |
+| 일시 정지 | 현재 기능 함수가 끝난 뒤 PAUSED(재개를 누르면 다음 단계부터 이어 간다). 항상 표시 |
 | 재개 | PAUSED에서 이전 상태로 |
 | 격리 알림 | 격리 구역이 차면 경고, 비움 확인 버튼 |
 | 팔레트 만재 | RACK_FULL → 교체 후 확인 버튼(resume) |
@@ -447,7 +447,7 @@ return EMPTY_ZONE (attempts = 슬롯 수)
 | 잘못된 그립·전원 차단으로 물체 낙하 | 파지 폭 판정, 들고 있을 때 저속, 낙하 구역에 사람 없음 |
 | 접촉 동작 중 과도한 힘 | 힘 상한 + 후퇴 + 타임아웃(코드 리뷰에서 강제), 순응은 접촉 구간만 |
 | 털기·물 털기 진폭 | 진폭·속도 YAML 상한, 충돌 감지 유지 |
-| 비상정지 버튼 혼동 | 로봇 E-Stop 위치를 브리핑에서 매일 확인, HMI 정지는 소프트 정지임을 명시 |
+| 비상정지 버튼 혼동 | 로봇 E-Stop 위치를 브리핑에서 매일 확인, HMI 버튼은 **일시 정지**(지금 동작을 마친 뒤 멈춤)이지 비상정지가 아님을 화면·발표에서 명시(9/20 결정) |
 | 안전 매개변수 무단 변경 | 안전 암호는 강사 관리, 충돌 감도·속도 한계 변경은 박진용(안전 담당) 승인 |
 | 티치펜던트·ROS 동시 제어 | 티칭 후 제어권 해제 확인 후 브링업 |
 | 액체 | 수조에 물 없음(모션만), 잔반 대용품은 고형물 |
@@ -486,7 +486,7 @@ return EMPTY_ZONE (attempts = 슬롯 수)
 | V-16 | **강한 파지(HOLD) 값 찾기** — 그릇·컵을 `HOLD` 힘으로 쥐고 털기·물 털기를 할 때 낙하·밀림이 없는 최소 힘(용기가 찌그러지지 않는 범위) | M(+S) | 9/20 B (V-23·gripper.py 뒤, F2-01 shake 첫 단계) | 10회 낙하 0, 전후 폭 변화 ≤ 2 mm | 핑거 패드, 진폭·속도 축소 |
 | V-17 | **컵 옆면 파지** — ✅ **9/18 검증 완료**: 옆면 파지로 집기·이송 가능. 단, 털기·헹굼처럼 흔드는 동작에서는 더 강한 파지가 필요 → 파지 힘 2단계(`NORMAL`/`HOLD`) 도입 | S | 완료 | 집기·이송 안정 | — |
 | V-18 | **툴 파지 안정성** — 닦는 힘(3~5 N)이 걸릴 때 수세미 툴·솔이 그리퍼 안에서 밀리거나 돌지 않는가 | P | 9/20 A (F3-02 첫 단계) | 닦기 1회 후 툴 자세 변화 없음 | 손잡이 형상(각·홈) 보강, 파지력 상향 |
-| V-19 | **도달 범위·특이점** — 모든 스테이션(반납 구역·WEIGH·WASTE·스펀지 홈·홀더·수조·팔레트 6칸·격리)에 안전 높이 경유로 도달 가능한가 | S | 9/19 A(티칭과 함께) | 전 지점 도달, 특이점·관절 한계 경고 0 | 워크셀 재배치 |
+| V-19 | **도달 범위·특이점** — 모든 스테이션(반납 구역·WEIGH·WASTE·스펀지 홈·홀더·수조·팔레트 4칸·격리)에 안전 높이 경유로 도달 가능한가 | S | 9/19 A(티칭과 함께) | 전 지점 도달, 특이점·관절 한계 경고 0 | 워크셀 재배치 |
 | V-20 | **실행 뼈대 확인(§3.2)** — `cobot_common.init` + 통신 노드 + 메인 스레드 순서 실행. 9/18 PM이 시험 코드로 Virtual 확인 완료(TS-01 §7) → **팀 코드(`cobot_common` + `flow_node` 뼈대 + 세 모듈의 빈 함수)로 재확인** | M(+H) | 9/19 B (Virtual) | 세 모듈 함수를 번갈아 2바퀴(각 함수 안에서 movej 1회), 모션 중 `/flow/state` 2 Hz, stop 수락, Ctrl+C 뒤 재실행 정상 | 구조 ③(한 프로세스에 노드 3개) — DSN-02b 표 |
 | V-21 | ~~서비스 콜백 안 장시간 모션~~ — **종료.** 구조 변경(DSN-02b)으로 서비스 콜백 안에서 로봇을 움직이지 않는다. 원인·재현은 TS-01 | P | 9/18 종료 | — | — |
 | V-23 | **파지 힘 전환 방법** — 쥔 상태에서 힘만 올려 다시 파지(`grip_level`)가 되는가. `onrobot_rg_control`(Modbus)로 힘 지정이 되는지, DO1/DO2 방식이면 RG2 웹의 프리셋 2종으로 나눌지 | M | 9/20 A (V-05와 한 세션) | 쥔 채 NORMAL→HOLD→NORMAL 전환 10회, 낙하 0 | 처음부터 HOLD 힘으로만 파지(힘 1단계) |
@@ -500,7 +500,7 @@ return EMPTY_ZONE (attempts = 슬롯 수)
 |---|---|---|---|---|---|---|
 | TC-01 | F1 고정 슬롯 파지 | SR-01·02 | 반납 구역의 **고정 슬롯**에 그릇 2개·컵 2개 배치(빈 슬롯 포함), 빈 구역 1회 | `pick(RET_B)` 10회, `pick(RET_C)` 10회, 빈 구역 5회 | 각 ≥9/10, 빈 구역 `EMPTY_ZONE` 5/5, 낙하 0, 두 개 파지 0 | 한석형 |
 | TC-02 | F1 툴·이송 | SR-03 | 툴 홀더 2종 | `tool PICK/RETURN` 각 10회, `move_to` 전 스테이션 | ≥9/10, 안전 높이 준수 | 한석형 |
-| TC-09 | F1 팔레트 적재 | SR-12·13 | 팔레트 모형, 그릇·컵 | `rack_place` 6칸 각 5회, 걸림 유도 2회 | ≥9/10, 낙하 0, 걸림 → `RACK_JAM` 후퇴 | 한석형 |
+| TC-09 | F1 팔레트 적재 | SR-12·13 | 팔레트 모형, 그릇·컵 | `rack_place` 4칸(그릇 2·컵 2) 각 5회, 걸림 유도 2회 | ≥9/10, 낙하 0, 걸림 → `RACK_JAM` 후퇴 | 한석형 |
 | TC-03 | F2 무게 | SR-04 | 100 g·200 g 추 | `weigh` 각 10회 | ±20 g | 민범진 |
 | TC-04 | F2 잔반 폐루프 | SR-05·06 | 대용품 용기 4, 빈 용기 4 | `leftover_loop` | 검출 100%, 오판 0, 재측정 로그 | 민범진 |
 | TC-08 | F2 헹굼·물털기 | SR-11 | 수조(빈) | `dip` + `shake(RINSE)` 10회 | 충돌 정지 0 | 민범진 |

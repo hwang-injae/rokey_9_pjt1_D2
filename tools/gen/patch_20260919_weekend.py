@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v6.8'
+VERSION = 'v6.9'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -90,9 +90,12 @@ NEW = [
 ]
 # 9/19 저녁 진척 취합(PM-01) — 근거: main 에 merge 된 PR #3~#18, 팀원 브랜치의 커밋 기록, 황인재 확인
 PROGRESS = {
+ 'FLOW-02': dict(note_add='🆕 9/20 인터페이스 확정(황인재): flow_node 의 통신 노드가 **/cell/force**(Float32 10 Hz, 닦는 동안만)와 **/cell/gripping**(Bool, 바뀔 때 + 2 Hz)을 발행한다 — 9/22 오전까지(IRD §6). 파지 여부는 gripper.py 가 판정(공개 함수 gripping() 등), 힘 값은 박진용의 닦기 루프가 force.py 에 저장만'),
+ 'F3-02': dict(note_add='🆕 9/20: 닦기 루프에서 읽는 힘 값을 force.py 에 **저장만** 해 둔다(/cell/force 발행은 flow_node 통신 노드 — 기능 함수 안에서 발행기를 만들지 않는다) · 매 걸음 cc.force_check() 로 상한 감시'),
+ 'F4-03': dict(note_add='9/20 F4-00 결정: Next.js 15(Node 18) · [MOCK] 표시 없음 · 닦는 힘 그래프(/cell/force) · 파지 중/아님(/cell/gripping) · 팔레트 4칸(그릇 2·컵 2) · 버튼 이름은 **일시 정지**'),
  'V-02': dict(note_add='9/20 민범진: 측정 도구는 브랜치 beomjin/20260918-V-02-weigh-precision 의 tools/v02_weigh.py(아직 main 에 없음 — 브랜치를 지우지 않는다) → V-02 가 끝나면 결과와 함께 PR'),
  'CELL-03': dict(slots=S('9/20 오전'), note_add='9/20 오전에 한다(황인재 9/20) — 9/19 오전 칸에서 옮김'),
- 'CELL-01': dict(status='진행 중', slots=S('9/18 오후', '9/18 저녁', '9/19 오전', '9/19 오후', '9/20 오전'), note_add='좌표 측정(CELL-04)과 함께 진행 중(황인재 9/20) — 슬롯 자리 표시 포함'),
+ 'CELL-01': dict(task='반납 구역 2곳(그릇·컵)·식기세척기용 팔레트(그릇 2·컵 2 — 9/20 변경)·격리 구역 배치·핑거 패드', status='진행 중', slots=S('9/18 오후', '9/18 저녁', '9/19 오전', '9/19 오후', '9/20 오전'), note_add='좌표 측정(CELL-04)과 함께 진행 중(황인재 9/20) — 슬롯 자리 표시 포함'),
  'PKG-01': dict(status='완료', note_add='✅ 9/19 완료 — F1 골격 PR #12 · F2 PR #8 · F3 PR #4 전부 main'),
  'INF-02a': dict(note_add='후속 수정 merge: #10(콜백 예외로 통신 스레드가 끝나던 문제) · #18(robot=False 면 setup_io 훅 실패를 건너뛴다 — ws_dsr 없이도 init)'),
  'INF-02c': dict(prog='0.7'),
@@ -114,7 +117,7 @@ for _tid, _e in PROGRESS.items():
 #       ④ 동결(9/23 저녁)은 그대로 — 밀리면 SDD §9.9 범위 방어(컵 e2e·실패 주입 4종 → 2종·4개 연속 → 2개)
 WHY = '9/20 재계획: 좌표 작업(CELL-04)이 9/20 오전까지 이어져'
 REPLAN_0920 = {
- 'CELL-04':  dict(owner='S', note_add='9/20 재계획: 9/19 민범진 참여, 9/20 오전 컵 쪽은 한석형 단독(민범진은 그리퍼 세션이 먼저)'),
+ 'CELL-04':  dict(owner='S', note_add='🚨 9/20 황인재: **팔레트 컵 칸 4 → 2**(RACK_C1·C2) — 좌표 PR 에서 cell.yaml 의 RACK_C3·C4 두 줄을 지운다. PM 이 그 PR 을 꼼꼼히 확인한 뒤 승인하고, 같은 때 contracts.py·params.yaml·시험 2개를 맞춘다 · 9/20 재계획: 9/19 민범진 참여, 9/20 오전 컵 쪽은 한석형 단독(민범진은 그리퍼 세션이 먼저)'),
  'CELL-04b': dict(slots=S('9/20 오후'), note_add=WHY + ' 오전 → 9/20 오후 첫 순서(박진용 참여 — F3-02 가 SPONGE_BED_B 를 기다린다)'),
  'V-22':     dict(owner='H(S)', slots=S('9/20 오후'), note_add=WHY + ' 한석형 → **황인재 주도**(motion.py 주인이 실기에서 YAML 좌표 재현을 확인한다, 한석형은 좌표 제공·입회) · 티칭 2차 뒤에'),
  'V-20':     dict(owner='H(M)', status='완료', slots=S('9/19 오후', '9/20 오전', '9/20 오후'),   # 9/20 오전 칸은 황인재가 시트에서 직접 추가(9/20)
@@ -254,6 +257,8 @@ HISTORY18 = ['v6.7', '진척', 'INF-02b', 'PR #23(f3 시험 파일 이름 — �
              'PR #23·#24', 'P,S']
 HISTORY19 = ['v6.8', '진척', 'V-20, FLOW-01, INF-02d', 'PR #26(민범진) merge: flow 의 stop 을 단계 사이마다 · 그리퍼 힘 기준 맞추기를 빈손 자리로만 · 그리퍼 실기 시험대 → **V-20 완료(4/4)**, FLOW-01 0.9, INF-02d 0.8. 민범진의 정지 방식 결정 요청 D1~D4 접수(황인재 결정 대기)',
              'PR #26', 'M,H']
+HISTORY20 = ['v6.9', '결정', 'CELL-04, CELL-01, FLOW-02, F3-02, F4-03', '황인재 9/20: ① 팔레트 컵 칸 4 → 2(RACK_C1·C2) ② HMI 토픽 확정 — /cell/force(힘 그래프) · /cell/gripping(파지 중/아님) 신설, /cell/grip_width 삭제 — 발행은 flow_node, 9/22 오전까지 ③ HMI 정지 버튼 이름 = "일시 정지"(E-STOP 이라 부르지 않는다)',
+             '황인재 9/20', 'S,M,P,H']
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -347,7 +352,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)

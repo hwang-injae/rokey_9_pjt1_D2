@@ -28,7 +28,7 @@
 | 용기 종류 `kind` | `BOWL` `CUP` | |
 | 툴 `tool` | `SPONGE`(그릇용 수세미 툴) `BRUSH`(컵용 수세미 솔) | |
 | 반납 구역 `zone_id` | `RET_B` `RET_C` | 공정 입구. **구역마다 고정 슬롯 2개**(트레이에 자리 표시) — 용기는 슬롯에 겹치지 않게 하나씩 놓는다(9/19 결정: 구역 + 탐색 파지 → 고정 슬롯). ID·함수 서명은 그대로 |
-| 팔레트 칸 `rack_slot` | `RACK_B1` `RACK_B2` / `RACK_C1` `RACK_C2` `RACK_C3` `RACK_C4` | 공정 출구. 그릇 2칸·컵 4칸 |
+| 팔레트 칸 `rack_slot` | `RACK_B1` `RACK_B2` / `RACK_C1` `RACK_C2` | 공정 출구. 그릇 2칸·컵 2칸 (✅ 황인재 9/20: 컵 칸 4 → 2 — `RACK_C3`·`RACK_C4` 삭제. 코드(`cobot_api.RACK_SLOTS`·`cell.yaml`·`params.yaml`)는 한석형의 좌표 PR과 함께 바꾼다) |
 | 스테이션 `station` | `HOME` `WEIGH` `WASTE` `SPONGE_BED_B` `SPONGE_BED_C` `TOOL_SPONGE` `TOOL_BRUSH` `SOAP` `RINSE` `ISOLATE` | 작업대 위 고정 위치 |
 | 실패 코드 `code` | `OK` `GRIP_FAIL` `EMPTY_ZONE` `LEFTOVER` `LEFTOVER_REMAIN` `SEAT_FAIL` `TOOL_FAIL` `FORCE_LIMIT` `TIMEOUT` `RACK_JAM` `RACK_FULL` `ROBOT_ERROR` `STOPPED` | |
 | 흐름 상태 `step` | `IDLE` `PICK` `WEIGH` `SHAKE` `SEAT` `SOAP` `WIPE` `RINSE` `RACK` `ISOLATE` `DONE` `ERROR` `PAUSED` | `PICK` 안에 탐색 포함 |
@@ -68,12 +68,12 @@
 | 인터페이스 | 형식 | 내용 |
 |---|---|---|
 | `/flow/start` | srv `std_srvs/Trigger` | 구역 계획대로 전부 처리 시작 (IDLE에서만). **즉시 응답**하고 실행은 메인 스레드가 한다 |
-| `/flow/stop` | srv `std_srvs/Trigger` | 현재 기능 함수가 끝난 뒤 정지 → `PAUSED` (HMI의 소프트 정지 버튼) |
+| `/flow/stop` | srv `std_srvs/Trigger` | 현재 기능 함수가 끝난 뒤 정지 → `PAUSED` (HMI의 **일시 정지** 버튼 — 9/20 결정: "E-STOP"이라 부르지 않는다. `/flow/resume`으로 다음 단계부터 이어 간다) |
 | `/flow/resume` | srv `std_srvs/Trigger` | 정지·오류 지점부터 재개 |
 | `/flow/state` | msg `cobot_msgs/FlowState` @2 Hz | 아래 정의. HMI는 2 s 이상 안 오면 "연결 끊김" 표시 |
 | `/flow/event` | msg `cobot_msgs/FlowEvent` | 용기 1개 완료·격리·오류마다 1건 → HMI가 SQLite에 저장 |
-| 🟡 `/cell/force` | msg `std_msgs/Float32` @10 Hz(닦는 동안만) | 접촉 힘(N) → HMI 힘 그래프. **제안, DSN-03에서 확정** |
-| 🟡 `/cell/grip_width` | msg `std_msgs/Float32` (파지·놓기마다) | 그리퍼 폭(mm) → HMI 표시. **제안, DSN-03에서 확정** |
+| `/cell/force` | msg `std_msgs/Float32` @10 Hz(**닦는 동안만**) | ✅ 확정(황인재 9/20 — HMI에 닦는 힘 그래프를 넣는다). 접촉 힘의 크기(N, 누르는 축 기준 양수). 닦지 않을 때는 발행하지 않는다. **발행 = `flow_node`의 통신 노드**(민범진), 값은 닦기 루프가 `force.py`에 **저장만** 한다(박진용) — 기능 함수 안에서 발행기를 만들지 않는다(SDD §3.2). 발행 쪽 기한 9/22 오전 |
+| `/cell/gripping` | msg `std_msgs/Bool` — 값이 바뀔 때 1번 + @2 Hz | ✅ 신설(황인재 9/20, 제안이던 `/cell/grip_width`는 **삭제**). `true` = 무언가(용기·툴)를 쥐고 있다 / `false` = 아니다 → HMI의 "파지 중 / 파지 안 하는 중" 표시. 폭(mm)은 화면에 내지 않는다 — 그릇 옆면 파지 폭이 약 2 mm라 **판정은 로봇 쪽(`gripper.py`)이 하고 결과만 보낸다**. 발행 = `flow_node`의 통신 노드(민범진), 기한 9/22 오전. `cobot_msgs` 변경 없음(둘 다 `std_msgs`) → 재빌드 불필요 |
 | HMI 브리지 | REST `POST /api/start` `/api/stop` `/api/resume`, `GET /api/state`, `GET /api/history`, WS `/ws/state` | FastAPI가 rclpy로 중계 (PC-B) |
 
 이 서비스·토픽은 `flow_node`의 **통신 노드**(백그라운드 실행기)가 맡는다. 콜백은 값 저장·깃발 세우기만 하고 로봇 함수를 부르지 않는다(SDD §3.2). 하드웨어 비상정지는 로봇 E-Stop이다. HMI 버튼은 소프트 정지이며 화면에 항상 보이게 둔다.
