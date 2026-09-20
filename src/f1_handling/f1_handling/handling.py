@@ -19,15 +19,15 @@ from cobot_api import PickResult, PlaceResult, Result, ToolResult
 
 
 def pick(zone_id: str, kind: str) -> PickResult:
-    """탐색 파지. 코드 OK / EMPTY_ZONE / ROBOT_ERROR (GRIP_FAIL 은 안에서 재탐색으로 소화). — F1-02
+    """고정 슬롯 파지(9/19 DSN-04). 코드 OK / EMPTY_ZONE / ROBOT_ERROR (빈 슬롯·헛잡음은 안에서 다음 슬롯으로 소화). — F1-02
 
-    절차(SDD §5.2): cell.zones[zone_id].search.offsets_mm 의 탐색점을 차례로 —
-      구역 상공 + (dx, dy) 로 이동(안전 높이) → 그리퍼 열기 → contact_down(descend_max_mm, contact_limit_n)
-      (겹친 용기는 위 용기 높이에서 멈춘다) → grip(프리셋 폭·힘) → 폭이 프리셋 ± width_tol_mm 이면 성공:
-      상승 → PickResult(width_mm, attempts=i+1, offset_x_mm, offset_y_mm).
-      아니면(빈손 ≤ 5 mm · 두 개 파지 > 폭 + tol) release → safe_retreat → 다음 점.
-    max_attempts 를 다 돌면 PickResult.fail(EMPTY_ZONE, attempts=max_attempts).
-    zone_id 가 SPONGE_BED_* 면 고정 위치 재파지(탐색점 1개, cell.beds).
+    절차: cell.zones[zone_id].slots 의 슬롯을 1번부터 차례로 —
+      그리퍼 열기 → cc.move_to(zone_id, False, point=i) (슬롯의 집는 자세 posj 까지 간다) → grip(프리셋 폭·힘)
+      → 폭이 프리셋 ± width_tol_mm 이면 성공: 상승 → PickResult(width_mm, attempts=i).
+      아니면(빈손 · 헛잡음) release → 상승 → 다음 슬롯.  다 돌면 PickResult.fail(EMPTY_ZONE, attempts=슬롯 수).
+    zone_id 가 SPONGE_BED_* 면 고정 위치 재파지(슬롯 1개):
+      그릇 = cc.move_to('SPONGE_BED_B', False, point='place') → 남은 높이만큼 하강 → grip / 컵 = cc.move_to('SPONGE_BED_C', False, point='regrip') → grip.
+    좌표 양식(종류별 · point · 슬롯 · 접근점+끝점)은 src/cobot_common/config/cell.yaml 의 stations 위 설명을 본다(9/20 CELL-04).
     """
     return PickResult()
 
@@ -64,8 +64,9 @@ def tool(tool: str, action: str) -> ToolResult:
 def rack_place(rack_slot: str, kind: str) -> Result:
     """팔레트 칸 삽입. 걸리면 RACK_JAM. — F1-04
 
-    절차(SDD §5.2): cell.rack.origin_posx + slots[rack_slot].offset_mm → tilt_deg 각도 → 상공(f1.insert_approach_mm)
-      → force_on(z) 하강 → contact_down 으로 삽입력 감시(cell.limits.insert_limit_n) → 도달 시 release → 후퇴.
+    절차: up = cc.move_to(rack_slot, True) (칸의 접근점 cell.rack.slots[rack_slot].approach_posx 까지 — 칸마다 절대 자세, 9/20 CELL-04)
+      → 남은 높이 up 만큼 하강: contact_down 으로 삽입력 감시(cell.limits.insert_limit_n) → 도달 시 release → 후퇴.
+      (한석형 티칭 경로: HOME → HOME 의 x·y 그대로 z 338 → 접근점 → 끝점 → 놓기 → 그릇: y −25 · z +200 / 컵: 접근점으로 — cell.yaml rack 주석)
       걸림(힘 > 상한인데 깊이 미달) → 후퇴 → Result.fail(RACK_JAM). V-06 이 안 되면 각도 삽입 → 수직 놓기(SDD §9.9).
     """
     return Result()

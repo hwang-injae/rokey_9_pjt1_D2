@@ -1,0 +1,19 @@
+# rig_coords.py 시험 값 — 🚨 Virtual 전용. 진짜 cell.yaml 에서 **비어 있는** limits·motion 만 이 값으로 채워서 돈다(좌표는 진짜 값 그대로).
+# 실기 값이 아니다 — 실기의 안전 높이·속도는 한석형이 cell.yaml 에 채운다.
+fill:
+  limits:
+    vel_free_pct: 100
+    vel_carry_pct: 60
+    safe_z_mm: 250                  # 한석형 경로의 이동 높이(200~240 mm)보다 조금 위
+  motion:
+    vel_tcp_max_mm_s: 500
+    acc_tcp_max_mm_s2: 1000
+    vel_joint_max_deg_s: 120
+    acc_joint_max_deg_s2: 240
+    move_timeout_s: 40
+tol:
+  joint_deg: 0.5                    # 관절 자세에 도착했는지
+  pos_mm: 1.0                       # 직교 자세의 위치
+  rot_deg: 1.0                      # 직교 자세의 방향
+known_tilted: [RACK_C2]             # ⚠ 접근점 → 끝점이 수직이 아닌 채로 옮겨 온 자세 — 어긋남을 재서 보여 주되 실패로 세지 않는다. 한석형이 다시 찍으면 지운다
+settle_s: 0.3                       # 도착 뒤 자세를 읽기 전에 기다리는 시간
