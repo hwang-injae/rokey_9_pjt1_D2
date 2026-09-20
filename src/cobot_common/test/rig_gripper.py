@@ -146,6 +146,10 @@ def cmd_v23(a, p, log):
     """파지 힘 전환 — 쥔 채 NORMAL ↔ HOLD 를 n 회. 폭이 줄면 놓친 것이다."""
     conf = p['v23']
     preset = cc.cfg()['cell']['presets'][a.kind]
+    for k in ('grip_width_mm', 'width_tol_mm', 'grip_force_n', 'hold_force_n'):
+        if preset.get(k) is None:                   # 키는 있는데 값이 비어 있는 경우까지 잡는다
+            log.error(f'presets.{a.kind}.{k} 가 비어 있다 — rig_gripper_config/cell.yaml 을 채운다')
+            return 2
     log.info(f'V-23  파지 힘 전환 {_STATE_NAME[a.kind]} — NORMAL {preset["grip_force_n"]} N '
              f'↔ HOLD {preset["hold_force_n"]} N 를 {a.n} 회')
 
@@ -154,8 +158,23 @@ def cmd_v23(a, p, log):
         return 1
     _ask(log, f'{_STATE_NAME[a.kind]} 을(를) 그리퍼 사이에 대 주세요')
 
-    w0 = cc.grip(float(preset['grip_width_mm']), float(preset['grip_force_n']))
-    log.info(f'  최초 파지(NORMAL) 폭 {w0:.2f} mm')
+    # 🚨 닫는 목표는 **기대 폭보다 작게** 준다 — SDD §5.2 의 식 그대로.
+    #    기대 폭을 그대로 주면 그리퍼가 **빈손으로도 그 폭에서 멈춰**,
+    #    용기를 안 대 줬는데 "파지 성공 · 낙하 0 회" 로 통과한다.
+    #    그 결과가 한석형의 cell.yaml 파지 힘이 되므로 실기에서 용기를 놓치게 된다.
+    #    (같은 파일 cmd_v01 은 close_mm: 0.0 으로 이 규칙을 지키는데 여기만 빠져 있었다)
+    expect = float(preset['grip_width_mm'])
+    tol = float(preset['width_tol_mm'])
+    target = max(0.0, expect - 2 * tol)
+    w0 = cc.grip(target, float(preset['grip_force_n']))
+    log.info(f'  최초 파지(NORMAL) — 목표 {target:.2f} mm'
+             f'(기대 {expect:.1f} − 2 × 허용오차 {tol:.1f}) → 실제 {w0:.2f} mm')
+    if abs(w0 - expect) > tol:
+        # 용기가 없으면 목표(≈ 0)까지 닫힌다 → 여기서 걸린다. 이 시험은 빈손으로 통과하면 안 된다.
+        log.error(f'  {_STATE_NAME[a.kind]} 이(가) 안 잡혔다 — '
+                  f'폭 {w0:.2f} mm 가 기대 {expect:.1f} ± {tol:.1f} mm 밖이다')
+        log.error('  용기를 제대로 대 주고 다시 실행한다 (힘 전환 시험은 쥐고 있어야 뜻이 있다)')
+        return 1
     # 놓치면 그리퍼가 닫혀 버려 폭이 0 근처로 간다. 절대값(drop_mm)만 쓰면 컵(≈ 70 mm)에서
     # 1 mm 미끄러진 것까지 낙하로 읽는다 → "최초의 절반" 과 함께 보고 더 낮은 쪽을 기준으로 삼는다.
     floor = min(w0 * 0.5, w0 - conf['drop_mm'])
@@ -193,6 +212,14 @@ def cmd_v23(a, p, log):
 def cmd_v01(a, p, log):
     """폭 3상태 구분 — 빈손 · 그릇 · 컵을 **같은 명령** 으로 닫고 폭을 비교한다."""
     conf = p['v01']
+    # 🚨 판정(아래)이 EMPTY·BOWL·CUP 셋을 모두 쓴다. 하나라도 빼고 적으면 사람이 용기를 대 주는
+    #    측정을 **다 끝낸 뒤에** KeyError 가 나서 실기 시간만 버린다 → 로봇을 만지기 전에 거부한다.
+    #    (순서는 바꿔도 된다 — 사람에게 물어보는 차례만 달라진다)
+    need = {'EMPTY', 'BOWL', 'CUP'}
+    if set(conf['states']) != need:
+        log.error(f"v01.states 는 {sorted(need)} 셋이 다 있어야 한다 — 지금 {list(conf['states'])}")
+        log.error('  판정이 셋을 모두 쓴다. 순서는 바꿔도 되지만 빼면 안 된다 (rig_gripper.yaml)')
+        return 2
     close = float(conf['close_mm'])
     log.info(f'V-01  폭 3상태 구분 — 세 상태를 모두 "목표 {close:.1f} mm 로 닫기" 로 {a.n} 회씩')
     log.info('      목표를 기대 폭보다 작게 줘야 빈손과 갈린다(SDD §5.2) → 막는 것이 있으면 거기서 멈춘다')
