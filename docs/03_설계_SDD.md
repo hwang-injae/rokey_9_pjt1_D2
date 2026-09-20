@@ -42,14 +42,14 @@ PC-A ↔ 컨트롤러는 두산 전용 TCP(DDS 아님). PC-A ↔ PC-B는 ROS 2 D
 | `/flow/state` | `cobot_msgs/msg/FlowState` (2 Hz) | flow_node → hmi_bridge | PC-A → PC-B (DDS) |
 | `/flow/event` | `cobot_msgs/msg/FlowEvent` | flow_node → hmi_bridge | PC-A → PC-B (DDS) |
 | `/cell/force`(`std_msgs/msg/Float32` @10 Hz, 닦는 동안만) · `/cell/gripping`(`std_msgs/msg/Bool`, 바뀔 때 + 2 Hz) | `std_msgs` | flow_node → hmi_bridge | PC-A → PC-B (DDS) · ✅ 황인재 9/20(힘 그래프 · "파지 중/아님" 표시 — `/cell/grip_width`는 삭제) · IRD §6 |
-| `/flow/start` `/flow/stop` `/flow/resume` | `std_srvs/srv/Trigger` | hmi_bridge → flow_node | PC-B → PC-A (DDS) |
+| `/flow/start` `/flow/stop` `/flow/resume` `/flow/abort`(9/20 신설) | `std_srvs/srv/Trigger` | hmi_bridge → flow_node | PC-B → PC-A (DDS) |
 | **기능 함수 12개** `f1.pick` `place` `move_to` `tool` `rack_place` · `f2.weigh` `leftover_loop` `shake` `dip` · `f3.soap` `wipe_bowl` `wipe_cup` | **파이썬 함수 호출** (반환 타입 `cobot_api.*Result`) | flow_node 메인 스레드 → 기능 패키지 | PC-A 같은 프로세스 (ROS 통신 아님) |
 | `/dsr01/dsr_controller2/motion/move_joint` · `move_line` … | `dsr_msgs2/srv/MoveJoint` · `MoveLine` | cobot_common(DSR_ROBOT2) → dsr_controller2 | PC-A 내부 |
 | `/dsr01/dsr_controller2/force/task_compliance_ctrl` · `set_desired_force` · `release_force` · `get_workpiece_weight` | `dsr_msgs2/srv/…` | cobot_common → dsr_controller2 | PC-A 내부 |
 | `/onrobot/sendCommand` · 🟡 현재 폭 경로 | 그리퍼 드라이버의 srv (강사 배포 `onrobot_rg_control`). 현재 폭은 `/onrobot_joint_states`(JointState 관절각 → 폭 환산)가 후보 — **V-05에서 확정**. `OnRobotRGInput` 토픽은 나오지 않는다(9/19 확인) | cobot_common ↔ 그리퍼 드라이버 (명령 / 현재 폭) | PC-A 내부 |
 | `/dsr01/joint_states` | `sensor_msgs/msg/JointState` | dsr_controller2 → 모니터링 | PC-A |
 | dsr_controller2 ↔ 컨트롤러 | 두산 전용 TCP, 포트 12345 | | PC-A ↔ 컨트롤러 |
-| 브라우저 ↔ hmi_bridge | HTTP `GET /` · `POST /api/start|stop|resume` · `GET /api/state` · `GET /api/history` · WS `/ws/state` (JSON) | | PC-B 내부 또는 LAN |
+| 브라우저 ↔ hmi_bridge | HTTP `GET /` · `POST /api/start|stop|resume|abort` · `GET /api/state` · `GET /api/history` · WS `/ws/state` (JSON) | | PC-B 내부 또는 LAN |
 | hmi_bridge → prewash.db | SQLite `events`(FlowEvent 필드 그대로) · `state_log` | | PC-B 내부 |
 
 `/dsr01/*`·`/onrobot/*`의 정확한 이름·필드는 [두산 ROS 2 매뉴얼(jazzy)](https://doosanrobotics.github.io/doosan-robotics-ros-manual/jazzy/services/motion_services.html)과 설치본으로 확인한다. 우리 코드는 `cobot_common`을 통해서만 부르므로 이름이 달라도 한 곳만 고친다.
@@ -341,10 +341,12 @@ stateDiagram-v2
   NEXT_ZONE --> DONE: 구역 없음
   state "any" as ANY
   ANY --> PAUSED: stop / ROBOT_ERROR
-  PAUSED --> (이전 상태): resume
+  PAUSED --> (이전 상태): resume (하던 동작을 이어서 · 실패한 단계부터 다시)
+  PAUSED --> ISOLATE: abort (사람이 문제라고 판단 — 툴 반납 → 격리 → HOME → 다음 용기, ROBOT_ERROR 에서는 거부)
 ```
 - 각 전이에서 `/flow/state` 발행(2 Hz 타이머 + 전이 즉시), 용기 종료 시 `/flow/event` + CSV 1행.
-- `stop`은 현재 기능 함수가 끝난 뒤 다음 호출을 보류 — **용기 사이뿐 아니라 `process_one()`의 단계 사이마다** `stop` 깃발을 본다(9/20 V-20에서 발견한 결함의 기준, 재검증은 `rig_v20.py probe`). 용기·툴을 든 채 멈출 수 있다: 그때 **파지는 `NORMAL` 그대로**(기능 함수는 끝날 때 `HOLD` → `NORMAL`로 되돌리므로 단계 사이는 이미 `NORMAL`이다) — 🚨 멈추는 시점에 **그리퍼 명령을 새로 보내지 않는다**(힘을 바꾸면 다시 파지하므로 놓칠 수 있다), 놓지도 않는다. `resume`하면 다음 단계부터 이어 간다. 하드웨어 비상정지는 로봇 E-Stop.
+- ✅ **정지 방식(황인재 9/20)** — 목적: 문제가 생겼을 때 **바로 멈췄다가, 사람이 보고 문제없으면 이어서** 하기. ① **일시 정지**(`/flow/stop`): 통신 노드가 두산 `move_pause`를 불러 **이동 도중 즉시** 멈춘다 — 이동 함수(`motion.py`)를 비동기 이동(`amovej`/`amovel`) + `check_motion` 폴링으로 바꿔야 성립한다(V-24a 시험: 동기 이동 중에는 `move_pause`가 이동이 끝난 뒤에야 처리된다 · 비동기에서는 0.13 s에 멈추고 `move_resume`으로 같은 동작이 이어진다). 호출하는 쪽(F1·F2·F3)의 코드는 바뀌지 않는다. ② **재개**(`/flow/resume`): 하던 이동을 이어서. ③ **중단**(`/flow/abort`): 그 용기를 접고(툴 반납 → 격리 → HOME) 다음 용기. ④ 🚨 **힘제어·접촉 구간**(접촉 하강·닦기·안착 탐색)에서는 즉시 멈추지 않고 그 동작을 마친 뒤 멈춘다(힘이 걸린 채 멈추는 동작은 Virtual에서 시험할 수 없었다 — 9/22 실기 확인 뒤 넓힐 수 있다). ⑤ 되돌아갈 자리: 9/22 오전까지 실기 확인이 안 되면 아래의 "단계 사이 정지"만으로 시연한다(서비스 이름이 같아 HMI는 그대로).
+- (기반 — 9/20 오전 구현 완료) `stop`은 현재 기능 함수가 끝난 뒤 다음 호출을 보류 — **용기 사이뿐 아니라 `process_one()`의 단계 사이마다** `stop` 깃발을 본다(9/20 V-20에서 발견한 결함의 기준, 재검증은 `rig_v20.py probe`). 용기·툴을 든 채 멈출 수 있다: 그때 **파지는 `NORMAL` 그대로**(기능 함수는 끝날 때 `HOLD` → `NORMAL`로 되돌리므로 단계 사이는 이미 `NORMAL`이다) — 🚨 멈추는 시점에 **그리퍼 명령을 새로 보내지 않는다**(힘을 바꾸면 다시 파지하므로 놓칠 수 있다), 놓지도 않는다. `resume`하면 다음 단계부터 이어 간다. 하드웨어 비상정지는 로봇 E-Stop.
 - **실행 구조**(§3.2): `flow_node.py`의 `main()`이 ① `cobot_common.init('flow_node')` ② 통신 노드(`io_node()`)에 `/flow/start·stop·resume` 서비스, `/flow/state` 2 Hz 타이머, `/flow/event` 발행기를 단다 — **콜백은 깃발(`start`·`stop`·`resume`)만 세운다** ③ 메인 스레드는 `start` 깃발을 기다렸다가 plan대로 기능 함수를 차례로 부르고, **호출 사이마다 `stop` 깃발을 본다.**
 - **예외 보호**: 모든 기능 함수 호출은 한 곳(`Flow.call(fn, *args)`)을 지난다. 예외가 나면 로그를 남기고 `Result.fail(ROBOT_ERROR)`로 바꾼 뒤 `safe_retreat()` → `PAUSED`. 프로세스가 하나라 이 보호가 없으면 함수 하나의 오류가 셀 전체를 멈춘다.
 - **mock 전환**: `params.yaml`의 `flow.use_mock: [f1, f3]`에 있는 기능은 `f2_sense_flow.mock.mock_f1`처럼 같은 함수 이름의 가짜 모듈을 import한다. 전부 mock이면 `cobot_common.init(robot=False)`로 드라이버 없이 돈다.
@@ -401,7 +403,7 @@ return EMPTY_ZONE (attempts = 슬롯 수)
 - 화면 구성(강의 HMI 요소 반영):
   | 영역 | 내용 |
   |---|---|
-  | 제어 | 시작 · **일시 정지**(항상 보임) · 재개. 활성 조건은 §6. 🚨 9/20 결정: 이 버튼을 **"E-STOP"이라 부르지 않는다** — 지금 동작을 마친 뒤 멈추는 버튼이고, 비상정지는 로봇의 E-Stop 버튼뿐이다 |
+  | 제어 | 시작 · **일시 정지**(항상 보임 — 누르면 **즉시** 그 자리에서 멈춤) · **재개**(하던 동작을 이어서) · **중단**(그 용기를 격리하고 다음 용기). 활성 조건은 §6. 멈추면 화면에 **"일시 정지됨 — 어느 단계"** 를 크게 띄운다(한계 문구는 넣지 않는다). 🚨 이 버튼을 **"E-STOP"이라 부르지 않는다** — 비상정지는 로봇(티치펜던트)의 E-Stop 버튼뿐이다 |
   | 상태 | 모드/단계(step), 현재 용기·구역, 진행률(done/target), 사이클 타임 |
   | 구역·팔레트 | 반납 구역 2칸(대기/처리중/완료), 팔레트 칸 4개(그릇 2·컵 2 — 비어 있음/적재) |
   | 수량·소모품 | 그릇·컵 성공/격리, 수세미 사용·세제/헹굼 담금 바(임계 도달 시 색) |
@@ -416,10 +418,10 @@ return EMPTY_ZONE (attempts = 슬롯 수)
 | 요소 | 동작 |
 |---|---|
 | 시작 | IDLE에서만 활성. plan 순서대로 처리 |
-| 일시 정지 | 현재 기능 함수가 끝난 뒤 PAUSED(재개를 누르면 다음 단계부터 이어 간다). 항상 표시 |
+| 일시 정지 · 재개 · 중단 | 일시 정지 = 즉시 멈춤 → PAUSED(힘제어·접촉 구간은 그 동작을 마친 뒤). PAUSED에서 **재개**(이어서) 또는 **중단**(격리 후 다음 용기)만 활성. 일시 정지는 항상 표시 |
 | 재개 | PAUSED에서 이전 상태로 |
 | 격리 알림 | 격리 구역이 차면 경고, 비움 확인 버튼 |
-| 팔레트 만재 | RACK_FULL → 교체 후 확인 버튼(resume) |
+| 팔레트 만재 | RACK_FULL → PAUSED → 팔레트 교체 후 **재개**(적재부터 다시) 또는 **중단**(그 용기 격리) |
 | 소모품 | 임계 도달 시 경고 |
 | 연결 | 끊김 시 버튼 비활성 + 빨간 표시 |
 
@@ -447,7 +449,7 @@ return EMPTY_ZONE (attempts = 슬롯 수)
 | 잘못된 그립·전원 차단으로 물체 낙하 | 파지 폭 판정, 들고 있을 때 저속, 낙하 구역에 사람 없음 |
 | 접촉 동작 중 과도한 힘 | 힘 상한 + 후퇴 + 타임아웃(코드 리뷰에서 강제), 순응은 접촉 구간만 |
 | 털기·물 털기 진폭 | 진폭·속도 YAML 상한, 충돌 감지 유지 |
-| 비상정지 버튼 혼동 | 로봇 E-Stop 위치를 브리핑에서 매일 확인, HMI 버튼은 **일시 정지**(지금 동작을 마친 뒤 멈춤)이지 비상정지가 아님을 화면·발표에서 명시(9/20 결정) |
+| 비상정지 버튼 혼동 | 로봇 E-Stop 위치를 브리핑에서 매일 확인, 공식 정지 수단은 둘: **웹의 일시 정지**(소프트웨어 — PC·네트워크·프로그램이 살아 있어야 먹는다)와 **티치펜던트의 E-Stop**(안전장치는 이것뿐). Ctrl+C는 개발용이라 정지 수단으로 말하지 않는다(9/20 결정) |
 | 안전 매개변수 무단 변경 | 안전 암호는 강사 관리, 충돌 감도·속도 한계 변경은 박진용(안전 담당) 승인 |
 | 티치펜던트·ROS 동시 제어 | 티칭 후 제어권 해제 확인 후 브링업 |
 | 액체 | 수조에 물 없음(모션만), 잔반 대용품은 고형물 |
