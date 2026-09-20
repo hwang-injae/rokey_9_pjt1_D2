@@ -3,6 +3,12 @@
 
     GET  /api/state                     지금 값 전부(연결·상태·그리퍼·힘·최근 이벤트·계획)
     POST /api/start|stop|resume|abort   버튼 → flow 의 같은 이름 서비스 → {ok, message, latency_ms} 를 그대로 돌려준다 (F4-02)
+       🔒 버튼 요청에는 **BUTTON_HEADER 가 있어야 한다**(F4-02b). 없으면 403.
+          왜: 접속을 이 PC 로 한정해도(hmi.host 127.0.0.1 · 결정 E10) **이 PC 브라우저로 연 다른 웹페이지**가
+          `fetch('http://localhost:8000/api/start', {method:'POST'})` 로 **몰래 누를 수 있다**. 브라우저는 그런 '단순 요청'을
+          미리 묻지 않고 그냥 보낸다(응답은 못 읽어도 로봇은 이미 움직인다). 헤더를 하나 요구하면 그 요청은 '단순 요청'이 아니게 되어
+          브라우저가 먼저 서버에 물어보고(preflight), 우리는 다른 출처에 허락을 준 적이 없으므로 **브라우저가 막는다**.
+          우리 화면은 헤더를 붙여 보내므로 그대로 된다. 비밀이 아니라 **다른 출처를 막는 표식**이다(값은 아무 것이나).
     WS   /ws/state                      서버 → 브라우저. 붙자마자 type=state(전부) 1번, 그 뒤로 state · event · force · gripping · conn
     GET  /                              시험 페이지                                     이력(GET /api/history)은 F4-04
 응답 모양은 docs/ref/20260920_F4-00_HMI_설계초안.md §2.
@@ -10,14 +16,15 @@
 import asyncio
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .hub import Hub
 
 STATIC_DIR = Path(__file__).resolve().parent / 'static'
 COMMANDS = ('start', 'stop', 'resume', 'abort')         # IRD §6 의 /flow/* 서비스 이름과 같다
+BUTTON_HEADER = 'X-PreWash'                             # 🔒 버튼 요청에 이 헤더가 있어야 한다 (위 머리말 참고). 값은 보지 않는다
 CONN_CHECK_S = 0.5                                      # 연결 끊김(conn)을 알아채는 간격 — 새 값이 안 와야 끊긴 것이라 기다리다 확인한다
 
 
@@ -39,7 +46,11 @@ def create_app(store, cfg: dict, command=None) -> FastAPI:
         return full()
 
     def make_button(name):
-        def press():                                    # def(동기) → 웹 서버가 작업 스레드에서 돌린다: flow 를 기다려도 다른 요청이 안 막힌다
+        def press(request: Request):                    # def(동기) → 웹 서버가 작업 스레드에서 돌린다: flow 를 기다려도 다른 요청이 안 막힌다
+            if request.headers.get(BUTTON_HEADER) is None:          # 🔒 다른 웹페이지가 몰래 누르지 못하게
+                return JSONResponse(status_code=403, content={
+                    'ok': False, 'latency_ms': 0,
+                    'message': f'{BUTTON_HEADER} 헤더가 없는 요청은 받지 않는다 (이 화면에서 누른 것이 아니다)'})
             if command is None:
                 return {'ok': False, 'message': 'flow 와 연결하는 부분이 없다 (시험 모드)', 'latency_ms': 0}
             return command(name)

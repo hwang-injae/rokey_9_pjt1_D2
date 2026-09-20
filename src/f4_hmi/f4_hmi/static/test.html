@@ -97,7 +97,7 @@ function render() {
 async function press(name) {
   $('reply').className = 'dim'; $('reply').textContent = `/api/${name} 보내는 중…`;
   try {
-    const r = await (await fetch('/api/' + name, {method: 'POST'})).json();
+    const r = await (await fetch('/api/' + name, {method: 'POST', headers: {'X-PreWash': '1'}})).json();   // 🔒 이 화면에서 누른 것이라는 표식 (app.py BUTTON_HEADER)
     $('reply').className = r.ok ? 'yes' : 'no';
     $('reply').textContent = `${r.ok ? '✔' : '✖'} ${name}: ${r.message} (${r.latency_ms} ms)`;
   } catch (e) { $('reply').className = 'no'; $('reply').textContent = `✖ ${name}: HMI 서버에 닿지 않는다`; }

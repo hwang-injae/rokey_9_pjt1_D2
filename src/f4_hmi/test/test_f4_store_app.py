@@ -86,6 +86,9 @@ def test_store_tells_listeners_what_changed():
     assert [p['value'] for k, p in heard if k == 'gripping'] == [True, False]
 
 
+BTN = {'X-PreWash': '1'}            # 🔒 버튼 요청의 표식 (app.BUTTON_HEADER)
+
+
 def _client(command=None):
     pytest.importorskip('fastapi', reason='웹 부품은 HMI 전용 상자(~/venvs/hmi)에만 있다')
     from fastapi.testclient import TestClient
@@ -102,17 +105,28 @@ def test_buttons_pass_the_flow_answer_through():
         return {'ok': name != 'abort', 'message': f'{name} 받음', 'latency_ms': 3}
     _, client = _client(command)
     for name in ('start', 'stop', 'resume', 'abort'):
-        body = client.post(f'/api/{name}').json()
+        body = client.post(f'/api/{name}', headers=BTN).json()
         assert body == {'ok': name != 'abort', 'message': f'{name} 받음', 'latency_ms': 3}
     assert pressed == ['start', 'stop', 'resume', 'abort']
-    assert client.post('/api/explode').status_code in (404, 405)            # 없는 버튼
+    assert client.post('/api/explode', headers=BTN).status_code in (404, 405)   # 없는 버튼
     assert client.get('/api/start').status_code == 405                      # 버튼은 POST 만
 
 
 def test_buttons_without_flow_link_say_so():
     _, client = _client(None)
-    body = client.post('/api/start').json()
+    body = client.post('/api/start', headers=BTN).json()
     assert body['ok'] is False and body['message']
+
+
+def test_buttons_refuse_a_request_without_the_header():
+    """🔒 F4-02b — 이 PC 브라우저로 연 다른 웹페이지가 몰래 누르는 것을 막는다(결정 E10 의 후속)."""
+    pressed = []
+    _, client = _client(lambda name: pressed.append(name) or {'ok': True, 'message': '', 'latency_ms': 1})
+    for name in ('start', 'stop', 'resume', 'abort'):
+        res = client.post(f'/api/{name}')                                   # 헤더 없이 = 다른 페이지가 보낸 단순 요청
+        assert res.status_code == 403 and res.json()['ok'] is False
+    assert pressed == []                                                    # flow 까지 가지 않았다
+    assert client.get('/api/state').status_code == 200                      # 읽기(GET)는 그대로 — 화면이 값을 못 받으면 안 된다
 
 
 def test_websocket_sends_everything_first_then_pushes_changes():

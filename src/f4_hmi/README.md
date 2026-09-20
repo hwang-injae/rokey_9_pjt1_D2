@@ -10,6 +10,11 @@
 대본(`scenarios/*.yaml`): `normal` 정상 · `isolate` 격리 · `error` 로봇 오류로 멈춤 · `paused` 일시정지→재개 · `empty_zone` 빈 구역.
 🚨 `fake_state_pub` 와 실제 `flow_node` 를 **동시에 띄우지 않는다**(같은 토픽에 두 곳이 방송한다).
 
+## 🔒 접속·버튼
+- 접속은 **이 PC 의 브라우저에서만**(`params.yaml` 의 `hmi.host: 127.0.0.1` — 결정 E10). 태블릿에서 보려면 `0.0.0.0` 으로 바꾸고, 끝나면 되돌린다.
+- 버튼(`POST /api/*`)은 `X-PreWash` 헤더가 있어야 받는다(F4-02b). 이 PC 브라우저로 연 **다른 웹페이지**가 몰래 시작을 누르는 것을 막는다.
+  `curl` 로 눌러 볼 때도 붙인다: `curl -X POST -H 'X-PreWash: 1' localhost:8000/api/stop`
+
 ## 한 번만: 웹 서버 부품 설치 (HMI 를 돌리는 PC 에서만)
 ```bash
 python3 -m venv --system-site-packages ~/venvs/hmi
@@ -20,6 +25,7 @@ python3 -m venv --system-site-packages ~/venvs/hmi
 ## 진행
 - [x] F4-01 가짜 flow + 서버 뼈대 + 시험 페이지(`GET /api/state`)
 - [x] F4-02 버튼(start·stop·resume·abort) · WebSocket `/ws/state` · 가짜 flow 의 버튼 응답(`--wait-start`)
+- [x] F4-02b 버튼 요청에 `X-PreWash` 헤더 요구
 - [ ] F4-03 화면(Next.js 15) · F4-04 이력(SQLite) · F4-05 KPI
 
 ## 시험
