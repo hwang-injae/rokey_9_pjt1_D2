@@ -8,12 +8,12 @@
 이 파일이 9/19 오후 이후의 최신 패치다. patch_20260919_audit.py·rebalance.py 는 다시 실행하지 않는다(여기서 옮긴 칸이 되돌아간다)."""
 import sys, os, re, tempfile, collections
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from xlsx_patch import Book, Row, new_timeline_row, rebuild_todo, set_slots
+from xlsx_patch import open_gantt_cols,  Book, Row, new_timeline_row, rebuild_todo, set_slots
 from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v6.3'
+VERSION = 'v6.4'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -115,7 +115,8 @@ REPLAN_0920 = {
  'CELL-04':  dict(owner='S', note_add='9/20 재계획: 9/19 민범진 참여, 9/20 오전 컵 쪽은 한석형 단독(민범진은 그리퍼 세션이 먼저)'),
  'CELL-04b': dict(slots=S('9/20 오후'), note_add=WHY + ' 오전 → 9/20 오후 첫 순서(박진용 참여 — F3-02 가 SPONGE_BED_B 를 기다린다)'),
  'V-22':     dict(owner='H(S)', slots=S('9/20 오후'), note_add=WHY + ' 한석형 → **황인재 주도**(motion.py 주인이 실기에서 YAML 좌표 재현을 확인한다, 한석형은 좌표 제공·입회) · 티칭 2차 뒤에'),
- 'V-20':     dict(owner='H(M)', slots=S('9/19 오후', '9/20 오후'), note_add='9/20 재계획: 민범진 → **황인재 주도**(bootstrap 주인 · Virtual 환경이 이미 있음) — 민범진의 9/20 오전 8건을 덜어 준다'),
+ 'V-20':     dict(owner='H(M)', slots=S('9/19 오후', '9/20 오전', '9/20 오후'),   # 9/20 오전 칸은 황인재가 시트에서 직접 추가(9/20)
+             note_add='9/20 재계획: 민범진 → **황인재 주도**(bootstrap 주인 · Virtual 환경이 이미 있음) — 민범진의 9/20 오전 8건을 덜어 준다'),
  'V-16':     dict(owner='M', note_add='9/20 재계획: 한석형 참여 제외 — 찾은 HOLD 값만 한석형에게 전달(cell.yaml 프리셋)'),
  'F1-01':    dict(slots=S('9/20 오후'), note_add=WHY + ' 오전 → 9/20 오후(티칭 2차 뒤) · 그릇 좌표로 먼저'),
  'F1-02':    dict(slots=S('9/21 저녁'), note_add=WHY + ' 9/20 오후 → **9/21 저녁**(로봇 1시간 교대의 한석형 순서) · 코드는 9/20 오후~9/21 에 Virtual 로 미리'),
@@ -136,7 +137,7 @@ REPLAN_0920 = {
  'F3-02':    dict(note_add='9/20 재계획: 셀 좌표(SPONGE_BED_B)는 9/20 오후 티칭 2차 뒤에 나온다 — 그 전에는 V-03 rig 좌표로 만든다'),
  'FLOW-01':  dict(slots=S('9/19 오전', '9/19 오후', '9/22 오후'), note_add='9/20 재계획: 남은 것(격리 마무리 동작)은 로봇이 필요 없어 비어 있는 9/22 오후로 — 9/20 오전 민범진 7건을 덜어 준다(L2 9/22 저녁 전까지면 된다) · ✅ 9/20 황인재 확정: 격리 마무리 순서 = 툴 반납 → 용기를 ISOLATE 에 놓기 → HOME · ROBOT_ERROR = 그 자리 정지 + PAUSED + 사람이 복구(SDD §7)'),
  'DSN-03':   dict(status='완료', note_add='✅ 9/20 아침 황인재: B7(격리 순서·ROBOT_ERROR)·B11(move_joint_rel)·B12(mock_f2) 승인, 티칭 자세 규칙 확정 → 급한 안건 종료. 보류 안건은 필요할 때'),
- 'DSN-04':   dict(prog='0.9', note_add='9/20: B7·B11·B12·티칭 자세 규칙을 IRD §10·SDD §5.3·§7·회의록에 반영 → 남은 것: contracts.py pick docstring(황인재)·cell.yaml zones/presets 주석(한석형)'),
+ 'DSN-04':   dict(status='완료', note_add='✅ 9/20 완료: 결정분을 BR-SR·IRD(§2·§10)·SDD(§3.1·§4.3·§5.2·§5.3·§7)·AGENTS·프롬프트·일정표에 반영, contracts.py pick 설명은 PR #21 · cell.yaml 의 zones/presets 주석은 한석형의 좌표 PR(CELL-04)에서'),
 }
 CH = '🚨 추석(9/24~28)은 교육장이 닫힌다 — 집에서 하는 원격 작업(황인재 9/20)'
 CHUSEOK = {
@@ -241,6 +242,8 @@ HISTORY13 = ['v6.2', '일정', 'DOC-02~05, REH-01, REH-02, INT-4d', '추석(9/24
              '황인재 9/20', 'S,M,P,H']
 HISTORY14 = ['v6.3', '확인', 'INT-4d, REH-02', '추석 동안 로봇·기구는 세팅 그대로 둘 수 있다(황인재 확인) → 9/29 오전은 재배치·재티칭 없이 좌표 재현 빠른 확인 뒤 바로 리허설',
              '황인재 9/20', 'S,M,P,H']
+HISTORY15 = ['v6.4', '서식·진척', 'DSN-04, 완료 행 전체', '완료한 일은 간트 칸을 회색으로(황인재 9/20 — G6 칸과 같은 서식) — 앞으로 완료 처리하면 자동으로 회색이 된다. DSN-04 완료(contracts.py 설명 PR #21)',
+             '황인재 9/20', 'H']
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -281,9 +284,17 @@ def main(out):
                 if k in e: q.set(c, e[k])
             if 'note_add' in e and e['note_add'] not in d.text(q, 'G'):     # 진척 메모는 앞에 덧붙인다(여러 번 돌려도 한 번만)
                 q.set('G', e['note_add'] + ' · ' + d.text(q, 'G'))
-    # 3) 완료 행은 진행 1.0 (PM 이 시트에서 완료로 바꾼 행 포함)
+    # 3) 완료 행은 진행 1.0 + **간트 칸을 회색으로**(황인재 9/20: G6 칸처럼 — 완료한 일은 회색). PM 이 시트에서 완료로 바꾼 행 포함
+    gray = tl.rows[tl.find(ID, 'DOC-01a')].style('G')          # G6 = 회색 칸의 서식(내보낼 때마다 번호가 달라져서 매번 찾는다)
+    ocols = open_gantt_cols()                                  # 닫힌 칸(주말 저녁 열 배경)은 건드리지 않는다
     for r in tl.rows:
-        if tl.text(r, 'F').strip() == '완료' and tl.text(r, ID).strip(): r.set('E', '1.0')
+        if tl.text(r, 'F').strip() == '완료' and tl.text(r, ID).strip():
+            r.set('E', '1.0')
+            styles = [r.style(c) for c in ocols if r.style(c) is not None]
+            if not styles: continue
+            blank = max(set(styles), key=styles.count)
+            for c in ocols:
+                if r.style(c) not in (None, blank, gray): r.set(c, style=gray)
     # 4) 팀(구역) 이동
     def team_of(i):
         while i >= 0 and not tl.text(tl.rows[i], 'A').strip(): i -= 1
@@ -326,7 +337,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
