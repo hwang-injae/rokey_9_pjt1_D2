@@ -28,7 +28,7 @@
 | 용기 종류 `kind` | `BOWL` `CUP` | |
 | 툴 `tool` | `SPONGE`(그릇용 수세미 툴) `BRUSH`(컵용 수세미 솔) | |
 | 반납 구역 `zone_id` | `RET_B` `RET_C` | 공정 입구. **구역마다 고정 슬롯 2개**(트레이에 자리 표시) — 용기는 슬롯에 겹치지 않게 하나씩 놓는다(9/19 결정: 구역 + 탐색 파지 → 고정 슬롯). ID·함수 서명은 그대로 |
-| 팔레트 칸 `rack_slot` | `RACK_B1` `RACK_B2` / `RACK_C1` `RACK_C2` `RACK_C3` `RACK_C4` | 공정 출구. 그릇 2칸·컵 4칸 |
+| 팔레트 칸 `rack_slot` | `RACK_B1` `RACK_B2` / `RACK_C1` `RACK_C2` | 공정 출구. 그릇 2칸·컵 2칸 (✅ 황인재 9/20: 컵 칸 4 → 2 — `RACK_C3`·`RACK_C4` 삭제. 코드(`cobot_api.RACK_SLOTS`·`cell.yaml`·`params.yaml`)는 한석형의 좌표 PR과 함께 바꾼다) |
 | 스테이션 `station` | `HOME` `WEIGH` `WASTE` `SPONGE_BED_B` `SPONGE_BED_C` `TOOL_SPONGE` `TOOL_BRUSH` `SOAP` `RINSE` `ISOLATE` | 작업대 위 고정 위치 |
 | 실패 코드 `code` | `OK` `GRIP_FAIL` `EMPTY_ZONE` `LEFTOVER` `LEFTOVER_REMAIN` `SEAT_FAIL` `TOOL_FAIL` `FORCE_LIMIT` `TIMEOUT` `RACK_JAM` `RACK_FULL` `ROBOT_ERROR` `STOPPED` | |
 | 흐름 상태 `step` | `IDLE` `PICK` `WEIGH` `SHAKE` `SEAT` `SOAP` `WIPE` `RINSE` `RACK` `ISOLATE` `DONE` `ERROR` `PAUSED` | `PICK` 안에 탐색 포함 |
@@ -68,13 +68,14 @@
 | 인터페이스 | 형식 | 내용 |
 |---|---|---|
 | `/flow/start` | srv `std_srvs/Trigger` | 구역 계획대로 전부 처리 시작 (IDLE에서만). **즉시 응답**하고 실행은 메인 스레드가 한다 |
-| `/flow/stop` | srv `std_srvs/Trigger` | 현재 기능 함수가 끝난 뒤 정지 → `PAUSED` (HMI의 소프트 정지 버튼) |
-| `/flow/resume` | srv `std_srvs/Trigger` | 정지·오류 지점부터 재개 |
+| `/flow/stop` | srv `std_srvs/Trigger` | ✅ **즉시 일시 정지**(황인재 9/20): 로봇이 **하던 이동을 그 자리에서 멈추고** `PAUSED` — 두산 `move_pause`(이동 함수는 비동기 + 폴링, V-24). 구현은 `cobot_common`의 `cc.pause()`·`cc.resume()`(#34). 🚨 먹는 범위: 이동 함수를 거치는 모든 이동(접촉 하강·닦기의 걸음 포함 — 순응·힘제어는 켜진 채 선다). **안착 탐색(`move_periodic`)·그리퍼·무게 대기는 그 동작을 마친 뒤** 멈춘다. 힘이 걸린 채 멈추는 동작은 9/22 실기 확인 대상. 이동 중이 아니면 다음 단계로 가기 전에 멈춘다. HMI의 **일시 정지** 버튼("E-STOP"이라 부르지 않는다). 이름·타입은 그대로 → `cobot_msgs` 변경 없음 |
+| `/flow/resume` | srv `std_srvs/Trigger` | `PAUSED`일 때만 받는다. ✅ 사람이 확인하고 **문제없으면 마저 한다**(황인재 9/20): 일시 정지였으면 **하던 이동을 이어서**(`move_resume`), 실패로 멈춘 경우(`RACK_FULL` 등)는 **실패한 그 단계부터 다시** |
+| `/flow/abort` | srv `std_srvs/Trigger` | 🆕 ✅ 신설(황인재 9/20) — `PAUSED`일 때만. 사람이 **문제가 있다고 판단하면 지금 용기를 접는다**: 쥐고 있는 툴 반납 → 용기를 격리 구역(`ISOLATE`)에 놓기 → `HOME` → **다음 용기**부터. 이벤트는 `ISOLATED`. 🚨 `ROBOT_ERROR`로 멈춘 경우는 **거부**한다(로봇 위치를 모른다 — 사람이 복구, SDD §7) |
 | `/flow/state` | msg `cobot_msgs/FlowState` @2 Hz | 아래 정의. HMI는 2 s 이상 안 오면 "연결 끊김" 표시 |
 | `/flow/event` | msg `cobot_msgs/FlowEvent` | 용기 1개 완료·격리·오류마다 1건 → HMI가 SQLite에 저장 |
-| 🟡 `/cell/force` | msg `std_msgs/Float32` @10 Hz(닦는 동안만) | 접촉 힘(N) → HMI 힘 그래프. **제안, DSN-03에서 확정** |
-| 🟡 `/cell/grip_width` | msg `std_msgs/Float32` (파지·놓기마다) | 그리퍼 폭(mm) → HMI 표시. **제안, DSN-03에서 확정** |
-| HMI 브리지 | REST `POST /api/start` `/api/stop` `/api/resume`, `GET /api/state`, `GET /api/history`, WS `/ws/state` | FastAPI가 rclpy로 중계 (PC-B) |
+| `/cell/force` | msg `std_msgs/Float32` @10 Hz(**닦는 동안만**) | ✅ 확정(황인재 9/20 — HMI에 닦는 힘 그래프를 넣는다). 접촉 힘의 크기(N, 누르는 축 기준 양수). 닦지 않을 때는 발행하지 않는다. **발행 = `flow_node`의 통신 노드**(민범진), 값은 닦기 루프가 `force.py`에 **저장만** 한다(박진용) — 기능 함수 안에서 발행기를 만들지 않는다(SDD §3.2). 발행 쪽 기한 9/22 오전 |
+| `/cell/gripping` | msg `std_msgs/Bool` — 값이 바뀔 때 1번 + @2 Hz | ✅ 신설(황인재 9/20, 제안이던 `/cell/grip_width`는 **삭제**). `true` = 무언가(용기·툴)를 쥐고 있다 / `false` = 아니다 → HMI의 "파지 중 / 파지 안 하는 중" 표시. 폭(mm)은 화면에 내지 않는다 — 그릇 옆면 파지 폭이 약 2 mm라 **판정은 로봇 쪽(`gripper.py`)이 하고 결과만 보낸다**. 발행 = `flow_node`의 통신 노드(민범진), 기한 9/22 오전. `cobot_msgs` 변경 없음(둘 다 `std_msgs`) → 재빌드 불필요 |
+| HMI 브리지 | REST `POST /api/start` `/api/stop` `/api/resume` `/api/abort`, `GET /api/state`, `GET /api/history`, WS `/ws/state` | FastAPI가 rclpy로 중계 (PC-B) |
 
 이 서비스·토픽은 `flow_node`의 **통신 노드**(백그라운드 실행기)가 맡는다. 콜백은 값 저장·깃발 세우기만 하고 로봇 함수를 부르지 않는다(SDD §3.2). 하드웨어 비상정지는 로봇 E-Stop이다. HMI 버튼은 소프트 정지이며 화면에 항상 보이게 둔다.
 
@@ -137,9 +138,9 @@ f1.pick('RET_B', 'BOWL') → f1.move_to('WEIGH', True) → f2.leftover_loop('BOW
 | `EMPTY_ZONE` | 구역 종료 → 다음 구역 (기록 SKIPPED) |
 | `LEFTOVER_REMAIN` `SEAT_FAIL` | ISOLATE 후 다음 용기 |
 | `FORCE_LIMIT` `TIMEOUT` `RACK_JAM` `TOOL_FAIL` | 후퇴 후 재시도 1회 → ISOLATE |
-| `RACK_FULL` | PAUSED + HMI 알림 → 팔레트 교체 후 resume |
-| `ROBOT_ERROR` (기능 함수에서 새어 나온 예외 포함) | PAUSED → 운영자 확인 후 resume |
-| stop 버튼 | 현재 기능 함수가 끝난 뒤 PAUSED → resume |
+| `RACK_FULL` | PAUSED + HMI 알림 → 팔레트 교체 후 **resume = 실패한 단계(적재)부터 다시** / **abort = 그 용기를 격리**하고 다음 용기 |
+| `ROBOT_ERROR` (기능 함수에서 새어 나온 예외 포함) | 그 자리 정지 → PAUSED + 알림 → **사람이 복구**(SDD §7). `abort`는 거부, 복구 뒤 `resume`하면 다음 용기부터(그 용기는 `ERROR`로 기록) |
+| 일시 정지 버튼 | **즉시** 그 자리에서 멈춤 → PAUSED (안착 탐색·그리퍼·무게 대기는 그 동작을 마친 뒤) → **재개**(하던 동작을 이어서) 또는 **중단**(`abort` — 격리 후 다음 용기) |
 
 ## 9. 설정 파일 (IR-07) — 파일 2개
 설정은 `src/cobot_common/config/`의 **파일 2개**로 둔다(9/18 최종 결정).

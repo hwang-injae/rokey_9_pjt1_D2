@@ -91,5 +91,11 @@ def test_failing_hook_stops_init_with_robot(monkeypatch):
     """robot=True 에서는 빠진 것을 바로 드러낸다(조용히 넘어가면 그리퍼 없이 로봇이 움직인다)."""
     from cobot_common import bootstrap, gripper
     monkeypatch.setattr(gripper, 'setup_io', _broken_hook, raising=False)
+    class FakeNode:                                     # 다른 파일의 훅(motion.setup_io)이 클라이언트를 달 수 있게
+        def create_client(self, srv_type, name):
+            return object()
+
+        def create_subscription(self, *a, **kw):
+            return object()
     with pytest.raises(ModuleNotFoundError):
-        bootstrap._call_setup_io(node=None, robot=True)
+        bootstrap._call_setup_io(node=FakeNode(), robot=True)
