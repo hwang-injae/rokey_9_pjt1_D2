@@ -30,8 +30,7 @@ STATION_CUP = 'SPONGE_BED_C'         # 컵 홈
 
 _R_MIN_MM = 2.0                      # 나선 방향을 재기 시작하는 반지름 — 중심 근처에서는 각도가 튄다
 
-# SDD §4.2 힘 로그 열 (정본이라 그대로 둔다). 🔸 target 은 0 — 고정 좌표 방식이라 유지할 목표 힘이 없다(결정 E6)
-FORCE_LOG_HEADER = ('t', 'fx', 'fy', 'fz', 'target')
+FORCE_LOG_HEADER = ('t', 'fx', 'fy', 'fz', 'target')   # SDD §4.2 힘 로그 열
 
 
 def soap(count: int, kind: str = None) -> Result:
@@ -78,21 +77,25 @@ def soap(count: int, kind: str = None) -> Result:
 def wipe_bowl() -> WipeBowlResult:
     """그릇 안쪽을 수세미로 닦는다 — F3-02. 코드 OK / FORCE_LIMIT / TIMEOUT / ROBOT_ERROR.
 
-    **고정 좌표 방식**(결정 E6 · SDD §5.4). 괄호 안은 강의자료 근거.
-      ① cc.move_to('SPONGE_BED_B', point='wash') → 티칭한 닦는 높이까지 내려간다
-         — 앞은 빠르게, 마지막 slow_mm 구간만 천천히 걸음마다 누르는 힘을 보면서
-      ② 바닥: **나선 한 번** — 중심에서 벽 반지름까지, 좌우 비틀기 없음
+    **9/20 실기(V-03)로 확정한 절차 그대로**다(rig_v03.py · docs/test_logs/20260919_V-03_*). 괄호 안은 강의자료 근거.
+      ① cc.move_to('SPONGE_BED_B', point='wash') → 빠르게 내려간 뒤 **바닥을 힘으로 찾는다**(cc.contact_down)
+      ② **순응 ON** — 바닥을 찾은 그 자리에서. 더 누르지 않는다 (중급2: 목표 TCP 근처에서 켜는 것을 권장)
+      ③ 바닥: **나선 한 번** — 중심에서 벽 반지름까지, 좌우 비틀기 없음, **힘제어는 켜지 않는다**
+         (중급2 "힘 방향과 같은 방향의 모션 불가" — 나선은 툴 Z 축 모션이라 Z 힘제어와 같은 축이다.
+          9/20 실기: 켜 두면 반환은 0 인데 나선이 시작조차 하지 않았다)
          (중급1 p.69 나선은 **시간**으로 속도 지정 · 반경 대비 회전 수가 과하면 시작조차 하지 않는다)
-      ③ 벽면: 원호를 이어 붙여 **반대 방향 turns 바퀴** + 손목(6번 축) ±twist_deg 좌우 비틀기
+      ④ **힘제어 ON** — Z 로 target_force_n 유지. 공중 기준값(센서 치우침·툴 무게)을 더해서 명령한다
+      ⑤ 벽면: 원호를 이어 붙여 **반대 방향 turns 바퀴** + 손목(6번 축) ±twist_deg 좌우 비틀기
+         (이동이 X·Y 라 Z 힘제어와 함께 쓸 수 있다 — 중급2 폴리싱 예시)
          (중급1 p.79 중첩 가능한 모션은 Move L·C·J·JX — radius 를 줘야 멈추지 않고 이어진다)
-      ④ 올리지 않고 그 높이에서 중심 복귀 → safe_retreat
+      ⑥ **힘제어만 OFF**(순응은 유지) → ⑦ 올리지 않고 그 높이에서 중심 복귀 → 순응 OFF → safe_retreat
 
-    🚨 **찾지 않는다**: 벽 찾기 · 바닥 찾기(contact_down) · 목표 힘 유지(force_on) 를 쓰지 않는다.
+    🚨 **벽은 찾지 않는다**(결정 E6): 벽 반지름 = (bowl_inner_d_mm − tool.d_mm)/2 + wall_press_mm 로 계산한다.
        수세미가 로봇 순응보다 훨씬 물러 "못 따라간 거리"가 생기지 않고, 바닥 마찰(5~14 N)이 벽 신호(1~2 N)를 덮는다(V-03).
-       벽 반지름 = (bowl_inner_d_mm − tool.d_mm)/2 + wall_press_mm.
-    🚨 **순응도 켜지 않는다**: 순응을 켠 채 내리면 명령한 Z 와 실제 Z 가 다르다(Z 200 N/m 면 3 N 에 15 mm 덜 내려간다)
-       → 고정 높이가 뜻을 잃는다. 대신 수세미(스펀지)가 완충 노릇을 하고, 안전은 아래 힘 감시가 맡는다.
-       닦는 높이에 닿으면 **실제 Z 를 로그로 남긴다**(명령한 높이와 같은지 확인용).
+    🔸 **바닥은 찾는다**(박진용 9/21 — 9/20 실기에서 확인한 방식). 접촉 깊이가 실행마다 12~17 mm 로 달라서
+       티칭한 높이 하나로는 맞출 수 없다. 🚨 결정 E6 ① 은 "고정 높이"였으므로 PM 에게 알려야 한다.
+    🔸 **순응·힘제어는 접촉 구간에서만** 켠다(AGENTS 규칙 3): 바닥을 찾은 뒤 순응, 벽면에서만 힘제어.
+       어떤 실패에서도 힘 → 순응 순서로 끄고 안전 높이로 올라온다.
     감시는 한다(NFR-01): 공중 기준값 대비 누르는 힘 > limit_n 또는 옆 힘 > lateral_max_n 이면 즉시 후퇴 FORCE_LIMIT ·
     duration_s 를 넘으면 TIMEOUT · 힘 로그 CSV 저장. 구간과 구간 사이에서 강제정지(cc.is_halted)를 본다.
     """
@@ -101,10 +104,15 @@ def wipe_bowl() -> WipeBowlResult:
     log = _Log(p, t0)
     code = ROBOT_ERROR
     try:
-        _descend(p, log)                                                 # ① 닦는 높이까지
-        _spiral(p, log)                                                  # ② 바닥 나선
-        _wall_laps(p, log)                                               # ③ 벽면 turns 바퀴
-        _to_center(p, log)                                               # ④ 그 높이에서 중심으로
+        _descend(p, log)                                                 # ① 빠른 접근 → 바닥 찾기
+        cc.compliance_on()                                               # ② 순응 ON (찾은 자리 그대로)
+        _spiral(p, log)                                                  # ③ 바닥 나선 (힘제어 없이)
+        log.target = float(p['target_force_n'])
+        cc.force_on('z', log.target + abs(log.base[2]), p['limit_n'])    # ④ 힘제어 ON (공중 기준값 보정)
+        _wall_laps(p, log)                                               # ⑤ 벽면 turns 바퀴
+        cc.force_release()                                               # ⑥ 힘제어만 OFF (순응은 유지)
+        log.target = 0.0
+        _to_center(p, log)                                               # ⑦ 그 높이에서 중심으로
         code = OK
     except cc.MotionHalted:                                              # 강제정지는 코드로 바꾸지 않는다 — flow 의 중단 흐름으로 (결정 E11)
         raise
@@ -152,6 +160,7 @@ class _Log:
         self.base = [0.0] * 6                                            # 공중 기준값 — 툴 무게·센서 치우침(V-03: 1.4~2.4 N)
         self.center = None                                               # 닦는 높이에 닿은 자리 = 나선의 중심
         self.sweep = 0.0                                                 # 나선이 실제로 돈 각도(rad, BASE 기준 부호 있음)
+        self.target = 0.0                                                # 지금 구간의 목표 누르는 힘 (힘 로그의 target 열)
 
     def start(self, force):
         self.base = list(force)
@@ -167,7 +176,7 @@ class _Log:
         f = cc.read_force()
         press = abs(f[2] - self.base[2])
         lateral = math.hypot(f[0] - self.base[0], f[1] - self.base[1])
-        self.samples.append((round(time.monotonic() - self.t0, 3), f[0], f[1], f[2], 0.0))
+        self.samples.append((round(time.monotonic() - self.t0, 3), f[0], f[1], f[2], self.target))
         self.presses.append(press)
         if press > p['limit_n']:
             raise cc.ForceLimitError(f'{phase}: 누르는 힘 {press:.1f} N > {p["limit_n"]} N')
@@ -185,23 +194,28 @@ class _Log:
 
 
 def _descend(p, log):
-    """닦는 자리 위 → 티칭한 닦는 높이. 앞은 빠르게, 마지막 slow_mm 만 걸음마다 힘을 보면서 천천히."""
+    """닦는 자리 위 → 빠르게 내려간 뒤 **바닥을 힘으로 찾는다**(9/20 실기에서 확인한 방식, 박진용 9/21 확정).
+
+    🚨 빠른 하강은 **티칭한 끝점이 아니라 접근점에서 fast_down_mm** 만큼만 간다.
+       끝점(cell.beds.SPONGE_BED_B.wash)이 실제 바닥보다 아래로 찍혀 있으면 그대로 내려가다 바닥을 찍기 때문이다
+       (9/20 실기: 바닥은 TCP Z 63~68, 티칭값은 47). 끝점이 더 얕으면 그쪽에 맞춘다 — 둘 중 **덜 내려가는 쪽**.
+    바닥 찾기는 cc.contact_down — 순응을 켜고 cell.force.contact_step_mm 씩 내려가며
+    **시작 힘 대비** cell.limits.contact_limit_n 만큼 힘이 커지면 멈춘다(공중 치우침 1.4~2.4 N 때문에 절대값으로 보면 안 된다).
+    찾은 자리에서 더 누르지 않는다. contact_down 이 끝나며 순응을 꺼 주므로 닦기는 위치 제어로 이어진다.
+    """
     _halt_check('닦는 자리 이동')
-    up = cc.move_to(STATION_BOWL, carrying=True, point='wash')           # 접근점까지 · up = 끝점(닦는 높이)까지 남은 높이
+    up = cc.move_to(STATION_BOWL, carrying=True, point='wash')           # 접근점까지 · up = 티칭 끝점까지 남은 높이
     log.start(cc.read_force())                                           # 공중 기준값은 **내려가기 전에** 잰다
-    slow = min(float(p['slow_mm']), up)
-    if up - slow > 0:
-        cc.move_rel(0.0, 0.0, -(up - slow), 'BASE')                      # 앞 구간은 보통 속도
-    vel = float(p['slow_vel_mm_s']) * _scale()
-    left = slow
-    while left > 1e-6:                                                   # 느린 구간 — 걸음마다 누르는 힘 상한
-        dz = min(float(p['slow_step_mm']), left)
-        cc.move_rel(0.0, 0.0, -dz, 'BASE', vel_mm_s=vel)
-        left -= dz
-        log.watch('down')
+    fast = min(max(0.0, up - float(p['find_gap_mm'])), float(p['fast_down_mm']))
+    if fast > 0:
+        cc.move_rel(0.0, 0.0, -fast, 'BASE')                             # ① 빠르게 (바닥 위까지만)
+    depth, f = cc.contact_down(float(p['find_max_mm']),                   # ② 나머지는 힘으로
+                               cc.cfg()['cell']['limits']['contact_limit_n'])
     log.center = cc.where()
-    _info(f'wipe_bowl 닦는 높이: 실제 Z {log.center[2]:.1f} mm (순응 끔 — 명령한 높이와 같아야 한다), '
-          f'공중 기준 Fz {log.base[2]:.1f} N')
+    _info(f'wipe_bowl 바닥: 빠르게 {fast:.0f} mm + 찾기 {depth:.1f} mm (최대 {p["find_max_mm"]:g}) '
+          f'· 접촉 힘 {f:.1f} N · 실제 Z {log.center[2]:.1f} mm · 공중 기준 Fz {log.base[2]:.1f} N')
+    if depth >= float(p['find_max_mm']) - 0.5:                           # 끝까지 내려가도 바닥이 없다
+        raise RuntimeError(f'wipe_bowl: {p["find_max_mm"]:g} mm 를 내려가도 바닥을 못 찾았다 — 그릇·좌표 확인')
 
 
 def _spiral(p, log):

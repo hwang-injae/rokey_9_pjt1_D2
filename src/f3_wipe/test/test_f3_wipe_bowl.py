@@ -3,8 +3,9 @@
 
     python3 -m pytest -q src/f3_wipe/test/test_f3_wipe_bowl.py
 
-**고정 좌표 방식**(결정 E6 · SDD §5.4)을 본다: 바닥·벽을 찾지 않고(contact_down·force_on 없음),
-티칭한 닦는 높이까지 내려가 나선 → 벽면 원호. 힘은 유지하지 않고 **상한만** 본다.
+**9/20 실기(V-03)로 확정한 절차 그대로**인지 본다:
+빠른 접근 → 바닥 찾기(contact_down) → 순응 ON → 나선(힘제어 없이) → 힘제어 1.5 N → 벽면 원호 → 힘제어만 OFF → 중심 복귀.
+벽만 찾지 않는다(반지름을 그릇·툴 지름으로 계산 — 결정 E6).
 실제 힘 값·닦는 높이는 실기에서 본다 — 여기서는 "순서·반지름·비틀기·상한 처리"만 본다.
 """
 import math
@@ -18,11 +19,11 @@ WALL_R = (110.0 - 90.0) / 2 + 4.0       # 벽 반지름 = (그릇 안지름 − 
 UP = 188.0                              # 접근점(z 235) → 닦는 높이(z 47) 까지 남은 높이
 CFG = {
     'run': {'vel_scale': 0.3},
-    'cell': {'limits': {'safe_z_mm': 235.0}},
+    'cell': {'limits': {'safe_z_mm': 235.0, 'contact_limit_n': 2.0}},
     'f3': {'wipe_bowl': {
         'tool': {'clean_h_mm': 35, 'd_mm': 90},
-        'slow_mm': 15.0, 'slow_step_mm': 3.0, 'slow_vel_mm_s': 20.0,
-        'limit_n': 10.0, 'lateral_max_n': 25.0,
+        'fast_down_mm': 155.0, 'find_gap_mm': 10.0, 'find_max_mm': 40.0,
+        'target_force_n': 1.5, 'limit_n': 10.0, 'lateral_max_n': 25.0,
         'bowl_inner_d_mm': 110.0, 'wall_press_mm': 4.0,
         'spiral_pitch_mm': 5.0, 'spiral_time_s': 3.0,
         'turns': 3, 'wall_arc_deg': 90.0, 'wall_approach_vel_mm_s': 60.0,
@@ -31,7 +32,9 @@ CFG = {
     }},
 }
 POSE0 = [400.0, 0.0, 235.0, 45.0, 180.0, 45.0]      # 접근점 (닦는 자리 상공)
-CENTER = [POSE0[0], POSE0[1], POSE0[2] - UP]        # 닦는 높이에 닿은 자리 = 나선의 중심
+FAST = 155.0                                        # 빠른 접근 (접근점 기준). UP−find_gap(178) 보다 작아 이쪽이 쓰인다
+FIND = 14.0                                         # 가짜 바닥: 빠른 접근 뒤 이만큼 더 내려가면 닿는다
+CENTER = [POSE0[0], POSE0[1], POSE0[2] - FAST - FIND]   # 바닥에 닿은 자리 = 나선의 중심
 
 
 class _Logger:
@@ -48,9 +51,10 @@ class _Logger:
 class FakeCell:
     """가짜 셀 — 공용 함수 호출을 적어 두고, 그릇 안의 힘을 흉내 낸다."""
 
-    def __init__(self, press=1.5, lateral=1.0, spiral_moves=True, up=UP, spiral_dir=+1):
+    def __init__(self, press=1.5, lateral=1.0, spiral_moves=True, up=UP, spiral_dir=+1, find=FIND):
         self.calls = []
         self.press, self.lateral, self.up = press, lateral, up
+        self.find = find                                 # 바닥을 찾기까지 내려간 거리
         self.spiral_moves = spiral_moves                 # False = 명령은 받지만 돌지 않는다(9/20 실기 증상)
         self.spiral_dir = spiral_dir                     # BASE 에서 본 나선 방향 (+1 반시계 · −1 시계)
         self.pose = list(POSE0)
@@ -74,11 +78,25 @@ class FakeCell:
         self.calls.append(('move_rel', round(dz, 2), round(kw.get('vel_mm_s') or 0.0, 1)))
         self.pose = [self.pose[0] + dx, self.pose[1] + dy, self.pose[2] + dz] + self.pose[3:]
         self.poses.append(list(self.pose))
-        if self.pose[2] <= POSE0[2] - self.up + 1e-6:
-            self.touched = True
+
+    def contact_down(self, max_depth, limit):
+        self.calls.append(('contact_down', max_depth, limit))
+        found = min(self.find, max_depth)
+        self.pose[2] -= found
+        self.touched = found < max_depth
+        return found, limit
+
+    def compliance_on(self, stx=None):
+        self.calls.append(('compliance_on',))
+
+    def force_on(self, axis, target, limit):
+        self.calls.append(('force_on', axis, round(target, 2), limit))
+
+    def force_release(self):
+        self.calls.append(('force_release',))
 
     def read_force(self):
-        """공중 치우침 2 N. 닦는 높이에 닿은 뒤부터 누르는 힘·옆 힘이 걸린 것으로 본다."""
+        """공중 치우침 2 N. 바닥에 닿은 뒤부터 누르는 힘·옆 힘이 걸린 것으로 본다."""
         if not self.touched:
             return [0.0, 0.0, 2.0, 0.0, 0.0, 0.0]
         return [self.lateral, 0.0, 2.0 + self.press, 0.0, 0.0, 0.0]
@@ -132,45 +150,67 @@ class FakeCell:
 def cell(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)                      # 힘 로그는 실행 위치 기준 상대경로
     c = FakeCell()
-    for name in ('cfg', 'move_to', 'move_rel', 'read_force', 'force_off', 'safe_retreat',
+    for name in ('cfg', 'move_to', 'move_rel', 'contact_down', 'compliance_on', 'force_on', 'force_release',
+                 'read_force', 'force_off', 'safe_retreat',
                  'io_node', 'is_halted', 'where', 'motion_done', 'move_spiral', 'move_arc'):
         monkeypatch.setattr(wipe.cc, name, getattr(c, name), raising=False)
     return c
 
 
 def _center(c):
-    """닦는 높이에 닿은 자리 = 나선의 중심."""
-    return [POSE0[0], POSE0[1], POSE0[2] - c.up]
+    """바닥에 닿은 자리 = 나선의 중심."""
+    return [POSE0[0], POSE0[1], POSE0[2] - FAST - c.find]
 
 
 def _radii(poses, center):
     return [math.hypot(p[0] - center[0], p[1] - center[1]) for p in poses]
 
 
-def test_does_not_search_bottom_or_hold_force(cell):
-    """고정 좌표 방식(E6): 바닥 찾기·목표 힘 유지를 쓰지 않는다."""
+def test_confirmed_order(cell):
+    """9/20 실기 확정 순서: 바닥 찾기 → 순응 → 나선 → 힘제어 → 벽면 → 힘제어만 OFF → 중심 복귀."""
     r = wipe.wipe_bowl()
     assert r.ok and r.code == OK
     names = [c[0] for c in cell.calls]
-    assert 'contact_down' not in names and 'force_on' not in names and 'compliance_on' not in names
+    assert (names.index('contact_down') < names.index('compliance_on') < names.index('spiral')
+            < names.index('force_on') < names.index('arc') < names.index('force_release'))
     assert names[-2:] == ['force_off', 'safe_retreat']                     # 어떤 경우에도 끄고 안전 높이
 
 
-def test_descends_fast_then_slow_with_force_watch(cell):
-    """앞은 한 번에, 마지막 slow_mm 만 slow_step_mm 씩 천천히 (SDD §5.4)."""
+def test_spiral_runs_without_force_control(cell):
+    """🚨 나선은 툴 Z 축 모션이라 Z 힘제어와 같은 축 — 켜 두면 시작조차 하지 않는다(중급2 · 9/20 실기)."""
     wipe.wipe_bowl()
-    downs = [c for c in cell.calls if c[0] == 'move_rel' and c[1] < 0]
-    assert downs[0][1] == pytest.approx(-(UP - 15.0)) and downs[0][2] == 0.0      # 빠른 구간은 속도를 주지 않는다
-    slow = downs[1:6]
-    assert [d[1] for d in slow] == [pytest.approx(-3.0)] * 5                      # 15 mm 를 3 mm 씩
-    assert slow[0][2] == pytest.approx(20.0 * 0.3)                                # 느린 속도 × vel_scale
-    assert sum(d[1] for d in downs) == pytest.approx(-UP)                         # 티칭한 높이까지 정확히
+    names = [c[0] for c in cell.calls]
+    assert names.index('spiral') < names.index('force_on')
+
+
+def test_force_target_compensates_air_baseline(cell):
+    """공중 기준값(센서 치우침·툴 무게)을 더해서 명령한다."""
+    wipe.wipe_bowl()
+    axis, target, limit = [c[1:] for c in cell.calls if c[0] == 'force_on'][0]
+    assert axis == 'z' and target == pytest.approx(1.5 + 2.0) and limit == 10.0
+
+
+def test_fast_approach_then_find_bottom(cell):
+    """빠른 접근은 **티칭 끝점이 아니라** 접근점 기준 fast_down_mm — 끝점이 바닥보다 아래면 박는다(9/20)."""
+    wipe.wipe_bowl()
+    fast = [c for c in cell.calls if c[0] == 'move_rel' and c[1] < 0][0]
+    assert fast[1] == pytest.approx(-FAST)                                 # min(up − find_gap, fast_down) = 155
+    assert ('contact_down', 40.0, 2.0) in cell.calls                       # find_max_mm · cell.limits.contact_limit_n
+
+
+def test_bottom_not_found_stops_before_compliance(cell):
+    """바닥을 못 찾으면 순응·힘제어를 켜지 않고 중단한다."""
+    cell.find = 40.0                                                       # find_max_mm 까지 내려가도 못 찾음
+    r = wipe.wipe_bowl()
+    assert not r.ok and r.code == ROBOT_ERROR
+    assert 'compliance_on' not in [c[0] for c in cell.calls]
+    assert 'safe_retreat' in [c[0] for c in cell.calls]
 
 
 def test_actual_z_is_logged(cell):
-    """순응을 끄고 내려가므로 명령한 Z = 실제 Z — 실기에서 확인하라고 로그에 남긴다(PM 요청)."""
+    """바닥 Z·접촉 힘·공중 기준값을 로그로 남긴다(실기에서 티칭값과 비교하려고)."""
     wipe.wipe_bowl()
-    assert any('닦는 높이' in m for lvl, m in cell.logger.lines if lvl == 'info')
+    assert any('바닥' in m for lvl, m in cell.logger.lines if lvl == 'info')
 
 
 def test_spiral_uses_time_and_wall_radius(cell):
@@ -238,12 +278,12 @@ def test_lateral_over_limit_is_force_limit(cell):
     assert [c[0] for c in cell.calls][-2:] == ['force_off', 'safe_retreat']
 
 
-def test_press_over_limit_stops_while_descending(cell):
-    """느린 구간에서 세게 눌리면(그릇·툴 높이가 다르다) 나선으로 넘어가지 않는다."""
+def test_press_over_limit_is_force_limit(cell):
+    """닦는 중 누르는 힘이 상한을 넘으면 즉시 후퇴한다(NFR-01)."""
     cell.press = 99.0
     r = wipe.wipe_bowl()
     assert not r.ok and r.code == FORCE_LIMIT
-    assert 'spiral' not in [c[0] for c in cell.calls]
+    assert [c[0] for c in cell.calls][-2:] == ['force_off', 'safe_retreat']
 
 
 def test_over_time_is_timeout(cell):

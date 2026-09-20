@@ -33,7 +33,7 @@ import time
 from .bootstrap import cfg, dsr
 from .motion import is_paused, move_rel
 
-__all__ = ['force_on', 'force_off', 'force_reached', 'force_check', 'compliance_on', 'compliance_off',
+__all__ = ['force_on', 'force_off', 'force_release', 'force_reached', 'force_check', 'compliance_on', 'compliance_off',
            'contact_down', 'periodic_search', 'safe_retreat', 'read_force',
            'where', 'motion_done', 'move_spiral', 'move_arc', 'move_periodic',
            'ForceLimitError', 'MotionTimeout']
@@ -118,6 +118,21 @@ def force_off():
     _state.update(compliance=False, force=False, limit=None)
     if failed:
         raise failed[0]
+
+
+def force_release():
+    """**힘제어만** 끈다 — 순응은 켜 둔 채로. 켜져 있지 않아도 부를 수 있다.
+
+    닦기에서 벽면 구간이 끝난 뒤, 순응을 유지한 채 중심으로 돌아올 때 쓴다(V-03 확정 절차).
+    둘 다 끄려면 force_off()/compliance_off(). 중급2: 순응을 끄면 힘제어도 같이 끝난다.
+    """
+    if not _state['force']:
+        return
+    d = dsr()
+    d.mwait()
+    _ok(d.release_force(), 'release_force')
+    _state['force'] = False
+    _state['limit'] = None
 
 
 def force_reached(axis, min=None, max=None):
