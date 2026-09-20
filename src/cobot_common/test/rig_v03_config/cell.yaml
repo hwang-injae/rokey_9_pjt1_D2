@@ -10,6 +10,7 @@ cell:
     acc_tcp_max_mm_s2: 800
     vel_joint_max_deg_s: 100
     acc_joint_max_deg_s2: 200
+    move_timeout_s: 30.0        # 이동 1번의 상한 시간 — PR #34(이동 함수 비동기화)로 새로 필요해진 값
   force:
     compliance_stx: [1000, 1000, 200, 100, 100, 100]   # N/m · Nm/rad — 9/20: Z 500 → 200 (닿을 때 더 물렁하게)
                                                        #   수세미가 바닥을 물고 손목이 비틀릴 때 붙었다 떨어지며(스틱-슬립)
