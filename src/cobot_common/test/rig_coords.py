@@ -130,6 +130,11 @@ def main() -> int:
             """(위치 오차 mm, 방향 오차 deg)"""
             return math.dist(now[:3], want[:3]), _rot_diff_deg(now, want)
 
+        def _exits():
+            """이 칸에서 꽂고 놓은 뒤 빠져나오는 상대 이동 목록(BASE). 접근점이 있는 칸은 수직 복귀라 비어 있다."""
+            slots = ((cc.cfg().get('cell') or {}).get('rack') or {}).get('slots') or {}
+            return (slots.get(station) or {}).get('exit_rel_mm') or []
+
         def record(label, ok, detail):
             rows.append((label, ok, detail))
             log.info(f"{'OK  ' if ok else 'FAIL'} {label:<34} {detail}")
@@ -181,6 +186,13 @@ def main() -> int:
                 else:
                     record(f'  └ {up:.1f} mm 하강 → 끝점', hit, f'끝점 z {end[2]:g} · 오차 {dpos:.2f} mm {drot:.2f}°')
                 cc.move_rel(0.0, 0.0, up, 'BASE')
+
+            for k, step_mm in enumerate(_exits(), start=1):              # ④ 팔레트 칸에서 빠져나오기 (cell.yaml 의 exit_rel_mm)
+                dx, dy, dz = (float(v) for v in step_mm)
+                if opt.step and input(f'    빠져나오기 {k}: Δ({dx:g}, {dy:g}, {dz:g}) mm — Enter = 이동 / s = 건너뛰기 > ').strip().lower() == 's':
+                    break
+                cc.move_rel(dx, dy, dz, 'BASE')
+                log.info(f'  ↳ 빠져나오기 {k}: Δ({dx:g}, {dy:g}, {dz:g}) mm — 여기서 팔레트에 안 걸리는지 본다')
 
         log.info('──── ③ 아직 안 찍은 자세 — 움직이지 않고 KeyError ────')
         for station, kind, point in UNTAUGHT:

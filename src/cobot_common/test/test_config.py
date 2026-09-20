@@ -168,3 +168,18 @@ def test_vel_scale_range(tmp_path, monkeypatch, text, ok):
     else:
         with pytest.raises(config.ConfigError, match='vel_scale'):
             config.load(tmp_path)
+
+
+def test_repo_rack_exit_paths_are_relative_vectors():
+    """팔레트 칸의 exit_rel_mm = 꽂고 놓은 뒤 빠져나오는 상대 이동 목록(BASE).
+
+    9/21 실기: 그릇 칸은 꽂은 자리에서 HOME 으로 곧장 가면 **그리퍼가 팔레트에 걸린다** → 먼저 칸 밖으로 빼야 한다.
+    컵 칸은 접근점이 있어 수직으로 되올라가므로 필요 없다.
+    """
+    slots = config.load(SRC_CONFIG)['cell']['rack']['slots']
+    have = {name for name, s in slots.items() if s.get('exit_rel_mm')}
+    assert have == {'RACK_B1', 'RACK_B2'}
+    assert all('approach_posx' not in slots[name] for name in have)      # 접근점이 있으면 그걸로 빠진다
+    for name in have:
+        for step in slots[name]['exit_rel_mm']:
+            assert len(step) == 3 and all(isinstance(v, (int, float)) for v in step), (name, step)
