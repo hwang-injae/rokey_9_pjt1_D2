@@ -27,8 +27,8 @@ import time
 from .bootstrap import cfg, dsr
 from .motion import move_rel
 
-__all__ = ['force_on', 'force_off', 'force_reached', 'force_check', 'contact_down', 'periodic_search',
-           'safe_retreat', 'read_force', 'ForceLimitError', 'MotionTimeout']
+__all__ = ['force_on', 'force_off', 'force_reached', 'force_check', 'compliance_on', 'compliance_off',
+           'contact_down', 'periodic_search', 'safe_retreat', 'read_force', 'ForceLimitError', 'MotionTimeout']
 
 _AXES = ('x', 'y', 'z')
 _state = {'compliance': False, 'force': False, 'limit': None}   # 지금 켜져 있는 것 (safe_retreat 가 본다)
@@ -69,6 +69,25 @@ def force_on(axis, target, limit):
         raise
     _state['force'] = True
     _state['limit'] = float(limit)
+
+
+def compliance_on(stx=None):
+    """순응제어만 켠다(힘제어는 켜지 않는다) — 닦기의 나선 구간처럼 **힘 방향과 같은 축으로 움직이는** 동작에 쓴다.
+
+    중급2: 힘제어는 힘 방향과 같은 방향의 모션을 막는다 · 순응제어 중에는 Task 모션만 가능(Move J 계열 2.1903) ·
+    비동기·블렌딩 모션이 도는 중에 켜면 2.1903 → 켜기 전 mwait · 목표 자리 근처에서 켜는 것을 권장.
+    stx 를 안 주면 cell.force.compliance_stx 를 쓴다.
+    """
+    d = dsr()
+    stx = _force_cfg('compliance_stx') if stx is None else stx
+    d.mwait()
+    _ok(d.task_compliance_ctrl(stx), 'task_compliance_ctrl')
+    _state['compliance'] = True
+
+
+def compliance_off():
+    """순응제어를 끈다(힘제어가 켜져 있으면 함께 끝난다 — 중급2). 켜져 있지 않아도 부를 수 있다."""
+    force_off()
 
 
 def force_off():
