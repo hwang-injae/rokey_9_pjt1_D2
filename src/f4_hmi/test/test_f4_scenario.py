@@ -7,14 +7,22 @@ from f4_hmi import scenario as sc
 ALL = ('normal', 'isolate', 'error', 'paused', 'empty_zone')
 
 
+def _contract_steps():
+    """함수 약속(cobot_api)의 단계 목록. 빌드 전이라 안 보이면 대본 모듈이 아는 이름으로 대신한다."""
+    try:
+        from cobot_api.contracts import STEPS
+        return STEPS
+    except ModuleNotFoundError:
+        return sc.STEPS + ('IDLE', 'ISOLATE', 'DONE', 'ERROR', 'PAUSED')
+
+
 def test_all_five_scenarios_exist_and_build():
     assert set(ALL) <= set(sc.names())
     for name in ALL:
         scenes = sc.build(sc.load(name))
         assert scenes[0].state['step'] == 'IDLE' and scenes[-1].state['step'] == 'IDLE'
         assert all(s.duration_s > 0 for s in scenes)
-        from cobot_api.contracts import STEPS
-        assert {s.state['step'] for s in scenes} <= set(STEPS)              # 단계 이름은 IRD §2 그대로
+        assert {s.state['step'] for s in scenes} <= set(_contract_steps())  # 단계 이름은 IRD §2 그대로
 
 
 def test_normal_runs_every_step_and_emits_one_event_per_item():
@@ -32,7 +40,8 @@ def test_normal_runs_every_step_and_emits_one_event_per_item():
 
 
 def test_event_fields_match_flow_event_message():
-    from cobot_msgs.msg import FlowEvent, FlowState
+    msgs = pytest.importorskip('cobot_msgs.msg', reason='cobot_msgs 를 빌드한 뒤(soc)에 돈다 — 메시지 정의와 대본의 필드 이름을 대조한다')
+    FlowEvent, FlowState = msgs.FlowEvent, msgs.FlowState
     scenes = sc.build(sc.load('isolate'))
     event = next(s.event for s in scenes if s.event)
     assert set(event) == set(FlowEvent.get_fields_and_field_types()) - {'stamp'}
@@ -95,3 +104,15 @@ def test_bad_scenario_is_rejected(tmp_path, text):
 def test_unknown_scenario_name():
     with pytest.raises(FileNotFoundError):
         sc.load('no_such_scenario')
+
+
+def test_scenes_know_their_item_so_abort_can_skip_to_the_next_one():
+    scenes = sc.build(sc.load('normal'))
+    assert scenes[0].item == -1 and scenes[-1].item == -1 and scenes[-2].state['step'] == 'DONE' and scenes[-2].item == -1
+    assert [s.item for s in scenes[1:9]] == [0] * 8 and scenes[9].item == 1
+    wipe = next(k for k, s in enumerate(scenes) if s.state['step'] == 'WIPE')
+    nxt = sc.after_item(scenes, wipe)
+    assert scenes[nxt].item == 1 and scenes[nxt].state['step'] == 'PICK'            # 첫 그릇을 접으면 둘째 그릇의 PICK 으로
+    assert sc.start_of(scenes, nxt) == pytest.approx(sum(s.duration_s for s in scenes[:nxt]))
+    last_wipe = max(k for k, s in enumerate(scenes) if s.state['step'] == 'WIPE')
+    assert scenes[sc.after_item(scenes, last_wipe)].state['step'] == 'DONE'          # 마지막 용기를 접으면 DONE 으로
