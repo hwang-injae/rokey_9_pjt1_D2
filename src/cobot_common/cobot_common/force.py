@@ -27,8 +27,8 @@ import time
 from .bootstrap import cfg, dsr
 from .motion import move_rel
 
-__all__ = ['force_on', 'force_off', 'force_reached', 'contact_down', 'periodic_search', 'safe_retreat',
-           'read_force', 'ForceLimitError', 'MotionTimeout']
+__all__ = ['force_on', 'force_off', 'force_reached', 'force_check', 'contact_down', 'periodic_search',
+           'safe_retreat', 'read_force', 'ForceLimitError', 'MotionTimeout']
 
 _AXES = ('x', 'y', 'z')
 _state = {'compliance': False, 'force': False, 'limit': None}   # 지금 켜져 있는 것 (safe_retreat 가 본다)
@@ -72,13 +72,25 @@ def force_on(axis, target, limit):
 
 
 def force_off():
-    """힘 해제 → 순응 해제 (이 순서). 켜져 있지 않아도 불러도 된다."""
+    """힘 해제 → 순응 해제 (이 순서). 켜져 있지 않아도 부를 수 있다.
+
+    🚨 하나가 실패해도 **둘 다 시도한 뒤에** 예외를 낸다 — 첫 줄이 force_off() 인 safe_retreat() 의 후퇴까지 막히면 안 된다(#20 검토 1).
+    """
     d = dsr()
+    failed = []
     if _state['force']:
-        _ok(d.release_force(), 'release_force')
+        try:
+            _ok(d.release_force(), 'release_force')
+        except BaseException as e:                       # 순응 해제는 반드시 시도한다
+            failed.append(e)
     if _state['compliance']:
-        _ok(d.release_compliance_ctrl(), 'release_compliance_ctrl')
+        try:
+            _ok(d.release_compliance_ctrl(), 'release_compliance_ctrl')
+        except BaseException as e:
+            failed.append(e)
     _state.update(compliance=False, force=False, limit=None)
+    if failed:
+        raise failed[0]
 
 
 def force_reached(axis, min=None, max=None):
@@ -108,7 +120,10 @@ def read_force():
 def contact_down(max_depth, limit):
     """순응 ON 상태로 contact_step_mm 씩 내려가며 Z 힘이 limit 에 닿을 때까지 → (depth_mm, force_n).
 
-    멈추는 조건: 힘 ≥ limit(접촉) · 깊이 ≥ max_depth(바닥 못 찾음) — 둘을 가르는 건 부르는 쪽(depth < max_depth 면 접촉).
+    멈추는 조건: **시작할 때보다 Z 힘이 limit 만큼 커짐**(접촉) · 깊이 ≥ max_depth(바닥 못 찾음) —
+    둘을 가르는 건 부르는 쪽(depth < max_depth 면 접촉). 돌려주는 force_n 도 시작 대비 변화량이다.
+    🚨 절대값으로 보면 안 된다: 툴 무게 설정에 없는 무게(솔·수세미)가 있으면 공중에서도 Fz 가 2 N 쯤 나와서
+    내려가기도 전에 "바닥"이 된다(9/20 실기: 깊이 0.1 mm 에서 접촉 오판).
     순응을 켜 두어 단단한 작업대에 닿아도 한 단계만큼의 힘만 걸린다. 끝나면 순응을 끄고 그 자리에 선다.
     힘이 cell.force.force_max_n 을 넘으면 ForceLimitError, cell.limits.timeout_s 를 넘으면 MotionTimeout.
     """
@@ -125,16 +140,17 @@ def contact_down(max_depth, limit):
 
     d.mwait()
     z0 = _current_z(d)
+    f0 = read_force()[2]                                # 내려가기 전 Z 힘 = 기준(툴 무게·옵셋 포함)
     _ok(d.task_compliance_ctrl(stx), 'task_compliance_ctrl')
     _state['compliance'] = True
     t0 = time.monotonic()
     try:
         while True:
             depth = z0 - _current_z(d)
-            f = abs(read_force()[2])
+            f = abs(read_force()[2] - f0)               # 시작 대비 변화량 (누르는 힘)
             if f > f_max:
-                raise ForceLimitError(f'contact_down: |Fz| {f:.1f} N > force_max_n {f_max} N (깊이 {depth:.1f} mm)')
-            if force_reached('z', min=limit) or depth >= max_depth:
+                raise ForceLimitError(f'contact_down: 누르는 힘 {f:.1f} N > force_max_n {f_max} N (깊이 {depth:.1f} mm)')
+            if f >= limit or depth >= max_depth:
                 return depth, f
             if time.monotonic() - t0 > timeout:
                 raise MotionTimeout(f'contact_down: {timeout} s 안에 접촉·최대 깊이에 닿지 않았다 (깊이 {depth:.1f} mm)')
@@ -142,6 +158,28 @@ def contact_down(max_depth, limit):
             move_rel(0.0, 0.0, -dz, 'BASE', vel_mm_s=vel, acc_mm_s2=acc)
     finally:
         force_off()
+
+
+def force_check(axis='z', baseline=None):
+    """지금 걸린 힘을 돌려주고, force_on 에 준 limit(과 cell.force.force_max_n)을 넘었으면 ForceLimitError.
+
+    닦기·문지르기 루프에서 **한 걸음마다** 부른다(force_on 의 limit 은 저장만 되므로 — #20 검토 2).
+    baseline 을 주면 그 값 대비 변화량으로 본다(툴 무게 옵셋 제거, contact_down 과 같은 방식).
+    → (누르는 힘, 옆 힘) — 누르는 힘 = axis 성분, 옆 힘 = 나머지 두 축의 크기.
+    """
+    i = _axis_index(axis)
+    f = read_force()
+    base = [0.0, 0.0, 0.0] if baseline is None else [float(v) for v in baseline[:3]]
+    fx, fy, fz = (f[k] - base[k] for k in range(3))
+    press = abs((fx, fy, fz)[i])
+    lateral = (fx ** 2 + fy ** 2 + fz ** 2 - press ** 2) ** 0.5
+    f_max = _force_cfg('force_max_n')
+    limit = _state['limit']
+    if press > f_max:
+        raise ForceLimitError(f'force_check: 누르는 힘 {press:.1f} N > force_max_n {f_max} N')
+    if limit is not None and press > limit:
+        raise ForceLimitError(f'force_check: 누르는 힘 {press:.1f} N > force_on 의 limit {limit} N')
+    return press, lateral
 
 
 def periodic_search(amp, period, duration):
