@@ -338,9 +338,9 @@ class Flow:
         for entry in self.plan:
             self.zone_id, self.kind = entry['zone'], entry['kind']
             for _ in range(entry['count']):
-                # 🚨 기능 함수 호출 **사이**에서만 정지한다 (IRD §6)
+                # 용기와 용기 사이. 단계 사이의 정지는 process_one 안에 따로 있다 (SDD §5.1)
                 if sig.peek('stop'):
-                    self.log.info('stop 요청 — 정지')
+                    self.log.info('stop 요청 — 용기 사이에서 정지')
                     self.to_paused('stop 버튼')
                     self.wait_resume(sig)
                 outcome = self.process_one(sig)
@@ -386,6 +386,16 @@ class Flow:
             ('RACK', 'f1', 'move_to', ('HOME', False)),
         ]
         for step, mod, fname, args in steps:
+            # 🚨 stop 은 **단계 사이마다** 본다 (SDD §5.1 — 9/20 V-20 에서 찾은 결함).
+            #    여기가 없으면 정지 버튼을 눌러도 용기 하나(실기 수십 초)를 끝까지 하고서야 멈춘다.
+            #    용기·툴을 **든 채** 멈출 수 있다 → 🚨 그리퍼에 **아무 명령도 보내지 않는다**.
+            #    (기능 함수가 끝날 때 HOLD → NORMAL 로 되돌리므로 단계 사이는 이미 NORMAL 이다.
+            #     여기서 힘을 바꾸면 드라이버가 다시 파지하면서 놓칠 수 있다 — 황인재 9/20)
+            #    resume 하면 이 단계부터 이어 간다.
+            if sig.peek('stop'):
+                self.log.info(f'stop 요청 — {step} 앞에서 정지')
+                self.to_paused('stop 버튼')
+                self.wait_resume(sig)
             self.step = step
             r = self.call_fn(mod, fname, *args)
             if not r.ok:

@@ -65,6 +65,10 @@ def shake(mode: str, count: int, kind: str) -> Result:
     F2-01 에서 채울 내용 (IRD §4 · 9/18 V-17 결과):
         🚨 시작할 때 cc.grip_level(kind, 'HOLD')  ← 흔들 때는 더 꽉 잡는다
            끝날 때 cc.grip_level(kind, 'NORMAL')  ← 반드시 되돌린다
+        🚨 되돌리기는 **try/finally** 로 짠다 (황인재 9/20 확인 요청).
+           도중에 실패해 HOLD 인 채로 빠져나가면, flow 가 단계 사이에서 멈출 때
+           "이미 NORMAL" 이라는 전제(SDD §5.1)가 깨진다 — 멈춘 자리에서 그리퍼를
+           건드릴 수 없으므로 HOLD 인 채로 서 있게 된다.
         J5/J6 관절 왕복, 진폭·속도는 cc.cfg()['f2']['shake'][mode]
         동작 전후 그리퍼 폭을 비교해 변했으면(미끄러짐) Result.fail(GRIP_FAIL)
     """
@@ -80,7 +84,7 @@ def dip(station: str, count: int, kind: str) -> Result:
     반환    : Result
 
     F2-01 에서 채울 내용 (SDD §5.3):
-        🚨 담그는 동안 강한 파지(HOLD), 끝나면 NORMAL 로 되돌린다
+        🚨 담그는 동안 강한 파지(HOLD), 끝나면 NORMAL 로 되돌린다 — **try/finally** 로 (shake 주석 참고)
         수조 상공 → depth_mm 하강 → hold_s 유지 → 상승
         깊이·시간은 cc.cfg()['f2']['dip'][station]
     """
