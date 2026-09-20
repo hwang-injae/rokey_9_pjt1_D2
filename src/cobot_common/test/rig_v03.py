@@ -144,31 +144,34 @@ class Run:
             raise cc.ForceLimitError(f'{phase}: 옆 힘 {lateral:.1f} N > {p["lateral_max_n"]} N (벽을 세게 밀었다)')
         return press, lateral, radial
 
+    def wall_r(self):
+        """그릇 벽에 닿는 툴 중심 반지름 = (그릇 안지름 − 툴 지름) / 2 + 눌러 주는 양 (9/20: 수세미가 물러서 힘으로 못 찾음)."""
+        p = self.p
+        return max(0.0, (p['bowl_inner_d_mm'] - p['brush_d_mm']) / 2 + p['wall_press_mm'])
+
     def r_max(self):
         """솔 중심이 갈 수 있는 최대 반지름 = 받을 수 있는 가장 큰 그릇 반지름 − 솔 반지름 + 여유. 그릇 크기를 가정하지 않는다."""
         p = self.p
         return p['bowl_r_max_mm'] - p['brush_d_mm'] / 2 + p['r_max_margin_mm']
 
     def spiral_find_wall(self):
-        """중심에서 아르키메데스 나선(한 바퀴에 pitch 만큼)으로 넓혀 가며 문지른다. 벽이면 (반지름, 각도, 벽 기준 N) · 못 찾으면 None.
+        """중심에서 나선으로 넓혀 가며 문지르다 **정해진 반지름**에 닿으면 그 자리를 벽으로 본다 → (반지름, 각도).
 
-        그릇 크기는 모른다 — 벽 = **명령한 반지름을 못 따라간 거리(gap) > wall_gap_mm**, 또는 솔이 climb_max_mm 넘게 올라감.
-        힘으로만 보면 안 된다(9/20 실기: 가운데에서 바깥으로 갈 때 마찰이 안쪽으로 5 N 걸려 벽으로 오판, 벽 힘과 구분 불가).
-        순응(X·Y 3 N/mm) 덕분에 벽에 막히면 실제 위치가 명령을 못 따라가고, 마찰은 진행 방향이라 반지름을 줄이지 않는다.
-        벽 같으면 반지름을 더 넓히지 않는다. 나선 반지름 증가는 가운데에서도 한 걸음 약 pitch/2π 이하라 작은 그릇도 세게 밀지 않는다.
+        🔸 9/20 결정: 수세미는 스펀지처럼 물러서 벽에 눌려도 잘 막히지 않는다(힘·못 따라간 거리로는 벽을 못 찾음)
+           → **그릇 안지름을 넣어** 벽 반지름 = (bowl_inner_d_mm − brush_d_mm) / 2 + wall_press_mm 로 계산한다.
+        그래도 그보다 **먼저 막히면**(gap·올라감) 거기서 멈춘다 — 그릇이 작거나 잘못 놓였을 때의 안전장치.
         """
         import math
         p = self.p
         self.x = self.y = self.rz = 0.0
         self.twist, self.step_i = 1, 0
         self.set_frame()
-        r_max = self.r_max()
+        r_wall = min(self.wall_r(), self.r_max())
+        self.log.info(f'  벽 반지름 {r_wall:.1f} mm = (그릇 안지름 {p["bowl_inner_d_mm"]:g} − 툴 {p["brush_d_mm"]:g}) / 2 '
+                      f'+ 눌러 주기 {p["wall_press_mm"]:g} mm')
         theta, r, hits, presses = 0.0, 0.0, 0, []
         start = time.monotonic()
         while True:
-            if r > r_max:
-                self.log.error(f'반지름 {r_max:.1f} mm(가장 큰 그릇 {p["bowl_r_max_mm"]:g} mm 기준)까지 벽을 못 찾았다')
-                return None
             if time.monotonic() - start > p['scrub_timeout_s']:
                 raise cc.MotionTimeout('나선 문지르기 시간 초과')
             press, lat, rad = self.scrub_to(r * math.cos(theta), r * math.sin(theta))
@@ -176,17 +179,17 @@ class Run:
             climbed = self.climb > p['climb_max_mm']
             blocked = self.gap > p['wall_gap_mm']
             hits = hits + 1 if (blocked or climbed) else 0
-            if hits >= p['wall_confirm']:
-                why = (f'솔이 {self.climb:.1f} mm 올라감' if climbed
-                       else f'명령을 {self.gap:.1f} mm 못 따라감 > {p["wall_gap_mm"]:g} mm')
+            early = hits >= p['wall_confirm']                            # 계산한 반지름 전에 막혔다(안전장치)
+            if early or r >= r_wall:
+                why = (f'솔이 {self.climb:.1f} mm 올라감' if climbed and early else
+                       f'명령을 {self.gap:.1f} mm 못 따라감' if early else '정해진 반지름 도달')
                 self.log.info(f'  벽: 반지름 {r:.1f} mm · 각 {math.degrees(theta):.0f}° · {why} · '
                               f'반지름 방향 힘 {rad:.1f} N · 옆 힘 {lat:.1f} N · 나선 {time.monotonic() - start:.1f} s')
                 self.result('spiral', p['wipe_target_n'], presses)
                 return r, theta
             dth = p['scrub_step_mm'] / max(r, p['scrub_step_mm'])       # 호 길이가 약 scrub_step_mm 가 되게
             theta += dth
-            if hits == 0:                                                # 벽 같으면 반지름을 그대로 두고 한 번 더 본다
-                r += p['spiral_pitch_mm'] * dth / (2 * math.pi)
+            r = min(r + p['spiral_pitch_mm'] * dth / (2 * math.pi), r_wall)
 
     def circle_wall(self, r_hit, theta0):
         """벽에 닿은 자리에서 바로 circle_turns 바퀴 — 반지름은 **고정**(벽을 만난 반지름 − circle_margin_mm).
