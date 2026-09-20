@@ -8,7 +8,7 @@ Result.fail(code) 로 돌려준다. 숫자는 전부 params.yaml 의 f3 절 · c
 끝난 뒤: 툴을 쥔 채 안전 높이. 툴 반납·재파지는 flow 가 F1 을 부른다.
 
 🔸 툴 파지 기준(9/20 확정): 수세미·솔 모두 세척부 위에 손잡이가 있고, **그리퍼 끝을 세척부 윗면에 닿게** 쥔다
-   → 그리퍼 끝에서 툴 끝까지 = 세척부 높이 = params.yaml 의 f3.wipe_bowl.tool.clean_h_mm(수세미 45) · f3.wipe_cup.tool.clean_h_mm(솔 95).
+   → 그리퍼 끝에서 툴 끝까지 = 세척부 높이 = params.yaml 의 f3.wipe_bowl.tool.clean_h_mm(수세미 35) · f3.wipe_cup.tool.clean_h_mm(솔 95).
    내려가는 거리·삽입 깊이·닦는 반경은 이 값과 cell.yaml 좌표로 계산한다 — 길이를 코드에 적지 않는다.
 
 wipe_bowl 은 F3-02 로 채웠다 — **고정 좌표 방식**(9/20 결정 E6 · SDD §5.4). soap · wipe_cup 은 F3-03 에서 채운다.
