@@ -37,7 +37,9 @@ REAL_CONFIG = HERE.parent / 'config'
 # (이름, 들고 있나, kind, point) — 한석형 스크립트의 작업 순서
 ROUTE = [
     ('HOME', False, None, None),
-    ('RET_B', False, None, 1), ('WEIGH', True, 'BOWL', None), ('WASTE', True, 'BOWL', None), ('SPONGE_BED_B', True, None, 'place'),
+    ('RET_B', False, None, 1), ('WEIGH', True, 'BOWL', None), ('WASTE', True, 'BOWL', None),
+    ('HOME', True, None, None),        # 9/21: 잔반통이 로봇 뒤라 스펀지 홈(앞)까지 직선으로 가면 몸통을 가로지른다 → HOME 을 거친다
+    ('SPONGE_BED_B', True, None, 'place'),
     ('TOOL_SPONGE', False, None, 'pick'), ('HOME', True, None, None), ('SPONGE_BED_B', True, None, 'wash'),
     ('HOME', True, None, None), ('TOOL_SPONGE', True, None, 'return'), ('SPONGE_BED_B', False, None, 'place'),
     ('RINSE', True, 'BOWL', None), ('HOME', True, None, None), ('RACK_B1', True, None, None),
@@ -130,6 +132,22 @@ def main() -> int:
             """(위치 오차 mm, 방향 오차 deg)"""
             return math.dist(now[:3], want[:3]), _rot_diff_deg(now, want)
 
+        last_j6 = [None]
+
+        def jinfo():
+            """도착한 뒤 J3(팔꿈치)·J6(손목) — 9/21 케이블 꼬임 뒤 추가. 팔이 쭉 펴진 특이점과 손목이 크게 도는 구간을 본다."""
+            j = posj()
+            d = '' if last_j6[0] is None else f' (앞에서 {j[5] - last_j6[0]:+.0f}°)'
+            warn = []
+            if abs(j[2]) < 15:
+                warn.append('🚨 팔이 쭉 펴짐')
+            if last_j6[0] is not None and abs(j[5] - last_j6[0]) >= 150:
+                warn.append('🚨 손목 크게 돎')
+            if abs(j[5]) > 180:
+                warn.append('⚠ 손목 한 바퀴 넘게 감김')
+            last_j6[0] = j[5]
+            return f' │ J3 {j[2]:.1f}° · J6 {j[5]:+.1f}°{d}' + ('  ' + ' '.join(warn) if warn else '')
+
         def _exits():
             """이 칸에서 꽂고 놓은 뒤 빠져나오는 상대 이동 목록(BASE). 접근점이 있는 칸은 수직 복귀라 비어 있다."""
             slots = ((cc.cfg().get('cell') or {}).get('rack') or {}).get('slots') or {}
@@ -177,13 +195,13 @@ def main() -> int:
             time.sleep(p['settle_s'])
             if 'posj' in spec:
                 worst = max(abs(a - b) for a, b in zip(posj(), spec['posj']))
-                record(label, up == 0.0 and worst <= tol['joint_deg'], f'관절 자세 · 가장 큰 오차 {worst:.2f}°')
+                record(label, up == 0.0 and worst <= tol['joint_deg'], f'관절 자세 · 가장 큰 오차 {worst:.2f}°' + jinfo())
                 continue
             end = spec.get('posx') or spec['approach_posx']
             stop = list(spec.get('approach_posx') or end)
             dpos, drot = off(posx(), stop)
             ok = dpos <= tol['pos_mm'] and drot <= tol['rot_deg'] and abs(up - (stop[2] - end[2])) < 1e-6
-            record(label, ok, f"{'접근점' if 'approach_posx' in spec else '티칭 자세'} z {stop[2]:g} · 오차 {dpos:.2f} mm {drot:.2f}° · 남은 높이 {up:.1f} mm")
+            record(label, ok, f"{'접근점' if 'approach_posx' in spec else '티칭 자세'} z {stop[2]:g} · 오차 {dpos:.2f} mm {drot:.2f}° · 남은 높이 {up:.1f} mm" + jinfo())
             if up > 0.0:                                                # ② 곧게 내려가면 끝점인가 → 다시 올라온다
                 if opt.step and input(f'    끝점까지 {up:.1f} mm 내려간다 — Enter = 하강 / s = 건너뛰기 > ').strip().lower() == 's':
                     continue
