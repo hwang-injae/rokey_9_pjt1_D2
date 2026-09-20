@@ -55,6 +55,7 @@ class Run:
         self.climb = 0.0                                                 # 바닥에서 올라간 높이 mm (check 가 갱신)
         self.gap = 0.0                                                   # 반지름 방향으로 못 따라간 거리 mm (check 가 갱신)
         self.z_now = 0.0                                                 # 지금 실제 Z — 다음 걸음의 Z 명령으로 그대로 쓴다
+        self.compliance_on = False                                       # depth 방식에서 직접 켠 순응
 
     def z(self):
         return self.d.get_current_posx(ref=self.d.DR_BASE)[0][2]
@@ -265,8 +266,34 @@ class Run:
         self.log.info(f'  {phase}: 목표 {target:.1f} N · 평균 {mean:.2f} · 흔들림 {sd:.2f} · 최대 {mx:.2f} N · {"OK" if ok else "FAIL"}')
 
     def press_on(self, target):
-        """닿은 채 힘제어를 켠다 (ABS → 목표 = 실제 누르는 힘)."""
-        cc.force_on('z', target, self.p['limit_n'])
+        """누르기 시작. press_mode 로 두 방식 중 하나 (9/20: 수세미는 물러서 힘제어로는 깊게 눌린다).
+
+        'force' : 힘제어 — 목표 힘이 날 때까지 로봇이 알아서 내려간다. 무른 툴은 몇 mm 씩 깊게 들어간다.
+        'depth' : 순응만 켜고 **정해진 깊이(press_depth_mm)만** 내려간다. 눌리는 깊이를 직접 정하는 방식
+                  (SDD §9.9 의 대안). 걸리는 힘 ≈ Z 순응 강성 × 깊이 (500 N/m = 0.5 N/mm → 3 mm ≈ 1.5 N).
+        """
+        p = self.p
+        if p['press_mode'] == 'force':
+            cc.force_on('z', target, p['limit_n'])
+            return
+        if p['press_mode'] != 'depth':
+            raise ValueError(f"press_mode={p['press_mode']!r} — 'force'·'depth' 중 하나")
+        d = self.d
+        d.mwait()                                                        # 비동기 이동 중 순응 ON 은 오류 2.1903
+        stx = cc.cfg()['cell']['force']['compliance_stx']
+        if d.task_compliance_ctrl(stx) != 0:
+            raise RuntimeError('task_compliance_ctrl 실패')
+        self.compliance_on = True
+        self.move_z(-p['press_depth_mm'], p['press_vel_mm_s'], p['press_acc_mm_s2'])
+        self.log.info(f'  깊이로 누르기: {p["press_depth_mm"]:g} mm (Z 순응 {stx[2]:g} N/m → 약 '
+                      f'{stx[2] / 1000 * p["press_depth_mm"]:.1f} N)')
+
+    def press_off(self):
+        """누르기 끝 — force 방식은 cc.force_off(), depth 방식은 직접 켠 순응을 직접 끈다."""
+        cc.force_off()                                                   # 힘제어를 켠 적 있으면 끈다(아니면 아무 일도 안 함)
+        if self.compliance_on:
+            self.d.release_compliance_ctrl()
+            self.compliance_on = False
 
     def save(self):
         os.makedirs(self.p['log_dir'], exist_ok=True)
@@ -360,7 +387,7 @@ def main() -> int:
         for target in p['press_targets_n']:
             run.press_on(target)
             run.sample(f'press_{target:g}N', target, seconds=p['press_hold_s'])
-            cc.force_off()
+            run.press_off()
 
         log.info('② 손목을 비틀며 나선으로 넓혀 가다 벽을 찾고 → 벽 따라 돌기')
         run.press_on(p['wipe_target_n'])
@@ -368,7 +395,7 @@ def main() -> int:
         wall = run.spiral_find_wall()
         if wall is not None:
             run.circle_wall(*wall)
-        cc.force_off()
+        run.press_off()
         code = 0 if wall is not None else 1
     except KeyboardInterrupt:
         log.warning('Ctrl+C — 정지 명령을 보내고 끝낸다')
@@ -383,7 +410,7 @@ def main() -> int:
                 log.error('🚨 두산 오류로 ROS 가 꺼졌다 → 힘·순응이 켜진 채일 수 있다. 새 터미널에서 바로:\n'
                           '    soc && python3 src/cobot_common/test/release_force.py --home   (E-Stop 에 손)')
             else:
-                for what, step in (('힘·순응 끄기', cc.force_off), ('동작 끝 대기', lambda: dsr().mwait()),
+                for what, step in (('힘·순응 끄기', run.press_off), ('동작 끝 대기', lambda: dsr().mwait()),
                                    ('안전 높이로', cc.safe_retreat),
                                    ('HOME', lambda: dsr().movej(p['home_posj'],
                                                                 vel=p['home_vel_deg_s'] * cc.cfg()['run']['vel_scale'],
