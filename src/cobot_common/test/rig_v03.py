@@ -54,6 +54,7 @@ class Run:
         self.fake_wall_r = None                                          # Virtual 가짜 벽 반지름 mm (--fake-wall)
         self.climb = 0.0                                                 # 바닥에서 올라간 높이 mm (check 가 갱신)
         self.gap = 0.0                                                   # 반지름 방향으로 못 따라간 거리 mm (check 가 갱신)
+        self.z_now = 0.0                                                 # 지금 실제 Z — 다음 걸음의 Z 명령으로 그대로 쓴다
 
     def z(self):
         return self.d.get_current_posx(ref=self.d.DR_BASE)[0][2]
@@ -77,7 +78,9 @@ class Run:
         """중심 기준 (x, y) 로 한 걸음 가면서 **동시에** 손목을 ±scrub_deg 로 비튼다 — movel 한 번(BASE 절대 좌표).
 
         목표 = [중심 X + x, 중심 Y + y, 바닥 Z, A, B, C + 비틀기]. 툴 Z 축 회전은 ZYZ 의 C 에 더하면 된다
-        (Rz(A)·Ry(B)·Rz(C)·Rz(q) = Rz(A)·Ry(B)·Rz(C + q)). Z 는 힘제어 축이라 바닥 높이를 그대로 준다.
+        (Rz(A)·Ry(B)·Rz(C)·Rz(q) = Rz(A)·Ry(B)·Rz(C + q)).
+        🚨 Z 는 **힘제어가 정한다** — 명령에는 '지금 실제 Z'를 넣는다. 처음 닿은 높이를 계속 명령하면
+        힘제어(더 눌러 내려가려 함)와 위치 명령(그 높이로 끌어올림)이 싸워 작업대를 쿵쿵 친다(9/20 실기).
         🔸 blend_radius_mm(> 0) 이면 목표 앞 그 거리에서 다음 걸음으로 **이어서** 간다(멈췄다 가는 뚝뚝 끊김 없앰).
         🔸 손목은 twist_every 걸음마다 한 번만 방향을 바꾼다 — 걸음마다 바꾸면 이어 붙이기가 비틀기를 지워 버리고(Virtual 실측),
            매 걸음 회전을 세웠다 돌리느라 덜컹거린다(9/20 실기 소음).
@@ -90,8 +93,8 @@ class Run:
         if self.step_i % max(1, int(p['twist_every'])) == 0:
             self.twist = -self.twist
         rz = p['scrub_deg'] * self.twist
-        x0, y0, z0, a, b, c = self.p0
-        target = [x0 + x, y0 + y, z0, a, b, (c + rz + 180.0) % 360.0 - 180.0]
+        x0, y0, _z0, a, b, c = self.p0
+        target = [x0 + x, y0 + y, self.z_now, a, b, (c + rz + 180.0) % 360.0 - 180.0]
         if d.movel(target, vel=vel, acc=acc, radius=p['blend_radius_mm'], ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS) != 0:
             raise RuntimeError('movel(한 걸음 + 손목 비틀기) 실패')
         self.x, self.y = x, y
@@ -101,6 +104,7 @@ class Run:
     def set_frame(self):
         """지금 자세(바닥에 닿은 중심)를 나선·원의 기준으로 기억한다 — 손목 0° 기준."""
         self.p0 = [float(v) for v in self.d.get_current_posx(ref=self.d.DR_BASE)[0]]
+        self.z_now = self.p0[2]
 
     def check(self, phase):
         """힘 한 번 읽기 → 기록 · 누르는 힘/옆 힘 상한 검사 → (press, lateral, radial).
@@ -131,7 +135,8 @@ class Run:
                 k = (self.fake_wall_r + (wr - self.fake_wall_r) * 0.2) / wr     # 벽 너머는 20 %만 들어간다
                 ax, ay = p['fake_bowl_offset_mm'][0] + wx * k, p['fake_bowl_offset_mm'][1] + wy * k
         self.gap = r - math.hypot(ax, ay) if r > 1e-6 else 0.0           # 반지름 방향으로 못 따라간 거리 mm (벽에 막힘)
-        self.climb = float(now[2]) - self.p0[2]                          # 바닥에서 올라간 높이 — 솔이 벽을 타고 오르면 커진다
+        self.z_now = float(now[2])                                       # 다음 걸음은 이 높이를 명령한다(Z 는 힘제어 몫)
+        self.climb = self.z_now - self.p0[2]                             # 바닥에서 올라간 높이 — 툴이 벽을 타고 오르면 커진다
         # 실제 손목 비틀림: B≈180°(툴이 아래를 봄)에서는 툴 Z 회전이 A − C 로 나타난다 → −Δ(A − C)
         arz = -((float(now[3]) - float(now[5])) - (self.p0[3] - self.p0[5]) + 180.0) % 360.0 + 180.0
         arz = (arz + 180.0) % 360.0 - 180.0
