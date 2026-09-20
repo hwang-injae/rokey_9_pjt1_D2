@@ -51,7 +51,7 @@ def test_repo_cell_skeleton_uses_ird_ids():
         assert set(cell['stations'][name]) == {'pick', 'return'}, name
     assert set(cell['beds']['SPONGE_BED_B']) == {'place', 'wash', 'seat'}
     assert set(cell['beds']['SPONGE_BED_C']) == {'place', 'regrip', 'wash', 'seat'}
-    assert all(len(cell['zones'][z]['slots']) == 2 for z in (RET_B, RET_C))       # 구역마다 슬롯 2개 (flow.plan 의 count 와 같다)
+    assert all(len(cell['zones'][z]['slots']) == 1 for z in (RET_B, RET_C))       # 구역마다 집는 자리 1개 — 한 자리 공급 구조(9/20 결정 E9)
 
 
 def _rotation(rx, ry, rz):
@@ -107,9 +107,8 @@ def test_repo_params_sections():
 def test_unfilled_lists_empty_cell_values():
     empty = config.unfilled(config.load(SRC_CONFIG))
     assert 'cell.limits.safe_z_mm' in empty                       # INF-04 시점: cell 값은 한석형이 채우기 전
-    assert 'cell.stations.WEIGH.BOWL.posx' in empty               # 9/20 CELL-04: 한석형이 찍은 26개는 찼고, 안 찍은 자세는 비어 있다
-    assert 'cell.zones.RET_B.slots[2].posj' in empty              # 슬롯 목록도 센다 (번호는 1 부터)
-    assert 'cell.stations.HOME.posj' not in empty and 'cell.zones.RET_B.slots[1].posj' not in empty
+    assert 'cell.stations.SOAP.BOWL.posx' in empty                # 9/20 CELL-04: 한석형이 찍은 자세는 찼고, 안 찍은 자세는 비어 있다(WEIGH 는 9/20 저녁에 참)
+    assert 'cell.stations.HOME.posj' not in empty and 'cell.zones.RET_B.slots[1].posj' not in empty   # 슬롯 목록도 센다(번호는 1 부터)
     assert not [p for p in empty if not p.startswith('cell.')]
 
 

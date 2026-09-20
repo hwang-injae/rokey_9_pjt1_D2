@@ -2,8 +2,9 @@
 """이동 함수(저수준) — 담당 황인재 (INF-02, 9/19 재분담 — 결정 기록 W3). 함수 표는 docs/03_설계_SDD.md §3.1.
 
     import cobot_common as cc
-    up = cc.move_to('WASTE', True, 'BOWL')             # 안전 높이를 거쳐 잔반통 앞(그릇용 자세)의 **상공**까지. up = 끝점까지 남은 높이(mm)
-    cc.move_rel(0, 0, -up, 'BASE')                     # 내려가는 것은 부르는 쪽이 한다 (접촉이면 cc.contact_down)
+    cc.move_to('WASTE', True, 'BOWL')                  # 잔반통 앞(그릇용 자세)으로 **곧장** 간다 — 티칭한 자세 그대로 (9/20 E7: 안전 높이 경유 없음)
+    up = cc.move_to('SPONGE_BED_B', True, point='place')   # 접근점이 있는 자리는 **접근점까지** 간다. up = 끝점까지 남은 높이(mm)
+    cc.move_rel(0, 0, -up, 'BASE')                     # 접근점 → 끝점은 부르는 쪽이 내려간다 (접촉이면 cc.contact_down)
     cc.move_to('TOOL_SPONGE', False, point='pick')     # 한 자리에 자세가 여러 개면 point 로 고른다 (pick·return / place·regrip·wash)
     cc.move_to('RET_B', False, point=1)                # 반납 구역은 슬롯 번호(1 부터)
     cc.move_to('RACK_C1', True)                        # 팔레트 칸 — **접근점**까지 가고, 끝점까지 남은 높이를 돌려준다
@@ -24,9 +25,11 @@
 규칙
 - 🚨 **값이 비어 있으면 로봇을 움직이지 않고 KeyError** — 어느 키가 없는지 알려 준다(force.py 와 같은 방식).
   필요한 값을 **전부 읽은 뒤에** 첫 명령을 보낸다.
-- 🚨 move_to 는 **안전 높이(cell.limits.safe_z_mm) 아래로 내려가지 않는다.** 티칭 자세가 더 낮으면 그 상공에서 멈추고
-  남은 높이를 돌려준다. 하강은 move_rel(자유 공간) 또는 contact_down(접촉)으로 — 접촉 동작의 힘 상한·후퇴·타임아웃은 그쪽 몫이다.
-  접근점(approach_posx)이 있는 자세는 **접근점까지** 간다(안전 높이보다 낮으면 안전 높이에서) — 돌려주는 값은 끝점(posx)까지 남은 높이.
+- move_to 는 **티칭한 자세로 곧장** 간다(9/20 결정 E7 — 안전 높이를 거치지 않는다: 티칭 경로가 자세에서 자세로 직접 가는 것이었고,
+  위로 올렸다 가면 팔레트 적재 자세가 나오지 않았다). 🚨 그래서 **경로의 안전은 자세를 부르는 순서(F1·flow)와 티칭이 책임진다.**
+  접근점(approach_posx)이 있는 자세는 **접근점까지만** 가고 끝점(posx)까지 남은 높이를 돌려준다 → 하강은 move_rel(자유 공간) 또는
+  contact_down(접촉)으로 — 접촉 동작의 힘 상한·후퇴·타임아웃은 그쪽 몫이다. 접근점이 없으면 끝점까지 가고 0.0 을 돌려준다.
+  cell.limits.safe_z_mm 은 이동에 쓰지 않는다 — 접촉 동작 뒤 **후퇴 높이**(force.py safe_retreat)로만 남았다.
 - 자세 적는 법(종류별 · point · 슬롯 · 접근점+끝점)은 src/cobot_common/config/cell.yaml 의 stations 위 설명이 정본이다 (9/20 CELL-04, 결정 E4).
 - 속도 = (100 % 기준 속도 cell.motion.*_max_*) × (cell.limits.vel_free_pct 또는 vel_carry_pct) × cfg()['run']['vel_scale'].
   move_rel 에 속도를 직접 주면 그 값을 쓰되(부르는 쪽이 vel_scale 을 곱한다 — force.py 방식), 위 상한은 넘지 못한다.
@@ -35,13 +38,14 @@
 
 🟡 아직 없는 것: 사용자 좌표계의 좌표(9/20 부터 전부 BASE 절대 자세로 적는다) · 회전을 포함한 상대 이동 · 관절 자세(posj)의 접근점.
 """
+import math
 import threading
 import time
 
 from .bootstrap import cfg, dsr, io_node
 
 __all__ = ['move_to', 'move_rel', 'move_joint_rel',
-           'pause', 'resume', 'is_paused', 'halt', 'clear_halt', 'is_halted', 'MotionHalted', 'MoveTimeout']
+           'pause', 'resume', 'is_paused', 'halt', 'clear_halt', 'is_halted', 'MotionHalted', 'MoveTimeout', 'MoveIncomplete']
 
 FRAMES = ('BASE', 'TOOL')
 KINDS = ('BOWL', 'CUP')                             # 종류별 자세의 키 (IRD §2 kind)
@@ -51,6 +55,9 @@ _Z = 2
 _POLL_S = 0.05                                      # check_motion 을 물어보는 간격 = 일시정지·정지가 먹는 데 걸리는 최대 지연
 _SRV = '/dsr01/dsr_controller2/motion/'             # 두산 드라이버의 이동 제어 서비스
 _STOP_MODE = 1                                      # DR_QSTOP — bootstrap.shutdown() 과 같은 값(박진용 확인 대상)
+_ARRIVE_TOL_MM = 2.0                                # move_to 도착 확인: 목표와 이만큼 넘게 떨어져 있으면 '도중에 멈췄다'
+_ARRIVE_TOL_DEG = 1.0                               #   관절 자세는 관절마다 이 각도
+_ARRIVE_WAIT_S = 0.5                                #   이동이 끝난 직후 자세 값이 자리 잡기를 기다리는 상한
 
 _pause_flag = threading.Event()                     # HMI 가 일시정지를 눌렀다
 _halt_flag = threading.Event()                      # 강제정지 — clear_halt() 전까지 새 이동을 막는다
@@ -61,43 +68,46 @@ class MotionHalted(RuntimeError):
     """강제정지(halt)로 이동이 끊겼거나, 강제정지 중이라 이동을 내보내지 않았다."""
 
 
+class MoveIncomplete(RuntimeError):
+    """move_to 가 끝났는데 목표 자세에 **도착하지 않았다** — 컨트롤러가 이동을 도중에 세웠다(속도·관절 한계의 안전 정지, 특이점 등).
+    비동기 이동은 도중에 서도 '끝남'으로만 보여서(9/20 Virtual: 속도 한계 초과로 122 mm 앞에서 멈춤) 직접 확인한다.
+    🚨 이 오류 뒤에는 로봇이 **어디 있는지 모른다** — 이어서 내려가거나 놓지 말고 사람이 확인한다(flow 는 ROBOT_ERROR 로 멈춘다)."""
+
+
 class MoveTimeout(RuntimeError):
     """이동이 cell.motion.move_timeout_s 안에 끝나지 않았다(일시정지한 시간은 빼고 잰다) — 정지 명령을 보내고 올린다."""
 
 
 # ------------------------------------------------------------------ 공개 함수
 def move_to(station, carrying, kind=None, point=None):
-    """안전 높이를 거쳐 station(상공)으로 간다. 들고 있으면(carrying) 느린 속도. → 끝점까지 남은 높이 mm (0.0 이면 그 자세)
+    """station 의 티칭 자세로 **곧장** 간다. 들고 있으면(carrying) 느린 속도. → 끝점까지 남은 높이 mm (접근점이 없으면 0.0)
 
     station: cell.stations(HOME·WEIGH·…) · cell.beds(SPONGE_BED_*) · cell.zones(RET_*) · cell.rack.slots(RACK_*) 의 이름.
     kind   : 'BOWL'·'CUP' — 종류별로 자세가 다른 자리(WEIGH·WASTE·SOAP·RINSE·ISOLATE)에서 고른다. 종류별이 아닌 자리에서는 무시한다.
     point  : 한 자리에 자세가 여러 개일 때 고른다 — 툴 홀더 'pick'·'return' / 스펀지 홈 'place'·'regrip'·'wash' / 반납 구역은 슬롯 번호(1 부터).
              골라야 하는데 안 주거나 없는 이름을 주면 ValueError(고를 수 있는 이름을 알려 준다) — 로봇은 움직이지 않는다.
-    경로: ① 지금 높이가 안전 높이보다 낮으면 곧게 위로 ② posj 목표면 관절 이동 / posx 목표면 안전 높이 이상에서 목표 XY 로.
-          접근점(approach_posx)이 있으면 **접근점으로** 간다(안전 높이보다 낮으면 안전 높이에서 멈춘다) — 돌려주는 값은 끝점(posx)까지 남은 높이.
+    경로: posj 면 관절 이동, posx 면 직선 이동 — **지금 자세에서 목표로 바로**(9/20 E7: 안전 높이를 거치지 않는다).
+          접근점(approach_posx)이 있으면 접근점으로 가고, 돌려주는 값 = 접근점 z − 끝점 z (끝점까지 곧게 내려갈 높이).
+          🟡 접근점이 끝점의 바로 위가 아닌 자리(예: 팔레트 그릇 칸을 랙 밖에서 들어갈 때)는 이 값만으로 끝점에 못 간다 —
+             부르는 쪽이 cell.yaml 의 (끝점 − 접근점)만큼 move_rel 한다.
     안전 자세 복귀는 move_to('HOME', False).
     """
     where, spec = _named_pose(station, kind, point)
-    safe_z = float(_limit('safe_z_mm'))
     pct = _limit('vel_carry_pct' if carrying else 'vel_free_pct')
     vel_l, acc_l = _tcp_speed(pct)
     vel_j, acc_j = _joint_speed(pct)
     timeout = _move_timeout()
     d = dsr()                                       # 여기까지 오류가 없을 때만 로봇에 손댄다
 
-    now, _ = d.get_current_posx(ref=d.DR_BASE)
-    if float(now[_Z]) < safe_z:                     # ① 곧게 위로
-        lift = [0.0, 0.0, safe_z - float(now[_Z]), 0.0, 0.0, 0.0]
-        _run(f'amovel(안전 높이 {safe_z:g} mm 로 상승)', timeout,
-             lambda: d.amovel(lift, vel=vel_l, acc=acc_l, ref=d.DR_BASE, mod=d.DR_MV_MOD_REL))
-    if 'posj' in spec:                              # ② 관절 자세 (HOME · 집는 자세)
+    if 'posj' in spec:                              # 관절 자세 (HOME · 집는 자세)
         joints = spec['posj']
         _run(f'amovej({where})', timeout, lambda: d.amovej(joints, vel=vel_j, acc=acc_j))
+        _must_arrive(where, lambda: max(abs(float(a) - b) for a, b in zip(d.get_current_posj(), joints)), _ARRIVE_TOL_DEG, '°')
         return 0.0
     end = spec.get('posx') or spec['approach_posx']                 # 끝점을 아직 안 찍었으면 접근점이 끝점 노릇을 한다
     target = list(spec.get('approach_posx') or end)                 # 가는 곳 = 접근점(없으면 끝점)
-    target[_Z] = max(target[_Z], safe_z)                            # 안전 높이보다 낮으면 그 상공에서 멈춘다
     _run(f'amovel({where})', timeout, lambda: d.amovel(target, vel=vel_l, acc=acc_l, ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS))
+    _must_arrive(where, lambda: math.dist([float(v) for v in d.get_current_posx(ref=d.DR_BASE)[0][:3]], target[:3]), _ARRIVE_TOL_MM, ' mm')
     return target[_Z] - end[_Z]
 
 
@@ -218,6 +228,18 @@ def _run(what, timeout_s, send):
                 raise MoveTimeout(f'{what} 이 {timeout_s:g} s 안에 끝나지 않았다 — 정지 명령을 보냈다')
     if _halt_flag.is_set():                                         # 끝나는 순간에 눌린 강제정지도 놓치지 않는다
         raise MotionHalted(f'{what} 직후 강제정지')
+
+
+def _must_arrive(where, error_now, tol, unit):
+    """이동이 끝난 뒤 목표에 와 있는지 본다(자유 공간의 이름 이동만 — 힘제어 중의 move_rel 은 일부러 덜 가므로 보지 않는다)."""
+    waited, err = 0.0, error_now()
+    while err > tol and waited < _ARRIVE_WAIT_S:                    # 끝난 직후에는 값이 조금 늦게 자리 잡을 수 있다
+        time.sleep(_POLL_S)
+        waited += _POLL_S
+        err = error_now()
+    if err > tol:
+        raise MoveIncomplete(f'{where} 로 가는 이동이 도중에 멈췄다 — 목표까지 {err:.1f}{unit} 남았다(허용 {tol:g}{unit}). '
+                             '컨트롤러의 안전 정지(속도·관절 한계)나 특이점일 수 있다. 로봇 위치를 사람이 확인한다')
 
 
 def _call(name):

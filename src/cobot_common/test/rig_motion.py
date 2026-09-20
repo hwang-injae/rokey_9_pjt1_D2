@@ -54,7 +54,7 @@ def main() -> int:
         tol, jtol = p['pos_tol_mm'], p['joint_tol_deg']
         for rnd in range(1, p['rounds'] + 1):
             log.info(f'──── {rnd}/{p["rounds"]} 바퀴 ────')
-            # move_to: 관절 자세 · 안전 높이보다 높은 자세 · 낮은 자세(상공에서 멈춤) · 아래에서 출발(먼저 상승)
+            # move_to: 관절 자세 · 직교 자세 · 낮은 자세(9/20 E7: 위로 올리지 않고 곧장) · 낮은 곳에서 출발
             up = cc.move_to('HOME', False)
             check('move_to HOME', up == 0.0 and near(posj(), cell['stations']['HOME']['posj'], jtol))
             weigh = cell['stations']['WEIGH']['posx']
@@ -63,12 +63,12 @@ def main() -> int:
             tool = cell['stations']['TOOL_SPONGE']['posx']
             up = cc.move_to('TOOL_SPONGE', False)
             now = posx()
-            check('move_to TOOL_SPONGE → 상공에서 멈춤', up == safe_z - tool[2] and near(now[:3], [tool[0], tool[1], safe_z], tol),
-                  f'남은 높이 {up:g} mm · z {now[2]:.1f}')
+            check('move_to TOOL_SPONGE → 낮은 자세까지 곧장', up == 0.0 and near(now[:3], tool[:3], tol) and tool[2] < safe_z,
+                  f'z {now[2]:.1f} (후퇴 높이 {safe_z:g} 보다 낮다)')
 
-            # move_rel: BASE 하강(부르는 쪽이 내려간다) · TOOL 축 · 속도 선택 인자
-            cc.move_rel(0, 0, -up, 'BASE')
-            check('move_rel BASE 하강', near(posx()[:3], tool[:3], tol), f'z {posx()[2]:.1f}')
+            # move_rel: BASE 축 · TOOL 축 · 속도 선택 인자
+            cc.move_rel(0, 0, -p['tool_step_mm'], 'BASE')
+            check('move_rel BASE 하강', near(posx()[:3], [tool[0], tool[1], tool[2] - p['tool_step_mm']], tol), f'z {posx()[2]:.1f}')
             before = posx()
             cc.move_rel(0, 0, -p['tool_step_mm'], 'TOOL')             # 툴이 아래를 보므로 툴 −z = 위로
             after = posx()
@@ -80,8 +80,10 @@ def main() -> int:
             check('move_rel 속도 선택 인자(느리게)', near([posx()[0] - after[0]], [s['dx_mm']], tol) and dt >= s['min_time_s'],
                   f"{s['dx_mm']} mm 를 {dt:.1f} s")
             bed = cell['beds']['SPONGE_BED_B']['place']['posx']
-            up = cc.move_to('SPONGE_BED_B', True, point='place')                     # 안전 높이 아래에서 출발 → 먼저 곧게 상승
-            check('move_to SPONGE_BED_B(아래에서 출발)', up == safe_z - bed[2] and near(posx()[:3], [bed[0], bed[1], safe_z], tol))
+            z_before = posx()[2]
+            up = cc.move_to('SPONGE_BED_B', True, point='place')                     # 낮은 곳에서 출발 → 올리지 않고 곧장
+            check('move_to SPONGE_BED_B(낮은 곳에서 곧장)', up == 0.0 and near(posx()[:3], bed[:3], tol) and z_before < safe_z,
+                  f'출발 z {z_before:.1f} → 도착 z {posx()[2]:.1f}')
 
             # move_joint_rel: 시간 지정 왕복(털기) · 기본 속도
             k = p['shake']
