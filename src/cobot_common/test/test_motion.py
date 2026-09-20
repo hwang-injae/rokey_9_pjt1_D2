@@ -28,7 +28,7 @@ CFG = {
                                     'return': {'posx': [420, -220, 130, 0, 180, 0]}}},
         'beds': {'SPONGE_BED_B': {'place': {'approach_posx': [350, 0, 450, 0, 180, 0],   # 접근점이 안전 높이보다 높다
                                             'posx': [350, 0, 50, 0, 180, 0]},
-                                  'wash': {'approach_posx': [300, 0, 235, 0, 180, 0],     # 접근점이 안전 높이보다 낮다
+                                  'wash': {'approach_posx': [300, 0, 235, 0, 180, 0],     # 접근점이 후퇴 높이(safe_z)보다 낮다
                                            'posx': [300, 0, 47, 0, 180, 0]},
                                   'seat': {'contact_limit_n': None}},                     # 자세가 아닌 값 — point 로 고를 수 없다
                  'SPONGE_BED_C': {'place': {'frame': 'BED', 'posx': [350, 80, 50, 0, 180, 0]}}},
@@ -45,21 +45,30 @@ class FakeDsr:
 
     def __init__(self, z=500.0, ret=0, busy_polls=2):
         self.z, self.ret, self.calls = z, ret, []
+        self.at_x, self.at_j = None, [0.0] * 6  # 마지막으로 도착한 직교·관절 자세 (move_to 의 도착 확인용)
+        self.stops_short = False                # True 면 컨트롤러가 이동을 도중에 세운 것처럼 — 명령은 받지만 자세가 안 바뀐다
         self.busy_polls = busy_polls            # 이동 하나가 끝나기까지 check_motion 이 '움직이는 중'을 몇 번 돌려주나
         self.left = 0
         self.paused = False                     # 드라이버가 일시정지 상태인가 (그동안은 계속 '움직이는 중')
 
     def get_current_posx(self, ref=None):
-        return [100.0, 0.0, self.z, 0.0, 180.0, 0.0], 2
+        return (list(self.at_x) if self.at_x else [100.0, 0.0, self.z, 0.0, 180.0, 0.0]), 2
+
+    def get_current_posj(self):
+        return list(self.at_j)
 
     def amovel(self, pos, **kw):                # 비동기: 보내고 바로 돌아온다 (기록 이름은 그대로 movel — 나가는 명령은 같다)
         self.calls.append(('movel', list(pos), kw))
         self.left = self.busy_polls
+        if kw.get('mod') == self.DR_MV_MOD_ABS and not self.stops_short:
+            self.at_x = [float(v) for v in pos]
         return self.ret
 
     def amovej(self, pos, **kw):
         self.calls.append(('movej', list(pos), kw))
         self.left = self.busy_polls
+        if kw.get('mod', self.DR_MV_MOD_ABS) == self.DR_MV_MOD_ABS and not self.stops_short:
+            self.at_j = [float(v) for v in pos]
         return self.ret
 
     def check_motion(self):
@@ -100,24 +109,40 @@ def test_move_to_home_is_joint_move_at_free_speed(robot):
     assert (kw['vel'], kw['acc']) == (60.0, 120.0)                  # 100 × 60 % · 200 × 60 %
 
 
-def test_move_to_lifts_first_when_below_safe_height(robot):
+def test_move_to_goes_straight_without_lifting_first(robot):
+    """9/20 E7: 안전 높이를 거치지 않는다 — 낮은 곳에서 출발해도 위로 올리지 않고 목표로 바로."""
     robot.z = 120.0
     motion.move_to('WEIGH', True)
-    lift, go = robot.calls
-    assert lift[0] == 'movel' and lift[1] == [0, 0, SAFE_Z - 120.0, 0, 0, 0] and lift[2]['mod'] == robot.DR_MV_MOD_REL
-    assert go[1] == [400, 100, 450, 0, 180, 0] and go[2]['mod'] == robot.DR_MV_MOD_ABS and go[2]['ref'] == robot.DR_BASE
-    assert (go[2]['vel'], go[2]['acc']) == (150.0, 300.0)           # 들고 있으면 30 %
+    (name, pos, kw), = robot.calls                                  # 상승 없이 이동 한 번
+    assert name == 'movel' and pos == [400, 100, 450, 0, 180, 0] and kw['mod'] == robot.DR_MV_MOD_ABS and kw['ref'] == robot.DR_BASE
+    assert (kw['vel'], kw['acc']) == (150.0, 300.0)                 # 들고 있으면 30 %
 
 
-def test_move_to_never_goes_below_safe_height(robot):
-    above = motion.move_to('TOOL_SPONGE', False)
-    assert above == SAFE_Z - 120.0                                  # 남은 높이를 돌려준다 → 하강은 부르는 쪽이
-    assert robot.calls[-1][1][2] == SAFE_Z
+def test_move_to_goes_to_the_taught_pose_even_below_retreat_height(robot):
+    assert motion.move_to('TOOL_SPONGE', False) == 0.0              # 접근점이 없다 → 티칭한 자세(z 120)까지 가고 남은 높이 0
+    assert robot.calls[-1][1] == [300, -200, 120, 0, 180, 0]
+
+
+@pytest.mark.parametrize('args', [('WEIGH',), ('HOME',), ('SPONGE_BED_B', None, 'place')])
+def test_move_to_raises_when_the_controller_stopped_the_move_short(robot, monkeypatch, args):
+    """9/20 Virtual 실측: 속도 한계 초과로 컨트롤러가 이동을 도중에 세웠는데 비동기 이동은 '끝남'으로만 보였다 → 도착을 직접 확인한다."""
+    monkeypatch.setattr(motion, '_ARRIVE_WAIT_S', 0.01)
+    robot.stops_short = True
+    robot.at_j = [10.0, 0, 90, 0, 90, 0]
+    station, kind, point = (list(args) + [None, None])[:3]
+    with pytest.raises(motion.MoveIncomplete):
+        motion.move_to(station, True, kind, point)
+    assert len(robot.calls) == 1                                    # 명령은 나갔다 — 그래서 '어디 있는지 모른다'
+
+
+def test_move_to_does_not_need_safe_z(robot):
+    robot.cfg['cell']['limits']['safe_z_mm'] = None                 # 후퇴 높이가 비어 있어도 이동은 돈다 (E7)
+    assert motion.move_to('WEIGH', True) == 0.0 and len(robot.calls) == 1
 
 
 def test_move_to_picks_pose_by_kind(robot):
-    assert motion.move_to('WASTE', True, 'CUP') == SAFE_Z - 240.0
-    assert robot.calls[-1][1] == [110, -400, SAFE_Z, 90, -160, -160]        # 컵용 자세(옆에서 잡는 방향)의 상공
+    assert motion.move_to('WASTE', True, 'CUP') == 0.0
+    assert robot.calls[-1][1] == [110, -400, 240, 90, -160, -160]           # 컵용 자세(옆에서 잡는 방향) 그대로
     motion.move_to('WASTE', True, kind='BOWL')
     assert robot.calls[-1][1][:2] == [600, -170]
     motion.move_to('HOME', False, 'BOWL')                                   # 종류별이 아닌 자리에서는 kind 를 무시한다
@@ -127,7 +152,7 @@ def test_move_to_picks_pose_by_kind(robot):
 def test_move_to_picks_pose_by_point(robot):
     assert motion.move_to('TOOL_BRUSH', False, point='pick') == 0.0         # 관절 자세 → 그 자세까지
     assert robot.calls[-1][:2] == ('movej', [-28, 17, 84, 0, 79, -28])
-    assert motion.move_to('TOOL_BRUSH', True, point='return') == SAFE_Z - 130.0
+    assert motion.move_to('TOOL_BRUSH', True, point='return') == 0.0
     assert motion.move_to('RET_B', False, point=1) == 0.0                   # 반납 구역은 슬롯 번호(1 부터)
     assert robot.calls[-1][:2] == ('movej', [0, 23, 68, 0, 88, 0])
 
@@ -136,7 +161,7 @@ def test_move_to_goes_to_approach_point_and_returns_height_to_end(robot):
     up = motion.move_to('SPONGE_BED_B', True, point='place')
     assert robot.calls[-1][1] == [350, 0, 450, 0, 180, 0] and up == 450.0 - 50.0     # 접근점까지 가고, 끝점까지 남은 높이
     up = motion.move_to('SPONGE_BED_B', True, point='wash')
-    assert robot.calls[-1][1][2] == SAFE_Z and up == SAFE_Z - 47.0                  # 접근점이 낮으면 안전 높이에서 멈춘다
+    assert robot.calls[-1][1][2] == 235 and up == 235.0 - 47.0                      # 접근점이 낮아도 그 접근점으로 (E7)
     up = motion.move_to('RACK_C1', True, 'CUP')                                     # 팔레트 칸 이름도 받는다
     assert robot.calls[-1][1][2] == 411 and up == 411.0 - 279.0
     assert motion.move_to('RACK_B1', True) == 0.0                                   # 접근점이 없고 안전 높이보다 높다 → 그 자세까지
@@ -162,7 +187,7 @@ def test_move_to_refuses_without_moving(robot, args, exc):
     assert robot.calls == []
 
 
-@pytest.mark.parametrize('section,key', [('limits', 'safe_z_mm'), ('limits', 'vel_free_pct'),
+@pytest.mark.parametrize('section,key', [('limits', 'vel_free_pct'),
                                          ('motion', 'vel_tcp_max_mm_s'), ('motion', 'acc_joint_max_deg_s2')])
 def test_empty_value_means_no_motion(robot, section, key):
     robot.cfg['cell'][section][key] = None                          # INF-04 골격처럼 비어 있다
