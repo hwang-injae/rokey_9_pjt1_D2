@@ -12,13 +12,14 @@ virtual_approach_down_mm: 120.0   # Virtual 흐름 확인용
 approach_vel_mm_s: 200.0          # × vel_scale (0.3 → 60 mm/s) — 9/19 저녁: 2배
 approach_acc_mm_s2: 200.0
 contact_max_depth_mm: 50.0        # 천천히 찾는 거리 — 120 + 50 이면 실측 150·계산 145 를 모두 덮는다 (6 mm/s → 최대 8 s)
-contact_limit_n: 3.0              # 이 힘에 닿으면 "바닥 찾음"
+contact_limit_n: 2.0              # 시작 힘보다 이만큼 커지면 '바닥' — 9/20: 3 → 2 (무른 수세미는 3 N 이면 이미 깊게 눌린다)
 press_targets_n: [1.5]            # 제자리 누르기 목표
 press_hold_s: 1.5                 # 제자리 누르기 확인 시간 (9/20: 3 → 1.5, 시험용일 뿐 세척과 무관)
 wipe_target_n: 1.5                # (press_mode force 일 때) 문지르는 동안 누르는 목표 힘
 press_mode: depth                 # 🔸 9/20: 수세미는 물러서 힘제어로 누르면 깊게 들어간다 → 깊이로 누른다
                                   #   force = 목표 힘까지 알아서 내려감 · depth = 순응만 켜고 press_depth_mm 만 내려감
-press_depth_mm: 3.0               # depth 방식에서 바닥에 닿은 뒤 더 내려가는 깊이 (Z 순응 500 N/m → 약 1.5 N)
+press_depth_mm: 0.0               # 바닥을 찾은 그 자리에서 더 누르지 않는다(연하게만) — 9/20 결정.
+                                  #   >0 이면 그만큼 더 눌러 준다(Z 순응 500 N/m → 1 mm 당 약 0.5 N)
 press_vel_mm_s: 20.0              # 누를 때 내려가는 속도 (× vel_scale)
 press_acc_mm_s2: 50.0
 limit_n: 10.0                     # 이 힘을 넘으면 즉시 힘 해제 (NFR-01 닦기 10 N)
