@@ -11,8 +11,9 @@ def test_wipe_matches_f3api():
 
 def test_return_types():
     assert isinstance(wipe.soap(1), Result)
-    assert isinstance(wipe.wipe_bowl(), WipeBowlResult)
     assert isinstance(wipe.wipe_cup(), WipeCupResult)
+    # wipe_bowl 은 로봇을 움직이므로 가짜 셀로 따로 시험한다 → test_f3_wipe_bowl.py
+    assert WipeBowlResult(ok=False, code='ROBOT_ERROR').code == 'ROBOT_ERROR'
 
 
 def test_save_force_log(tmp_path, monkeypatch):
