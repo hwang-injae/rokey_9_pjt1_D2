@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v10.8'
+VERSION = 'v10.9'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -869,6 +869,15 @@ PR51 = {
 for _tid, _e in PR51.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 오후 황인재 확인 3건 — 팔레트 복귀 · HOME 경유 · 구현 방식 > 임시 좌표
+RACKMOVED = {
+ 'F1-04': dict(note_add='🚨 9/21 오후: 팔레트가 충돌 때 **실제로 밀렸고 황인재가 손으로 원위치**했다 → RACK_B1·B2 는 오늘 0.16~0.24 mm 로 확인됐지만 **복귀 뒤로는 미확인**(rig 오차는 로봇 정확도만 재고 팔레트 위치는 못 잡는다 — 눈으로만 확인). '
+                         '→ **첫 적재 실기 전에 2분 재확인**: `rig_coords.py --real --from 15 --skip 16,18` 로 그리퍼가 칸 **한가운데**로 내려가는지 본다. 안 맞으면 E14 보완대로 직접 고치고 보고. 🟢 팔레트 바닥에 **테이프로 위치 표시**(다시 밀려도 원위치를 알 수 있게)'),
+ 'CELL-04': dict(note_add='🔁 9/21 오후 황인재: **구현 방식 > 임시 좌표** — 좌표가 기능에 맞춰 바뀌는 것이지 기능을 좌표에 맞출 필요는 없다. 만드는 방식에 따라 좌표가 바뀌거나 아예 필요 없어질 수 있다(사례: E17 로 SPONGE_BED wash 2개가 필요 없어짐). HOME 경유(E15 ④)는 "필요할 때만"'),
+}
+for _tid, _e in RACKMOVED.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -1190,6 +1199,9 @@ HISTORY58 = ['v10.7', '결정 E15④·E18·PR #50', 'CELL-04, F1-04, FLOW-01, F3
 HISTORY59 = ['v10.8', '완료', 'CELL-04, CELL-04b, V-22, F1-04, F2-02, F3-03, FLOW-03', 'PR #51 merge(9/21 오후 · main 8643b82): 좌표 마감 — 빈 자세 0개(남은 빈 값은 그리퍼 프리셋뿐). **임시 좌표**(황인재) — 구현하다 수정·삭제가 필요하면 직접 하고 보고. CELL-04·04b 완료. 🟡 실기 미확인 자세를 각 기능의 첫 실기 항목에 옮김(컵 한 바퀴 → V-22 · 컵 칸 빠져나오기·rack.via → F1-04 · RINSE.CUP 끝점 −13.6 → F2-02 · SOAP 계산값 → F3-03 · 격리 자리 가는 길 → FLOW-03). PM 검토에서 rig_coords ③ 이 채워진 자세로 확인 없이 움직이던 결함을 찾아 고친 뒤 merge. 브랜치 2개 정리',
              '황인재 9/21 15:00', 'H,S,M,P']
 
+HISTORY60 = ['v10.9', '확인', 'F1-04, CELL-04', '황인재 9/21 오후 확인 3건: ① 팔레트가 충돌 때 실제로 밀렸고 손으로 원위치 → RACK_B1·B2 는 복귀 뒤 미확인, F1-04 첫 적재 실기 전 2분 재확인 + 바닥 테이프 표시 ② HOME 경유(E15 ④)는 "필요할 때만" — 기존 기록과 같은 뜻 ③ **구현 방식 > 임시 좌표** — 좌표가 기능에 맞춰 바뀐다, 기능을 좌표에 맞출 필요 없다(E14 보완에 한 줄 추가)',
+             '황인재 9/21 15:20', 'S,M,P,H']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1284,7 +1296,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
