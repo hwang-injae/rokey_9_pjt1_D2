@@ -2,6 +2,7 @@
 // 운영 화면 1장 — F4-00 §3. HMI 는 **보여 주고 전달만** 한다(흐름·복구 판단·로봇 동작은 하지 않는다).
 import { useRef, useState } from 'react';
 import { useHmi } from './lib/useHmi';
+import StepIcon from './StepIcons';
 import {
   FLOW, RUNNING, STEP_KO, KIND_KO, RESULT_KO, CODE_KO,
   buttons, pallet, zones, cycle, alarm, problems, clock, why,
@@ -117,26 +118,33 @@ function Controls({ can, onPress, reply }) {
   );
 }
 
+// 단계 표시줄 — 그림 카드 8장(+ 격리). 지금 단계 = 파랑 · 끝난 단계 = ✓ 초록 · 일시 정지 = 주황 (황인재 9/21 A안)
+//   그림 속 용기는 지금 처리 중인 종류(그릇/컵)를 따라간다. 처리 중인 용기가 없으면 그릇.
 function StepBar({ d, paused }) {
   const s = d.state;
   const step = s ? s.step : null;
+  const kind = s && s.kind === 'CUP' ? 'CUP' : 'BOWL';
   const at = paused || step;                         // 일시 정지 중이면 멈춘 단계를 가리킨다
   const idx = FLOW.indexOf(at);
   const finished = step === 'DONE';
   return (
     <section className="stepbar">
-      <div className="steps">
+      <div className="stepcards">
         {FLOW.map((name, i) => {
-          const cls = finished || (idx >= 0 && i < idx) ? 'past'
-            : i === idx ? (paused ? 'now paused' : 'now') : '';
+          const past = finished || (idx >= 0 && i < idx);
+          const now = !finished && i === idx;
+          const cls = past ? 'past' : now ? (paused ? 'now paused' : 'now') : '';
           return (
-            <div key={name} className={`step ${cls}`}>
-              <span className="mark">{cls.startsWith('past') ? '✓' : i + 1}</span>
-              <span>{STEP_KO[name]}</span>
+            <div key={name} className={`stepcard ${cls}`}>
+              <StepIcon step={name} kind={kind} />
+              <div className="stepcard-label"><span className="mark">{past ? '✓' : i + 1}</span>{STEP_KO[name]}</div>
             </div>
           );
         })}
-        {step === 'ISOLATE' && <div className="step now isolate"><span className="mark">!</span><span>격리 중</span></div>}
+        <div className={`stepcard iso ${step === 'ISOLATE' ? 'now isolate' : ''}`}>
+          <StepIcon step="ISOLATE" kind={kind} />
+          <div className="stepcard-label"><span className="mark">!</span>격리</div>
+        </div>
       </div>
       <div className="current">
         <div className="big-state">{step ? STEP_KO[step] || step : '-'}</div>

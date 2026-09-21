@@ -49,21 +49,39 @@ code { font-size: .9em; padding: 0 4px; border-radius: 4px; background: var(--li
 .alarm-msg { margin-top: 4px; font-size: 18px; }
 .alarm-steps { margin: 8px 0 0; padding-left: 24px; font-size: 18px; }
 
-/* ── 단계 표시줄 */
+/* ── 단계 표시줄 — 그림 카드 */
 .stepbar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; background: var(--card);
-           border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
-.steps { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
-.step { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 10px; color: var(--dim);
-        border: 1px solid var(--line); font-weight: 600; }
-.step .mark { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
-              background: var(--line); font-size: 13px; }
-.step.past { color: var(--ok); } .step.past .mark { background: var(--ok); color: #fff; }
-.step.now { color: #fff; background: var(--accent); border-color: var(--accent); }
-.step.now .mark { background: rgba(255,255,255,.25); }
-.step.now.paused { background: var(--warn); border-color: var(--warn); }
-.step.now.isolate { background: var(--warn); border-color: var(--warn); }
-.current { text-align: right; min-width: 160px; }
+           border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.stepcards { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+.stepcard { width: 118px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 6px 6px; color: var(--dim);
+            display: flex; flex-direction: column; align-items: center; gap: 4px; }   /* 색 바꿈 애니메이션 없음 — 상태는 즉시 정확하게 */
+.stepcard .si { width: 100%; height: auto; }
+.stepcard-label { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 15px; }
+.stepcard .mark { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+                  background: var(--line); color: var(--ink); font-size: 12px; }
+.stepcard.past { color: var(--ok); }
+.stepcard.past .mark { background: var(--ok); color: #fff; }
+.stepcard.now { color: var(--ink); background: var(--accent-bg); border: 2px solid var(--accent); }
+.stepcard.now .stepcard-label { color: var(--accent); }
+.stepcard.now .mark { background: var(--accent); color: #fff; }
+.stepcard.now.paused, .stepcard.now.isolate { background: var(--warn-bg); border-color: var(--warn); }
+.stepcard.now.paused .stepcard-label, .stepcard.now.isolate .stepcard-label { color: var(--warn); }
+.stepcard.now.paused .mark, .stepcard.now.isolate .mark { background: var(--warn); }
+.stepcard.iso { margin-left: 8px; border-style: dashed; }                 /* 격리는 정상 순서 밖 — 점선으로 따로 */
+.current { text-align: right; min-width: 150px; }
 .big-state { font-size: 34px; font-weight: 800; line-height: 1.1; }
+
+/* 단계 그림(StepIcons.jsx) — 선은 카드 글자색을 따라간다 */
+.si { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.si .si-ware { fill: var(--accent); fill-opacity: .3; }
+.si .si-inside { fill: var(--accent); fill-opacity: .12; }
+.si .si-tool { fill: var(--warn); fill-opacity: .5; }
+.si .si-bristle { stroke: var(--warn); }
+.si .si-water { fill: var(--accent); fill-opacity: .15; stroke: none; }
+.si .si-wave { stroke: var(--accent); }
+.si .si-dot { fill: currentColor; stroke: none; }
+.si .si-alert { stroke: var(--warn); }
+.si .si-text { fill: currentColor; stroke: none; font-size: 16px; font-weight: 700; text-anchor: middle; }
 
 /* ── 카드 3칸 */
 .grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
