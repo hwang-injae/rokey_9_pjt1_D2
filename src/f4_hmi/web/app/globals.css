@@ -68,7 +68,8 @@ code { font-size: .9em; padding: 0 4px; border-radius: 4px; background: var(--li
 .big-state { font-size: 34px; font-weight: 800; line-height: 1.1; }
 
 /* ── 카드 3칸 */
-.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
+@media (min-width: 1100px) { .grid { grid-template-columns: minmax(260px, 1fr) minmax(420px, 1.6fr) minmax(280px, 1fr); } }  /* 팔레트는 가로로 긴 그림이라 넓게 */
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
 .card h2 { font-size: 14px; font-weight: 700; color: var(--dim); margin: 0 0 10px; letter-spacing: .3px; }
 .card h2.gap { margin-top: 16px; }
@@ -82,12 +83,18 @@ code { font-size: .9em; padding: 0 4px; border-radius: 4px; background: var(--li
 .cup.full { background: var(--accent); border: 2px solid var(--accent); }
 .zone-status { grid-column: 1 / -1; font-weight: 600; }
 
-.rack-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.rack-kind { width: 44px; font-weight: 700; }
-.slot { flex: 1; text-align: center; padding: 12px 6px; border-radius: 10px; border: 2px dashed var(--line); color: var(--dim); }
-.slot-id { font-size: 22px; font-weight: 800; }
-.slot.filled { border: 2px solid var(--ok); background: var(--ok-bg); color: var(--ok); }
-.slot.loading { border: 2px solid var(--accent); background: var(--accent-bg); color: var(--accent); }
+/* 팔레트 — 위에서 본 배치(SVG). 비어 있음 = 점선 · 적재됨 = 초록 · 적재 중 = 파랑 깜빡임 */
+.rack { width: 100%; height: auto; display: block; }
+.rack-frame { fill: none; stroke: var(--line); stroke-width: 4; }
+.rack-slot circle, .rack-slot ellipse { fill: transparent; stroke: var(--dim); stroke-width: 3; stroke-dasharray: 12 9; }
+.rack-slot.filled circle, .rack-slot.filled ellipse { fill: var(--ok-bg); stroke: var(--ok); stroke-width: 5; stroke-dasharray: none; }
+.rack-slot.loading circle, .rack-slot.loading ellipse { fill: var(--accent-bg); stroke: var(--accent); stroke-width: 5;
+                                                        stroke-dasharray: none; animation: rack-pulse 1.2s ease-in-out infinite; }
+.rack-label { font-size: 34px; font-weight: 800; fill: var(--ink); text-anchor: middle; }
+.rack-status { font-size: 24px; fill: var(--dim); text-anchor: middle; }
+.rack-slot.filled .rack-label, .rack-slot.filled .rack-status { fill: var(--ok); }
+.rack-slot.loading .rack-label, .rack-slot.loading .rack-status { fill: var(--accent); }
+@keyframes rack-pulse { 50% { opacity: .5; } }
 
 .count-row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px; }
 .count-row b { font-size: 20px; font-variant-numeric: tabular-nums; }

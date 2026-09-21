@@ -53,7 +53,7 @@ export function pallet(d) {
   for (const kind of ['BOWL', 'CUP']) {
     const done = doneOf(s, kind);
     (order[kind] || []).forEach((slot, i) => out.push({
-      slot, kind,
+      slot, kind, n: i + 1,                           // n = 그 종류에서 몇 번째로 넣는 칸(그릇 1·2 · 컵 1·2)
       filled: i < done,
       loading: i === done && s.step === 'RACK' && s.kind === kind,
     }));

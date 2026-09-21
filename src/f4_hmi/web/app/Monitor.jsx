@@ -170,30 +170,49 @@ function Zones({ d }) {
   );
 }
 
+// 팔레트 — 실제 배치를 위에서 본 모양(황인재 9/21 그림). 넣는 순서 그릇 1 → 그릇 2 → 컵 1 → 컵 2 = params.yaml flow.rack_order
+//   ┌──────────────────────┬────────┬────────┐
+//   │            (컵 1)     │ (그릇 2)│ (그릇 1)│   그릇은 세로로 세워 꽂는다(긴 타원)
+//   │ (컵 2)                │        │        │
+//   └──────────────────────┴────────┴────────┘
+const RACK_VIEW = { w: 718, h: 420, walls: [361, 541] };
+const RACK_SHAPES = {
+  'BOWL-1': { cx: 631, cy: 210, rx: 74, ry: 190 },
+  'BOWL-2': { cx: 451, cy: 210, rx: 74, ry: 190 },
+  'CUP-1': { cx: 263, cy: 113, r: 82 },
+  'CUP-2': { cx: 98, cy: 321, r: 82 },
+};
+
 function Pallet({ d }) {
   const cells = pallet(d);
-  const rows = ['BOWL', 'CUP'].map((k) => [k, cells.filter((c) => c.kind === k)]);
   return (
     <section className="card">
-      <h2>팔레트</h2>
-      {rows.map(([kind, cs]) => (
-        <div key={kind} className="rack-row">
-          <div className="rack-kind">{KIND_KO[kind]}</div>
-          {cs.map((c) => (
-            <div key={c.slot} className={`slot ${c.filled ? 'filled' : ''} ${c.loading ? 'loading' : ''}`}>
-              <div className="slot-id">{c.slot.replace('RACK_', '')}</div>
-              <div className="tiny">{c.filled ? '적재됨' : c.loading ? '적재 중' : '비어 있음'}</div>
-            </div>
-          ))}
-        </div>
-      ))}
+      <h2>팔레트 <span className="dim tiny">넣는 순서 — 그릇 1 → 그릇 2 → 컵 1 → 컵 2</span></h2>
+      <svg viewBox={`0 0 ${RACK_VIEW.w} ${RACK_VIEW.h}`} className="rack" role="img" aria-label="팔레트 배치 상태">
+        <rect x="2" y="2" width={RACK_VIEW.w - 4} height={RACK_VIEW.h - 4} className="rack-frame" />
+        {RACK_VIEW.walls.map((x) => <line key={x} x1={x} y1="2" x2={x} y2={RACK_VIEW.h - 2} className="rack-frame" />)}
+        {cells.map((c) => {
+          const sh = RACK_SHAPES[`${c.kind}-${c.n}`];
+          if (!sh) return null;
+          const state = c.filled ? 'filled' : c.loading ? 'loading' : '';
+          return (
+            <g key={c.slot} className={`rack-slot ${state}`}>
+              <title>{c.slot}</title>
+              {sh.r ? <circle cx={sh.cx} cy={sh.cy} r={sh.r} /> : <ellipse cx={sh.cx} cy={sh.cy} rx={sh.rx} ry={sh.ry} />}
+              <text x={sh.cx} y={sh.cy - 4} className="rack-label">{KIND_KO[c.kind]} {c.n}</text>
+              <text x={sh.cx} y={sh.cy + 30} className="rack-status">{c.filled ? '적재됨' : c.loading ? '적재 중' : '비어 있음'}</text>
+            </g>
+          );
+        })}
+      </svg>
     </section>
   );
 }
 
-function Bar({ value, max }) {
+// warn = 소모품처럼 한도에 가까워지면 주황으로 알릴 막대(수량 진행률은 다 차도 경고가 아니다)
+function Bar({ value, max, warn = false }) {
   const pct = max ? Math.min(100, (value / max) * 100) : 0;
-  return <div className="bar"><i style={{ width: `${pct}%` }} className={pct >= 90 ? 'hot' : ''} /></div>;
+  return <div className="bar"><i style={{ width: `${pct}%` }} className={warn && pct >= 90 ? 'hot' : ''} /></div>;
 }
 
 function Counts({ d }) {
@@ -210,9 +229,9 @@ function Counts({ d }) {
       <div className="count-row"><span>격리</span><b className={s.isolated ? 'warn' : ''}>{s.isolated ?? '-'}</b></div>
       <h2 className="gap">소모품</h2>
       <div className="count-row"><span>수세미</span><b>{s.sponge_uses ?? '-'}{c.sponge_max_uses ? ` / ${c.sponge_max_uses}` : ''}</b></div>
-      <Bar value={s.sponge_uses || 0} max={c.sponge_max_uses} />
+      <Bar value={s.sponge_uses || 0} max={c.sponge_max_uses} warn />
       <div className="count-row"><span>세제 담금</span><b>{s.soap_dips ?? '-'}{c.soap_max_dips ? ` / ${c.soap_max_dips}` : ''}</b></div>
-      <Bar value={s.soap_dips || 0} max={c.soap_max_dips} />
+      <Bar value={s.soap_dips || 0} max={c.soap_max_dips} warn />
       <div className="count-row"><span>헹굼 담금</span><b>{s.rinse_dips ?? '-'}</b></div>
       <h2 className="gap">사이클 타임</h2>
       <div className="count-row">
