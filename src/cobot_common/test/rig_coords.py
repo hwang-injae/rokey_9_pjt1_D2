@@ -100,6 +100,8 @@ def main() -> int:
     ap.add_argument('--skip', default='', help='건너뛸 번호 (쉼표로: 3,21,31) — 좌표가 틀렸다고 이미 아는 자세를 빼고 한 번에 돈다')
     ap.add_argument('--where', action='store_true', help='로봇을 **움직이지 않고** 지금 자세(관절·좌표)만 찍고 끝낸다')
     ap.add_argument('--home', action='store_true', help='HOME 으로만 가고 끝낸다 (Enter 한 번 확인 · 속도·상태 검사는 그대로)')
+    ap.add_argument('--probe', nargs=2, type=float, metavar=('J1', 'DY'),
+                    help='HOME 에서 J1 을 J1° 로 돌리고 BASE y 로 DY mm 간 뒤 그 자세를 찍는다 (새 자세 찾기 — 예: --probe -260 240)')
     opt = ap.parse_args([v for v in sys.argv[1:] if not v.startswith('--ros-args')])
     opt.step = opt.step or opt.real
     skip = {int(v) for v in opt.skip.replace(' ', '').split(',') if v}
@@ -209,6 +211,27 @@ def main() -> int:
 
         if opt.real and not state_ok('첫 이동'):
             return 2
+
+        if opt.probe:                                           # 새 자세 찾기 — 9/21 격리 자리(황인재: J1 −260° 뒤 y +240)
+            j1, dy = opt.probe
+            now = posj()
+            if max(abs(a - b) for a, b in zip(now, (0.0, 0.0, 90.0, 0.0, 90.0, 0.0))) > 1.0:
+                log.error(f'HOME 에서 시작해야 한다 — 지금 관절 [{", ".join(f"{v:.1f}" for v in now)}]. 먼저 --home')
+                return 2
+            log.info(f'① J1 만 0° → {j1:g}° (관절 이동 · 팔 모양은 HOME 그대로 허리만 돈다)')
+            if opt.step and input('    🚨 허리가 도는 동안 팔이 지나가는 자리를 보고 Enter / q = 그만 > ').strip().lower() == 'q':
+                return 2
+            cc.move_joint_rel(1, j1, carrying=False)
+            log.info('   도착' + jinfo())
+            log.info(f'② BASE y 로 {dy:+g} mm (직선)')
+            if opt.step and input('    Enter = 이동 / q = 그만(여기서 멈추고 --where 로 읽어도 된다) > ').strip().lower() == 'q':
+                return 2
+            cc.move_rel(0.0, dy, 0.0, 'BASE')
+            log.info('   도착' + jinfo())
+            log.info('찾은 자세 — cell.yaml 에 넣을 값')
+            log.info('  관절 posj: [' + ', '.join(f'{v:.2f}' for v in posj()) + ']')
+            log.info('  좌표 posx: [' + ', '.join(f'{v:.2f}' for v in posx()) + ']')
+            return 0
 
         if opt.home:                                            # HOME 으로만 — 9/21 실기에서 자주 필요했다(q 를 누를 틈 없이 다음 구간으로 넘어가던 문제)
             log.info(f'HOME 으로 간다 (관절 이동) · 지금 관절 [{", ".join(f"{v:.1f}" for v in posj())}]')
