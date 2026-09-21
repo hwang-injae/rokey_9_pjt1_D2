@@ -43,6 +43,8 @@ def main():
     ap.add_argument('--max-rounds', type=int, default=2, help='leftover_loop 의 최대 반복')
     ap.add_argument('--no-robot', action='store_true',
                     help='두산 드라이버 없이 (브링업 없이 함수 반환만 확인)')
+    ap.add_argument('--no-home', action='store_true',
+                    help='🚨 shake·dip·loop 앞의 HOME 경유를 끈다 (E15 — 이미 HOME 에 있을 때만)')
     a = ap.parse_args()
 
     if a.which in ('grip', 'release'):
@@ -72,6 +74,17 @@ def main():
     if a.no_robot:
         log.warn('--no-robot — 두산 드라이버 없이 함수 반환만 확인한다')
     try:
+        # 🚨 9/21 결정 E15 — 잔반통(로봇 **뒤**) ↔ 저울·수조·반납 구역(**앞**) 사이는 HOME 을 거친다.
+        #    앞뒤로 곧장 가면 로봇 몸통을 가로지르고(E7 로 안전 높이 경유가 없다) 6번 관절이 163°
+        #    돌아 그리퍼 케이블이 꼬인다(9/21 08:40 실기).
+        #    flow 에서는 leftover_loop 이 알아서 거치지만, 여기서는 **직전에 어디 있었는지 모른다** —
+        #    V-02(앞)를 돌린 뒤 바로 shake(뒤)를 부르면 그 대각선 이동이 그대로 난다.
+        #    → 시험대에서는 항상 HOME 에서 시작한다. `--no-home` 으로 끌 수 있다(이유가 있을 때만).
+        if a.which in ('shake', 'dip', 'loop') and not a.no_home:
+            log.info('E15 — 먼저 HOME 으로 간다 (앞뒤를 가로지르지 않으려고)')
+            cc.force_off()
+            cc.move_to('HOME', True, a.kind)
+
         for i in range(a.n):                         # ② 연속 3회 이상
             log.info(f'{i + 1}/{a.n} {a.which} → {fn()}')
     finally:
