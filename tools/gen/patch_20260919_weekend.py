@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v13.1'
+VERSION = 'v13.2'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1503,6 +1503,89 @@ HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02�
            '교육장 주말 운영 시간(18시 마감) · 한석형 티칭 지연 · 이슈 #7·B11·grip_width 요청을 한석형 부담 없이 수락하기 위함 (PM 결정, DSN-03 에서 확인)', 'S,M,P,H']
 
 
+# ---------------------------------------------------------------- 9/22 07:50 9/21 밤 팀원 보고 3건 + PR #64 → 새 작업 ENV-05 · 진척 · 9/22 로봇 순서
+NEW.append(
+ ('ENV-05', 'ENV-02', 'ENV-02', '환경', '툴(그리퍼) 무게·무게중심 등록 + TCP 확인 — Dart 툴 설정(자동 측정). 🆕 요구사항(BR-SR §5.2·SR-04)엔 전제인데 일정표에서 빠져 있던 작업',
+  'H(M)', '시작 전', S('9/22 오전'),
+  '`cell.yaml` 주석에 툴 이름·무게·무게중심·TCP (M0609_환경설정 문서가 정한 자리) + `docs/meetings/20260921_확인요청_툴무게등록_민범진.md` §3 빈칸',
+  '① 빈 그리퍼 무게·무게중심 등록(필수) → 브링업 다시 → ② 민범진 R2: `rig_weigh_probe -n 10` 을 WEIGH 자세 z 158 · z 235 에서 빈손·그릇 — 등록 전(z 235 빈손 24 g · z 158 은 0 에 잘림)보다 **자세 사이 차이가 줄었는가** · '
+  '③ 값 기록(R3). 🟡 수세미 툴 쥔 상태(2종째)는 등록만 해 둔다 — 코드에 툴을 바꿔 끼우는 부분(set_tool)이 없어 지금은 안 쓴다(F3 는 힘 "변화량" 으로 판정해 영향이 작다)',
+  '민범진 확인요청(9/21 밤 · PR #64): 무게가 자세마다 60 g 다르다(WEIGH.BOWL z 158 그릇 9 g · z 235 그릇 68 g) → 관절 토크로 무게를 추정하는데 그리퍼 무게·무게중심이 컨트롤러에 안 맞으면 자세마다 오차가 달라진다. '
+  'ENV-02 는 "확인" 만이었고 등록 기록이 없다. 🚨 **9/22 첫 로봇 작업** — V-02·V-07·INT-12a(무게) 와 F3 힘제어가 이 위에서 돈다. Dart 와 ROS 동시 제어 금지 → 브링업 내리고 한다 · 안전 암호가 필요할 수 있다(강사). '
+  '등록 뒤에도 z 158 빈손이 0 근처면 WEIGH.BOWL z 를 235 로(민범진이 직접 고치고 보고 — E14 보완)'))
+
+N21 = '📥 9/21 밤 보고'
+REP0922 = {
+ 'ENV-02':  dict(note_add='🔎 9/21 밤: 툴 **무게·무게중심 등록**은 이 작업에 없었다(확인만) → **ENV-05 로 새로 뺐다**(9/22 오전 첫 순서)'),
+ 'V-02':    dict(slots=S('9/22 오전'), note_add=N21 + '(민범진 · PR #64): 🔴 `get_workpiece_weight()` 단위가 **kg** 이었다(그동안 g 로 계산 → 무게가 전부 "0 g" → GRIP_FAIL) — weigh.py × 1000 수정 merge. '
+                          '자세마다 오차가 다르다(z 158 그릇 9 g · 0 에 잘림 / z 235 그릇 68 g · 빈손 24 g) → **ENV-05 툴 무게 등록 뒤** 재측정(R2 15분) → V-02(`rig_f2.py empty -n 10` → params.yaml `f2.empty_weight_g` — 지금 BOWL 180 은 임시값). 저녁 INT-12a 의 전제'),
+ 'INF-02c': dict(prog='0.85', note_add=N21 + ': PR #64 merge — 하중 단위 kg→g(🟢 실기로 단위 확인) + 원값 탐침 `rig_weigh_probe.py`(로봇 안 움직임). 남은 것 = V-02 기준값'),
+ 'F2-01':   dict(note_add=N21 + ': HOME↔저울↔잔반통 경로 실기 OK(케이블 꼬임 없음 · 털기는 안 함). 무게 단위 수정(PR #64)으로 첫 실행 GRIP_FAIL 원인 해결 · 🟡 판정값은 V-02 뒤'),
+ 'V-07':    dict(slots=S('9/22 오후'), note_add=N21 + ': 9/21 저녁엔 못 함(무게 문제로 시간 씀 · 로봇 넘김) → 9/22 오후 첫 순서. 그릇 저속 1회 → 원속 3회(알람·미끄러짐·실제 주기) → 컵(E19 — HOLD 안 먹음, NORMAL 로 버티는지). rig_f2 연속 3회라 UT-F2 와 같이'),
+ 'V-16':    dict(slots=S('9/22 오후'), note_add=N21 + ': 9/22 오후 V-07 과 같이. ✅ 컵 78 mm 로 **들린다**(강하게 고정 · 약간 눌리지만 허용 · 놓으면 복원 — E19 숙제 끝) · 그릇 폭 2.42 mm × 2회 재현'),
+ 'UT-F2':   dict(slots=S('9/22 오후'), note_add='9/22: V-07·V-16 을 rig_f2 로 연속 3회 돌리면 TC-03·04·08 과 겹친다 — 같이 기록'),
+ 'INT-12a': dict(note_add=N21 + '(민범진 · PR #64): 시험대 `rig_int12.py` 준비 — flow.py 와 같은 순서·인자로 5회 · `check` 가 로봇 없이 F1 빈 껍데기·좌표를 먼저 거른다 · 🟢 가상 그릇·컵 12/12(**이동·순서만**) · 🟡 실기 미확인. '
+                          '절차서 `docs/test_logs/20260922_INT-12_절차와기록_민범진.md`. 🚨 전제 3개: ① 한석형 pick() merge ② V-02 값 ③ ENV-05. **그릇부터** — 컵은 한석형 컵 구현 뒤'),
+ 'INT-12b': dict(note_add=N21 + ': 같은 시험대(rig_int12.py b) · 가상 12/12(이동·순서만 · 회차당 ≈ 20 s 일정). 전제: 한석형 rack_place(F1-04) merge. 그릇부터'),
+ 'F3-02':   dict(note_add=N21 + '(박진용): ✅ 한석형 경로 + 9/20 확정 닦기(rig_v03)로 **그릇 한 바퀴 통합 실기 1회 끝까지 성공**(합계 177 s · 닦기 19 s · 바닥 2.7 N · 나선 반지름 14.5 mm). '
+                          '🔴 그러나 main 의 wipe_bowl 재검증은 **실기 5회 모두 실패** — 4회: 바닥 6~7 N 까지 눌린 채 나선이 시작 안 함(알람 없음) → 올라와 HOME · 1회: 바닥 찾기가 출발 안 함 + 컨트롤러 연결 끊김. '
+                          '→ 9/20 확정본 값·순서로 되돌림 · 바닥 찾기 = 순응 + 힘제어 3 N · 빠른 하강 135 → 140 mm · 그릇 빠른 하강 속도도 9/20 값(200 mm/s)으로(컵은 1.5 배 그대로) · 컨트롤러 상태·알람 로그 추가. '
+                          '🟡 실기 전 → **9/22 오전 재검증 3회** → 통과하면 PR(cc.stop() 교체 포함). ❓ PR 에 "전체 120 s 상한 없앰" — 황인재 확인 대기'),
+ 'UT-F3':   dict(note_add='9/22: 오전 그릇 재검증 3회를 **제품 코드(wipe.py)로** 돌리면 TC-06(연속 3회)으로 갈음 · TC-07 컵은 V-10(9/21)'),
+ 'SAFE-01': dict(note_add=N21 + ': 실측 줄 아직 — 9/22 재검증 결과로 채운다 · `find_max_mm` 는 9/20 확정본 값 **30** 유지(25 로 줄이지 않음)'),
+ 'F3-03':   dict(note_add='❓ 9/22: soap 실기 결과는 아직 보고 없음 — 안 했으면 오후 F1-05 슬롯에 20분'),
+ 'F1-05':   dict(slots=S('9/22 오후'), note_add='❓ 9/22: 9/21 밤 박진용 보고에 없다(E22 로 받은 작업) → 오후 로봇 슬롯에 넣었다. 저녁 INT-13 의 첫 단계라 오늘 안에'),
+ 'V-04':    dict(slots=S('9/22 오후'), note_add='9/22 오후 F1-05 와 같이(스펀지 홈에서 한 번에)'),
+ 'F1-02':   dict(prog='0.5', note_add=N21 + '(한석형): 그릇 전체 실기 동선 1회 완주 · 컵은 **집기 → 스펀지 홈 놓기·재파지까지** 구성. 🚨 브랜치 `seokhyung/20260921-CELL-04-final-coords` 는 **시험 스크립트 1개(rig_bowl_scenario_real.py)뿐** — handling.py pick() · cell.yaml 좌표는 아직. '
+                          '⚠ 마지막 push(82fcba4)는 **345행 들여쓰기 오류로 실행되지 않는다**(PM 확인) — 시연한 것은 그 앞 버전. pick() PR 은 **9/22 오후까지**(INT-12a 전제) · 좌표 2개는 그 PR 에 같이'),
+ 'F1-04':   dict(note_add=N21 + '(한석형): 컵 C1 — 기존 접근 높이·경유점이 실물과 안 맞아 **릴리즈 좌표 +100 mm 에서 X·Y 를 맞춘 뒤 수직 하강**으로 재검증 중 · C1 릴리즈 재티칭(posx [266.41, 459.33, 267.91, 91.59, 80.0, -86.5]) · C2 는 C1 뒤. 9/22 오전 30~60분'),
+ 'CELL-04': dict(note_add=N21 + ': ① 한석형 실기 좌표는 아직 스크립트 안에만(pick() PR 때 cell.yaml) ② 박진용 지적 "잔반통 → HOME 직선(XYZ)으로 몸통 위를 지난다" — 9/21 21:02 버전(e4ffaaf)이 그랬고, 21:26 버전(82fcba4)은 관절 이동(J6 유지)으로 바꿨으나 **들여쓰기 오류로 아직 한 번도 안 돌았다** → 오전 한 바퀴 재검증 때 확인(E15 — 몸통을 가로지르지 않는다)'),
+ 'V-08':    dict(slots=S('9/22 오후'), note_add=N21 + '(박진용): 한석형 스크립트의 수세미 잡는 폭은 **30 mm** 인데 실측 손잡이는 **25.6 mm** — 못 잡을 수 있다 → E23 대로 **V-08 첫 단계에서 황인재가 잰 프리셋 하나로 통일**(한석형 스크립트도 그 값). 끝나면 F1-03 PR(저녁 INT-13 전제)'),
+ 'F1-03':   dict(note_add='🚨 9/22: 저녁 INT-13 이 f1.tool 을 쓴다 → **V-08 뒤 바로 PR**(지금 브랜치에만). 박진용 지적 "수세미를 홀더에서 꺼내 HOME 까지 가는 동작이 양쪽 다 없다" 는 두 사람 **시험 스크립트** 이야기 — 제품 코드는 이 브랜치의 tool(PICK) 이 홀더에서 빼내고(↑) → soap → wipe_bowl 이 HOME 으로 간다'),
+ 'INT-13':  dict(note_add='🚨 9/22 저녁 전제 3개: ① F1-05 안착(박진용 · 오후) ② F1-03 tool merge(황인재 · V-08 뒤) ③ soap 실기. 박진용 9/21 밤: 한석형 경로 + 9/20 닦기로 그릇 한 바퀴 1회 성공 — 흐름 자체는 실기로 한 번 돌았다'),
+ 'V-24':    dict(slots=S('9/22 오후'), note_add='9/22 오후 H 20분 칸(V-25·V-26 과 같이 — 안 한 것만)'),
+ 'V-25':    dict(slots=S('9/22 오후'), note_add='9/21 저녁 슬롯(20:50)에 있었으나 기록 없음 → 9/22 오후 H 20분 칸. 이미 했으면 결과만 적는다'),
+ 'V-26':    dict(slots=S('9/22 오후'), note_add='9/21 기록 없음 → 9/22 오후 H 20분 칸(30초 작업). 이미 했으면 결과만 적는다'),
+}
+# 지난 칸(9/21)에만 남은 진행 작업을 오늘 칸으로 · 부하 조정
+for _tid, _sl in {'F3-02': S('9/22 오전'), 'UT-F3': S('9/22 오전', '9/22 오후'), 'F3-03': S('9/22 오후'), 'INF-02c': S('9/22 오전'),
+                  'F1-01': S('9/22 오후'), 'F1-04': S('9/22 오전', '9/22 오후'), 'INT-4': S('9/22 저녁', '9/23 오전'),
+                  'V-19': S('9/22 오후'), 'CELL-03': S('9/22 오전')}.items():
+    REP0922.setdefault(_tid, {})['slots'] = _sl
+REP0922['V-19']['note_add'] = '9/22: 남은 팔레트 컵 칸 2곳 · 손목 큰 회전 구간은 한석형 F1-04 컵 칸 실기(오전 경로 · 오후 적재) 때 같이 보고 닫는다'
+REP0922['CELL-03']['note_add'] = '9/22: 잔반 대용품(≥100 g)은 저녁 INT-12a 에서 쓴다 → 오전(로봇 불필요 시간)에 마무리'
+REP0922['INT-4']['note_add'] = '9/22: 황인재 오후가 V-08·F1-03·V-24~26 으로 차서 저녁 → 9/23 오전(G3 L2 마감)으로'
+# 진행 중인 작업은 지난 칸(한 일의 기록)을 지우지 않는다 — 9/22 칸 앞에 v13.1 의 지난 칸을 붙인다
+_PAST = {'INF-02c': S('9/20 오전', '9/20 오후', '9/21 오후'), 'V-19': S('9/20 오전', '9/20 오후', '9/21 오후'), 'F1-01': S('9/21 저녁'),
+         'CELL-03': S('9/20 오전', '9/20 오후', '9/21 오전'), 'F3-02': S('9/21 저녁'), 'F3-03': S('9/21 저녁'), 'V-24': S('9/20 오후', '9/21 오전')}
+for _tid, _sl in _PAST.items():
+    REP0922[_tid]['slots'] = _sl + [x for x in REP0922[_tid]['slots'] if x not in _sl]
+for _tid, _e in REP0922.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
+LECTURE['9/22 화'] = (LECTURE['9/22 화'][0],
+  '🔁 9/21 밤 보고 반영: 오전 **툴 무게 등록(ENV-05) → V-02 → 그릇 닦기 재검증 → 컵 팔레트 경로**, 오후 V-07·V-16 · V-08(→ F1-03 PR) · F1-05 안착 · F1-04 적재 → UT 로 **G2(L1) 마감**, 저녁 L2(INT-12a 그릇 · INT-13 · INT-12b 착수) · 노션 업로드(1차 산출물)')
+SLOT['9/22 화'] = {
+ 'B': ('🔁 9/21 밤 보고 반영 — 🥇 **① 황인재 ENV-05 툴 무게·무게중심 등록(20분 · Dart · 브링업 내림)** — 무게·힘 판정이 전부 이 위에서 돈다, 그래서 맨 앞(브리핑 전 09:00 에 시작하면 여유) → '
+       '**② 민범진 R2 자세별 재측정 + V-02 빈 용기 기준값(35분 — 저녁 INT-12a 전제)** → **③ 박진용 F3-02 그릇 닦기 재검증 3회(25분 · 9/20 확정본 · 제품 코드로 = UT-F3 TC-06)** → '
+       '**④ 한석형 컵 C1·C2 경로 + 한 바퀴 재검증(45분)** → **⑤ 박진용 + 한석형 그릇 동선 통합 1회(15분)** · '
+       '로봇 불필요: 한석형 pick() 본 구현(그릇 · 컵)·좌표 cell.yaml 반영 · 황인재 F4-03 그림 수정 → PR · NOTE-01 · CR-01(전원)'),
+ 'C': ('**G2(L1) 마감**: **① 민범진 V-07 털기 · V-16(그릇 → 컵 · 40분 · rig_f2 연속 3회 = UT-F2)** → **② 황인재 V-08 툴 프리셋 측정 + 10회(45분 · 수세미 폭 하나로 통일 — E23) → F1-03 PR** → '
+       '**③ 박진용 F1-05 안착 놓기 + V-04(45분 · E22) + soap(안 했으면 20분)** → **④ 한석형 F1-04 적재 + V-06(그릇 칸 · 45분)** → UT-F1(S·H) · V-24·V-25·V-26(H · 20분 · 안 한 것만) · '
+       '🚨 한석형 **pick() PR 은 이 시간까지**(저녁 INT-12a) · 🚨 **F1-03·F1-05 도 이 시간까지**(저녁 INT-13) · 로봇 불필요: INT-4(H·M) · NOTE-02 gif(H)'),
+ 'D': ('L2: **INT-12a 그릇(M 주도·S · 60분 — 먼저 `rig_int12.py check`)** → **INT-13(P 주도·S · 60분)** → **INT-12b 그릇 착수(M 주도·S)** · 컵은 한석형 컵 구현 뒤(9/23 오전) / UT-F1 잔여(S) · '
+       '로봇 불필요: UT-FLOW(M) · NOTE-02 gif(H)'),
+}
+EASY['ENV-05'] = '로봇 컨트롤러(Dart)에 그리퍼의 무게와 무게중심을 등록한다. 로봇은 관절 힘으로 무게를 추정하는데, 이 값이 틀리면 자세마다 무게가 다르게 읽힌다(9/21 60 g 차이). 브링업을 내리고 하고, 끝나면 민범진이 두 자세에서 다시 재 본다'
+SLOT['9/23 수']['B'] = 'INT-12b 마무리(**M 주도**·S) · INT-12a·12b **컵** · INT-13 잔여(P·S) · UT-F4·F4-05(H) — G3(L2) · 🛡 L1 잔여가 있으면 여기서 닫는다'
+
+HISTORY82 = ['v13.2', '보고 반영·신규', 'ENV-05(신규), V-02, V-07, V-16, INF-02c, INT-12a·12b, F3-02, SAFE-01, F1-02, F1-04, F1-05, V-08, F1-03, INT-13, V-24·25·26, 9/22 로봇 슬롯',
+             '9/21 밤 팀원 보고 3건 + PR #64(민범진) 반영. 🆕 **ENV-05 툴 무게·무게중심 등록**(황인재 · 9/22 오전 첫 순서) — 요구사항엔 전제인데 일정표에 없었다(민범진: 무게가 자세마다 60 g 다름). '
+             '민범진 — 하중 단위 kg 발견·수정(merge) · 컵 78 mm 들림(E19 숙제 끝) · INT-12 시험대(가상 12/12) · V-02·07·16 → 9/22. 박진용 — 그릇 한 바퀴 통합 실기 1회 성공 · 그러나 main wipe_bowl 재검증 5회 모두 실패 → 9/20 확정본으로 되돌려 9/22 오전 재검증. '
+             '한석형 — 그릇 동선 완주 · 컵 집기·재파지 구성 · 팔레트 C1 조정 중 · 브랜치는 시험 스크립트뿐(마지막 push 는 들여쓰기 오류로 실행 불가). 9/22 로봇: 오전 ENV-05 → V-02 → 닦기 재검증 → 컵 경로 / 오후 V-07·16 → V-08 → F1-05 → F1-04 / 저녁 INT-12a → INT-13 → INT-12b',
+             '황인재 9/22 07:50', 'S,M,P,H']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -1591,7 +1674,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
