@@ -407,6 +407,12 @@ class Flow:
         🚨 한 단계가 실패해도 **멈추지 않는다** — 치우는 중이라 더 나아가는 편이 낫다.
            다만 그 결과는 로그에 남긴다. 마지막에 이벤트는 ISOLATED 다.
         """
+        # 🚨 깃발을 **여기서** 내린다 — 이동 **도중** 중단(halt_errors 경로)은 wait_resume() 을
+        #    거치지 않아 지워 줄 사람이 없다. 안 지우면 정리가 끝나도 stop·abort 가 남아,
+        #    마지막 용기였으면 **다음 실행의 첫 PAUSE(GRIP_FAIL 등)를 사람이 아무것도 안 눌렀는데
+        #    중단 정리로 풀어 버린다** — 로봇이 혼자 HOME → 격리 → HOME 으로 움직인다(PM 검토 PR #50).
+        sig.clear('abort')
+        sig.clear('stop')
         self.step = 'ISOLATE'
         self._clear_halt()                            # 중단 때 세운 강제정지를 푼다(안 풀면 새 이동도 거부된다)
 
@@ -439,14 +445,20 @@ class Flow:
     def run_plan(self, sig):
         """plan 대로 구역을 돈다."""
         sig.clear('stop')
+        # 🚨 지난 실행에서 남은 중단 깃발이 새 실행으로 넘어오지 않게 (to_paused 가 resume 을
+        #    지우는 것과 같은 이유). ①이 제 자리에서 지우지만, 두 번째 방어선을 둔다.
+        sig.clear('abort')
         for entry in self.plan:
             self.zone_id, self.kind = entry['zone'], entry['kind']
             for _ in range(entry['count']):
                 # 용기와 용기 사이. 단계 사이의 정지는 process_one 안에 따로 있다 (SDD §5.1)
-                if sig.peek('stop'):
+                if sig.peek('stop') or self._is_paused():
                     self.log.info('stop 요청 — 용기 사이에서 정지')
                     self.to_paused('stop 버튼', sig)
-                    self.wait_resume(sig)
+                    if self.wait_resume(sig) == ABORTED:
+                        # 🚨 용기 **사이**라 접을 용기가 없다 → 정리 없이 다음 용기로 간다.
+                        #    전에는 반환값을 버려서 **우연히** 이렇게 됐다 — 코드로 분명히 한다.
+                        self.log.info('abort — 아직 집지 않았으므로 치울 것이 없다. 다음 용기로')
                 outcome = self.process_one(sig)
                 if outcome == HALT:
                     return
