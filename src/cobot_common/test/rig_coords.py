@@ -111,7 +111,7 @@ def main() -> int:
 
     import cobot_common as cc
     from cobot_common.bootstrap import dsr      # cobot_common 자체 시험이라 내부 함수를 쓴다
-    from cobot_common.motion import _named_pose
+    from cobot_common.motion import _named_pose, _STATE
 
     cc.init('rig_coords')
     log = cc.io_node().get_logger()
@@ -137,7 +137,27 @@ def main() -> int:
         def posj():
             return [float(v) for v in d.get_current_posj()]
 
+        def state_ok(why):
+            """로봇이 명령을 받을 수 있는 상태(STANDBY)인가. 읽기만 한다.
+
+            🚨 9/21 실기: 브링업은 떠 있는데 **컨트롤러와의 연결이 끊겨** 있었다.
+               그때 get_robot_state 는 3(SAFE_OFF)을, get_current_posj 는 [0,0,0,0,0,0] 을 돌려준다.
+               그 0 을 좌표로 받아 적으면 큰일 나므로, 움직이기 전에도 읽기 전에도 여기서 막는다.
+            """
+            if virtual:
+                return True
+            s = int(d.get_robot_state())
+            if s == 1:
+                return True
+            log.error(f'🚨 로봇이 명령을 받을 수 없는 상태다 — {why} 전에 멈춘다.')
+            log.error(f'   로봇 상태 {s} = {_STATE.get(s, "알 수 없음")}')
+            log.error('   상태가 1(STANDBY) 이 아니면 이 도구의 숫자는 **믿을 수 없다**(자세가 0 으로 읽힌다).')
+            log.error('   먼저 볼 것: ① 티치펜던트 E-Stop·오류 ② 서보 On ③ 그래도 3 이면 브링업 재시작(killdrcf → sod && sodreal)')
+            return False
+
         if opt.where:                                          # 로봇을 움직이지 않는다 — 지금 자세를 읽어서 찍기만 한다
+            if not state_ok('자세를 읽기'):
+                return 2
             log.info('지금 자세 (로봇은 움직이지 않았다)')
             log.info('  관절 posj: [' + ', '.join(f'{v:.2f}' for v in posj()) + ']')
             log.info('  좌표 posx: [' + ', '.join(f'{v:.2f}' for v in posx()) + ']')
@@ -173,6 +193,9 @@ def main() -> int:
             log.info(f"{'OK  ' if ok else 'FAIL'} {label:<34} {detail}")
             if not ok:
                 fails.append(label)
+
+        if opt.real and not state_ok('첫 이동'):
+            return 2
 
         stopped = False
         log.info(f'──── ① ② 찍은 자세 {len(ROUTE)}번 이동 — 자세에서 자세로 곧장(9/20 E7) ────')
