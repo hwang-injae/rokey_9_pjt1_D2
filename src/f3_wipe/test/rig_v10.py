@@ -118,6 +118,8 @@ def main() -> int:
     ap.add_argument('--stage', choices=STAGES, default='scrub', help='어디까지 할지 (기본 scrub = 전체)')
     ap.add_argument('--cycles', type=int, default=None, help='왕복 횟수 (기본 params.yaml)')
     ap.add_argument('--stroke', type=float, default=None, help='위아래 편진폭 mm')
+    ap.add_argument('--lift', type=float, default=None, help='바닥을 찾은 뒤 띄우는 양 mm (세척의 가장 낮은 자리)')
+    ap.add_argument('--blend', type=float, default=None, help='90° 조각을 이어 붙이는 거리 mm (0 = 조각마다 선다)')
     ap.add_argument('--air', action='store_true',
                     help='컵에 넣지 않고 컵 위 공중(+60 mm)에서 세척 동작만 — 6번 축 소리가 로봇인지 솔인지 가른다')
     ap.add_argument('--speed', type=float, default=None,
@@ -130,7 +132,7 @@ def main() -> int:
     try:
         p = dict(cc.cfg()['f3']['wipe_cup'])                             # 값의 정본은 params.yaml — 인자는 덮어쓰기만
         for key, val in (('cycles', a.cycles), ('stroke_mm', a.stroke),
-                         ):
+                         ('lift_mm', a.lift), ('blend_radius_mm', a.blend)):
             if val is not None:
                 p[key] = val
                 log.warning(f'덮어씀: {key} = {val}  (확정되면 params.yaml 에 넣는다)')
