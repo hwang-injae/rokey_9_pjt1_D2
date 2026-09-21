@@ -61,8 +61,9 @@ class Rec:
         log = types.SimpleNamespace(info=lambda m: None, warn=lambda m: None, error=lambda m: None)
         return types.SimpleNamespace(get_logger=lambda: log)
 
-    def move_to(self, station, carrying):
-        self._note('move_to', station, carrying)
+    def move_to(self, station, carrying, kind=None):
+        # 🚨 kind 까지 적어 둔다 — 안 넘기면 실기에서 ValueError 가 난다(9/20 E8)
+        self._note('move_to', station, carrying, kind)
         return self._up
 
     def move_rel(self, dx, dy, dz, frame, **kw):
@@ -106,6 +107,10 @@ def _install(monkeypatch, r):
     for name in ('cfg', 'io_node', 'move_to', 'move_rel', 'move_joint_rel',
                  'force_off', 'safe_retreat', 'grip_level', 'grip_width', 'weigh'):
         setattr(fake, name, getattr(r, name))
+    # 🚨 sense 가 "삼키지 않고 위로 올릴" 예외 클래스 — **진짜 클래스**를 그대로 넣는다.
+    #    가짜로 만들면 sense 가 잡는 클래스와 시험이 던지는 클래스가 달라져 시험이 거짓으로 통과한다.
+    from cobot_common.motion import MotionHalted, MoveIncomplete
+    fake.MoveIncomplete, fake.MotionHalted = MoveIncomplete, MotionHalted
     monkeypatch.setitem(sys.modules, 'cobot_common', fake)
     # 🚨 시험 사이에 가짜에 묶인 모듈이 남지 않게 되돌린다(L6)
     monkeypatch.delitem(sys.modules, 'f2_sense_flow.sense', raising=False)
@@ -138,7 +143,7 @@ def test_weigh_goes_down_remaining_height(monkeypatch):
     r = Rec(weights=[180.0], up=35.0)
     s = _sense(monkeypatch, r)
     s.weigh('BOWL')
-    assert ('move_to', ('WEIGH', True), {}) in r.calls
+    assert ('move_to', ('WEIGH', True, 'BOWL'), {}) in r.calls
     assert ('move_rel', (0.0, 0.0, -35.0, 'BASE'), {}) in r.calls
 
 
@@ -427,8 +432,8 @@ def test_leftover_shakes_over_the_waste_bin(monkeypatch):
     r = Rec(weights=[280.0, 190.0])
     s = _sense(monkeypatch, r)
     s.leftover_loop('BOWL', 2)
-    assert ('move_to', ('WASTE', True), {}) in r.calls
-    assert ('move_to', ('RINSE', True), {}) not in r.calls
+    assert ('move_to', ('WASTE', True, 'BOWL'), {}) in r.calls
+    assert ('move_to', ('RINSE', True, 'BOWL'), {}) not in r.calls
     n_cycles = CFG['f2']['shake']['WASTE']['cycles']
     assert len(r.of('move_joint_rel')) == 3 * n_cycles, 'YAML 의 cycles 만큼 털어야 한다'
 
@@ -438,13 +443,33 @@ def test_shake_and_dip_go_to_their_station(monkeypatch):
     r = Rec(up=25.0)
     s = _sense(monkeypatch, r)
     s.dip('RINSE', 1, 'BOWL')
-    assert ('move_to', ('RINSE', True), {}) in r.calls
+    assert ('move_to', ('RINSE', True, 'BOWL'), {}) in r.calls
     assert r.of('move_rel')[0][1][2] == pytest.approx(-25.0), '남은 높이만큼 먼저 내려가야 한다'
 
     r2 = Rec()
     s2 = _sense(monkeypatch, r2)
     s2.shake('RINSE', 1, 'CUP')
-    assert ('move_to', ('RINSE', True), {}) in r2.calls
+    assert ('move_to', ('RINSE', True, 'CUP'), {}) in r2.calls
+
+
+def test_every_move_passes_kind(monkeypatch):
+    """🚨 세 함수 모두 move_to 에 kind 를 넘겨야 한다 (9/20 결정 E8 · PR #36).
+
+    WEIGH·WASTE·RINSE 자세가 cell.yaml 에서 BOWL/CUP 으로 갈렸다. 안 넘기면 cc.move_to 가
+    "골라야 하는데 안 줬다"로 ValueError 를 내고 **기능 셋이 통째로 멈춘다**.
+    빠뜨리기 쉬운 자리라(인자가 선택형이다) 함수별로 못 박는다.
+    """
+    for call, kind in (
+        (lambda s: s.weigh('BOWL'), 'BOWL'),
+        (lambda s: s.shake('WASTE', 1, 'CUP'), 'CUP'),
+        (lambda s: s.dip('RINSE', 1, 'BOWL'), 'BOWL'),
+    ):
+        r = Rec(weights=[180.0])
+        call(_sense(monkeypatch, r))
+        moves = r.of('move_to')
+        assert moves, 'move_to 를 한 번은 불러야 한다'
+        for c in moves:
+            assert c[1][2] == kind, f'move_to 에 kind 가 빠졌다 — {c[1]}'
 
 
 def test_moves_are_carrying(monkeypatch):
@@ -574,3 +599,41 @@ def test_rounds_counts_only_finished_rounds(monkeypatch):
     out = s.leftover_loop('BOWL', 2)
     assert out.code == GRIP_FAIL
     assert out.rounds == 0, '한 번도 못 털었으면 0 이어야 한다'
+
+
+# ── 🚨 이동이 도중에 선 예외는 삼키지 않는다 (9/21 PM 요청 · SDD §7)
+def test_move_incomplete_is_not_swallowed(monkeypatch):
+    """MoveIncomplete = 이동이 도중에 섰다 → **로봇이 어디 있는지 모른다.**
+
+    여기서 Result 로 바꾸면 flow 가 평범한 실패로 보고 **재시도하거나 이어서 내려간다.**
+    그러면 안 되므로 위로 그대로 올린다 — flow.call() 이 받아 ROBOT_ERROR(그 자리 정지)로 맺는다.
+    """
+    from cobot_common.motion import MoveIncomplete
+
+    class Boom(Rec):
+        def move_to(self, station, carrying, kind=None):
+            self._note('move_to', station, carrying, kind)
+            raise MoveIncomplete('목표 6 mm 앞에서 섰다')
+
+    for call in (lambda s: s.weigh('BOWL'),
+                 lambda s: s.shake('WASTE', 1, 'BOWL'),
+                 lambda s: s.dip('RINSE', 1, 'BOWL')):
+        r = Boom(weights=[180.0])
+        s = _sense(monkeypatch, r)
+        with pytest.raises(MoveIncomplete):
+            call(s)
+        assert not r.of('safe_retreat'), '위치를 모르는데 후퇴하면 안 된다'
+
+
+# ── 🚨 잔반통(뒤) ↔ 앞쪽 사이는 HOME 을 거친다 (9/21 결정 E15)
+def test_leftover_goes_via_home_between_scale_and_waste_bin(monkeypatch):
+    """잔반통 그릇 자세가 로봇 **뒤쪽**으로 옮겨졌다(앞쪽은 팔이 펴진 특이점이라 9/21 케이블이 꼬였다).
+
+    저울·스펀지 홈·반납 구역은 **앞**이라, 앞뒤를 곧장 오가면 로봇 몸통을 가로지른다.
+    E7 로 안전 높이 경유까지 없어져 더 그렇다 → 사이마다 HOME 을 거친다.
+    """
+    r = Rec(weights=[280.0, 190.0])            # 잔반 100 g → 털고 → 10 g
+    s = _sense(monkeypatch, r)
+    s.leftover_loop('BOWL', 2)
+    stations = [c[1][0] for c in r.of('move_to')]
+    assert stations == ['WEIGH', 'HOME', 'WASTE', 'HOME', 'WEIGH'], stations
