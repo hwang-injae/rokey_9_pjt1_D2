@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v10.1'
+VERSION = 'v10.2'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -748,6 +748,30 @@ PATH15 = {
 for _tid, _e in PATH15.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 11:30 민범진 회신 — 막힌 진짜 원인은 그리퍼 드라이버(pymodbus) + 분담
+DRV = '🚨 9/21 11:30 민범진 회신 — **지연 원인 정정: 로봇 경합이 아니라 그리퍼 드라이버가 안 뜬 것**'
+FIX = ('OnRobot 드라이버가 0.8 초 만에 죽는다 — **pymodbus 미설치**. 배포본 `onrobot_rg_control/setup.py:17` 이 `pymodbustcp` 로 잘못 적혀 있어 자동 설치가 안 된다'
+       '(코드는 `from pymodbus.client import ModbusTcpClient` — PM 확인 ✅). 조치: `sudo apt install python3-pymodbus`(3.6.9). '
+       '🚨 pip 최신(3.7+)은 인자가 `slave=` → `device_id=` 로 바뀌어 드라이버가 또 죽는다(코드가 `slave=` 를 쓴다 — PM 확인 ✅). '
+       '확인: `ros2 node list | grep -i onrobot` → `/dsr01/OnRobotRGControllerServer` 가 보이면 정상. '
+       '🚨 **PC 4대 전부 확인** — PM 이 이 PC(PC-B)에서 확인하니 여기도 없었다')
+GRIP_BLOCKED = {
+ 'V-05':   dict(note_add=DRV + ' · ' + FIX + ' → 이것만 풀리면 V-01·V-23·V-02·V-16 은 바로 돈다(코드·절차는 준비돼 있다)'),
+ 'V-01':   dict(note_add=DRV + ' — 드라이버가 떠야 폭을 읽는다. 9/21 11:30 기준 미완'),
+ 'V-23':   dict(note_add=DRV + ' — 9/21 11:30 기준 미완'),
+ 'V-02':   dict(note_add=DRV + ' — 9/21 11:30 기준 미완'),
+ 'V-16':   dict(note_add=DRV + ' — 9/21 11:30 기준 미완'),
+ 'V-07':   dict(note_add='📐 9/21 민범진 Virtual 시험대(9/20 기록 중 **E7 뒤에도 유효한 것**): 털기가 주기당 약 **0.35 s 느리다** → `period_s` 를 정할 때 반영. '
+                         '❌ 무효가 된 기록: "move_to 가 안전 높이를 왕복한다"(E7 로 없어짐) · ⚠ 용기 1개 소요 시간(12 s/30 s)은 다시 재야 한다'),
+ 'FLOW-01':dict(prog='0.9', note_add='✅ 9/21 11:30 민범진: kind 전달(flow steps·sense._goto·시험) · GRIP_FAIL = pause **+ 재개 의미 버그 수정** — PAUSE 갈래가 재개 뒤 "다음 용기"로 가서 그 용기를 버리고 있었다 → IRD §8 대로 **실패한 그 단계부터 다시**. ROBOT_ERROR 만 다음 용기 + ERROR 기록(RACK_FULL 도 같은 버그였다). 덧붙임 2건(MoveIncomplete 후퇴 금지 · E15 HOME 경유)도 완료. **PR 올리는 일만 남았다** · 🟡 GRIP_FAIL 안내 문구는 다음에'),
+ 'ENV-03': dict(owner='H(M)', note_add='🔁 9/21 11:30 분담 — 민범진 → **황인재**(민범진 회신: "전부 넘겨도 됩니다"). 이미 9/22 오전 황인재의 로봇 불필요 칸에 들어 있어 추가 부담이 없다. 민범진은 PC-A 쪽만 확인해 준다'),
+ 'FLOW-02':dict(note_add='🔁 9/21 11:30 분담 — **둘로 나눈다**: ① 기록(records.csv)·소모품 카운트 = 넘길 준비됨(후보 **박진용** — F3 가 9/22 오후에 끝난다) ② `/cell/force`·`/cell/gripping` 발행 = **민범진이 계속**(gripper.py 를 아는 쪽이 빠르다는 본인 판단). ①을 실제로 넘길지는 9/22 오전 브리핑에서 민범진의 남은 양을 보고 정한다'),
+ 'UT-FLOW':dict(note_add='🔁 9/21 11:30 — **민범진이 그대로 한다**. 넘길 수는 있지만 정책 시험은 `test_f2_policy` 가 이미 많이 덮고 있어 새로 맡는 쪽이 더 오래 걸린다(본인 판단)'),
+ 'CR-01':  dict(note_add='🔁 9/21 11:30 — 전원이 하는 작업이라 분담 대상이 아니다(민범진 지적)'),
+}
+for _tid, _e in GRIP_BLOCKED.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -890,6 +914,10 @@ SLOT['9/22 화']['B'] = SLOT['9/22 화']['B'].replace(_o,
 _o = '**④ 티칭 마무리(H)**'
 assert _o in SLOT['9/21 월']['C']
 SLOT['9/21 월']['C'] = SLOT['9/21 월']['C'].replace(_o, '**④ 티칭 마무리(H) — 🔁 오늘 안에 전부 끝낸다, 2차 티칭 칸은 없다(E14)**')
+# 9/21 11:30 — 그리퍼 드라이버가 진짜 병목이었다(v10.2)
+SLOT['9/21 월']['B'] = ('🚨 **최우선(5분): 그리퍼 드라이버 `sudo apt install python3-pymodbus` — PC 4대 전부.** '
+                        '이것이 안 돼서 민범진의 그리퍼·무게 검증이 전부 멈춰 있었다(로봇 경합이 아니었다). 되면 V-05 → V-01 → V-23 → V-02 가 바로 돈다 · '
+                        ) + SLOT['9/21 월']['B']
 _b, _c = LECTURE['9/24 목~9/28 월']
 LECTURE['9/24 목~9/28 월'] = (_b, _c + ' · 🆕 **F4 웹 HMI**(F4-03 화면 다듬기·F4-04 기록/이력·UT-F4 전체)도 집에서 mock·fake_state_pub 로 이어 간다(황인재 9/20 — ROS 인터페이스·로봇 쪽 코드는 9/23 동결 그대로)')
 RULES = {       # (A 열, B 열 글자) → (새 B, 새 C)
@@ -1027,6 +1055,9 @@ HISTORY51 = ['v10.0', '결정 E14', 'CELL-04, CELL-04b, 9/22 오전 로봇 슬�
 HISTORY52 = ['v10.1', '결정 E15·진단 정정', 'F1-04, F2-01, V-07, SAFE-01, CELL-04', '황인재 9/21 오전(F4 세션 실기) 결정 E15 — 경로 제약 3가지: ① 잔반통(로봇 뒤) ↔ 앞쪽 자리 사이는 HOME 경유(f2.leftover_loop·f1.place) ② 팔레트 칸은 cell.rack.via 경유 + 그릇 칸은 exit_rel_mm 으로 빠져나오기(f1.rack_place) ③ 팔이 쭉 펴지는 자세(J3 ≈ 0°) 금지. 🔄 **9/21 08:40 케이블 꼬임 원인 정정** — 손목(J6 163°)이 아니라 **팔꿈치 특이점(J3 = 1.7°)** 이었다(J6 회전은 posj·posx 어느 쪽이든 비슷하게 난다). 잔반통 그릇 자세를 로봇 뒤쪽 posj [-180,0,90,0,90,0] 로 재티칭. 남은 좌표 11개 목록은 CELL-04 비고',
              '황인재 9/21 11:00', 'S,M,P,H']
 
+HISTORY53 = ['v10.2', '원인 정정·분담', 'V-05, V-01, V-23, V-02, V-16, V-07, FLOW-01, ENV-03, FLOW-02, UT-FLOW, CR-01', '민범진 회신 9/21 11:30: **그리퍼 검증이 막힌 진짜 원인은 로봇 경합이 아니라 그리퍼 드라이버가 안 뜬 것** — pymodbus 미설치(배포본 setup.py 가 pymodbustcp 로 오타). `sudo apt install python3-pymodbus`(3.6.9 · pip 최신은 인자 이름이 바뀌어 안 된다). PM 이 코드에서 확인 ✅, 이 PC 에도 없었다 → PC 4대 점검. 분담: ENV-03 = 민범진 → 황인재 · FLOW-02 를 기록/소모품(넘길 준비, 후보 박진용)과 발행(민범진)으로 나눔 · UT-FLOW·CR-01 은 그대로. FLOW-01 은 코드 완료(PR 대기) — GRIP_FAIL 재개가 그 용기를 버리던 버그까지 고쳤다',
+             '황인재 9/21 11:30', 'M,H,P,S']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1121,7 +1152,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
