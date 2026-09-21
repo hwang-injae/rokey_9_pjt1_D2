@@ -528,8 +528,11 @@ class Flow:
             if not r.ok:
                 action, retries = self.policy_for(r.code)
                 # retry:N->isolate — 후퇴한 뒤 같은 동작을 N 번까지 다시 해 본다
-                for i in range(retries):
-                    self.log.info(f'{step} 재시도 {i + 1}/{retries} (코드 {r.code})')
+                # 🚨 세는 변수를 i 로 쓰지 않는다 — 바깥의 **단계 인덱스** i 를 덮어써서,
+                #    재시도가 성공하면 아래 `i += 1` 이 엉뚱한 자리로 뛴다(9/21 발견).
+                #    실기에서는 이미 팔레트에 넣은 용기로 공정을 통째로 한 번 더 돈다.
+                for attempt in range(retries):
+                    self.log.info(f'{step} 재시도 {attempt + 1}/{retries} (코드 {r.code})')
                     if not self._retreat():   # 🚨 후퇴 실패 → 더 움직이지 않는다
                         action = PAUSE
                         break
@@ -595,7 +598,8 @@ class Flow:
             # 그 밖(GRIP_FAIL·RACK_FULL)은 사람이 확인·조치한 뒤 **실패한 그 단계부터** 이어 간다.
             #    끝까지 가면 DONE 으로 기록되므로 여기서는 이벤트를 내지 않는다(9/20 PM 결정).
             #    다시 실패하면 또 PAUSED 가 된다 — 풀려면 사람이 resume 을 눌러야 하므로 혼자 돌지 않는다.
-            #    사람이 "이 용기는 접자" 고 판단하면 /flow/abort 다(IRD §6 — 아직 구현 전).
+            #    사람이 "이 용기는 접자" 고 판단하면 /flow/abort 다(IRD §6 · PR #50 으로 구현됨
+            #    — flow_node 가 PAUSED 에서만 받고, abort_container 가 HOME → 툴 반납 → 격리 → HOME).
             self.log.info(f'재개 — {self.step} 단계부터 다시 (코드 {self.last_code})')
             return RETRY_STEP
 
