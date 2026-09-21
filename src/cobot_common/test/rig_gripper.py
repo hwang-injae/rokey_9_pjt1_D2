@@ -130,7 +130,8 @@ def cmd_check(a, p, log):
 def cmd_v05(a, p, log):
     """폭 경로 확인 — 빈손으로 목표 폭을 n 회씩 반복 명령하고 읽은 폭의 흔들림을 본다."""
     conf = p['v05']
-    log.info(f'V-05  폭 경로 확인 — 빈손, 목표 {conf["targets_mm"]} mm 를 {a.n} 회씩')
+    force = a.force_n if a.force_n is not None else float(p['force_n'])   # 빈손이라 종류가 없다
+    log.info(f'V-05  폭 경로 확인 — 빈손, 목표 {conf["targets_mm"]} mm 를 {a.n} 회씩 · {force:.1f} N')
     log.info('🚨 그리퍼에 **아무것도 없어야** 한다')
     cc.release()                                    # ① 열기 + (첫 호출이면) 힘 기준 맞추기
     if _wait_width(log, p['width_wait_s']) is None:
@@ -138,7 +139,7 @@ def cmd_v05(a, p, log):
 
     rows, worst, bad = [], 0.0, []
     for target in conf['targets_mm']:
-        vals = [_close_once(float(target), a.force_n) for _ in range(a.n)]
+        vals = [_close_once(float(target), force) for _ in range(a.n)]
         s = _stats(vals)
         rows.append((f'{target:.1f}', s))
         worst = max(worst, s['spread'])
@@ -370,8 +371,10 @@ def main() -> int:
 
     with open(HERE / 'rig_gripper.yaml', encoding='utf-8') as f:
         p = yaml.safe_load(f)
-    if a.force_n is None:
-        a.force_n = float(p['force_n'])
+    # 🚨 9/21 — 여기서 yaml 기본값(20 N)으로 **채우면 안 된다**. 채우면 v01 의
+    #    "--force-n 을 줬을 때만 덮는다" 검사가 항상 참이 되어 **컵도 20 N 으로** 닫힌다
+    #    (9/21 V-01 에서 실제로 그렇게 났고, 컵이 눌리며 안전 스위치가 걸렸다).
+    #    a.force_n 은 **사람이 준 값일 때만** 값이 있다. 기본값은 쓰는 쪽(v05)에서 고른다.
     if a.n < 1:
         return 2
 
