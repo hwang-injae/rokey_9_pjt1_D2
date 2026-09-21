@@ -6,8 +6,7 @@
     cc.force_on('z', target=4.0, limit=10.0) → (닦기) → cc.force_off() → cc.safe_retreat()
     cc.move_spiral(rev=2.8, rmax_mm=14, time_s=3) → while not cc.motion_done(): (힘 확인)   # 바닥 나선 (비동기)
     cc.move_arc(mid, end, vel_mm_s=180, vel_deg_s=400, radius_mm=3)                        # 벽면 원호 (이어 붙임)
-    cc.move_line(pose, 96, 86.4, 900, 810, radius_mm=5)                                      # 컵 위아래 + 비틀기 (vel_scale 무관)
-    cc.move_periodic([0,0,15,0,0,0], [0,0,1,0,0,0], repeat=5)                               # 왕복 (비동기) — 🚨 회전 진폭은 쓰지 않는다
+    cc.move_periodic([0,0,20,0,0,180], [0,0,6.3,0,0,6.3], repeat=3, ref='TOOL', scale=False)   # 컵: 위아래 + 6번 조인트 (TOOL rz)
 
 약속
 - 좌표계는 BASE. axis 는 'x'·'y'·'z'. target·limit·min·max 는 **양수 크기(N)** 이고, 누르는 방향(−axis)은 여기서 붙인다.
@@ -32,11 +31,12 @@
 import time
 
 from .bootstrap import cfg, dsr
+from . import motion as _motion
 from .motion import is_paused, move_rel
 
 __all__ = ['force_on', 'force_off', 'force_release', 'force_reached', 'force_check', 'compliance_on', 'compliance_off',
            'contact_down', 'periodic_search', 'safe_retreat', 'read_force',
-           'where', 'joints', 'motion_done', 'move_spiral', 'move_arc', 'move_line', 'move_periodic',
+           'where', 'joints', 'stop_now', 'motion_done', 'move_spiral', 'move_arc', 'move_line', 'move_periodic',
            'ForceLimitError', 'MotionTimeout']
 
 _AXES = ('x', 'y', 'z')
@@ -288,6 +288,15 @@ def joints():
     return [float(v) for v in dsr().get_current_posj()]
 
 
+def stop_now():
+    """지금 하던 동작을 **즉시 정지**(QSTOP · Stop Category 2 — 서보 전원 유지, 위치를 안다). 기다리지 않는다.
+    비동기 모션(Periodic 등)이 도는 중에 감시하다 이상을 보면 부른다. 정지는 통신 노드가 보낸다(motion._call)."""
+    _motion._call('stop')
+    t0 = time.monotonic()
+    while not motion_done() and time.monotonic() - t0 < 3.0:
+        time.sleep(0.01)
+
+
 def motion_done():
     """비동기 이동이 끝났나 (check_motion() == 0). move_spiral 이 도는 동안 힘을 보려고 쓴다."""
     return dsr().check_motion() == 0
@@ -313,18 +322,20 @@ def move_spiral(rev, rmax_mm, time_s, axis='z', ref='TOOL'):
                        time=float(time_s) / _vel_scale(), axis=axis_c, ref=ref_c), 'amove_spiral')
 
 
-def move_periodic(amp, period, repeat, ref='TOOL', atime=None):
+def move_periodic(amp, period, repeat, ref='TOOL', atime=None, scale=True):
     """Move Periodic 을 **비동기로 시작**한다 — 끝을 기다리지 않는다(부르는 쪽이 motion_done() 으로 본다).
 
     amp · period 는 **[x, y, z, rx, ry, rz]** 6개. 길이 mm · 회전 deg · 주기 s.
     한 명령으로 **이동과 회전을 같이** 왕복한다(중급교육1 p.71 "일정한 진폭과 주기로 왕복 이동/회전 모션",
     p.73~75 실습 50 mm/2 s · 15°/2 s · 축마다 다른 주기).
-    🚨 9/21 Virtual: ref=TOOL 로 rz 진폭 18° 를 주면 **툴 축 비틀기가 아니라 4번 축이 ±18° 움직여 손목이 기운다**
-       (6번 축은 ±6° 뿐). rz 45°·주기 1 s 는 오류 없이 아예 안 움직였다. → **회전 비틀기는 move_line 으로**(컵 닦기),
-       여기서는 직선 왕복만 믿는다.
+    🚨 9/21: ref=TOOL 의 회전 칸은 TCP 설정에 따라 도는 조인트가 달라진다 — 실기(TCP GripperDA_v1)에서 TOOL rx 가
+       **4번 조인트**를 돌렸다 — 두산 정의대로다(rx 는 옆으로 누운 축). **그리퍼 축 회전 = TOOL rz = 6번 조인트.**
+       🚨 Virtual 은 rx ↔ rz 를 뒤바꿔 움직이고, BASE rz 는 1·4번 조인트를 돌렸다 → Periodic 회전은 Virtual 결과를 믿지 않는다.
+       부르는 쪽이 도는 동안 조인트를 감시한다(wipe_cup).
     🚨 어떤 축에 진폭을 주면 **같은 축의 주기도 줘야 한다**(반대도 마찬가지) — 빠지면 두산 오류 2.1218 (p.71~72).
     repeat = 왕복 횟수. 한 번 왕복하면 출발한 자리로 돌아온다(진폭은 편진폭 — 총 이동거리는 2배, p.71 그림).
     vel_scale < 1 이면 주기를 그만큼 늘려 느리게 한다(진폭은 그대로 — periodic_search 와 같은 방식).
+    scale=False 면 주기를 그대로 쓴다 — 컵 세척은 vel_scale 예외(결정 E17).
     """
     if len(amp) != 6 or len(period) != 6:
         raise ValueError('move_periodic: amp · period 는 [x, y, z, rx, ry, rz] 6개로 준다')
@@ -335,7 +346,7 @@ def move_periodic(amp, period, repeat, ref='TOOL', atime=None):
     if repeat < 1:
         raise ValueError(f'move_periodic: repeat={repeat} — 1 이상')
     d = dsr()
-    slow = 1.0 / _vel_scale()
+    slow = 1.0 / _vel_scale() if scale else 1.0
     d.mwait()
     _ok(d.amove_periodic(amp=[float(v) for v in amp], period=[float(v) * slow for v in period],
                          atime=0.0 if atime is None else float(atime),

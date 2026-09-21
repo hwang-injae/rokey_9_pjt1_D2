@@ -30,7 +30,6 @@ from cobot_api import FORCE_LIMIT, OK, ROBOT_ERROR, TIMEOUT, Result, WipeBowlRes
 
 START = 'HOME'                       # 닦기의 시작·끝 = 초기자세 (cell.stations.HOME, 관절 0·0·90·0·90·0)
 
-J4_MAX_DEG = 1.0                     # 컵 세척 첫 조각 뒤 4번·1번 축이 이만큼 넘게 움직였으면 멈춘다 — 6번 축만 돌아야 한다(9/21)
 _R_MIN_MM = 2.0                      # 나선 방향을 재기 시작하는 반지름 — 중심 근처에서는 각도가 튄다
 
 FORCE_LOG_HEADER = ('t', 'fx', 'fy', 'fz', 'target')   # SDD §4.2 힘 로그 열
@@ -382,11 +381,11 @@ def wipe_cup() -> WipeCupResult:
       ① 거기서 **fast_down_mm 만큼 빠르게** 내려간다(9/21 실측 90 mm − 10). 바닥 위치는 미리 정하지 않는다
       ② **바닥을 찾는다** — cc.contact_down(순응 ON, 조금씩 하강, f3.wipe_cup.find_limit_n 5 N — 15 N 이면 컵이 눌렸다)
          (중급2 "힘 방향과 같은 방향의 모션 불가" — Z 힘제어로는 내려갈 수 없다. 순응 + 걸음 하강이 매뉴얼 방식)
-      ③ 바닥을 찾으면 **힘을 풀고**(contact_down 이 해제한다) lift_mm 만 띄운다 — 왕복의 아래쪽 끝
-      ④⑤ **올라가며 6번 축 360° 한 방향(반시계), 내려오며 반대로 360°** — 90° 조각으로 나눈 점들을
-         직선(Move L)으로 이어 붙인다(cc.move_line, 중급1 p.79 중첩). x·y·기울기(a·b)는 그대로, **z 와 c 만** 바뀐다.
+      ③ 바닥을 찾으면 **힘을 풀고**(contact_down 이 해제한다) 세척의 가운데(바닥 + lift + stroke)로 띄운다
+      ④⑤ **Move Periodic 한 명령**(TOOL 기준): 위아래 z ±20 mm + 그리퍼 축 rz ±180° 를 같은 주기로 → 6번 조인트만 360° 폭
+         (중급1 p.71 "왕복 이동/회전") · 🚨 도는 동안 1·4번 조인트 감시, 1° 넘으면 즉시 정지
          🚨 Move Periodic 의 회전 진폭은 쓰지 않는다 — 9/21 Virtual 에서 툴 축이 아니라 4번 축이 돌아 손목이 기울었다
-      ⑥ cycles(3) 번 오르내린 뒤 **아래쪽 끝 · 손목 제자리**에서 끝낸다(한 번 오르내리면 회전이 되돌아온다)
+      ⑥ cycles(3) 번 뒤 가운데로 돌아오면(6번 조인트도 제자리) **아래쪽 끝으로 내려서** 끝낸다
       ⑦ 솔을 컵에서 곧게 뽑아 컵 위 높이로 → z +40 → y −140 → z −40 → HOME (⓪ 의 반대)
 
     🚨 그릇(고정 좌표, 결정 E6)과 달리 컵은 **바닥을 힘으로 찾는다** — 컵이 깊고(95 mm) 솔이 단단해
@@ -442,89 +441,63 @@ def cup_stroke(p):
     return min(float(p['stroke_mm']), room / 2.0)
 
 
-def spin_direction(j6, p):
-    """올라갈 때 도는 방향(+1/−1). spin_first 를 먼저 보고, 그 방향으로 spin_deg 돌면 한계를 넘으면 반대를 본다.
+def spin_room(j6, p):
+    """6번 조인트가 시작 각 ± spin_deg/2 를 돌아도 한계(±j6_limit − margin) 안인가. 아니면 ValueError — 돌지 않는다."""
+    half, lim = float(p['spin_deg']) / 2.0, float(p['j6_limit_deg']) - float(p['j6_margin_deg'])
+    if abs(j6) + half > lim:
+        raise ValueError(f'wipe_cup: 6번 조인트 {j6:.1f}° 에서 ±{half:g}° 를 돌면 한계(±{lim:g}°)를 넘는다 — 돌지 않는다')
 
-    어느 쪽도 안 되면 ValueError — 돌지 않는다. 6번 축은 올라가며 spin_deg 돌고 내려오며 되돌아오므로
-    가장 멀리 가는 자리는 j6 ± spin_deg 한 곳이다.
+
+def cup_periodic(p, stroke):
+    """세척 한 명령의 (진폭, 주기) — [x, y, z, rx, ry, rz], **TOOL 기준**. 위아래(툴 z) ±stroke · 툴 z 축 회전(rz) ±spin/2 · 같은 주기.
+
+    🔸 툴 z = 그리퍼 축이라 **rz = 6번 조인트**(두산 정의). 9/21 근거:
+       · 실기 TOOL rx → 4번 조인트(두산 정의대로 — rx 는 옆으로 누운 축) · 실기 TCP 는 회전값이 없다(티칭 좌표 a−c 가 플랜지와 같다)
+       · 🚨 Virtual 은 rx ↔ rz 를 뒤바꿔 움직였다(rx → 6번, rz → 4번) — Periodic 회전은 Virtual 결과를 믿지 않는다
     """
-    spin, lim = float(p['spin_deg']), float(p['j6_limit_deg']) - float(p['j6_margin_deg'])
-    first = -1 if float(p['spin_first']) < 0 else 1
-    for d in (first, -first):
-        if abs(j6 + d * spin) <= lim:
-            return d
-    raise ValueError(f'wipe_cup: 6번 축 {j6:.1f}° 에서 ±{spin:g}° 를 돌면 한계(±{lim:g}°)를 넘는다 — 돌지 않는다')
-
-
-def cup_strokes(low, stroke, spin_deg, seg_deg, direction, cycles, blend_mm):
-    """④⑤⑥ 이어 붙일 직선 점들 [(BASE 절대 자세, 이어 붙이는 거리), ...].
-
-    low = 왕복의 아래쪽 끝 자세. 올라가며 direction × spin_deg(꼭대기 = low + 2 × stroke), 내려오며 반대로 spin_deg 를 cycles 번.
-    한 획을 seg_deg 조각으로 나눈다 — 조각마다 z 도 같은 비율로 → 도는 동안 계속 오르내린다.
-    x·y·a·b 는 low 그대로 — **z 와 c(툴 축 회전)만** 바뀐다. 한 번 오르내리면 c 는 제자리로 돌아온다.
-    **꼭대기·아래쪽 끝(방향이 바뀌는 점)은 이어 붙이지 않는다** — 이어 붙이면 모서리를 깎아 360° 를 다 못 돈다
-    (9/21 Virtual: 이어 붙였더니 339° 만 돌았다). 방향이 같은 조각끼리만 이어 붙인다.
-    첫 조각도 이어 붙이지 않는다(부르는 쪽이 거기서 회전 방향을 확인한다).
-    """
-    x, y, z, a, b, c = (float(v) for v in low)
-    n = max(1, int(round(float(spin_deg) / float(seg_deg))))
-    if float(spin_deg) / n >= 180.0:
-        raise ValueError(f'cup_strokes: 조각 {spin_deg / n:g}° — 180° 미만이어야 도는 방향이 정해진다')
-    dz, dth = 2.0 * stroke / n, direction * float(spin_deg) / n
-    blend = min(float(blend_mm), math.hypot(dz, 0.0) * 0.45)            # 이어 붙이는 거리가 한 조각의 절반을 넘으면 안 된다
-
-    def pose(zz, rz):
-        return [x, y, zz, a, b, (c + rz + 180.0) % 360.0 - 180.0]
-
-    pts = []
-    for _k in range(int(cycles)):
-        for i in range(1, n + 1):                                        # 올라가며 한 방향 — 꼭대기(i == n)에서 선다
-            pts.append((pose(z + dz * i, dth * i), 0.0 if i == n else blend))
-        for i in range(n - 1, -1, -1):                                   # 내려오며 반대로 — 아래쪽 끝(i == 0)에서 선다
-            pts.append((pose(z + dz * i, dth * i), 0.0 if i == 0 else blend))
-    pts[0] = (pts[0][0], 0.0)
-    return pts
+    t = float(p['period_s'])
+    return ([0.0, 0.0, float(stroke), 0.0, 0.0, float(p['spin_deg']) / 2.0],
+            [0.0, 0.0, t, 0.0, 0.0, t])
 
 
 def _scrub_cup(p, log):
-    """③ lift 만 띄우고 → ④⑤ 올라가며 6번 축 360° · 내려오며 반대로 360° (직선 이어 붙이기) → ⑥ 아래쪽 끝에서 끝낸다.
+    """③ 세척의 가운데(바닥 + lift + stroke)로 띄우고 → ④⑤ Move Periodic 한 명령(TOOL z ±stroke + TOOL rz ±spin/2) × cycles
+    → ⑥ 아래쪽 끝(바닥 + lift)으로 내려서 끝낸다. 한 주기가 끝나면 6번 조인트는 제자리.
 
-    왕복의 가장 낮은 자리가 바닥 + lift — 바닥을 찧지 않는다. 꼭대기는 바닥 + lift + 2 × stroke.
-    🚨 돌기 전에 6번 축 한계를 보고(spin_direction), 첫 조각 뒤에 **실제로 예상한 방향으로 돌았는지** 확인한다 —
-       반대로 돌았으면(자세 c 와 6번 축의 부호가 다르면) 한계를 넘을 수 있으니 거기서 멈춘다.
+    🚨 도는 동안 1·4번 조인트를 계속 읽어 joint_guard_deg 를 넘으면 **즉시 정지**하고 멈춘다 — 6번 조인트만 돌아야 한다.
+    세척 주기는 vel_scale 예외(결정 E17).
     """
     stroke = cup_stroke(p)
     if stroke <= 0:
         raise RuntimeError('wipe_cup: 솔 길이로는 왕복할 자리가 없다 — f3.wipe_cup 설정 확인')
-    _halt_check('왕복 문지르기')
-    cc.move_rel(0.0, 0.0, float(p['lift_mm']), 'BASE',                    # ③ 왕복의 아래쪽 끝으로
+    _halt_check('세척')
+    cc.move_rel(0.0, 0.0, float(p['lift_mm']) + stroke, 'BASE',          # ③ 세척의 가운데로
                 vel_mm_s=float(p['lift_vel_mm_s']) * _scale())
     log.watch('cup-lift')
     q0 = cc.joints()
-    j6 = q0[5]
-    direction = spin_direction(j6, p)
-    pts = cup_strokes(cc.where(), stroke, p['spin_deg'], p['spin_seg_deg'], direction,
-                      int(p['cycles']), p['blend_radius_mm'])
-    seg = float(p['spin_deg']) / (len(pts) // (2 * int(p['cycles'])))
-    _info(f'wipe_cup 문지르기: 위아래 {2 * stroke:.0f} mm · 6번 축 {direction * float(p["spin_deg"]):+g}° 올라가며 / 반대로 내려오며 '
-          f'· {p["cycles"]} 회 · 6번 축 {j6:.1f}° 에서 시작 (직선 {len(pts)} 개)')
-    for k, (pose, blend) in enumerate(pts):                              # ④⑤⑥
+    spin_room(q0[5], p)
+    amp, period = cup_periodic(p, stroke)
+    guard = float(p['joint_guard_deg'])
+    cc.move_periodic(amp, period, repeat=int(p['cycles']), ref='TOOL', atime=float(p['ramp_s']), scale=False)
+    _info(f'wipe_cup 세척: 위아래 {2 * stroke:.0f} mm · 6번 조인트 {p["spin_deg"]:g}° 폭 · 주기 {p["period_s"]:g} s '
+          f'· {p["cycles"]} 회 (Move Periodic · TOOL rz · 6번 조인트 {q0[5]:.1f}° 에서 시작)')
+    while not cc.motion_done():                                          # ④⑤ 도는 동안 조인트·힘 감시
+        q = cc.joints()
+        bad = [(k + 1, q[k] - q0[k]) for k in (0, 3) if abs(q[k] - q0[k]) > guard]
+        if bad:
+            cc.stop_now()
+            raise RuntimeError('wipe_cup: ' + ' · '.join(f'{k}번 조인트 {d:+.1f}°' for k, d in bad)
+                               + ' 가 움직였다 — 6번 조인트만 돌아야 한다. 즉시 정지')
         if log.over_time():
-            raise cc.MotionTimeout('wipe_cup: 문지르기 시간 초과')
-        cc.move_line(pose, p['lin_vel_mm_s'], p['rot_vel_deg_s'], p['lin_acc_mm_s2'], p['rot_acc_deg_s2'], blend)
-        if k == 0:                                                       # 첫 조각에서 선다 → 4번 축 · 도는 방향 확인
-            q = cc.joints()
-            if abs(q[3] - q0[3]) > J4_MAX_DEG or abs(q[0] - q0[0]) > J4_MAX_DEG:   # 🚨 6번 축만 돌아야 한다(박진용 9/21)
-                raise RuntimeError(f'wipe_cup: 4번 축 {q[3] - q0[3]:+.1f}° · 1번 축 {q[0] - q0[0]:+.1f}° 가 움직였다 — '
-                                   '6번 축만 돌아야 한다. 멈춘다')
-            moved = q[5] - j6
-            if moved * direction < seg * 0.5:
-                raise RuntimeError(f'wipe_cup: 6번 축이 {moved:+.1f}° 돌았다 — 예상 {direction * seg:+g}° 와 다르다. '
-                                   '한계를 넘을 수 있어 멈춘다')
+            cc.stop_now()
+            raise cc.MotionTimeout('wipe_cup: 세척 시간 초과')
         log.watch('cup-scrub')
+        time.sleep(float(p['sample_s']))
     end = cc.joints()[5]
-    if abs(end - j6) > 5.0:
-        _warn(f'wipe_cup: 끝난 뒤 6번 축 {end:.1f}° — 시작 {j6:.1f}° 로 돌아오지 않았다. 케이블 확인')
+    if abs(end - q0[5]) > 5.0:
+        _warn(f'wipe_cup: 끝난 뒤 6번 조인트 {end:.1f}° — 시작 {q0[5]:.1f}° 로 돌아오지 않았다')
+    cc.move_rel(0.0, 0.0, -stroke, 'BASE',                               # ⑥ 아래쪽 끝에서 끝낸다
+                vel_mm_s=float(p['lift_vel_mm_s']) * _scale())
     log.watch('cup-end')
 
 
