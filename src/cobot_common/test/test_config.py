@@ -112,7 +112,8 @@ def test_unfilled_lists_empty_cell_values():
     empty = config.unfilled(config.load(SRC_CONFIG))
     assert 'cell.presets.BOWL.grip_width_mm' in empty             # 아직 안 잰 값(V-01 에서 잰다)
     assert 'cell.limits.safe_z_mm' not in empty                   # 9/21: limits·motion·seat 는 설계 문서 값으로 채웠다
-    assert 'cell.stations.ISOLATE.BOWL.posx' in empty             # 아직 안 찍은 자세 (9/21: SOAP 는 툴 홀더 좌표에서 계산해 채웠다 — 결정 E16 뒤)
+    poses = [e for e in empty if not e.startswith('cell.presets.')]
+    assert poses == [], f'빈 자세가 남아 있다: {poses}'           # 9/21: 자세는 전부 찼다(E14 · 격리까지). 남은 빈 값은 그리퍼 프리셋뿐(V-01·V-05)
     assert 'cell.stations.HOME.posj' not in empty and 'cell.zones.RET_B.slots[1].posj' not in empty   # 슬롯 목록도 센다(번호는 1 부터)
     assert not [p for p in empty if not p.startswith('cell.')]
 
