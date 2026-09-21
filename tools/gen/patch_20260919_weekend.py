@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v9.5'
+VERSION = 'v9.6'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -642,6 +642,15 @@ NOMOVE_0921 = {
 for _tid, _e in NOMOVE_0921.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 09:50 점검에서 나온 마무리 2건
+CK = '🔎 9/21 점검:'
+FINAL_0921 = {
+ 'ARCH-01': dict(slots=S('9/20 오후', '9/22 오전'), note_add=CK + ' 9/21 오전(강의 시간) 칸을 뺀다 — 중간점검이 없어져 "MID-01 과 같이"가 사라졌으므로 **1차 산출물(9/22~23)의 노드 구조 그림**으로 NOTE-01 과 같은 칸(9/22 오전)에서 마무리'),
+ 'PM-01':   dict(note_add=CK + ' 일정표 점검(v9.6): 지난 칸에만 남은 미완료 0건 · 칸 없는 미완료 0건 · 상태 완료 31 · 진행 25 · 시작 전 49 · 해당 없음 2(중간점검)'),
+}
+for _tid, _e in FINAL_0921.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -737,6 +746,14 @@ SLOT['9/22 화'] = {'B': '**F1-05 안착 + V-04·V-15(S, P 참여 — 🛡 단�
                    'C': '**F1-03·V-08 툴 집기·반납(H)** / **F1-04·V-06 팔레트(S)** → **UT-F1(S·H)** / UT-F3(P) / UT-F2(M) / F3-03 마무리(P) — G2(L1) 마감 · 로봇 불필요: FLOW-01·FLOW-03 마무리(M)·INT-4(H·M)',
                    'D': 'L2: **INT-12a(M·S) → INT-13(P·S) → INT-12b(S·M) 착수** / UT-F1 잔여 · 로봇 불필요: FLOW-02·UT-FLOW(M)·NOTE-02 gif(H)'}
 SLOT['9/23 수']['B'] = 'INT-12b 마무리(S 주도·M) · INT-13 잔여(P·S) · UT-F4·F4-05(H) — G3(L2) · 🛡 L1 잔여가 있으면 여기서 닫는다'
+# 9/21 09:50 — 발표 취소·일정 앞당김 반영(v9.6)
+LECTURE['9/21 월'] = ('6차시 오전 DRL srv·launch · **오후 중간점검 없음**(강사 확인 9/21 — 노션 차시표는 이전 기수 내용)',
+                      '오후·저녁 전부 프로젝트: 오후 = 툴·홀더 → V-24 실기 → 티칭 2 h → V-22·V-19 / 저녁 = 그리퍼 → F1-02 집기 실기 → 닦기 3회 → V-25')
+LECTURE['9/22 화'] = ('7차시 모듈 구현 프로그래밍 · 🆕 **9/22~23 1차 산출물 제출**(① GitHub 최신 ② ROS2 노드 구조 노션 ③ 관리자 HMI·사용자 UI 화면)',
+                      '오전 F1-05 안착·F2 실기·컵 닦기 + 노션 업로드, 오후 F1-03·F1-04 → UT-F1·F2·F3 로 **G2(L1) 마감**, 저녁 L2(INT-12a·13·12b 착수)')
+GATE['G2 L1'] = {'B': '9/22 오후', 'C': 'UT-F1·F2·F3·FLOW 통과 + 녹화 (함수별 TC 는 구현 직후 바로) + 코드리뷰 CR-01 · 🆕 **F1 도 9/22 안에** — 9/21 오후가 열려 집기·닦기·F1-01 실기를 하루 앞당겼다(UT-F4 는 최소 범위로 9/23 오전)'}
+GATE['중간점검'] = {'B': '—', 'C': '❌ **없음**(강사 확인 9/21). 대신 **9/22~23 1차 산출물 제출** — ① 코드 최신 GitHub 업로드 ② ROS2 노드 구조 노션(NOTE-01·ARCH-01) ③ 관리자 HMI·사용자 UI 화면 gif(NOTE-02)'}
+GATE['G3 L2']['C'] = 'INT-12a·13 은 9/22 저녁 시작, **INT-12b 도 9/22 저녁 착수 → 9/23 오전 마무리**(F1-04 가 9/22 오후로 당겨졌다) — flow_node + use_mock'
 _b, _c = LECTURE['9/24 목~9/28 월']
 LECTURE['9/24 목~9/28 월'] = (_b, _c + ' · 🆕 **F4 웹 HMI**(F4-03 화면 다듬기·F4-04 기록/이력·UT-F4 전체)도 집에서 mock·fake_state_pub 로 이어 간다(황인재 9/20 — ROS 인터페이스·로봇 쪽 코드는 9/23 동결 그대로)')
 RULES = {       # (A 열, B 열 글자) → (새 B, 새 C)
@@ -856,6 +873,9 @@ HISTORY45 = ['v9.4', '일정 정정', 'MID-01, MID-02, NOTE-01, NOTE-02, ARCH-01
 HISTORY46 = ['v9.5', '대거 재배치', '9/21 오후·저녁 전부, F1-02·05·03·04, V-14·25·04·15·08·06, F3-02·03, V-18·10, UT-F1·F2·F3, INT-12a·12b·13, 그리퍼 세션, FLOW-01·03', '황인재 9/21 09:10: 중간점검 발표가 없어져 **오후 4.5 h 가 열렸다** → 밀린 일을 반나절 앞당긴다. 오후 = 툴·홀더 → 이동 함수 실기 → 티칭 2 h(6번 관절 경로 재티칭 포함) → 좌표 확인. 저녁 = 그리퍼 60분 → F1-02 집기 실기 → 닦기 3회 → F1-01 실기. 9/22 는 한 칸씩 당겨 **G2(L1) 를 9/22 안에** 닫는 것을 목표로',
              '황인재 9/21 09:10', 'S,M,P,H']
 
+HISTORY47 = ['v9.6', '점검·정리', 'ARCH-01, PM-01, 게이트·강사 일정 표', '9/21 09:50 일정표 점검: 지난 칸에만 남은 미완료 0건 · 칸 없는 미완료 0건 — 구조는 정상. 고친 것 2건: ARCH-01 을 강의 시간(9/21 오전)에서 9/22 오전(NOTE-01 과 같이)으로 · 게이트/강사 일정 표에서 중간점검 삭제하고 9/22~23 1차 산출물 제출 · G2(L1)를 9/22 안에 F1 까지 포함으로. merge 된 원격 브랜치 22개 정리(9/21)',
+             'PM 9/21 09:50', '전원']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -950,7 +970,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
