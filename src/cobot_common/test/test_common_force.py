@@ -368,17 +368,17 @@ def test_move_arc_blends_and_caps_speed(robot):
     assert d.arc['radius'] == 0.0
 
 
-def test_move_line_blends_absolute_and_caps_speed(robot):
+def test_move_line_uses_only_given_speed(robot):
+    """컵 문지르기 전용 — 준 속도·가속도 그대로. 공용 상한·vel_scale 을 곱하지 않는다(박진용 9/21 결정)."""
     cfg = copy.deepcopy(CFG)
     cfg['run'] = {'vel_scale': 0.5}
     d = robot(cfg)
     pose = [100.0, 60.0, 90.0, 0.0, 180.0, 18.0]
-    force.move_line(pose, 80.0, 72.0, radius_mm=5.0)
+    force.move_line(pose, 96.0, 86.4, 900.0, 810.0, radius_mm=5.0)
     assert d.last_movel['pos'] == pose and d.last_movel['mod'] == d.DR_MV_MOD_ABS
-    assert d.last_movel['vel'] == [pytest.approx(40.0), pytest.approx(36.0)]   # × vel_scale
+    assert d.last_movel['vel'] == [pytest.approx(96.0), pytest.approx(86.4)]      # vel_scale 0.5 를 곱하지 않는다
+    assert d.last_movel['acc'] == [pytest.approx(900.0), pytest.approx(810.0)]
     assert d.pos == pose
-    force.move_line(pose, 9999.0, 72.0)                                 # 100 % 기준(400) 을 넘지 못한다
-    assert d.last_movel['vel'][0] == pytest.approx(200.0)
 
 
 def test_where_and_motion_done(robot):

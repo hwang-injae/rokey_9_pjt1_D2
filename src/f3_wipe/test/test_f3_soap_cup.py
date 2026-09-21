@@ -23,7 +23,8 @@ CFG = {
             'fast_down_mm': 80.0, 'find_max_mm': 40.0,
             'lift_mm': 2.0, 'lift_vel_mm_s': 40.0,
             'stroke_mm': 20.0, 'twist_deg': 18.0,
-            'lin_vel_mm_s': 80.0, 'rot_vel_deg_s': 72.0, 'blend_radius_mm': 5.0,
+            'lin_vel_mm_s': 96.0, 'rot_vel_deg_s': 86.4, 'lin_acc_mm_s2': 900.0, 'rot_acc_deg_s2': 810.0,
+            'blend_radius_mm': 5.0,
             'cycles': 5, 'keep_in_mm': 10.0,
             'limit_n': 10.0, 'lateral_max_n': 25.0, 'sample_s': 0.0,
             'duration_s': 120, 'log_dir': 'logs/f3',
@@ -68,7 +69,7 @@ class FakeCell:
         self.calls.append(('move_rel', round(dz, 1), round(kw.get('vel_mm_s') or 0.0, 1), round(dy, 1)))
         self.pose = [self.pose[0] + dx, self.pose[1] + dy, self.pose[2] + dz] + self.pose[3:]
 
-    def move_line(self, pose, vel_mm_s, vel_deg_s, radius_mm=0.0):
+    def move_line(self, pose, vel_mm_s, vel_deg_s, acc_mm_s2, acc_deg_s2, radius_mm=0.0):
         self.calls.append(('line', list(pose), radius_mm))
         self.pose = list(pose)
 

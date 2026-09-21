@@ -176,13 +176,13 @@ def main() -> int:
         low = cc.where()
         pts = cup_strokes(low, stroke, float(p['twist_deg']), int(p['cycles']), p['blend_radius_mm'])
         log.info(f'문지르기: 위아래 {2 * stroke:.1f} mm · 비틀기 ±{p["twist_deg"]:g}° · {p["cycles"]} 회 '
-                 f'· 직선 {len(pts)} 개 (속도 {p["lin_vel_mm_s"]:g} mm/s · {p["rot_vel_deg_s"]:g} °/s × vel_scale)')
+                 f'· 직선 {len(pts)} 개 (속도 {p["lin_vel_mm_s"]:g} mm/s · {p["rot_vel_deg_s"]:g} °/s — vel_scale 무관)')
         n0 = len(rec.rows)
         t_scrub = time.monotonic()
         for pose, blend in pts:
             if time.monotonic() - t_scrub > float(p['duration_s']):
                 raise cc.MotionTimeout('문지르기 시간 초과')
-            cc.move_line(pose, p['lin_vel_mm_s'], p['rot_vel_deg_s'], blend)
+            cc.move_line(pose, p['lin_vel_mm_s'], p['rot_vel_deg_s'], p['lin_acc_mm_s2'], p['rot_acc_deg_s2'], blend)
             rec.watch('scrub')
         dsr().mwait()
         rec.summarize('scrub', n0)

@@ -481,7 +481,7 @@ def _scrub_cup(p, log):
     for pose, blend in pts:                                              # ④⑤⑥
         if log.over_time():
             raise cc.MotionTimeout('wipe_cup: 문지르기 시간 초과')
-        cc.move_line(pose, p['lin_vel_mm_s'], p['rot_vel_deg_s'], blend)
+        cc.move_line(pose, p['lin_vel_mm_s'], p['rot_vel_deg_s'], p['lin_acc_mm_s2'], p['rot_acc_deg_s2'], blend)
         log.watch('cup-scrub')
     log.watch('cup-end')
 

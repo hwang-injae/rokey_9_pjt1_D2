@@ -6,7 +6,7 @@
     cc.force_on('z', target=4.0, limit=10.0) → (닦기) → cc.force_off() → cc.safe_retreat()
     cc.move_spiral(rev=2.8, rmax_mm=14, time_s=3) → while not cc.motion_done(): (힘 확인)   # 바닥 나선 (비동기)
     cc.move_arc(mid, end, vel_mm_s=180, vel_deg_s=400, radius_mm=3)                        # 벽면 원호 (이어 붙임)
-    cc.move_line(pose, vel_mm_s=80, vel_deg_s=72, radius_mm=5)                              # 컵 위아래 + 비틀기 (이어 붙임)
+    cc.move_line(pose, 96, 86.4, 900, 810, radius_mm=5)                                      # 컵 위아래 + 비틀기 (vel_scale 무관)
     cc.move_periodic([0,0,15,0,0,0], [0,0,1,0,0,0], repeat=5)                               # 왕복 (비동기) — 🚨 회전 진폭은 쓰지 않는다
 
 약속
@@ -337,19 +337,19 @@ def move_periodic(amp, period, repeat, ref='TOOL', atime=None):
                          repeat=int(repeat), ref={'BASE': d.DR_BASE, 'TOOL': d.DR_TOOL}[ref]), 'amove_periodic')
 
 
-def move_line(pose, vel_mm_s, vel_deg_s, radius_mm=0.0):
+def move_line(pose, vel_mm_s, vel_deg_s, acc_mm_s2, acc_deg_s2, radius_mm=0.0):
     """직선(Move L) — BASE 절대 자세 하나로. 회전(a·b·c)도 같이 간다. move_arc 의 직선판.
 
     컵 닦기의 "위아래 + 좌우 비틀기"가 이것이다 — 자세의 z 와 c 만 바꾼 점을 이어 붙이면 솔이 오르내리며
     **툴 축으로만** 비틀린다(그릇 벽면 원호의 c ±twist 와 같은 방식, 9/20 실기로 확인된 방식).
     radius_mm > 0 이면 다음 모션으로 **이어 붙는다**(중급교육1 p.79 — Move L 은 중첩 가능). 0 이면 그 자리에 선다.
-    속도에는 vel_scale 을 곱하고, cell.motion 의 100 % 기준을 넘지 못한다.
+    🔸 속도·가속도는 **부르는 쪽 값 그대로** 쓴다 — cell.motion 공용 상한도, 실행 인자 vel_scale 도 곱하지 않는다.
+       세척 동작 자체는 빠른 속도가 필요하고 실제로 잘 닦이는 것이 목표라, 팀 속도 규정과 따로 F3 가 값을 관리한다
+       (박진용 9/21 결정 — params.yaml f3.wipe_cup 의 lin/rot_vel · lin/rot_acc).
     """
     d = dsr()
-    s = _vel_scale()
-    top_v, top_a = float(_cell_key('motion', 'vel_tcp_max_mm_s')), float(_cell_key('motion', 'acc_tcp_max_mm_s2'))
-    vel = [min(_positive('vel_mm_s', vel_mm_s) * s, top_v * s), _positive('vel_deg_s', vel_deg_s) * s]
-    acc = [top_a * s, top_a * s]
+    vel = [_positive('vel_mm_s', vel_mm_s), _positive('vel_deg_s', vel_deg_s)]
+    acc = [_positive('acc_mm_s2', acc_mm_s2), _positive('acc_deg_s2', acc_deg_s2)]
     _ok(d.movel([float(v) for v in pose], vel=vel, acc=acc,
                 radius=float(radius_mm), ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS), 'movel')
 
