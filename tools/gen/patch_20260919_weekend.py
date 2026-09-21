@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v12.7'
+VERSION = 'v12.8'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1047,6 +1047,9 @@ EDIT.setdefault('INF-02d', {}).update(dict(
     status='완료', prog='1.0',
     crit='실기에서 명령 → 동작 → 폭(mm) 읽힘 · NORMAL↔HOLD 전환  (🔄 9/21: 그리퍼는 시뮬레이션에서 검증되지 않아 "Virtual 에서 가짜 그리퍼 노드로 호출 순서" 는 뺐다)',
     note_add='✅ 9/21 18:50 — **그리퍼는 시뮬레이션(가상 로봇)에서 검증되지 않는다**(팀 보고 · 황인재) → 완료 기준의 Virtual 확인을 뺐다. 남은 실기 확인은 **9/21 오후 그리퍼 세션(PR #53 — V-05·V-01·V-23, PR #49 의 새 gripper.py 로)** 에서 끝났다 → 완료'))
+# ---------------------------------------------------------------- 9/21 18:55 결정 E23 — 툴 프리셋은 황인재가 V-08 시작 때
+EDIT.setdefault('V-08', {}).update(dict(note_add='📌 9/21 결정 E23: **시작 때 툴 프리셋(SPONGE·BRUSH — 폭·힘·허용 오차 · 영점 10.58)을 rig_gripper.py 로 잰다**(황인재 — 값을 쓰는 f1.tool 담당) → cell.yaml 에 넣고 V-08 10회. 민범진 확인 요청(담당이 SDD·일정표에서 엇갈려 아무도 안 잡고 있었다)'))
+EDIT.setdefault('F1-03', {}).update(dict(note_add='📌 9/21 E23: 툴 프리셋이 비어 있으면 f1.tool 이 못 잡는다 → V-08 첫 단계에서 황인재가 잰다'))
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -1447,6 +1450,9 @@ HISTORY76 = ['v12.6', '진척', 'UT-FLOW', 'PR #62 merge(민범진): UT-FLOW —
 HISTORY77 = ['v12.7', '검증 범위', 'INF-02d', '팀 보고(황인재 9/21 18:50): 그리퍼는 시뮬레이션에서 검증되지 않는다 → INF-02d(gripper.py) 완료 기준의 "Virtual 에서 가짜 그리퍼 노드로 호출 순서" 를 뺐다. 실기 확인은 9/21 그리퍼 세션(PR #53)에서 끝나 INF-02d 완료. 그리퍼 관련 확인은 앞으로 실기로만 — 리마인드 문서 §6 에 적음',
              '황인재 9/21 18:50', 'M']
 
+HISTORY78 = ['v12.8', '결정 E23', 'V-08, F1-03', '민범진 확인 요청(툴 프리셋 담당이 SDD 한석형 / 일정표 황인재로 엇갈림) → 황인재 확정: V-08 시작 때 황인재가 rig_gripper 로 잰다(값을 쓰는 f1.tool 담당). SDD §9 V-08 담당 정정',
+             '황인재 9/21 18:55', 'H,M']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1541,7 +1547,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
