@@ -54,7 +54,16 @@ class FakeClient:
         self.calls += 1
         if self.fail_at is not None and self.calls == self.fail_at:
             return FakeRes(False, f'가짜 실패({self.fail_at}번째 명령)')
-        return FakeRes(self._ok, '' if self._ok else '가짜 실패')
+        if not self._ok:
+            return FakeRes(False, '가짜 실패')
+        # 🚨 진짜 드라이버 흉내 — 'i'/'d' 가 목표 힘을 바꾸고 그 값이 effort 로 되돌아온다.
+        #    실기에서는 콜백이 _force_n 을 갱신한다(gripper.py `_on_joint_states`).
+        #    그래서 시험도 "셈" 이 아니라 "읽기" 로 굴러가야 같은 것을 본다.
+        cur = G._force_n
+        if cur is not None and req.command in ('i', 'd'):
+            step = G._FORCE_STEP_N if req.command == 'i' else -G._FORCE_STEP_N
+            G._force_n = max(0.0, min(G._MAX_FORCE_N, cur + step))
+        return FakeRes(True, '')
 
 
 @pytest.fixture(autouse=True)
@@ -78,6 +87,7 @@ def fake(monkeypatch):
     monkeypatch.setattr(G, '_force_n', None)
     monkeypatch.setattr(G, '_joint_angle', None)
     monkeypatch.setattr(G, '_effort', 0.0)            # 항상 '멈춤' 으로 둬서 대기가 안 걸리게
+    monkeypatch.setattr(G, '_SETTLE_HOLD_S', 0.0)     # 폭이 안 변하니 바로 '멈췄다' 로 (시험 속도)
     return types.SimpleNamespace(client=client, log=log)
 
 
@@ -107,19 +117,25 @@ def test_width_before_first_message_raises():
 
 
 # ────────────────────────────────── 🚨 힘은 2.5 N 계단 (드라이버 제약)
-def test_grip_anchors_force_on_first_call(fake, monkeypatch):
-    """드라이버가 현재 힘을 안 알려 준다 → grip 은 **잡으러 가기 전(빈손)** 에 기준을 맞춘다."""
+def test_grip_sets_force_from_the_value_it_read(fake, monkeypatch):
+    """🚨 grip 은 **읽은 힘에서 차이만큼만** 움직인다 — 0 N 까지 내려 기준을 잡지 않는다.
+
+    9/21 실기: 드라이버가 목표 힘을 프로세스 종료 뒤에도 기억해(40 → 35 → 30 → 25 N)
+    "브링업 직후 40 N" 같은 가정이 두 번째 실행부터 어긋났다. 그래서 읽은 값에서 출발한다.
+    """
+    monkeypatch.setattr(G, '_force_n', 30.0)           # 앞선 실행이 남긴 힘을 읽은 상태
     monkeypatch.setattr(G, '_joint_angle', 0.83)
     G.grip(2.0, 20.0)
     sent = fake.client.sent
-    assert sent.count('d') >= 16, '0 N 까지 내리는 계단이 부족하다'
-    assert sent.count('i') == 8, '0 → 20 N 은 2.5 N × 8 계단'
+    assert sent.count('d') == 4, '30 → 20 N 은 2.5 N × 4 계단'
+    assert 'i' not in sent, '올릴 일이 없다'
+    assert sent[-1] == '20', '마지막은 폭 명령 (2.0 mm → 0.1 mm 단위)'
     assert G._force_n == pytest.approx(20.0)
 
 
-def test_set_force_without_anchor_raises(fake):
-    """🚨 _set_force 는 이제 몰래 0 N 으로 내리지 않는다 — 기준이 없으면 거부한다."""
-    with pytest.raises(RuntimeError, match='기준'):
+def test_set_force_without_any_reading_raises(fake):
+    """🚨 한 번도 못 읽었으면 거부한다 — 모르는 값에서 계단을 세면 어디로 갈지 모른다."""
+    with pytest.raises(RuntimeError, match='못 읽었다'):
         G._set_force(20.0)
     assert fake.client.sent == [], '거부했으면 아무 명령도 안 보낸다'
 
@@ -170,13 +186,16 @@ def test_release_sends_open(fake, monkeypatch):
     assert fake.client.sent == ['o']
 
 
-def test_release_anchors_force_after_opening(fake):
-    """🚨 기준이 없으면 release 가 맞춘다 — 반드시 **연 뒤에**(쥔 채 0 N 으로 내리면 놓친다)."""
+def test_release_makes_a_move_to_read_the_force(fake, monkeypatch):
+    """🚨 힘은 **움직이거나 닫혀 있을 때만** 읽힌다 (9/21 실기).
+
+    이미 활짝 열려 있으면 'o' 가 아무 움직임도 안 만들어 못 읽는다 → 아직 한 번도 못 읽었으면
+    **빈손으로 한 번 닫았다 연다**. 여기가 손이 빈 게 확실한 유일한 자리다.
+    """
+    monkeypatch.setattr(G, '_joint_angle', 0.26)
     G.release()
-    sent = fake.client.sent
-    assert sent[0] == 'o', '열기가 맨 먼저여야 한다'
-    assert sent.count('d') >= 16, '0 N 까지 내리는 계단이 부족하다'
-    assert G._force_n == pytest.approx(0.0)
+    assert fake.client.sent == ['o', 'c', 'o'], f'읽을 기회를 안 만들었다 — {fake.client.sent}'
+    assert 'd' not in fake.client.sent, '0 N 까지 내리는 옛 방식이 남아 있다'
 
 
 def test_width_out_of_range_is_clamped(fake, monkeypatch):
@@ -213,7 +232,7 @@ def test_grip_level_without_anchor_refuses(fake, monkeypatch):
     PM 9/20 · #17 검토 2번. 조용히 떨어뜨리는 대신 예외 → flow 가 ROBOT_ERROR 로 멈춘다.
     """
     monkeypatch.setattr(G, '_joint_angle', 0.83)
-    with pytest.raises(RuntimeError, match='기준'):
+    with pytest.raises(RuntimeError, match='못 읽었다'):
         G.grip_level('BOWL', 'HOLD')
     assert fake.client.sent == [], '거부했으면 아무 명령도 안 보낸다'
 
@@ -280,37 +299,44 @@ def test_set_force_failure_midway_does_not_keep_stale_memory(fake, monkeypatch):
         f'기억 {G._force_n} N 이 실제(≈{low}~{high} N)와 어긋난다')
 
 
-def test_memory_dropped_after_failure_keeps_protections_working(fake, monkeypatch):
-    """기억을 버렸으니 9/20 보호가 그대로 작동한다 — grip_level 거부 · release 에서 다시 맞추기.
+def test_reading_based_memory_never_goes_stale(fake, monkeypatch):
+    """🚨 읽기 기반이라 **어긋난 기억이 생기지 않는다** — 옛 방식이 풀려던 문제가 사라졌다.
 
-    옛 코드는 여기서 '기억 10 N / 실제 17.5 N' 로 조용히 이어 갔다.
+    옛 코드(셈 기반)는 도중에 명령이 끊기면 '기억 10 N / 실제 17.5 N' 로 조용히 이어 갔고,
+    그래서 "실패하면 기억을 버린다" 는 보호가 필요했다. 지금은 기억이 **드라이버가 돌려준 값**이라
+    끊긴 자리까지만 올라가 있고 그대로 맞다 → 다음 동작도 그 값에서 이어 간다.
     """
     monkeypatch.setattr(G, '_force_n', 0.0)
     monkeypatch.setattr(G, '_joint_angle', 0.83)
     fake.client.fail_at = 3
     with pytest.raises(RuntimeError, match='그리퍼 명령'):
-        G._set_force(20.0)
-    assert G._force_n is None, '실패한 뒤에 기억이 남으면 다음 보호가 안 걸린다'
+        G._set_force(20.0)                             # 0 → 20 N = 'i' 8계단, 3번째에서 끊긴다
 
+    got_through = fake.client.sent.count('i') - 1      # 끊긴 명령은 안 닿았다
+    assert G._force_n == pytest.approx(got_through * G._FORCE_STEP_N), (
+        f'기억 {G._force_n} N 이 실제로 들어간 {got_through} 계단과 다르다')
+
+    # 기억이 살아 있으니 쥔 채 힘 바꾸기도 그 값에서 이어 간다 (거부할 이유가 없다)
     fake.client.fail_at = None
     fake.client.sent.clear()
-    with pytest.raises(RuntimeError, match='기준'):
-        G.grip_level('BOWL', 'NORMAL')                 # 쥔 채 힘 바꾸기 → 거부
-    assert fake.client.sent == [], '거부했으면 아무 명령도 안 보낸다'
-
-    G.release()                                        # 빈손이 확실한 자리에서 다시 맞춘다
-    assert fake.client.sent[0] == 'o', '열기가 맨 먼저여야 한다'
-    assert fake.client.sent.count('d') >= 16
-    assert G._force_n == pytest.approx(0.0)
+    G.grip_level('BOWL', 'NORMAL')                     # → 20 N
+    assert G._force_n == pytest.approx(20.0)
+    assert not any(c.isdigit() for c in fake.client.sent), '폭을 다시 명령하면 안 된다'
 
 
-def test_anchor_force_failure_midway_leaves_no_memory(fake, monkeypatch):
-    """🚨 기준 맞추기가 중간에 끊기면 0.0 N 으로도, 옛 값으로도 단정하지 않는다.
+def test_force_memory_comes_only_from_reading(monkeypatch):
+    """🚨 기억은 **콜백이 읽은 effort** 에서만 온다. effort 가 0(= 모름)이면 건드리지 않는다.
 
-    'd' 를 17회 다 보내야 0 N 이다 — 3번째에서 끊기면 실제로는 덜 내려가 있다.
+    활짝 열린 채 정지하면 0 이 오는데, 그걸 '힘이 0 N' 으로 적으면 다음 계산이 통째로 틀어진다.
     """
-    monkeypatch.setattr(G, '_force_n', 20.0)           # 옛 기억이 남아 있어도
-    fake.client.fail_at = 3
-    with pytest.raises(RuntimeError, match='그리퍼 명령'):
-        G._anchor_force()
-    assert G._force_n is None, '덜 내려갔는데 0.0 N 이나 옛 값으로 단정하면 안 된다'
+    import types as _t
+    monkeypatch.setattr(G, '_force_n', 22.5)
+
+    def msg(effort):
+        return _t.SimpleNamespace(name=[G._FINGER_JOINT], position=[0.5], effort=[effort])
+
+    G._on_joint_states(msg(0.0))
+    assert G._force_n == pytest.approx(22.5), '0 이 왔다고 기억을 덮으면 안 된다'
+
+    G._on_joint_states(msg(35.0))
+    assert G._force_n == pytest.approx(35.0), '읽힌 값으로 갱신해야 한다'

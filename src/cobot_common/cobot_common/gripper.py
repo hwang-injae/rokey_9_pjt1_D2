@@ -9,12 +9,18 @@
     'c'    닫기(폭 0)             · 힘은 직전 값 유지
     'i'    힘 +2.5 N · **직전 폭으로 다시 파지**
     'd'    힘 −2.5 N · **직전 폭으로 다시 파지**
-  🚨 힘을 **절대값으로 줄 수 없다.** 2.5 N 계단으로만 오르내린다. 그리고 드라이버는
-     현재 힘을 알려주지 않는다 → 우리가 기억하되, 처음 한 번은 0 N 까지 내려 **기준을 맞춘다**.
+  🚨 힘을 **절대값으로 줄 수 없다.** 2.5 N 계단으로만 오르내린다.
   🟢 'i'/'d' 가 "같은 폭으로 힘만 바꿔 다시 파지" 라서 grip_level 에 그대로 맞는다.
 
-완료 — 서비스 응답은 "보냈다" 일 뿐이다(`res.success = True` 를 즉시 돌려준다).
-  움직이는 중인지는 `/onrobot_joint_states` 의 **effort** 로 안다(busy 면 힘 값, 아니면 0.0).
+현재 힘 — 🟢 **읽을 수 있다**(9/21 실기 확인). `/onrobot_joint_states` 의 **effort** 가
+  드라이버의 현재 목표 힘(N)이다(getStatus: `effort = rgfr/10`, 상태 비트가 켜져 있을 때).
+  🚨 **움직이거나 닫혀 있을 때만** 읽힌다 — 활짝 열린 채 정지하면 0 이 온다(= 모름).
+  🚨 드라이버가 힘을 **프로세스 종료 뒤에도 기억**한다(3회 연속 실행: 40 → 35 → 30 → 25 N)
+     → "브링업 직후 40 N" 은 첫 실행에서만 참이다. 세지 않고 **매번 읽어서** 맞춘다.
+
+완료 — 서비스 응답은 "보냈다" 일 뿐이다(`res.success = True` 를 무조건 돌려준다 — 실패를 알 수 없다).
+  🚨 끝났는지는 **폭이 멈추는 것**으로 본다. effort 로 보면 파지에 성공했을 때 "잡았다" 비트 때문에
+     0 이 되지 않아 **잡을 때마다 상한까지 기다린다**(9/21 실기에서 확인).
 
 현재 폭 — 드라이버는 폭(mm)을 발행하지 않는다. `/onrobot_joint_states` 의 **관절각**을
   드라이버와 같은 식으로 환산한다(jointValueToWidth). `finger_joint` 의 mimic 비율이 1 이라
@@ -35,12 +41,20 @@ _MAX_FORCE_N = 40.0                  # max_force 400 (0.1 N 단위)
 _MAX_WIDTH_MM = 110.0                # max_width 1100 (0.1 mm 단위)
 _FORCE_STEP_N = 2.5                  # 'i'/'d' 한 계단
 _FINGER_JOINT = 'finger_joint'       # mimic 비율 1 → position 이 곧 관절각
+_POLL_S = 0.02                       # 폭을 들여다보는 간격 (드라이버 발행 50 Hz)
+_SETTLE_SPAN_MM = 0.05               # 이 폭 안에서 머물면 "멈췄다"
+_SETTLE_HOLD_S = 0.2                 # 그 상태가 이만큼 이어져야 한다
 
 _lock = threading.Lock()
 _client = None                       # /onrobot/sendCommand
 _joint_angle = None                  # 최신 관절각(rad)
 _effort = None                       # 최신 effort — 0.0 이면 멈춘 것
-_force_n = None                      # 🚨 드라이버가 안 알려줘서 우리가 기억한다
+# 🚨 마지막으로 **읽은** 힘(N). 셈으로 만들지 않는다 — 콜백이 effort 에서 갱신한다.
+#    드라이버가 목표 힘을 프로세스 종료 뒤에도 기억해서(9/21 실기: 3회 연속 40 → 35 → 30 → 25 N)
+#    "브링업 직후 40 N" 같은 가정은 첫 실행에서만 맞는다. 그래서 세지 않고 읽는다.
+#    🚨 힘은 **움직이거나 닫혀 있을 때만** 읽힌다 — 활짝 열린 채 정지하면 0 이 온다(= 모름).
+#       그래서 마지막으로 읽은 값을 들고 있는다. 어떤 움직임이든 일어나면 콜백이 갱신한다.
+_force_n = None
 
 
 def setup_io(node):
@@ -55,7 +69,7 @@ def setup_io(node):
 
 def _on_joint_states(msg):
     """🚨 값 저장만 한다 — 로봇 함수를 부르지 않는다 (SDD §3.2 규칙 ③)."""
-    global _joint_angle, _effort
+    global _joint_angle, _effort, _force_n
     try:
         i = list(msg.name).index(_FINGER_JOINT)
     except ValueError:
@@ -65,6 +79,10 @@ def _on_joint_states(msg):
             _joint_angle = float(msg.position[i])
         if i < len(msg.effort):
             _effort = float(msg.effort[i])
+            # 🚨 값 저장만 한다. effort > 0 이면 그게 드라이버의 **현재 목표 힘(N)** 이다
+            #    (드라이버 getStatus: effort = rgfr/10, 상태 비트가 켜져 있을 때만).
+            if _effort > 0.0:
+                _force_n = float(_effort)
 
 
 # ------------------------------------------------------------------ 공개 함수
@@ -75,11 +93,11 @@ def grip(width, force):
        같은 값을 주면 빈손으로 닫아도 그 폭에서 멈춘 것처럼 보인다 —
        그릇은 벽 파지라 기대 폭이 ≈ 2 mm 밖에 안 된다.
     """
-    if _force_n is None:
-        _anchor_force()                                    # 잡으러 가기 전 = 아직 빈손 → 안전한 자리
-    _set_force(float(force))
+    _set_force(float(force))                               # 잡기 **전에** 맞춘다 (아직 빈손)
+    before = _width_or_none()
     _send(str(int(round(_clamp_width(width) * 10))))       # 0.1 mm 단위
-    _wait_done()
+    after = _wait_done()
+    _warn_if_stuck(before, after, f'폭 {float(width):.1f} mm 로 잡기')
     return grip_width()
 
 
@@ -97,15 +115,16 @@ def grip_level(kind, level):
     key = 'grip_force_n' if level == 'NORMAL' else 'hold_force_n'
     if key not in preset:
         raise KeyError(f'cell.presets.{kind}.{key} 가 없다 — 프리셋을 확인한다')
-    if _force_n is None:
-        # 🚨 여기는 **이미 쥐고 있는** 자리다. 기준을 맞추려면 0 N 까지 내려야 하는데,
-        #    그러면 용기를 놓친다 → 조용히 떨어뜨리지 말고 멈춘다 (PM 9/20 · #17 검토 2번).
+    with _lock:
+        known = _force_n is not None
+    if not known:
+        # 🚨 여기는 **이미 쥐고 있는** 자리다. 힘을 모르는 채 계단을 보내면 어디로 갈지 모른다
+        #    → 조용히 떨어뜨리지 말고 멈춘다. (쥐고 있으면 보통은 읽히므로 여기까지 오지 않는다)
         raise RuntimeError(
-            'grip_level: 그리퍼 힘 기준이 없다 — 쥔 채로 힘을 바꾸면 용기를 놓친다. '
+            'grip_level: 그리퍼 힘을 아직 못 읽었다 — 모르는 채로 힘을 바꾸면 용기를 놓칠 수 있다. '
             '이 프로그램에서 cc.release() 나 cc.grip() 을 먼저 부른다')
     before = grip_width()
-    _set_force(float(preset[key]))
-    _wait_done()
+    _set_force(float(preset[key]))                       # 'i'/'d' 안에서 _wait_done 까지 한다
     after = grip_width()
     _log().info(f'grip_level({kind}, {level}) — 폭 {before:.1f} → {after:.1f} mm')
     return after
@@ -114,13 +133,23 @@ def grip_level(kind, level):
 def release():
     """그리퍼 열기. 힘 설정은 그대로 둔다(드라이버의 'o' 가 힘을 안 바꾼다).
 
-    🚨 **연 뒤에** 힘 기준이 없으면 여기서 맞춘다 — 손이 빈 게 확실한 유일한 자리다.
-       그래서 그리퍼를 쓰는 프로그램은 아무것도 쥐지 않은 상태의 release() 로 시작한다.
+    🚨 힘은 **움직이거나 닫혀 있을 때만** 읽힌다. 이미 활짝 열려 있으면 'o' 가 아무 움직임도
+       안 만들어 못 읽는다 → 아직 한 번도 못 읽었으면 **빈손으로 한 번 닫았다 연다**.
+       여기가 손이 빈 게 확실한 유일한 자리다 — 그래서 그리퍼를 쓰는 프로그램은
+       아무것도 쥐지 않은 상태의 release() 로 시작한다(그 약속은 그대로다).
     """
+    before = _width_or_none()
     _send('o')
-    _wait_done()
-    if _force_n is None:
-        _anchor_force()
+    after = _wait_done()
+    _warn_if_stuck(before, after, '열기')
+    with _lock:
+        known = _force_n is not None
+    if not known:
+        _log().info('그리퍼 힘을 아직 못 읽었다 — 빈손으로 한 번 닫았다 열어서 읽는다')
+        _send('c')
+        _wait_done()
+        _send('o')
+        _wait_done()
 
 
 def grip_width():
@@ -147,73 +176,91 @@ def _send(command):
         raise RuntimeError(f'그리퍼 명령 {command!r} 실패 — {getattr(res, "message", "응답 없음")}')
 
 
-def _anchor_force():
-    """힘 기준 맞추기 — 0 N 까지 내려 우리가 아는 값에 붙인다(드라이버가 0 에서 더 안 내려간다).
-
-    🚨 **아무것도 쥐지 않은 상태에서만** 부른다. 'd' 는 "힘을 낮춰 **직전 폭으로 다시 파지**"라서,
-       용기를 쥔 채 부르면 힘이 0 N 을 지나는 동안 놓친다(PM 9/20 · #17 검토 2번).
-       부르는 자리는 두 곳뿐이다 — release()(연 뒤) · grip()(잡으러 가기 전).
-
-    🚨 내리는 **동안에는 기억을 지워 둔다**(`None`). 중간에 `_send` 가 실패하면 실제로는
-       몇 계단만 내려간 것인데 옛 값이나 0.0 이 남으면 그 오차가 프로그램 끝까지 간다.
-       기억이 없으면 다음 release()·grip()(= 빈손이 확실한 자리)에서 다시 맞추고,
-       그때까지 grip_level() 은 거부한다 — 보호가 안전한 쪽으로 작동한다.
-    """
-    global _force_n
-    steps = int(_MAX_FORCE_N / _FORCE_STEP_N) + 1            # 넉넉히 내려 0 에 붙인다
-    _log().info(f'그리퍼 힘 기준 맞추기 — 0 N 까지 내린다 ({steps}회)')
-    _force_n = None                                          # 다 내리기 전까지는 "모른다"
-    for _ in range(steps):
-        _send('d')
-    _force_n = 0.0
-
-
 def _set_force(target_n):
-    """힘을 target_n 에 맞춘다. 🚨 2.5 N 계단으로만 되고, 드라이버는 현재 값을 안 알려준다.
+    """목표 힘에 맞춘다 — 🚨 **세지 않고 읽어서** 맞춘다.
 
-    기준(`_force_n`)이 잡혀 있어야 부를 수 있다 — 여기서 몰래 0 N 으로 내리지 않는다.
-    기준을 맞춰도 되는 자리인지는 부르는 쪽(release·grip)이 판단한다.
+    드라이버는 힘을 절대값으로 못 받고 2.5 N 계단('i'/'d')으로만 오르내린다. 그런데 현재 힘은
+    effort 로 **읽을 수 있으므로**(머리말) 마지막으로 읽은 값에서 계단 수를 구하면 된다.
+    예전처럼 0 N 까지 내려 기준을 잡던 방식(_anchor_force)은 없앴다 —
+      · 0 N 은 데이터시트 유효 범위(3~40 N) 밖이고
+      · 쥔 채로 하면 힘이 0 을 지나는 동안 용기를 놓치며
+      · 매번 17회 통신이 들었는데, 무엇보다 **드라이버가 힘을 기억해서 셈이 어긋났다**(9/21).
 
-    🚨 기억은 **명령 한 번마다** 갱신한다. 마지막에 한꺼번에 갱신하면 중간에 `_send` 가
-       실패했을 때 실제 힘만 몇 계단 움직이고 기억은 옛 값으로 남아, 그 오차가 프로그램
-       끝까지 간다(약하게 쥐면 이송 중 낙하 — SDD §8).
-    🚨 실패하면 기억을 **버린다**(`None`) — 마지막 명령이 그리퍼에 닿았는지 알 수 없다.
-       그러면 다음 release()·grip() 에서 기준을 다시 맞추고 그때까지 grip_level() 은 거부한다.
+    🚨 한 번도 못 읽었으면(_force_n is None) 맞출 수 없다 — 부르는 쪽이 먼저 움직여 준다(release).
     """
-    global _force_n
-    if _force_n is None:
-        raise RuntimeError('그리퍼 힘 기준이 없다 — _anchor_force() 를 먼저 부른다')
     target_n = max(0.0, min(_MAX_FORCE_N, float(target_n)))
-    steps = int(round((target_n - _force_n) / _FORCE_STEP_N))
-    delta = _FORCE_STEP_N if steps > 0 else -_FORCE_STEP_N
+    with _lock:
+        now = _force_n
+    if now is None:
+        raise RuntimeError(
+            '그리퍼 힘을 아직 한 번도 못 읽었다 — 힘은 움직이거나 닫혀 있을 때만 읽힌다. '
+            'cc.release() 를 먼저 불러 한 번 움직인 뒤에 쓴다')
+    steps = int(round((target_n - now) / _FORCE_STEP_N))
+    if steps == 0:
+        return now
+    cmd = 'i' if steps > 0 else 'd'
     for _ in range(abs(steps)):
-        try:
-            _send('i' if steps > 0 else 'd')
-        except Exception:                                # noqa: BLE001 — 어긋난 기억을 남기지 않는다
-            _force_n = None
-            raise
-        _force_n = max(0.0, min(_MAX_FORCE_N, _force_n + delta))
-    if abs(_force_n - target_n) > 0.01:
-        _log().warn(f'그리퍼 힘 {target_n:.1f} N 을 정확히 못 맞춘다 (2.5 N 계단) → {_force_n:.1f} N')
+        _send(cmd)
+    _wait_done()                                         # 'i'/'d' 는 직전 폭으로 **다시 파지**한다
+    with _lock:
+        got = _force_n
+    if got is None or abs(got - target_n) > 0.01:
+        _log().warn(f'그리퍼 힘 {target_n:.1f} N 을 정확히 못 맞춘다 (2.5 N 계단) → 읽은 값 '
+                    + (f'{got:.1f} N' if got is not None else '없음'))
+    return got
+
+
+def _width_or_none():
+    try:
+        return grip_width()
+    except RuntimeError:
+        return None
+
+
+def _warn_if_stuck(before, after, what):
+    """🚨 폭을 명령했는데 **전혀 안 움직이면** 안전 스위치를 의심한다.
+
+    RG2 매뉴얼 §6.2.3 — 안전 스위치(S1·S2)가 걸리면 그리퍼가 움직이지 않고
+    **전원을 다시 넣어야만** 풀린다. 시연 중에 걸리면 그 자리에서 복구가 안 된다.
+    드라이버에 `/onrobot/restartPower` 가 있지만 호출부의 인자가 어긋나 보여(소스 확인)
+    자동으로 부르지 않는다 — 사람이 컴퓨트박스 전원을 다시 넣는 쪽이 확실하다.
+    """
+    if before is None or after is None or abs(after - before) >= _SETTLE_SPAN_MM:
+        return
+    _log().warn(f'그리퍼가 "{what}" 에 **전혀 움직이지 않았다** (폭 {before:.2f} mm 그대로). '
+                f'이미 그 자리였을 수도 있지만, 안전 스위치(S1·S2)가 걸렸을 수 있다 — '
+                f'걸렸으면 컴퓨트박스 전원을 다시 넣어야 풀린다 (RG2 매뉴얼 §6.2.3)')
 
 
 def _wait_done():
-    """움직임이 끝날 때까지 기다린다. effort 가 0.0 이면 멈춘 것(드라이버 busy 플래그)."""
+    """움직임이 끝날 때까지 기다린다 — **폭이 멈추는 것**으로 본다. 멈춘 폭(mm)을 돌려준다.
+
+    🚨 예전에는 effort 가 0 이 되는 것으로 봤다. 그런데 드라이버의 `busy` 는 상태 레지스터를
+       **통째로** 읽은 값이라(비트 묶음), **파지에 성공하면 "잡았다" 비트 때문에 0 이 되지 않는다**
+       → 잡을 때마다 상한까지 기다렸다. 9/21 실기에서 확인했고, 폭 기준으로 바꾸니 0.20~0.34 s 다.
+    🚨 폭은 0.1 mm 단위로 계속 오므로 "더 안 변하면 끝" 이 더 정확하다.
+    """
     limit = _timeout()
     t0 = time.monotonic()
-    seen_busy = False
+    window = []                                          # [(시각, 폭)] — 최근 _SETTLE_HOLD_S 구간만 남긴다
     while time.monotonic() - t0 < limit:
-        with _lock:
-            e = _effort
-        if e is None:
-            time.sleep(0.02)
+        now = time.monotonic()
+        try:
+            w = grip_width()
+        except RuntimeError:                             # 아직 관절각이 안 왔다
+            time.sleep(_POLL_S)
             continue
-        if e > 0.0:
-            seen_busy = True
-        elif seen_busy or time.monotonic() - t0 > 0.3:   # 시작을 놓쳤어도 0.3 s 뒤엔 멈춘 것으로 본다
-            return
-        time.sleep(0.02)
+        window.append((now, w))
+        window[:] = [(t, x) for t, x in window if now - t <= _SETTLE_HOLD_S]
+        spread = max(x for _, x in window) - min(x for _, x in window)
+        if now - t0 >= _SETTLE_HOLD_S and spread <= _SETTLE_SPAN_MM:
+            return w
+        time.sleep(_POLL_S)
     _log().warn(f'그리퍼 동작이 {limit:.1f}s 안에 안 끝났다 — 그대로 진행한다')
+    try:
+        return grip_width()
+    except RuntimeError:
+        return None
 
 
 def _clamp_width(mm):

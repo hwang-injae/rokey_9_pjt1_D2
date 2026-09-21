@@ -3,14 +3,14 @@
 """INF-02d 사전 확인 — **아무것도 고치기 전에** 드라이버가 실제로 어떻게 동작하는지만 본다.
 
 무엇을 확인하나 (전부 소스에서 읽어 낸 추정이다 — 실기에서 맞는지 보는 것이 이 파일의 전부)
-    ① 현재 **힘(N)** 이 `/onrobot_joint_states` 의 effort 로 읽히는가
-       근거: 드라이버 getStatus() 가 `effort = rgfr/10 (상태 비트가 켜져 있을 때) / 0.0`
-    ② 브링업 직후 힘이 **40 N** 인가
-       근거: OnRobotRGControllerServer.__init__ 의 `self.command.rgfr = self.max_force` (rg2 → 400)
-    ③ `'d'`/`'i'` 한 번에 **2.5 N** 씩 실제로 움직이는가
-    ④ **빈손 영점**(고무 핑거팁 두께 ×2) 이 얼마이고, **힘에 따라 얼마나 달라지는가**
-    ⑤ 동작 완료를 **폭이 멈추는 것**으로 판정하면 몇 초 걸리는가
-       (지금 gripper.py 는 effort 로 판정해 매번 타임아웃이 나는 것으로 보인다)
+    ① 값이 들어오는가 (폭)
+    ② **지금 힘이 얼마인가** — `/onrobot_joint_states` 의 effort 로 읽는다
+       🚨 힘은 **움직이거나 닫혀 있을 때만** 읽힌다(9/21 확인) → 닫아서 움직임을 만든 뒤 읽는다
+       🚨 드라이버가 힘을 **기억**해서 두 번째 실행부터는 40 N 이 아니다 → 읽은 값에서 이어 간다
+    ③ `'d'`/`'i'` 한 번에 **2.5 N** 씩 실제로 움직이는가 (절대값이 아니라 **차이**를 본다)
+    ④ **빈손 영점**(고무 핑거팁 두께 ×2) — 힘을 맞춘 뒤 닫아서 잰다.
+       판정에 쓸 힘과 **같은 힘**으로 재야 한다(고무가 눌려 힘마다 다르다)
+    ⑤ 닫힌 채 멈춰 있을 때도 힘이 읽히는가
 
 🚨 이 파일이 지키는 것
     ① **로봇 팔을 움직이지 않는다** (`init(robot=False)`) — 그리퍼만 쓴다.
@@ -41,11 +41,16 @@ import cobot_common as cc                          # noqa: E402
 from cobot_common import gripper as G              # noqa: E402  cobot_common 자체 시험이라 내부를 본다
 
 _STEP_N = 2.5                   # 'i'/'d' 한 계단 (드라이버 genCommand)
-_EXPECT_INIT_N = 40.0           # 브링업 직후 기대 힘 (rg2 max_force 400)
+# 드라이버가 켜질 때 잡는 힘 (rg2 max_force 400).
+# 🚨 **브링업 직후 첫 실행에서만** 이 값이다 — 드라이버가 목표 힘을 프로세스 종료 뒤에도 기억한다
+#    (9/21 3회 연속 실행: 40 → 35 → 30 → 25 N). 그래서 '기대값' 이 아니라 '참고값' 이고 통과 조건이 아니다.
+_EXPECT_INIT_N = 40.0
 _SAMPLE_S = 0.02                # 값 읽는 주기 (드라이버 발행은 50 Hz)
 _SETTLE_SPAN_MM = 0.05          # 이 폭 안에서 머물면 "멈췄다"
 _SETTLE_HOLD_S = 0.2            # 그 상태가 이만큼 이어져야 한다
-_MOVE_TIMEOUT_S = 3.0           # 한 명령의 대기 상한
+# 한 명령의 대기 상한. 🚨 3.0 s 는 짧았다 — 힘이 약하면 느리게 닫혀 상한에 걸리고
+#    **닫는 중간**을 값으로 읽는다(9/21 3회차: 10 N 으로 닫다가 36.10 mm 로 기록됐다).
+_MOVE_TIMEOUT_S = 8.0
 
 
 # ────────────────────────────────────────────────────────────── 읽는 도구
@@ -107,11 +112,39 @@ def _log():
     return cc.io_node().get_logger()
 
 
-def _n_times(command, n, what):
-    """같은 명령을 n 번 — 계단이 쌓이는지 본다. 마지막 한 번만 멈춤을 기다린다."""
+def _force_now(what='지금 힘'):
+    """🚨 힘은 **움직이거나 닫혀 있을 때만** 읽힌다 — 활짝 열린 채 정지면 0 이 나온다(= 모름).
+
+    그래서 닫아서 움직임을 만든 뒤 읽는다. 닫는 것은 빈손이라 안전하고,
+    어차피 영점(빈손 닫힘 폭)을 재려면 닫아야 한다.
+    돌려주는 것: (힘 N 또는 None, 닫힌 폭 mm)
+    """
+    _, width, forces = _cmd('c', what)
+    return (max(forces) if forces else None), width
+
+
+def _set_force_to(target_n, now_n):
+    """현재 힘에서 target_n 까지 **계산해서** 맞춘다 (세지 않는다 — 읽은 값에서 출발한다).
+
+    🚨 이전 판은 "브링업 직후니 40 N" 을 가정하고 계단을 셌는데, 드라이버가 힘을 기억해서
+       두 번째 실행부터 어긋났다(9/21). 이제는 읽은 값을 기준으로 계단 수를 구한다.
+    돌려주는 것: 맞춘 뒤 다시 읽은 힘 (못 읽으면 None)
+    """
+    steps = int(round((target_n - now_n) / _STEP_N))
+    if steps == 0:
+        _log().info(f'  힘 {now_n:.1f} N — 이미 목표 {target_n:.0f} N')
+        return now_n
+    cmd = 'i' if steps > 0 else 'd'
+    got, _ = _n_times_then_read(cmd, abs(steps), f'{now_n:.1f} → {target_n:.0f} N ({cmd} ×{abs(steps)})')
+    return got
+
+
+def _n_times_then_read(command, n, what):
+    """같은 명령을 n 번 보내고, **마지막 한 번의 움직임에서** 힘을 읽는다."""
     for _ in range(max(0, n - 1)):
         G._send(command)
-    return _cmd(command, what)
+    _, width, forces = _cmd(command, what)
+    return (max(forces) if forces else None), width
 
 
 # ────────────────────────────────────────────────────────────── 확인 절차
@@ -130,46 +163,54 @@ def probe():
     results['수신'] = (True, f'폭 {width0:.2f} mm')
 
     _log().info('')
-    _log().info('② 움직이는 동안 힘이 읽히는가 · 브링업 직후 값이 40 N 인가')
-    _, _, forces = _cmd('o', '열기')
-    if not forces:
-        results['힘 읽기'] = (False, '움직이는 동안에도 힘이 안 나온다')
-        results['초기 40 N'] = (False, '힘을 못 읽어 확인 불가')
-    else:
-        seen = max(forces)
-        results['힘 읽기'] = (True, f'{len(forces)}회 읽힘 (최대 {seen:.1f} N)')
-        ok = abs(seen - _EXPECT_INIT_N) < 0.1
-        results['초기 40 N'] = (ok, f'{seen:.1f} N' + ('' if ok else f' (기대 {_EXPECT_INIT_N:.0f})'))
-
-    _log().info('')
-    _log().info("③ 'd' 한 번에 2.5 N 씩 내려가는가")
-    base = max(forces) if forces else None
-    _, _, f1 = _cmd('d', "'d' ×1")
-    if base is None or not f1:
+    _log().info('② 지금 힘이 얼마인가 — 🚨 읽으려면 움직여야 한다 (닫아서 읽는다)')
+    now, w_close = _force_now('닫기 (힘을 읽으려고)')
+    if now is None:
+        results['힘 읽기'] = (False, '닫는 동안에도 힘이 안 나온다')
         results['2.5 N 계단'] = (False, '힘을 못 읽어 확인 불가')
+        results['힘별 영점'] = (False, '힘을 못 맞춰 건너뜀')
     else:
-        drop = base - max(f1)
-        ok = abs(drop - _STEP_N) < 0.1
-        results['2.5 N 계단'] = (ok, f'{base:.1f} → {max(f1):.1f} N (−{drop:.1f})')
+        results['힘 읽기'] = (True, f'{now:.1f} N')
+        if abs(now - _EXPECT_INIT_N) < 0.1:
+            _log().info(f'  → {now:.1f} N — 드라이버 초기값. **브링업 직후 첫 실행**으로 보인다')
+        else:
+            _log().info(f'  → {now:.1f} N — 40 N 이 아니다. 드라이버가 앞선 실행의 힘을 '
+                        f'기억하고 있다(정상). 이 값에서 이어서 맞춘다')
 
-    _log().info('')
-    _log().info('④ 빈손 영점 — 닫았을 때 폭이 얼마인가 (힘을 바꿔 가며)')
-    zeros = {}
-    # ③ 에서 'd' 를 한 번 보냈으므로 지금은 37.5 N → 'd' ×7 = 20.0 N, 다시 'i' ×6 = 35.0 N
-    # (rig_gripper_config 의 BOWL grip_force_n 20 · hold_force_n 35 과 같은 값으로 잰다)
-    for target, steps, cmd in (('NORMAL 후보 20 N', 7, 'd'), ('HOLD 후보 35 N', 6, 'i')):
-        _n_times(cmd, steps, f'힘 조정 ({cmd} ×{steps})')
-        _, w, f = _cmd('c', f'빈손 닫기 — {target}')
-        if w is not None:
-            zeros[target] = (w, max(f) if f else None)
+        _log().info('')
+        _log().info("③ 'd' 한 번에 2.5 N 씩 내려가는가")
+        after, _ = _n_times_then_read('d', 1, "'d' ×1")
+        if after is None:
+            results['2.5 N 계단'] = (False, '힘을 못 읽어 확인 불가')
+        else:
+            drop = now - after
+            ok = abs(drop - _STEP_N) < 0.1
+            results['2.5 N 계단'] = (ok, f'{now:.1f} → {after:.1f} N (−{drop:.1f})')
+            now = after
 
-    if len(zeros) == 2:
-        (n_name, (n_w, n_f)), (h_name, (h_w, h_f)) = zeros.items()
-        delta = abs(h_w - n_w)
-        _log().info(f'  → 힘이 바뀌면 빈손 폭이 {delta:.2f} mm 달라진다 (고무가 눌리는 양)')
-        results['힘별 영점'] = (True, f'{n_w:.2f} / {h_w:.2f} mm (차이 {delta:.2f})')
-    else:
-        results['힘별 영점'] = (False, '닫은 폭을 못 읽음')
+        _log().info('')
+        _log().info('④ 빈손 영점 — 힘을 맞춘 뒤 닫았을 때 폭 (판정에 쓸 힘과 같은 힘으로 재야 한다)')
+        zeros = {}
+        for label, target in (('NORMAL', 20.0), ('HOLD', 35.0)):
+            got = _set_force_to(target, now)
+            if got is None:
+                _log().warn(f'  {label}: 힘을 못 읽어 건너뛴다')
+                continue
+            now = got
+            _, w = _force_now(f'빈손 닫기 — {label} {now:.0f} N')
+            if w is not None:
+                zeros[label] = (w, now)
+
+        if len(zeros) == 2:
+            n_w, n_f = zeros['NORMAL']
+            h_w, h_f = zeros['HOLD']
+            delta = abs(h_w - n_w)
+            _log().info(f'  → 힘이 {n_f:.0f} → {h_f:.0f} N 로 바뀌면 빈손 폭이 {delta:.2f} mm '
+                        f'달라진다 (고무가 눌리는 양)')
+            _log().info('     🚨 이 값을 모르면 NORMAL↔HOLD 전환의 폭 변화를 미끄러짐으로 오판한다')
+            results['힘별 영점'] = (True, f'{n_w:.2f}({n_f:.0f}N) / {h_w:.2f}({h_f:.0f}N) · 차이 {delta:.2f}')
+        else:
+            results['힘별 영점'] = (False, f'두 힘에서 다 못 쟀다 ({len(zeros)}/2)')
 
     _log().info('')
     _log().info('⑤ 쥐지 않고 닫혀 있는 지금도 힘이 읽히는가')
