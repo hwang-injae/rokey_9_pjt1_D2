@@ -449,3 +449,86 @@ def test_other_errors_still_retreat():
 
     assert retreats, '후퇴했어야 한다'
     assert f.last_code == 'ROBOT_ERROR'
+
+
+# ────────────────────────────────── FLOW-03 중단(/flow/abort) · 결정 E11
+class AutoAbort(Signals):
+    """시험용 — PAUSED 가 되면 재개 대신 **중단**을 누른다."""
+
+    def take(self, name):
+        if name == 'abort':
+            return True
+        return super().take(name)
+
+
+def _flow_for_abort(calls, fail_on=('leftover_loop:LEFTOVER_REMAIN',)):
+    """LEFTOVER_REMAIN(정책 isolate)을 pause 로 바꿔 PAUSED 를 만들고, 거기서 중단을 누른다."""
+    mock.configure(list(fail_on))
+    mods = load_features(['f1', 'f2', 'f3'])
+
+    def spy(name, fn):
+        def wrapped(*a):
+            calls.append((name, a))
+            return fn(*a)
+        return wrapped
+
+    f1 = types.SimpleNamespace(**{n: spy(n, getattr(mods['f1'], n))
+                                  for n in dir(F1Api) if not n.startswith('_')})
+    cfg = {'flow': dict(CFG['flow'])}
+    cfg['flow']['policy'] = dict(CFG['flow']['policy'], LEFTOVER_REMAIN='pause')
+    events = []
+    f = Flow(cfg, Quiet(), publish_event=events.append)
+    f.f = {'f1': f1, 'f2': mods['f2'], 'f3': mods['f3']}
+    f.plan = [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 1}]
+    return f, events
+
+
+def test_abort_cleans_up_in_the_decided_order():
+    """🚨 중단 정리 순서 = **HOME 먼저** → 툴 반납 → 격리 → HOME (IRD §6 · 결정 E11).
+
+    HOME 이 먼저인 이유: E7 로 이동에서 안전 높이 경유가 없어져 **지금 자리에서 다음 자리로
+    곧장** 간다. 중단은 아무 때나 눌리므로 티칭 경로의 출발점에서 시작해야 한다.
+    """
+    calls = []
+    f, events = _flow_for_abort(calls)
+    f.run_plan(AutoAbort())
+
+    order = [(n, a) for n, a in calls if n in ('move_to', 'place', 'tool')]
+    tail = order[-3:]
+    assert tail[0] == ('move_to', ('HOME', True)), f'HOME 이 맨 먼저여야 한다 — {tail}'
+    assert tail[1] == ('place', ('ISOLATE', 'BOWL')), f'격리 구역에 놓아야 한다 — {tail}'
+    assert tail[2] == ('move_to', ('HOME', False)), f'HOME 으로 끝나야 한다 — {tail}'
+    assert f.isolated == 1
+    assert [e['result'] for e in events] == ['ISOLATED'], '중단한 용기는 ISOLATED 로 남는다'
+
+
+def test_abort_returns_the_tool_it_was_holding():
+    """🚨 툴을 쥔 채 중단하면 **반납**하고 간다 — 홀더에 안 돌려놓으면 다음 용기가 못 쓴다."""
+    calls = []
+    f, events = _flow_for_abort(calls, fail_on=['wipe_bowl:FORCE_LIMIT'])
+    f.policy['FORCE_LIMIT'] = 'pause'                # 툴을 쥔 단계에서 멈추게
+    f.run_plan(AutoAbort())
+
+    tools = [a for n, a in calls if n == 'tool']
+    assert ('SPONGE', 'RETURN') in tools, f'쥔 툴을 반납하지 않았다 — {tools}'
+    assert f.holding_tool is None
+
+
+def test_abort_keeps_going_when_a_cleanup_step_fails():
+    """🚨 치우는 중에 한 단계가 실패해도 **멈추지 않는다** — 더 나아가 치우는 편이 낫다."""
+    calls = []
+    f, events = _flow_for_abort(calls)
+    mods = f.f
+    f1 = mods['f1']
+    orig = f1.place
+
+    def place(station, kind=None):
+        calls.append(('place', (station, kind)))
+        return Result.fail('SEAT_FAIL')               # 격리 구역에 놓기가 실패한다
+
+    f1.place = place
+    f.run_plan(AutoAbort())
+
+    assert ('move_to', ('HOME', False)) in calls, '놓기가 실패해도 HOME 으로는 가야 한다'
+    assert [e['result'] for e in events] == ['ISOLATED']
+    assert orig is not None

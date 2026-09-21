@@ -33,6 +33,9 @@ _POLL_S = 0.05                   # 깃발을 들여다보는 간격
 GO_ON = 'go_on'                  # 이 구역의 다음 용기로
 SKIP_ZONE = 'skip_zone'          # 이 구역은 그만, 다음 구역으로 (EMPTY_ZONE)
 HALT = 'halt'                    # 전부 중단 (Ctrl+C 등)
+# wait_resume 이 돌려주는 값 — 사람이 PAUSED 에서 무엇을 눌렀나
+RESUMED = 'resumed'              # 재개 (이어서)
+ABORTED = 'aborted'              # 중단 (이 용기를 접고 다음 용기)
 # handle_failure 만 돌려주는 값 — run_plan 까지 올라가지 않고 process_one 이 그 자리에서 쓴다
 RETRY_STEP = 'retry_step'        # 재개 — **실패한 그 단계부터 다시** (IRD §8 · 9/20 PM 결정)
 
@@ -80,6 +83,7 @@ class Signals:
         self.start = False
         self.stop = False
         self.resume = False
+        self.abort = False               # 🆕 중단 — PAUSED 에서만 (IRD §6 · 결정 E11)
 
     def raise_(self, name):
         with self._lock:
@@ -105,7 +109,8 @@ class Flow:
     """상태 + 구역 계획 + 실패 정책."""
 
     def __init__(self, cfg, log, publish_event=None, safe_retreat=None, features=None,
-                 force_off=None, no_retreat_errors=()):
+                 force_off=None, no_retreat_errors=(),
+                 is_paused=None, halt=None, clear_halt=None, halt_errors=()):
         self.cfg = (cfg or {}).get('flow', {})
         self.f = features or {}                  # {'f1': 모듈, 'f2': 모듈, 'f3': 모듈}
         self.log = log
@@ -117,6 +122,17 @@ class Flow:
         #    (9/21 08:40 케이블 꼬임과 같은 길). 힘·순응만 끄고 그 자리에서 사람을 기다린다.
         self._force_off = force_off or (lambda: None)
         self._no_retreat_errors = tuple(no_retreat_errors or ())
+        # 🆕 FLOW-03 — 정지·재개·중단 (IRD §6). flow 는 로봇을 모르므로 flow_node 가 넣어 준다.
+        #    cc.is_paused : 이동 **도중** 멈춰 있는가 (메인 스레드는 그때 기능 함수 안에 갇혀 있다)
+        #    cc.halt      : 그 자세 그대로 강제 정지 — 중단할 때 하던 이동을 끊는다
+        self._is_paused = is_paused or (lambda: False)
+        self._halt = halt or (lambda: None)
+        self._clear_halt = clear_halt or (lambda: None)
+        self.holding_tool = None         # 쥐고 있는 툴 이름 — 중단 정리에서 반납한다
+        # 🚨 cc.MotionHalted — 중단을 누르면 하던 이동이 이걸로 끊긴다. 평범한 실패가 아니라
+        #    **중단 흐름**으로 보낸다(PM 9/21). ROBOT_ERROR 로 처리하면 사람이 또 확인해야 한다.
+        self._halt_errors = tuple(halt_errors or ())
+        self._halted = False
 
         # 🚨 설정은 **여기서 한 번에** 읽고 검증한다.
         #    YAML 에 키만 있고 값이 비면 None 이 들어온다(`or` 로 받아야 한다).
@@ -207,8 +223,11 @@ class Flow:
            0.5 초 안에 맞춰진다. 표시용이라 그대로 둔다(락을 잡으면 통신 스레드가
            메인 스레드의 로봇 동작을 기다리게 되어 더 나쁘다).
         """
+        # 🚨 이동 **도중** 멈추면 메인 스레드가 기능 함수 안에 갇혀 있어 step 을 못 바꾼다.
+        #    그대로 두면 HMI 가 'WEIGH' 를 계속 보여 준다 → 깃발을 보고 PAUSED 로 알린다(IRD §6).
+        step = 'PAUSED' if self._is_paused() else self.step
         return dict(
-            step=self.step, kind=self.kind, zone_id=self.zone_id,
+            step=step, kind=self.kind, zone_id=self.zone_id,
             done_bowl=self.done_bowl, done_cup=self.done_cup, isolated=self.isolated,
             target_bowl=self.target_bowl, target_cup=self.target_cup,
             sponge_uses=self.sponge_uses, soap_dips=self.soap_dips, rinse_dips=self.rinse_dips,
@@ -272,7 +291,13 @@ class Flow:
             #    ① 이동이 도중에 선 예외(cc.MoveIncomplete) → **후퇴하지 않는다.**
             #       로봇이 어디 있는지 모르는데 Z 를 올리면 더 꼬인다 → 힘·순응만 끄고 사람이 확인.
             #    ② 그 밖(힘 상한 ForceLimitError 등) → 설계대로 후퇴한다. 접촉에서 벗어나야 한다.
-            if self._no_retreat_errors and isinstance(e, self._no_retreat_errors):
+            if self._halt_errors and isinstance(e, self._halt_errors):
+                # 🆕 중단(/flow/abort)이 하던 이동을 끊었다 — 실패가 아니라 사람이 시킨 것이다.
+                #    후퇴하지 않는다(곧 HOME 으로 간다). process_one 이 중단 정리로 넘긴다.
+                self.log.warn(f'{name} — 중단 요청으로 끊겼다')
+                self.message = '중단 요청으로 멈췄습니다'
+                self._halted = True
+            elif self._no_retreat_errors and isinstance(e, self._no_retreat_errors):
                 self.log.error(f'{name} — 로봇 위치를 알 수 없다. 후퇴하지 않고 힘·순응만 끈다')
                 self.message = f'{name}: 이동이 도중에 멈췄습니다 — 로봇 위치를 확인하세요'
                 self._guard(self._force_off, what='force_off')
@@ -361,12 +386,46 @@ class Flow:
         # 🚨 여기서 resume 을 지우지 않는다 — 지우는 것은 to_paused 가 'PAUSED' 로
         #    바꾸기 **전**에 한다(이유는 to_paused 주석). 여기서 지우면 to_paused 와
         #    이 줄 사이에 들어온 **정당한** resume 이 조용히 사라진다.
-        while not sig.take('resume'):
+        while True:
+            if sig.take('abort'):                     # 🆕 사람이 "이 용기는 접자" 고 판단했다
+                sig.clear('stop')
+                self.log.warn('abort — 이 용기를 접고 다음 용기로 간다')
+                return ABORTED
+            if sig.take('resume'):
+                sig.clear('stop')
+                self.step = self._prev_step
+                self.log.info('resume — 이어서 진행한다')
+                return RESUMED
             time.sleep(_POLL_S)
-        sig.clear('stop')
-        self.step = self._prev_step
-        self.log.info('resume — 이어서 진행한다')
-        return True
+
+    def abort_container(self, sig):
+        """🆕 중단(/flow/abort) — 이 용기를 접고 **다음 용기**로 간다 (IRD §6 · 결정 E11).
+
+        순서: 강제정지 풀기 → **HOME 먼저** → 툴 반납 → 용기를 격리 구역에 → HOME
+        🚨 HOME 이 먼저인 이유: 결정 E7 로 이동에서 안전 높이 경유가 없어져 **지금 자리에서
+           다음 자리로 곧장** 간다. 중단은 아무 때나 눌리므로 티칭 경로의 출발점에서 시작한다.
+        🚨 한 단계가 실패해도 **멈추지 않는다** — 치우는 중이라 더 나아가는 편이 낫다.
+           다만 그 결과는 로그에 남긴다. 마지막에 이벤트는 ISOLATED 다.
+        """
+        self.step = 'ISOLATE'
+        self._clear_halt()                            # 중단 때 세운 강제정지를 푼다(안 풀면 새 이동도 거부된다)
+
+        def step(what, mod, fname, *args):
+            r = self.call_fn(mod, fname, *args)
+            if not r.ok:
+                self.log.error(f'중단 정리 — {what} 실패({r.code}). 그래도 계속 치운다')
+            return r
+
+        step('HOME 복귀', 'f1', 'move_to', 'HOME', True)
+        if self.holding_tool:
+            step('툴 반납', 'f1', 'tool', self.holding_tool, 'RETURN')
+            self.holding_tool = None
+        step('격리 구역에 놓기', 'f1', 'place', 'ISOLATE', self.kind)
+        step('HOME 복귀', 'f1', 'move_to', 'HOME', False)
+
+        self.isolated += 1
+        self.emit_event('ISOLATED')
+        return GO_ON
 
     # ────────────────────────────────── 메인 루프 (메인 스레드에서만)
     def run(self, sig):
@@ -442,12 +501,18 @@ class Flow:
             #    (기능 함수가 끝날 때 HOLD → NORMAL 로 되돌리므로 단계 사이는 이미 NORMAL 이다.
             #     여기서 힘을 바꾸면 드라이버가 다시 파지하면서 놓칠 수 있다 — 황인재 9/20)
             #    resume 하면 이 단계부터 이어 간다.
-            if sig.peek('stop'):
+            if sig.peek('stop') or self._is_paused():
                 self.log.info(f'stop 요청 — {step} 앞에서 정지')
                 self.to_paused('stop 버튼', sig)
-                self.wait_resume(sig)
+                if self.wait_resume(sig) == ABORTED:  # 🆕 재개 대신 중단을 눌렀다
+                    return self.abort_container(sig)
             self.step = step
             r = self.call_fn(mod, fname, *args)
+            if self._halted:                          # 🆕 중단으로 끊긴 것 — 정책을 타지 않는다
+                self._halted = False
+                return self.abort_container(sig)
+            if r.ok and fname == 'tool':               # 쥐고 있는 툴을 기억한다(중단 정리에서 반납)
+                self.holding_tool = args[0] if args[1] == 'PICK' else None
             if not r.ok:
                 action, retries = self.policy_for(r.code)
                 # retry:N->isolate — 후퇴한 뒤 같은 동작을 N 번까지 다시 해 본다
@@ -505,8 +570,9 @@ class Flow:
 
         if action == PAUSE:
             self.to_paused(f'코드 {self.last_code}', sig)
-            if not self.wait_resume(sig):
-                return HALT
+            answer = self.wait_resume(sig)
+            if answer == ABORTED:                     # 🆕 사람이 이 용기를 접기로 했다
+                return self.abort_container(sig)
             # 🚨 ROBOT_ERROR 만 예외 — 로봇이 어디 있는지 모르는 채 같은 단계를 다시 하면 위험하다.
             #    사람이 복구한 뒤 resume 하면 **다음 용기부터**이고 그 용기는 ERROR 로 기록한다
             #    (IRD §8 · SDD §7 · 9/20 PM 결정). 후퇴가 실패해 강제된 PAUSE 도 여기로 온다 —
