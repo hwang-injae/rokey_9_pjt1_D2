@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v11.3'
+VERSION = 'v11.4'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -881,7 +881,7 @@ for _tid, _e in RACKMOVED.items():
 # ---------------------------------------------------------------- 9/21 16시대 한석형 — 그릇 칸 경유점을 실기값으로(E14 보완 적용 사례)
 EDIT.setdefault('F1-04', {}).setdefault('note_add', '')
 EDIT['F1-04']['note_add'] = (EDIT['F1-04']['note_add'] + ' · ' if EDIT['F1-04']['note_add'] else '') + (
-    '🔁 9/21 16시대 한석형(E14 보완 — 직접 수정 후 보고): **그릇 칸 경유점 = 실기값 posj [-8, 0, 107.8, 86.2, 101.5, -108]** — 그릇을 든 채 HOME → 경유 → B1 접근 → 하강 → 놓기 → y −25 → z +100 을 간섭 없이 확인. '
+    '🔁 9/21 14시 한석형(E14 보완 — 직접 수정 후 보고): **그릇 칸 경유점 = 실기값 posj [-8, 0, 107.8, 86.2, 101.5, -108]** — 그릇을 든 채 HOME → 경유 → B1 접근 → 하강 → 놓기 → y −25 → z +100 을 간섭 없이 확인. '
     'rack.via(HOME 위 z 338 · 계산값) 대신. PM 권고: `stations.RACK_B_VIA` 로 두면 코드 수정 없이 `cc.move_to` 로 부를 수 있다(move_to 는 stations·beds·zones·rack.slots 에서만 이름을 찾는다 — 지금 rack.via 는 부를 수 없는 자리). 컵 칸은 rack.via 유지(실기값이 생기면 같은 방식). RINSE.CUP 은 main 값 그대로(한석형)')
 # ---------------------------------------------------------------- 9/21 16시대 V-22·V-19 실기 기록(main 81331f9)
 VLOG = {
@@ -900,11 +900,28 @@ EDIT.setdefault('FLOW-03', {}).update(dict(status='진행', prog='0.8',
 P_FIX = {
  'SAFE-01': dict(status='진행', prog='0.8',
                  note_add='📈 9/21 정정: **확인 칸은 박진용이 오전에 이미 다 채웠다**(PR #47 merge 10:08 · 🟡 0줄) — 일정표가 0.0 으로 남아 있었다. 남은 것: ① **실측 4줄**(오늘 저녁 닦기·컵 바닥 찾기에 얹어 채움 — 실측 기록지는 박진용 브랜치에 있고 main 에 없다) ② PM 이 부탁한 **안전 대책 3줄**(위치 불명 뒤 자동 이동 금지 · J3≈0°·HOME 경유 · F3 세척 속도 vel_scale 예외)'),
- 'F3-02':   dict(note_add='🚨 9/21 16시대(민범진 지적 · PM 확인): **E17 의 바뀐 닦기 코드(HOME 시작·끝)가 아직 main 에 없다** — 박진용 PC 에만 있고 원격 브랜치에도 없다. main 의 wipe.py 는 옛 방식(안전 높이에서 끝, HOME 복귀는 flow). → 오늘 저녁 실기 뒤 **PR** 필요(INT-13 · flow 통합이 main 기준으로 돈다)'),
- 'F3-03':   dict(note_add='🚨 9/21 16시대: wipe_cup 의 바뀐 코드(직선 이어 붙이기 · HOME 시작·끝)도 main 에 없다 — F3-02 와 같은 PR 로'),
- 'FLOW-01': dict(note_add='9/21 16시대 민범진: flow 에는 wipe 앞뒤 move_to(HOME) 이 없다 — 더하거나 뺄 것 없음. F3 가 끝나는 자세(E17 전: 안전 높이 / 후: HOME)에 따라 **툴 반납까지 가는 경로**가 달라진다 → 첫 실기 때 그 구간을 눈으로'),
+ 'F3-02':   dict(note_add='🚨 9/21 14시(민범진 지적 · PM 확인): **E17 의 바뀐 닦기 코드(HOME 시작·끝)가 아직 main 에 없다** — 박진용 PC 에만 있고 원격 브랜치에도 없다. main 의 wipe.py 는 옛 방식(안전 높이에서 끝, HOME 복귀는 flow). → 오늘 저녁 실기 뒤 **PR** 필요(INT-13 · flow 통합이 main 기준으로 돈다)'),
+ 'F3-03':   dict(note_add='🚨 9/21 14시: wipe_cup 의 바뀐 코드(직선 이어 붙이기 · HOME 시작·끝)도 main 에 없다 — F3-02 와 같은 PR 로'),
+ 'FLOW-01': dict(note_add='9/21 14시 민범진: flow 에는 wipe 앞뒤 move_to(HOME) 이 없다 — 더하거나 뺄 것 없음. F3 가 끝나는 자세(E17 전: 안전 높이 / 후: HOME)에 따라 **툴 반납까지 가는 경로**가 달라진다 → 첫 실기 때 그 구간을 눈으로'),
 }
 for _tid, _e in P_FIX.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
+# ---------------------------------------------------------------- 9/21 15:40 진척 반영 — 저장소에 올라온 것 기준(박진용 V-10 브랜치 · 황인재 F4-03)
+B = '`jinyong/20260921-V-10-cup`'
+PROG_1540 = {
+ 'V-10':    dict(status='진행', prog='0.7',
+                 note_add='📈 9/21 15:40(브랜치 ' + B + ' 11:27~15:33 커밋 기준 · main 미반영): **오후에 컵 실기를 대부분 진행했다.** 값이 바뀌었다 — '
+                          '문지르기 = **올라가며 6번 축 360° 반시계 · 내려오며 반대로 360° × 3회**(비틀기 ±18° 에서 바꿈) · 컵 바닥 찾는 힘 **컵 전용 5 N**(공용 15 N 이면 컵이 스펀지 홈에 눌렸다) · 가장 낮은 자리 **바닥 + 4 mm**(2 mm 면 솔이 끼어 컵이 딸려 올라왔다) · 문지르기 속도 4배(F3 관리 · vel_scale 무관 — E17). '
+                          '15:31 Move Periodic 한 명령(위아래 ±20 mm + 6번 축 ±180°) 시도 → 15:33 **되돌림**(실기에서 4번 축이 움직였다). '
+                          '🔎 PM: 6번 축 360° 왕복은 오늘 08:40 케이블 꼬임(163°)을 생각해 **그리퍼 케이블이 당기지 않는지 · 6번 축 한계(±360°) 여유**를 확인할 것'),
+ 'F3-03':   dict(prog='0.8', note_add='📈 9/21 15:40: wipe_cup 실기 반영 코드가 ' + B + ' 에 있다(main 미반영) — V-10 과 같은 PR 로'),
+ 'F3-02':   dict(note_add='📈 9/21 15:40: E17 의 바뀐 닦기 코드(HOME 시작·끝 · 그릇 빠른 하강 135 mm · 바닥은 힘으로만)가 ' + B + ' 12:25 커밋에 있다(14시 확인 뒤 push — main 미반영). 그릇 재검증 실기는 아직 기록 없음'),
+ 'SAFE-01': dict(prog='0.9', note_add='📈 9/21 15:40: **안전 대책 4줄 + 컵 실기값 + 바뀐 닦기 반영**이 ' + B + ' 14:36 커밋에 있다(main 미반영). 남은 것: 실측 줄 · PR'),
+ 'F4-03':   dict(status='진행', prog='0.5', note_add='📈 9/21 15:40(브랜치 `injae/20260921-F4-03-hmi-screen` · PR 전): STEP 1 Next.js 15 화면 뼈대(hmi_bridge 가 / 에서 보여줌) · STEP 2·3 운영 화면(값 받기 + 화면 전체)'),
+ 'F1-03':   dict(note_add='9/21 15:40: tool PICK/RETURN 구현은 `injae/20260920-F1-03-tool`(9/20 22:11)에 있다 — PR 전 · 실기 미검증(V-08). 툴 홀더 좌표는 PR #51 로 main 에 들어왔다'),
+}
+for _tid, _e in PROG_1540.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
@@ -1070,6 +1087,10 @@ SLOT['9/21 월']['D'] = ('**18:30 ① V-10 컵 실기 + wipe_cup(P, 60분)** →
 _o = 'V-10 → F3-03(P)'
 assert _o in SLOT['9/22 화']['B']
 SLOT['9/22 화']['B'] = SLOT['9/22 화']['B'].replace(_o, '**soap 실기(P, 90분 — 첫 순서 · SOAP 좌표는 9/21 티칭)** → UT-F3 준비(P)')
+# 9/21 15:40 — 박진용이 오후에 컵 실기를 대부분 했다(v11.4)
+_o = '**18:30 ① V-10 컵 실기 + wipe_cup(P, 60분)**'
+if _o in SLOT['9/21 월']['D']:
+    SLOT['9/21 월']['D'] = SLOT['9/21 월']['D'].replace(_o, '**18:30 ① V-10 컵 마무리(P — 오후에 실기 대부분 진행 · 15:33 Move Periodic 시도는 되돌림)**')
 _b, _c = LECTURE['9/24 목~9/28 월']
 LECTURE['9/24 목~9/28 월'] = (_b, _c + ' · 🆕 **F4 웹 HMI**(F4-03 화면 다듬기·F4-04 기록/이력·UT-F4 전체)도 집에서 mock·fake_state_pub 로 이어 간다(황인재 9/20 — ROS 인터페이스·로봇 쪽 코드는 9/23 동결 그대로)')
 RULES = {       # (A 열, B 열 글자) → (새 B, 새 C)
@@ -1231,17 +1252,20 @@ HISTORY59 = ['v10.8', '완료', 'CELL-04, CELL-04b, V-22, F1-04, F2-02, F3-03, F
 HISTORY60 = ['v10.9', '확인', 'F1-04, CELL-04', '황인재 9/21 오후 확인 3건: ① 팔레트가 충돌 때 실제로 밀렸고 손으로 원위치 → RACK_B1·B2 는 복귀 뒤 미확인, F1-04 첫 적재 실기 전 2분 재확인 + 바닥 테이프 표시 ② HOME 경유(E15 ④)는 "필요할 때만" — 기존 기록과 같은 뜻 ③ **구현 방식 > 임시 좌표** — 좌표가 기능에 맞춰 바뀐다, 기능을 좌표에 맞출 필요 없다(E14 보완에 한 줄 추가)',
              '황인재 9/21 15:20', 'S,M,P,H']
 
-HISTORY61 = ['v11.0', '좌표 변경 보고', 'F1-04', '한석형 9/21 16시대: 그릇 칸 경유점을 실기로 찾은 posj [-8, 0, 107.8, 86.2, 101.5, -108] 로(그릇 든 채 간섭 없음 확인) — rack.via(HOME 위 z 338 계산값) 대신. E14 보완(직접 수정 후 보고)의 첫 적용 사례. PM 권고: stations.RACK_B_VIA 로 두면 cc.move_to 로 바로 부를 수 있다(지금 rack.via 자리는 move_to 가 못 찾는다). RINSE.CUP 은 main 값 그대로',
-             '한석형 9/21 16:00', 'S,H']
+HISTORY61 = ['v11.0', '좌표 변경 보고', 'F1-04', '한석형 9/21 14시: 그릇 칸 경유점을 실기로 찾은 posj [-8, 0, 107.8, 86.2, 101.5, -108] 로(그릇 든 채 간섭 없음 확인) — rack.via(HOME 위 z 338 계산값) 대신. E14 보완(직접 수정 후 보고)의 첫 적용 사례. PM 권고: stations.RACK_B_VIA 로 두면 cc.move_to 로 바로 부를 수 있다(지금 rack.via 자리는 move_to 가 못 찾는다). RINSE.CUP 은 main 값 그대로',
+             '한석형 9/21 14:07', 'S,H']
 
 HISTORY62 = ['v11.1', '실기 결과', 'V-22, V-19', '황인재 9/21 실기 기록(main 81331f9): V-22 좌표 재현 오차 0.00~0.24 mm → 완료. V-19 도달 범위는 부분 통과 — 팔레트 컵 칸 2곳 미확인(경유 자세를 넣은 뒤 안 돌림) · 손목 큰 회전 경고 5구간 → 한석형 F1-04 적재 실기에서 같이 닫는다',
-             '황인재 9/21 16:10', 'H,S']
+             '황인재 9/21 14:08', 'H,S']
 
 HISTORY63 = ['v11.2', '진척', 'FLOW-03', 'PR #50 merge(9/21): FLOW-03 정지·재개·중단 연결 코드 완료(진행 0.8). PM 변경 요청(이동 도중 중단 뒤 깃발이 남아 다음 실행이 사람 확인 없이 중단 정리됨)을 민범진이 고쳐 재현 시험 통과. 남은 것 = abort 실기',
-             '황인재 9/21 17:00', 'M']
+             '황인재 9/21 14:11', 'M']
 
-HISTORY64 = ['v11.3', '정정', 'SAFE-01, F3-02, F3-03, FLOW-01', '민범진 지적(9/21 16시대)으로 확인: E17 의 바뀐 닦기 코드(HOME 시작·끝 · 직선 이어 붙이기)는 **아직 main 에 없다**(박진용 PC 에만 · 원격 브랜치에도 없음) — SDD·결정기록에 상태 표시, F3-02·03 에 PR 필요 적음. 같이 발견: SAFE-01 확인 칸은 박진용이 오전에 이미 채워 merge(PR #47) — 일정표 0.0 → 0.8, 남은 것은 실측 4줄 + 안전 대책 3줄',
-             '황인재 9/21 16:30', 'P,M']
+HISTORY64 = ['v11.3', '정정', 'SAFE-01, F3-02, F3-03, FLOW-01', '민범진 지적(9/21 14시)으로 확인: E17 의 바뀐 닦기 코드(HOME 시작·끝 · 직선 이어 붙이기)는 **아직 main 에 없다**(박진용 PC 에만 · 원격 브랜치에도 없음) — SDD·결정기록에 상태 표시, F3-02·03 에 PR 필요 적음. 같이 발견: SAFE-01 확인 칸은 박진용이 오전에 이미 채워 merge(PR #47) — 일정표 0.0 → 0.8, 남은 것은 실측 4줄 + 안전 대책 3줄',
+             '황인재 9/21 14:13', 'P,M']
+
+HISTORY65 = ['v11.4', '진척', 'V-10, F3-02, F3-03, SAFE-01, F4-03, F1-03', '9/21 15:40 저장소 기준 진척: 박진용 — 오후에 컵 실기(V-10) 대부분 진행(브랜치 jinyong/20260921-V-10-cup · main 미반영): 문지르기를 6번 축 360° 왕복 × 3 으로 · 컵 바닥 힘 5 N · 바닥 +4 mm · Move Periodic 시도는 4번 축이 움직여 되돌림. E17 닦기 코드·SAFE-01 안전 대책 4줄도 같은 브랜치에. 황인재 — F4-03 운영 화면 STEP 1~3(브랜치). 한석형·민범진 — 오늘 12:30 뒤 push 없음, 진척 미확인. 앞 회차 변경이력의 시각 4개(미래 시각으로 잘못 적음)를 커밋 시각으로 바로잡음',
+             '황인재 9/21 15:40', 'P,H']
 
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
@@ -1337,7 +1361,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
