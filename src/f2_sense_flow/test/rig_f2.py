@@ -80,7 +80,9 @@ def main():
         #    flow 에서는 leftover_loop 이 알아서 거치지만, 여기서는 **직전에 어디 있었는지 모른다** —
         #    V-02(앞)를 돌린 뒤 바로 shake(뒤)를 부르면 그 대각선 이동이 그대로 난다.
         #    → 시험대에서는 항상 HOME 에서 시작한다. `--no-home` 으로 끌 수 있다(이유가 있을 때만).
-        if a.which in ('shake', 'dip', 'loop') and not a.no_home:
+        #    --no-robot 일 때는 건너뛴다 — 여기는 _as_result 바깥이라 두산 API 가 없으면
+        #    그대로 예외가 터져 나가고, 뒤의 '함수 반환만 확인' 을 못 한다(9/21 발견).
+        if a.which in ('shake', 'dip', 'loop') and not a.no_home and not a.no_robot:
             log.info('E15 — 먼저 HOME 으로 간다 (앞뒤를 가로지르지 않으려고)')
             cc.force_off()
             cc.move_to('HOME', True, a.kind)
