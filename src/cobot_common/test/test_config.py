@@ -84,8 +84,8 @@ def test_repo_approach_points_are_straight_above_end_points():
 
     def walk(node, path):
         if isinstance(node, dict):
-            if node.get('approach_posx') and node.get('posx') and not node.get('entry_rel_mm'):
-                pairs[path] = (node['approach_posx'], node['posx'])     # entry_rel_mm 이 있는 자리는 **일부러** 비켜 있다 → 아래 전용 검사로 본다
+            if node.get('approach_posx') and node.get('posx'):
+                pairs[path] = (node['approach_posx'], node['posx'])
             for k, v in node.items():
                 walk(v, f'{path}.{k}')
         elif isinstance(node, list):                                               # 구역의 슬롯 목록 (번호는 1 부터)
@@ -179,27 +179,9 @@ def test_repo_rack_exit_paths_are_relative_vectors():
     slots = config.load(SRC_CONFIG)['cell']['rack']['slots']
     have = {name for name, s in slots.items() if s.get('exit_rel_mm')}
     assert have == set(slots)                                           # 9/21 황인재: 컵 칸도 그릇 칸과 같은 방식으로 빠져나온다
+    # 🚨 들어가는 길에는 상대 이동이 **없다** — 내려온 뒤 y 로 밀어 넣으면 팔레트 **칸막이 벽에 걸린다**(9/21 실기, 황인재).
+    #    적재는 '칸 바로 위 → z 만 하강 → 놓기'. 빼는 것만 exit_rel_mm 이다.
+    assert not any(s.get('entry_rel_mm') for s in slots.values())
     for name in have:
         for step in slots[name]['exit_rel_mm']:
             assert len(step) == 3 and all(isinstance(v, (int, float)) for v in step), (name, step)
-
-
-def test_repo_rack_entry_mirrors_exit():
-    """팔레트 그릇 칸: 접근점에서 **곧게 내려온 뒤** entry_rel_mm 으로 밀어 넣으면 정확히 끝점이어야 한다.
-
-    9/21 실기(황인재): 꽂는 자리로 대각선으로 곧장 가면 그릇 아래가 팔레트에 걸린다.
-    들어가는 길은 **이미 실기로 확인된 빠져나오는 길의 거울상**이다 — 새 좌표를 찍은 것이 아니다.
-    """
-    slots = config.load(SRC_CONFIG)['cell']['rack']['slots']
-    have = {name for name, s in slots.items() if s.get('entry_rel_mm')}
-    assert have == {'RACK_B1', 'RACK_B2'}
-    for name in have:
-        s = slots[name]
-        up, end = s['approach_posx'], s['posx']
-        x, y, z = up[0], up[1], end[2]                                  # 접근점에서 (접근점 z − 끝점 z) 만큼 곧게 내려온 자리
-        for dx, dy, dz in s['entry_rel_mm']:
-            x, y, z = x + dx, y + dy, z + dz
-        for got, want, axis in ((x, end[0], 'x'), (y, end[1], 'y'), (z, end[2], 'z')):
-            assert abs(got - want) < 1e-6, f'{name}: 밀어 넣은 자리가 끝점과 {axis} 로 {got - want:.2f} mm 어긋난다'
-        assert [-v for v in s['entry_rel_mm'][0]] == list(s['exit_rel_mm'][0]), f'{name}: 들어가는 길이 빠져나오는 길의 거울상이 아니다'
-        assert _angle_between(up, end) <= 1.0, f'{name}: 접근점과 끝점의 방향이 다르다'

@@ -258,13 +258,7 @@ def main() -> int:
                     continue
                 cc.move_rel(0.0, 0.0, -up, 'BASE')
                 time.sleep(p['settle_s'])
-                # ③ 접근점이 칸 옆으로 비켜 있는 자리(그릇 칸)는 내려온 뒤 **칸 쪽으로 밀어 넣어야** 끝점이다.
-                #    9/21 실기: 꽂는 자리로 대각선으로 곧장 가면 그릇 아래가 팔레트에 걸린다(황인재) → 들어가는 길 = 빠져나오는 길의 거울상.
-                entered = _walk(_rel('entry_rel_mm'), '밀어 넣기')
-                time.sleep(p['settle_s'])
                 dpos, drot = off(posx(), end)
-                if not entered:
-                    log.warn('⚠    └ 밀어 넣기를 건너뛰었다 — 아래 끝점 오차는 밀어 넣을 거리만큼 크게 나온다')
                 hit = dpos <= tol['pos_mm'] and drot <= tol['rot_deg']
                 if not hit and station in p['known_tilted']:             # 이미 아는 어긋남 — 재서 보여 주기만 한다
                     log.warn(f"⚠    └ {station}: 곧게 내려간 자리가 찍은 끝점과 {dpos:.2f} mm · {drot:.2f}° 어긋난다 (접근점을 끝점 위로 다시 찍는다)")
