@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v12.8'
+VERSION = 'v12.9'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1050,6 +1050,18 @@ EDIT.setdefault('INF-02d', {}).update(dict(
 # ---------------------------------------------------------------- 9/21 18:55 결정 E23 — 툴 프리셋은 황인재가 V-08 시작 때
 EDIT.setdefault('V-08', {}).update(dict(note_add='📌 9/21 결정 E23: **시작 때 툴 프리셋(SPONGE·BRUSH — 폭·힘·허용 오차 · 영점 10.58)을 rig_gripper.py 로 잰다**(황인재 — 값을 쓰는 f1.tool 담당) → cell.yaml 에 넣고 V-08 10회. 민범진 확인 요청(담당이 SDD·일정표에서 엇갈려 아무도 안 잡고 있었다)'))
 EDIT.setdefault('F1-03', {}).update(dict(note_add='📌 9/21 E23: 툴 프리셋이 비어 있으면 f1.tool 이 못 잡는다 → V-08 첫 단계에서 황인재가 잰다'))
+# ---------------------------------------------------------------- 9/21 21:35 GitHub 기준 — 한석형 그릇 한 바퀴 실기 스크립트(브랜치)
+SB = '📈 9/21 21:35(브랜치 seokhyung/20260921-CELL-04-final-coords · PR 전)'
+P2135 = {
+ 'F1-02':   dict(prog='0.4', note_add=SB + ': 한석형이 **실제 로봇으로 그릇 한 바퀴 전체**(반납 구역 집기 → 저울 → 잔반통 → 스펀지 홈 → 툴 → 헹굼 → 팔레트)를 도는 스크립트(`rig_bowl_scenario_real.py`)로 18:25~21:26 경로를 다듬었다. '
+                          '그릇 집기는 **관절값(접근·집기 2개)** 으로 새로 확인 — `cell.yaml` 은 아직 옛 좌표값. 🔴 handling.py **pick() 본 구현·PR 은 아직**(9/22 오후까지 — INT-12a 전제)'),
+ 'F1-04':   dict(prog='0.3', note_add=SB + ': 그릇 칸 적재 경로(경유점 RACK_B_VIA → 칸 바로 위 → 하강 → 놓기 → y −25 → z +100)를 스크립트로 실기 확인. 🔴 경유점 실기값이 **스크립트 안에만** 있고 `cell.yaml` 은 아직 계산값(HOME 위 z 338) → rack_place 구현과 함께 cell.yaml 반영 필요'),
+ 'CELL-04': dict(note_add='🚨 9/21 21:35: 한석형 실기로 확인한 **좌표 2개가 스크립트 상수에만 있다** — ① 반납 구역 그릇 집기(관절값 접근·집기) ② 팔레트 경유점 RACK_B_VIA posj. E14 보완대로 **cell.yaml 에 직접 반영 + 보고** 가 필요하다(제품 코드·INT-12a 는 cell.yaml 을 읽는다). 9/20 에도 같은 이유(스크립트 상수)로 옮기는 데 하루가 걸렸다'),
+ 'INT-12a': dict(note_add='🚨 9/21 21:35: 전제 2개 — ① 한석형 pick() 이 main 에 ② 그릇 집기·팔레트 경유점 실기 좌표가 cell.yaml 에(지금은 한석형 스크립트 상수에만)'),
+}
+for _tid, _e in P2135.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -1453,6 +1465,9 @@ HISTORY77 = ['v12.7', '검증 범위', 'INF-02d', '팀 보고(황인재 9/21 18:
 HISTORY78 = ['v12.8', '결정 E23', 'V-08, F1-03', '민범진 확인 요청(툴 프리셋 담당이 SDD 한석형 / 일정표 황인재로 엇갈림) → 황인재 확정: V-08 시작 때 황인재가 rig_gripper 로 잰다(값을 쓰는 f1.tool 담당). SDD §9 V-08 담당 정정',
              '황인재 9/21 18:55', 'H,M']
 
+HISTORY79 = ['v12.9', '진척', 'F1-02, F1-04, CELL-04, INT-12a', 'GitHub 기준(9/21 21:35): 새로 merge 된 팀원 PR 은 #63(툴 프리셋 확인 요청 — E23 으로 처리)뿐. 한석형이 브랜치에 실기 그릇 한 바퀴 스크립트를 올림(18:25~21:26) → F1-02 0.4 · F1-04 0.3. 🚨 실기로 확인한 좌표 2개(그릇 집기 관절값 · 팔레트 경유점)가 스크립트 상수에만 있어 cell.yaml 반영 필요. 민범진·박진용의 저녁 실기 결과는 아직 올라오지 않음',
+             '황인재 9/21 21:35', 'S']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1547,7 +1562,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
