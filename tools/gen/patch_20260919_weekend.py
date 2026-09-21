@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v11.2'
+VERSION = 'v11.3'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -896,6 +896,17 @@ for _tid, _e in VLOG.items():
 # ---------------------------------------------------------------- 9/21 PR #50 merge — FLOW-03 코드 완료
 EDIT.setdefault('FLOW-03', {}).update(dict(status='진행', prog='0.8',
     note_add='✅ 9/21 PR #50 merge — /flow/stop = 즉시 정지(cc.pause) · /flow/resume(cc.is_paused 로 막다른 길 막음) · 🆕 /flow/abort(PAUSED 에서만 · ROBOT_ERROR 면 거부 · 정리 순서 HOME → 툴 반납 → 격리 → HOME). PM 검토에서 찾은 결함(이동 도중 중단 뒤 깃발이 남아 다음 실행의 GRIP_FAIL 이 사람 확인 없이 중단 정리됨)을 고친 뒤 merge — 재현 시험 통과. **남은 것 = abort 실기**(격리 자리 가는 길 미확인 → E-Stop 에 손을 두고)'))
+# ---------------------------------------------------------------- 9/21 16시대 민범진 지적 — E17 코드가 main 에 없다 · SAFE-01 진척 정정
+P_FIX = {
+ 'SAFE-01': dict(status='진행', prog='0.8',
+                 note_add='📈 9/21 정정: **확인 칸은 박진용이 오전에 이미 다 채웠다**(PR #47 merge 10:08 · 🟡 0줄) — 일정표가 0.0 으로 남아 있었다. 남은 것: ① **실측 4줄**(오늘 저녁 닦기·컵 바닥 찾기에 얹어 채움 — 실측 기록지는 박진용 브랜치에 있고 main 에 없다) ② PM 이 부탁한 **안전 대책 3줄**(위치 불명 뒤 자동 이동 금지 · J3≈0°·HOME 경유 · F3 세척 속도 vel_scale 예외)'),
+ 'F3-02':   dict(note_add='🚨 9/21 16시대(민범진 지적 · PM 확인): **E17 의 바뀐 닦기 코드(HOME 시작·끝)가 아직 main 에 없다** — 박진용 PC 에만 있고 원격 브랜치에도 없다. main 의 wipe.py 는 옛 방식(안전 높이에서 끝, HOME 복귀는 flow). → 오늘 저녁 실기 뒤 **PR** 필요(INT-13 · flow 통합이 main 기준으로 돈다)'),
+ 'F3-03':   dict(note_add='🚨 9/21 16시대: wipe_cup 의 바뀐 코드(직선 이어 붙이기 · HOME 시작·끝)도 main 에 없다 — F3-02 와 같은 PR 로'),
+ 'FLOW-01': dict(note_add='9/21 16시대 민범진: flow 에는 wipe 앞뒤 move_to(HOME) 이 없다 — 더하거나 뺄 것 없음. F3 가 끝나는 자세(E17 전: 안전 높이 / 후: HOME)에 따라 **툴 반납까지 가는 경로**가 달라진다 → 첫 실기 때 그 구간을 눈으로'),
+}
+for _tid, _e in P_FIX.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -1229,6 +1240,9 @@ HISTORY62 = ['v11.1', '실기 결과', 'V-22, V-19', '황인재 9/21 실기 기�
 HISTORY63 = ['v11.2', '진척', 'FLOW-03', 'PR #50 merge(9/21): FLOW-03 정지·재개·중단 연결 코드 완료(진행 0.8). PM 변경 요청(이동 도중 중단 뒤 깃발이 남아 다음 실행이 사람 확인 없이 중단 정리됨)을 민범진이 고쳐 재현 시험 통과. 남은 것 = abort 실기',
              '황인재 9/21 17:00', 'M']
 
+HISTORY64 = ['v11.3', '정정', 'SAFE-01, F3-02, F3-03, FLOW-01', '민범진 지적(9/21 16시대)으로 확인: E17 의 바뀐 닦기 코드(HOME 시작·끝 · 직선 이어 붙이기)는 **아직 main 에 없다**(박진용 PC 에만 · 원격 브랜치에도 없음) — SDD·결정기록에 상태 표시, F3-02·03 에 PR 필요 적음. 같이 발견: SAFE-01 확인 칸은 박진용이 오전에 이미 채워 merge(PR #47) — 일정표 0.0 → 0.8, 남은 것은 실측 4줄 + 안전 대책 3줄',
+             '황인재 9/21 16:30', 'P,M']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1323,7 +1337,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
