@@ -123,6 +123,18 @@ code { font-size: .9em; padding: 0 4px; border-radius: 4px; background: var(--li
 
 table.list { width: 100%; border-collapse: collapse; font-size: 16px; }
 table.list td { padding: 6px 8px; border-top: 1px solid var(--line); }
+table.list th { padding: 4px 8px; text-align: left; font-size: 13px; font-weight: 700; color: var(--dim); }
+table.list .num { font-variant-numeric: tabular-nums; }
+
+/* 이력 */
+.history-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.history-head h2 { margin: 0; }
+.tabs { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.tabs button { font: 600 14px/1 inherit; padding: 8px 14px; border: 0; background: var(--card); color: var(--dim); cursor: pointer; }
+.tabs button.on { background: var(--accent); color: #fff; }
+.scroll-x { overflow-x: auto; }                                  /* 좁은 화면에서 표만 옆으로 민다 */
+.history td, .history th { white-space: nowrap; }
+.gap-top { margin-top: 8px; }
 table.list tr.bad td { color: var(--bad); } table.list tr.warn td { color: var(--warn); }
 
 footer { padding: 4px 0 12px; }

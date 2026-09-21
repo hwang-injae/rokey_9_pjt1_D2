@@ -43,7 +43,7 @@ export default function Monitor() {
         <Counts d={d} />
       </div>
       <ForceGraph d={d} force={force} />
-      <Problems d={d} />
+      <History d={d} />
       <footer className="dim small">
         받는 방식: {mode} · 받은 상태 메시지 {d.received}건 · 점검용 <a href="/test">시험 페이지</a>
       </footer>
@@ -305,25 +305,49 @@ function ForceGraph({ d, force }) {
   );
 }
 
-function Problems({ d }) {
-  const ps = problems(d);
-  if (!ps.length) return null;
+// 이력 — 끝난 용기 1개 = /flow/event 1건. 최근 것부터 20건.
+//   지금은 브리지가 메모리에 들고 있는 최근 50건(HMI 를 켠 뒤부터) — 껐다 켜도 남게 하는 저장은 F4-04(SQLite).
+//   [전체 / 문제만] — 문제만 = 완료가 아닌 것(격리 · 오류 · 건너뜀).
+const HISTORY_ROWS = 20;
+
+function History({ d }) {
+  const [onlyProblems, setOnlyProblems] = useState(false);
+  const all = d.events || [];
+  const rows = (onlyProblems ? problems({ events: all, state: d.state }) : all).slice(0, HISTORY_ROWS);
+  const nProblems = all.filter((e) => e.result && e.result !== 'DONE').length;
   return (
     <section className="card">
-      <h2>최근 문제 (완료가 아닌 용기)</h2>
-      <table className="list">
-        <tbody>
-          {ps.map((e, i) => (
-            <tr key={i} className={e.result === 'ERROR' ? 'bad' : 'warn'}>
-              <td>{clock(e.stamp)}</td>
-              <td>{KIND_KO[e.kind] || e.kind || '-'}</td>
-              <td>{e.zone_id || '-'}</td>
-              <td>{RESULT_KO[e.result] || e.result}</td>
-              <td>{why(e)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="history-head">
+        <h2>이력 <span className="dim tiny">끝난 용기마다 한 줄 · 최근 것부터</span></h2>
+        <div className="tabs">
+          <button className={onlyProblems ? '' : 'on'} onClick={() => setOnlyProblems(false)}>전체 {all.length}</button>
+          <button className={onlyProblems ? 'on' : ''} onClick={() => setOnlyProblems(true)}>문제만 {nProblems}</button>
+        </div>
+      </div>
+      {!rows.length ? (
+        <div className="dim">{onlyProblems ? '문제 있던 용기가 없다' : '아직 끝난 용기가 없다'}</div>
+      ) : (
+        <div className="scroll-x"><table className="list history">
+          <thead>
+            <tr><th>시각</th><th>종류</th><th>구역 → 칸</th><th>무게 전 → 후</th><th>결과</th><th>원인</th><th>소요</th><th>시도</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((e, i) => (
+              <tr key={`${e.stamp}-${i}`} className={e.result === 'ERROR' ? 'bad' : e.result === 'DONE' ? '' : 'warn'}>
+                <td>{clock(e.stamp)}</td>
+                <td>{KIND_KO[e.kind] || e.kind || '-'}</td>
+                <td>{e.zone_id || '-'} → {e.rack_slot ? e.rack_slot.replace('RACK_', '') : e.result === 'ISOLATED' ? '격리' : '-'}</td>
+                <td className="num">{e.weight_before_g || e.weight_after_g ? `${Math.round(e.weight_before_g)} → ${Math.round(e.weight_after_g)} g` : '-'}</td>
+                <td>{RESULT_KO[e.result] || e.result}</td>
+                <td>{e.result === 'DONE' ? '-' : why(e)}</td>
+                <td className="num">{e.duration_s ? `${e.duration_s.toFixed(1)} s` : '-'}</td>
+                <td className="num">{e.attempts || '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table></div>
+      )}
+      <div className="dim tiny gap-top">HMI 를 켠 뒤 받은 것만 보인다 — 껐다 켜도 남게 하는 저장은 다음 작업(F4-04)</div>
     </section>
   );
 }
