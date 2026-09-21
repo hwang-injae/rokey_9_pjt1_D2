@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v10.4'
+VERSION = 'v10.5'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -791,6 +791,33 @@ ENVDONE = {
 for _tid, _e in ENVDONE.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 12시대 민범진 보고 → 결정 E16(D-A~D-E) + 진행률 정정
+E16 = '📌 9/21 결정 E16'
+M_REPORT = {
+ 'V-05':     dict(prog='0.7', note_add='📈 9/21 민범진 실기 확인값: 브링업 직후 **40.0 N** · `d` 한 번에 40.0 → 37.5 N · **빈손 닫힘 폭 10.5~10.9 mm(0 이 아니다)** · 완료 판정을 폭으로 바꾸니 **0.20~0.34 s**(전에는 매번 10 s 타임아웃). 남은 것: 자로 대조 1회 · 본 측정. 새 산출물 `src/cobot_common/test/rig_gripper_probe.py`(고치기 **전에** 드라이버 실동작을 보는 읽기 전용 시험대 — 위 두 결함을 이것으로 찾았다)'),
+ 'V-01':     dict(note_add=E16 + ' D-A ㉠ — **폭 판정은 영점을 뺀 값으로**. V-01 에서 종류별 `grip_zero_mm`(빈손 꽉 닫힘 폭)을 **그 종류의 파지 힘으로** 같이 잰다(영점이 힘에 따라 0.2~0.4 mm 달라진다). 값 3쌍: 빈손·그릇·컵 × 10회'),
+ 'V-23':     dict(prog='0.5', note_add='📈 9/21 민범진: 힘 전환 **방법 확정 + 코드 반영**(현재 힘을 읽어서 맞춘다 — 드라이버가 힘을 기억해 40→35→30→25 N 으로 흘러서 "브링업 직후 40 N" 전제를 못 쓴다). 남은 것: 실기 전환 10회 낙하 0. ' + E16 + ' D-E: 9/20 D1(힘 기준 잡는 쪽) **철회** · **D2(HOLD → NORMAL 되돌리기)는 이 실기 뒤에 정한다**'),
+ 'V-02':     dict(status='시작 전', prog='0.0', slots=S('9/21 저녁', '9/22 오전'),
+                  note_add=E16 + ' **D-C: 오후 세션에서 빼고 저녁 2차로** — 60분에 V-05·V-23·V-01 까지가 한계(민범진 산정 50분)이고, **WEIGH 자세가 오늘 티칭에서 바뀌므로 빈 용기 기준값은 티칭 뒤에 재는 것이 맞다**. '
+                           + E16 + ' **D-D: 완료 기준을 바꾼다** — 옛 기준 "±20 g"(절대 오차)는 의미가 없다. 로봇 하중에 항상 +42~45 g 옵셋이 있는데 잔반 판정이 `측정값 − 빈 용기값` 이라 **옵셋이 상쇄**된다. '
+                           '🆕 새 기준: **같은 추 10회의 (최대−최소) ≤ 20 g**(잔반 임계 50 g 의 절반 이하) · 중앙값의 절대 오차는 **기록만**. 전용 도구는 만들지 않고 `rig_f2.py empty` 로 한다. 9/18 기록은 펜던트 화면 판독이라 진척으로 안 센다'),
+ 'INF-02d':  dict(prog='0.95', note_add='📈 9/21 민범진: 코드 끝(`0893b78` — `_anchor_force` 삭제 · 완료를 폭으로 판정 · 안전 스위치 감지). 남은 것은 **실기 재확인뿐**'),
+ 'INF-02c':  dict(note_add='9/21: 코드는 9/19 merge 됐고 남은 것은 V-02 와 한 덩어리 — V-02 가 0 이라 진행률을 올리지 않는다(민범진)'),
+ 'FLOW-01':  dict(status='완료', prog='1.0', note_add='✅ 9/21 PR #48 merge(main `65d590f`) — kind 전달 · GRIP_FAIL=pause + **재개 의미 버그 수정**(PAUSE 재개가 그 용기를 버리고 있었다 · RACK_FULL 도 같은 버그) · MoveIncomplete 후퇴 금지 · E15 HOME 경유. PM 검토: 두 환경 326 passed'),
+ 'FLOW-03':  dict(status='진행', prog='0.15', note_add='9/21: 이 항목에 든 **MoveIncomplete 분기를 먼저 넣었다**(`be52062`). 남은 것은 `cc.pause`·`resume`·`abort` 연결'),
+ 'F2-01':    dict(prog='0.85', note_add='📈 9/21 민범진 Virtual 재검증 **24/24 통과** — 도착 오차 < 1 mm · 흔든 뒤 J5 복귀 오차 0.00° × 3 · `leftover_loop` 이동 순서 `WEIGH → HOME → WASTE → HOME → WEIGH`(E15). 새 산출물: `rig_f2_virtual.py` 의 `loop` 모드(`leftover_loop` 이 시험대에 아예 없었다). 남은 것: V-07·V-16 실기'),
+ 'F2-02':    dict(prog='0.8', note_add='📈 9/21 Virtual 재검증에 `dip` 3회 포함'),
+ 'V-07':     dict(note_add='🚨 9/21 민범진 실측 정정 — 털기 한 주기가 설정 0.60 s 인데 **9/20 0.954 s → 9/21 1.099 s**(V-24 비동기 이동·폴링 뒤 0.15 s 더 늘었다 · 4주기 1회가 4.46 s, 설정대로면 2.40 s). '
+                           '앞서 적은 "주기당 0.35 s" 를 **"주기당 약 0.5 s 느리게 돈다"** 로 고친다 — `period_s` 를 정할 때 이 전제로. 털기는 빠르기가 잔반을 떨어뜨리는 요인이라 무시할 수 없다. 🚨 **WASTE 자세 재티칭 뒤에만** 가능(민범진이 오후 티칭에 입회)'),
+ 'V-16':     dict(note_add='🚨 9/21: **V-23(힘 전환)이 먼저** 돼야 한다. 또 ' + E16 + ' D-A 로 폭 판정이 영점 뺀 값이 되므로, "폭 변화 ≤ 2 mm" 기준에 **힘이 바뀔 때 영점이 0.2~0.4 mm 움직이는 것**을 포함해 잡는다'),
+ 'UT-FLOW':  dict(note_add='9/21 민범진: 정책·재개·실패 주입은 자동 시험이 이미 상당 부분 덮는다(F2 pytest 98건) — 남은 것은 `flow_node` 를 실제로 띄워 HMI·Ctrl+C 까지 보는 것(반나절). 🚨 **TC-12(기록)는 FLOW-02 가 전제** — FLOW-02 기록·소모품을 박진용에게 넘기면 **TC-12 만 그 뒤로** 미룬다'),
+ 'CELL-03':  dict(note_add='🚨 9/21 민범진: 남은 3가지(고정 · 배치 사진 · 잔반 대용품 ≥ 100 g)를 오늘 아직 손대지 못했다 — 오늘 안에 끝내야 V-07 털기가 돈다'),
+ 'CELL-04':  dict(note_add=E16 + ' **D-B: `ISOLATE.BOWL`·`ISOLATE.CUP` 을 오늘 티칭에 반드시 넣는다**(SOAP 2개와 함께 앞쪽으로). 없으면 `/flow/abort` 정리 순서(HOME → 툴 반납 → ISOLATE → HOME)와 실패 정책의 `isolate` 갈래를 **실기로 확인할 수 없고**, E14 로 2차 티칭이 없다(민범진 요청). '
+                           '🆕 같이: `cell.presets.<kind>.grip_zero_mm` 키 4개를 양식에 추가(값은 V-01 에서 잰다 · ' + E16 + ' D-A ㉠)'),
+}
+for _tid, _e in M_REPORT.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -942,6 +969,11 @@ SLOT['9/21 월']['C'] = SLOT['9/21 월']['C'].replace('**⑤ V-22·V-19 그릇·
     '**⑤ V-22·V-19 그릇·컵 한 바퀴(H)** → **⑤-b V-26 Ctrl+C 정지(H, 30초 — 긴 이동 도중 Ctrl+C × 3회)**')
 # 9/21 12:10 — ENV-03 완료 → 9/22 오전 칸에서 뺀다(v10.4)
 SLOT['9/22 화']['B'] = SLOT['9/22 화']['B'].replace('CR-01(전원)·ENV-03·NOTE-01', 'CR-01(전원)·NOTE-01')
+# 9/21 12시대 — 오후 그리퍼 세션에서 V-02 를 빼고 저녁으로(E16 D-C, v10.5)
+SLOT['9/21 월']['C'] = SLOT['9/21 월']['C'].replace(
+    'V-05 → V-23 → V-01 → V-02', '**V-05 → V-23 → V-01**(E16 D-C: V-02 는 저녁으로 — 60분에 안 들어가고 WEIGH 자세가 오늘 바뀐다)')
+SLOT['9/21 월']['D'] = SLOT['9/21 월']['D'].replace(
+    'V-07 털기 · V-16 HOLD · F2-01·02 실기', 'V-02 무게 → V-07 털기 · V-16 HOLD · F2-01·02 실기')
 _b, _c = LECTURE['9/24 목~9/28 월']
 LECTURE['9/24 목~9/28 월'] = (_b, _c + ' · 🆕 **F4 웹 HMI**(F4-03 화면 다듬기·F4-04 기록/이력·UT-F4 전체)도 집에서 mock·fake_state_pub 로 이어 간다(황인재 9/20 — ROS 인터페이스·로봇 쪽 코드는 9/23 동결 그대로)')
 RULES = {       # (A 열, B 열 글자) → (새 B, 새 C)
@@ -1088,6 +1120,9 @@ HISTORY54 = ['v10.3', '신규', 'V-26', '황인재 9/21: **V-26 Ctrl+C 정지 �
 HISTORY55 = ['v10.4', '완료', 'ENV-03', '황인재 9/21 12:10: 환경 셋팅 작업은 전부 끝났다 → 마지막으로 남아 있던 ENV-03(다중 PC 통신 · PC-A↔PC-B DOMAIN 60 에서 토픽·서비스 보임)을 완료 처리. ENV-01·02·04 는 이미 완료였다. v10.2 에서 민범진 → 황인재로 넘긴 분담도 같이 없어졌고, 9/22 오전 "로봇 불필요" 칸에서도 뺐다',
              '황인재 9/21 12:10', 'H,M']
 
+HISTORY56 = ['v10.5', '결정 E16·진행률', 'V-05·01·23·02·07·16, INF-02c·02d, FLOW-01·03, F2-01·02, UT-FLOW, CELL-03, CELL-04', '민범진 보고(9/21 12시대) → 결정 E16: D-A 폭 판정을 **영점 뺀 값**으로(㉠ — grip_zero_mm 새 키, grip_width() 반환값은 그대로 · 빈손으로 꽉 닫아도 10.5~10.9 mm 가 읽혀 BOWL 2.0 은 도달 불가였다) · D-B ISOLATE 2개를 오늘 티칭에 포함 · D-C 오후 세션에서 V-02 를 빼고 저녁으로 · D-D V-02 완료 기준을 "±20 g" → "같은 추 10회의 최대−최소 ≤ 20 g"(하중 옵셋 +42~45 g 은 빈 용기값을 빼며 상쇄된다) · D-E 9/20 D1 철회 확인, D2 는 V-23 뒤. 진행률 정정: FLOW-01 완료 · INF-02d 0.95 · V-05 0.7 · V-23 0.5 · F2-01 0.85 · F2-02 0.8 · FLOW-03 0.15 · V-02 는 진행 중 → 시작 전(실기 측정을 한 적이 없다). 털기 주기 실측 1.099 s(설정 0.60)로 V-07 전제 정정',
+             '황인재 9/21 12:30', 'M,H,S,P']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1182,7 +1217,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)

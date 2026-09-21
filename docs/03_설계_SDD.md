@@ -250,10 +250,12 @@ cell:                                   # 여러 기능이 같이 쓰는 값. �
   limits: {vel_free_pct: 60, vel_carry_pct: 30, safe_z_mm: 150, contact_limit_n: 10, insert_limit_n: 15, timeout_s: 10}
   motion: {vel_tcp_max_mm_s: 400, acc_tcp_max_mm_s2: 800, vel_joint_max_deg_s: 100, acc_joint_max_deg_s2: 200, move_timeout_s: 30}   # 100 % 기준 속도 = **우리 셀에서 허용하는 최대**(로봇 사양 최대 아님). 실제 속도 = 기준 × limits.vel_*_pct/100 × vel_scale. 예시는 Virtual 시험 값, 실제 값은 한석형 (#15)
   presets:                              # 종류·툴별 파지
-    BOWL:   {grip_width_mm: 2.0, grip_force_n: 20, hold_force_n: 35, width_tol_mm: 0.8, approach_z_mm: 40}    # 옆면(벽) 세로 파지 — 폭 ≈ 2 mm(9/19 확인), tol 은 V-01 에서 · hold = 털기·헹굼용 강한 파지
-    CUP:    {grip_width_mm: 70.0, grip_force_n: 15, hold_force_n: 30, width_tol_mm: 3.0, approach_z_mm: 40}   # 몸통을 통째로 파지(지름 방향, 9/18 V-17 확인) — 벽을 집는 그릇(≈ 2 mm)과 다르다
-    SPONGE: {grip_width_mm: 30.0, grip_force_n: 30, width_tol_mm: 2.0}
-    BRUSH:  {grip_width_mm: 22.0, grip_force_n: 30, width_tol_mm: 2.0}
+    BOWL:   {grip_width_mm: 2.0, grip_zero_mm: ~10.7, grip_force_n: 20, hold_force_n: 35, width_tol_mm: 0.8, approach_z_mm: 40}   # 옆면(벽) 세로 파지 — 폭 ≈ 2 mm(9/19 확인), tol 은 V-01 에서 · hold = 털기·헹굼용 강한 파지
+    CUP:    {grip_width_mm: 75.0, grip_zero_mm: ~10.7, grip_force_n: 15, hold_force_n: 30, width_tol_mm: 3.0, approach_z_mm: 40}  # 몸통을 통째로 파지(지름 방향, 9/18 V-17 확인) — 벽을 집는 그릇(≈ 2 mm)과 다르다
+    SPONGE: {grip_width_mm: 30.0, grip_zero_mm: ~10.7, grip_force_n: 30, width_tol_mm: 2.0}
+    BRUSH:  {grip_width_mm: 22.0, grip_zero_mm: ~10.7, grip_force_n: 30, width_tol_mm: 2.0}
+    # 🆕 grip_zero_mm (9/21 결정 E16 · D-A ㉠) = **빈손으로 꽉 닫았을 때 읽히는 폭**. 0 이 아니다 — 드라이버가 알루미늄 손가락 사이를
+    #   재서 고무 핑거팁 두께가 빠지지 않는다(민범진 9/21 실측 10.5~10.9 mm). 값은 V-01 에서 종류별 파지 힘으로 재서 넣는다
   # ── 자세 적는 법(9/20 CELL-04 · 결정 E4 · #36) — 정본은 cell.yaml 의 stations 위 설명. 좌표는 전부 BASE 절대 자세 ──
   #   자세 1개 = {posj: [...]} 또는 {posx: [...]} 또는 {approach_posx: [...], posx: [...]}  (접근점 = 끝점 바로 위·같은 방향, test_config 가 검사)
   stations:
@@ -382,6 +384,12 @@ return EMPTY_ZONE (attempts = 슬롯 수)
 ```
 - 슬롯 위치는 **슬롯마다 티칭한 집는 자세**(`config/cell.yaml`의 `zones.*.slots[i].posj` — 9/20 CELL-04 에서 "기준점 + 오프셋" 양식을 버렸다, #36). **`pick` 서명·`EMPTY_ZONE` 코드는 그대로**라 `cobot_api`·flow·mock은 바뀌지 않는다.
 - **그릇은 옆면(벽)을 세로로 파지**한다(외경 114 mm > RG2 최대 폭 110 mm — 지름 파지 불가): 그리퍼를 아래로 향하고 핑거가 그릇 벽의 안팎을 집는다. 슬롯 중심이 아니라 **벽 위**로 가야 하므로 슬롯 오프셋에 벽까지의 거리(반지름 ≈ 55 mm)를 더한 위치를 쓴다(값은 한석형이 `cell.yaml`에). 컵은 **몸통을 통째로 파지**(지름 방향 — 벽을 집지 않는다, 폭 ≈ 컵 지름이라 빈손·그릇과 간격이 충분)(V-17).
+- 🆕 **폭은 영점을 빼고 판정한다 (9/21 결정 E16 · D-A ㉠)**: `실폭 = cc.grip_width() − cell.presets.<kind>.grip_zero_mm` 를 `grip_width_mm ± width_tol_mm` 와 비교한다.
+  `cc.grip_width()` 가 돌려주는 값 **자체는 바뀌지 않는다**(드라이버 값 그대로) — 바뀌는 것은 **판정식뿐**이다. 부르는 쪽 둘 다 같은 식을 쓴다: 한석형 `f1.pick`(집었나) · 민범진 `f2.shake`·`dip`(미끄러졌나).
+  - **명령으로 주는 목표 폭은 드라이버 값 그대로**(영점 포함)다 → 닫는 목표 = `grip_zero_mm + max(0, grip_width_mm − 2 × width_tol_mm)`.
+  - 🚨 **영점은 힘에 따라 0.2~0.4 mm 달라진다**(고무가 눌린다) → `grip_zero_mm` 은 그 종류의 `grip_force_n` 으로 잰다.
+  - 미끄러짐 판정은 전·후 폭을 **서로 비교**하는 것이라 영점이 대부분 상쇄된다. 다만 NORMAL↔HOLD 로 **힘이 바뀌면 영점도 0.2~0.4 mm 바뀌므로**, 그 값을 허용 오차 안에 넣어 잡는다(V-16 의 "폭 변화 ≤ 2 mm" 는 그 여유를 포함한 값이다).
+  - 근거: 민범진 9/21 실측 — 빈손 10.5~10.9 · 그릇 ≈ 12.7(영점 빼면 2.0 = 실측 벽 두께) · 컵 ≈ 85.7(영점 빼면 75.0 = 실측 상단 지름). 영점을 빼지 않으면 `BOWL.grip_width_mm: 2.0` 은 **도달할 수 없는 값**이다.
 - 폭 판정(✅ 9/19 PM 결정 — **그릇도 파지 폭으로 가른다, 무게로 가르지 않는다**): 그릇을 옆면(벽)으로 세로 파지하면 파지 폭이 **≈ 2 mm**로 읽히고 **빈손(완전히 닫힘)과 구분되는 것까지 검증했다**(9/19 황인재) → 폭으로 구분한다. 그릇의 기대 폭(`presets.BOWL.grip_width_mm` ≈ 2)과 허용 오차(`width_tol_mm`)는 V-01에서 재서 `cell.yaml`에 넣는다 — 그릇의 허용 오차는 그릇 폭과 빈손 폭의 간격보다 작아야 한다(컵의 3 mm를 그대로 쓰면 빈손도 성공으로 읽힌다).
 - 🚨 **`grip`에 주는 닫는 목표 폭은 기대 폭보다 작아야 한다**(그릇은 0 mm 쪽). 목표를 기대 폭과 같게 주면 빈손도 그 폭에서 멈춰 "성공"으로 읽힌다. 새 키 없이 하려면 닫는 목표 = `grip_width_mm − 2 × width_tol_mm`(0보다 작으면 0)를 권장한다 — 용기가 있으면 용기 폭에서 멈추고(힘 도달), 없으면 목표까지 닫혀 허용 오차 밖이 된다.
 - 하강은 항상 힘 상한·최대 깊이·타임아웃과 함께(NFR-01).
