@@ -227,3 +227,13 @@ def test_store_does_not_count_a_run_it_did_not_see_start():
     store.put_state({'step': 'DONE', 'done_bowl': 2, 'done_cup': 2})       # HMI 를 켰더니 이미 DONE — 이 회차는 못 봤다
     store.put_state({'step': 'IDLE', 'done_bowl': 2, 'done_cup': 2})
     assert store.snapshot()['totals']['runs'] == 0
+
+
+def test_plan_carries_wipe_force_target_and_limit(tmp_path):
+    """힘 그래프의 목표선·상한선 — params.yaml f3 에서 읽어 화면에 넘긴다(숫자를 화면 코드에 쓰지 않는다)."""
+    pytest.importorskip('fastapi', reason='웹 부품은 HMI 전용 상자(~/venvs/hmi)에만 있다')
+    from fastapi.testclient import TestClient
+    from f4_hmi.app import create_app
+    cfg = {'flow': {}, 'f3': {'wipe_bowl': {'target_force_n': 1.5, 'limit_n': 10.0}, 'wipe_cup': {'limit_n': 10.0}}}
+    body = TestClient(create_app(StateStore(2.0), cfg, web_dir=tmp_path)).get('/api/state').json()
+    assert body['plan']['force'] == {'BOWL': {'target_n': 1.5, 'limit_n': 10.0}, 'CUP': {'target_n': None, 'limit_n': 10.0}}

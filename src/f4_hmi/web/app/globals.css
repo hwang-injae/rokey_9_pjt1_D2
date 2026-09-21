@@ -101,6 +101,20 @@ code { font-size: .9em; padding: 0 4px; border-radius: 4px; background: var(--li
 .rack-totals div { display: flex; gap: 8px; align-items: baseline; }
 .rack-totals b { font-size: 20px; font-variant-numeric: tabular-nums; }
 
+/* 닦는 힘 그래프 */
+.force-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
+.force-now { font-size: 30px; font-variant-numeric: tabular-nums; }
+.force { width: 100%; height: auto; display: block; }
+.force-grid { stroke: var(--line); stroke-width: 1; }
+.force-axis { fill: var(--dim); font-size: 16px; text-anchor: end; }
+.force-limit line { stroke: var(--bad); stroke-width: 2; stroke-dasharray: 10 8; }
+.force-limit text { fill: var(--bad); font-size: 16px; font-weight: 700; text-anchor: end; }
+.force-target line { stroke: var(--ok); stroke-width: 2; stroke-dasharray: 10 8; }
+.force-target text { fill: var(--ok); font-size: 16px; font-weight: 700; text-anchor: end; }
+.force-line { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linejoin: round; }
+.force.idle .force-line { opacity: .35; }
+.force-empty { fill: var(--dim); font-size: 20px; text-anchor: middle; }
+
 .count-row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px; }
 .count-row b { font-size: 20px; font-variant-numeric: tabular-nums; }
 .bar { height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; margin-top: 4px; }
