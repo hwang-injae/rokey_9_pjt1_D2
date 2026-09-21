@@ -13,7 +13,7 @@ function recall() { try { return sessionStorage.getItem(KEY) || ''; } catch { re
 function remember(v) { try { sessionStorage.setItem(KEY, v); } catch { /* 없어도 된다 */ } }
 
 export default function Monitor() {
-  const { d, mode, force, press } = useHmi();
+  const { d, mode, press } = useHmi();
   const [reply, setReply] = useState(null);
   // 일시 정지됐을 때 "어느 단계에서" 를 보여 주려고 기억한다 — flow 가 보내는 값(FlowState)에는 그 칸이 없다.
   // 같은 탭에서 새로고침해도 잊지 않게 탭 저장소(sessionStorage)에도 둔다. 멈춘 **뒤에** 새 탭으로 열면 모른다.
@@ -42,7 +42,6 @@ export default function Monitor() {
         <Pallet d={d} />
         <Counts d={d} />
       </div>
-      <ForceGraph d={d} force={force} />
       <History d={d} />
       <footer className="dim small">
         받는 방식: {mode} · 받은 상태 메시지 {d.received}건 · 점검용 <a href="/test">시험 페이지</a>
@@ -56,13 +55,10 @@ function TopBar({ d, can, onPress }) {
     : d.connected ? { cls: 'ok', text: 'flow 연결됨' }
     : d.state ? { cls: 'bad', text: 'flow 연결 끊김 — 마지막 값을 보여 주는 중' }
     : { cls: 'bad', text: 'flow 의 방송을 아직 못 받았다' };
-  const grip = d.gripping == null ? { cls: 'dim', text: '파지 —' }
-    : d.gripping ? { cls: 'on', text: '✊ 파지 중' } : { cls: 'off', text: '✋ 파지 안 함' };
   return (
     <header className="top">
       <div className="brand">PreWash-Cell</div>
       <div className={`pill ${conn.cls}`}><span className="dot" />{conn.text}</div>
-      <div className={`pill grip ${grip.cls}`}>{grip.text}</div>
       <div className="spacer" />
       <div className="stopbox">
         <button className="btn stop" disabled={!can.stop} onClick={() => onPress('stop')}>일시 정지</button>
@@ -251,56 +247,6 @@ function Counts({ d }) {
         <span>최근 · 평균</span>
         <b>{cy ? `${cy.last.toFixed(1)} s · ${cy.mean.toFixed(1)} s` : '-'}</b>
       </div>
-    </section>
-  );
-}
-
-// 닦는 힘 — /cell/force(닦는 동안만 10 Hz). 목표선(그릇만 — 컵은 힘제어 없이 돌린다)·상한선은 params.yaml f3 에서
-// (브리지가 plan.force 로 넘긴다 — 숫자를 화면 코드에 쓰지 않는다). 가로축은 **마지막 값 기준 최근 10초**라 닦기를 멈추면 그래프도 멈춘다.
-const G = { w: 1000, h: 170, win: 10, left: 44, right: 12, top: 10, bottom: 24 };
-
-function ForceGraph({ d, force }) {
-  const s = d.state || {};
-  const kind = s.kind || 'BOWL';
-  const ref = ((d.plan && d.plan.force) || {})[kind] || {};
-  const wiping = d.force_n != null;                 // 브리지가 0.5초 넘게 힘을 못 받으면 비운다 → '닦는 중 아님'
-  const last = force.length ? force[force.length - 1] : null;
-  const pts = last ? force.filter((p) => last.t - p.t <= G.win) : [];
-  const top = Math.max(ref.limit_n || 10, ...pts.map((p) => p.n)) * 1.15;
-  const x = (t) => G.left + (1 - (last.t - t) / G.win) * (G.w - G.left - G.right);
-  const y = (n) => G.h - G.bottom - (n / top) * (G.h - G.top - G.bottom);
-  const ticks = [0, 5, 10, 15].filter((v) => v <= top);
-  return (
-    <section className="card">
-      <h2>닦는 힘 <span className="dim tiny">{KIND_KO[kind]} 닦기 · 최근 {G.win}초</span></h2>
-      <div className="force-head">
-        <b className={wiping ? 'force-now' : 'force-now dim'}>{wiping ? `${d.force_n.toFixed(1)} N` : '닦는 중 아님'}</b>
-        <span className="dim">
-          {ref.target_n != null ? `목표 ${ref.target_n} N` : '힘 목표 없음(솔을 돌리고 오르내린다)'} · 상한 {ref.limit_n ?? '-'} N — 넘으면 즉시 물러난다
-        </span>
-      </div>
-      <svg viewBox={`0 0 ${G.w} ${G.h}`} className={wiping ? 'force' : 'force idle'} role="img" aria-label="닦는 힘 그래프">
-        {ticks.map((v) => (
-          <g key={v}>
-            <line x1={G.left} x2={G.w - G.right} y1={y(v)} y2={y(v)} className="force-grid" />
-            <text x={G.left - 8} y={y(v) + 5} className="force-axis">{v}</text>
-          </g>
-        ))}
-        {ref.limit_n != null && (
-          <g className="force-limit">
-            <line x1={G.left} x2={G.w - G.right} y1={y(ref.limit_n)} y2={y(ref.limit_n)} />
-            <text x={G.w - G.right - 4} y={y(ref.limit_n) - 6}>상한 {ref.limit_n} N</text>
-          </g>
-        )}
-        {ref.target_n != null && (
-          <g className="force-target">
-            <line x1={G.left} x2={G.w - G.right} y1={y(ref.target_n)} y2={y(ref.target_n)} />
-            <text x={G.w - G.right - 4} y={y(ref.target_n) - 6}>목표 {ref.target_n} N</text>
-          </g>
-        )}
-        {pts.length > 1 && <polyline className="force-line" points={pts.map((p) => `${x(p.t).toFixed(1)},${y(p.n).toFixed(1)}`).join(' ')} />}
-        {!pts.length && <text x={G.w / 2} y={G.h / 2} className="force-empty">아직 닦은 기록이 없다</text>}
-      </svg>
     </section>
   );
 }

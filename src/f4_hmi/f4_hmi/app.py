@@ -28,12 +28,8 @@ def create_app(store, cfg: dict, command=None, web_dir: Path = WEB_DIR) -> FastA
     web_dir: 운영 화면 파일 묶음(index.html 이 있어야 쓴다 — 없으면 / 에 시험 페이지). 시험에서 바꿔 끼운다."""
     app = FastAPI(title='PreWash-Cell HMI', docs_url='/api/docs', redoc_url=None)
     flow = cfg.get('flow') or {}
-    f3 = cfg.get('f3') or {}
-    force = {kind: {'target_n': (f3.get(sec) or {}).get('target_force_n'),     # 그릇은 힘제어 목표가 있고, 컵은 없다(돌리기 + 오르내리기)
-                    'limit_n': (f3.get(sec) or {}).get('limit_n')}             # 넘으면 즉시 후퇴(FORCE_LIMIT)
-             for kind, sec in (('BOWL', 'wipe_bowl'), ('CUP', 'wipe_cup'))}
     plan = {'plan': flow.get('plan') or [], 'rack_order': flow.get('rack_order') or {},
-            'consumables': flow.get('consumables') or {}, 'force': force}
+            'consumables': flow.get('consumables') or {}}
     hub = Hub()
     store.subscribe(hub.from_ros)
     app.state.hub = hub
