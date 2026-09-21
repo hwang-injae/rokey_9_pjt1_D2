@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v9.3'
+VERSION = 'v9.4'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -573,6 +573,25 @@ PRESET_0921 = {
 for _tid, _e in PRESET_0921.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 09:00 황인재 확인: 오늘 발표 없음(노션 차시 표는 이전 기수 내용) · 9/22~23 1차 산출물 제출
+NP = '✅ 9/21 09:00 황인재가 강사에게 확인:'
+NOPRES_0921 = {
+ 'MID-01': dict(status='해당 없음', prog='1.0', slots=[],
+                note_add=NP + ' **오늘 중간점검 발표는 없다** — 노션의 차시별 강의 일정표("6차시 오후 프로젝트 중간점검 · 조별 30분 발표")는 **이전 기수 내용**으로 보인다. 발표 자료(10장)는 만들지 않는다. 날짜가 적힌 공지 페이지(9/14 · 9/22·23 · 9/29 · 9/30)는 이번 기수 것이 맞다'),
+ 'MID-02': dict(status='해당 없음', prog='1.0', slots=[], note_add=NP + ' 오늘 중간점검 없음 — 행을 남겨 두되 해당 없음'),
+ # 9/22~23 1차 산출물 제출 (노션 "9/22, 9/23 일정(7,8차시)" 공지)
+ 'NOTE-01': dict(task='노션 — ROS2 노드 구조(노드 2 + 패키지 구조)·인터페이스 정의서(ROS + 기능 함수) 업로드 — **9/22~23 1차 산출물 제출**',
+                 crit='9/22~23 제출 기한 안에 노션에 올라감',
+                 note_add=NP + ' **9/22~23 에 1차 산출물 제출이 있다.** 노션 공지의 제출 항목 = ① 코드 최신으로 GitHub 업로드 ② **ROS2 노드 구조를 노션에 추가**(이 행) ③ 관리자 HMI·사용자 UI 화면 업로드(NOTE-02 · 여러 장이면 gif). PM 에이전트가 초안을 만든다'),
+ 'NOTE-02': dict(task='노션 — 관리자 HMI·사용자 UI 화면 업로드(여러 장이면 gif) — **9/22~23 1차 산출물 제출**',
+                 crit='9/22~23 제출 기한 안에 노션에 올라감',
+                 note_add=NP + ' 1차 산출물 제출 항목 ③. 지금 시험 페이지로도 찍을 수 있다(F4-03 화면을 기다리지 않아도 된다)'),
+ 'ARCH-01': dict(note_add=NP + ' 1차 산출물(9/22~23)의 노드 구조 그림으로 쓴다 — NOTE-01 과 같이 올린다. 중간점검 발표가 없어졌으므로 "MID-01 과 같이 작업"은 해당 없음'),
+ 'PM-01':  dict(note_add=NP + ' 🚨 **1차 산출물 제출(9/22~23) 목록을 하나로 모아 확인한다** — ① GitHub 최신(동결 전 push) ② 노드 구조(NOTE-01) ③ HMI 화면(NOTE-02). 강사 산출물 10종 목록과 대조'),
+}
+for _tid, _e in NOPRES_0921.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -767,6 +786,9 @@ HISTORY43 = ['v9.2', '재분담', 'V-05, V-01, V-25, INT-12b, SAFE-01, CR-01, �
 HISTORY44 = ['v9.3', '실기 결과', 'CELL-04, V-22, V-19, V-07, 로봇 슬롯', '황인재 9/21 08:40 실기: WASTE BOWL 을 관절 자세로 바꾸자 다음 자리로 가며 6번 관절이 163° 돌아 케이블이 꼬여 로봇 정지 → 그릇 경로 6번 관절 값이 제각각(0·−16·−179·−220·−117) → 오늘 저녁 티칭 = 그릇 경로를 6번 관절이 이어지게 다시 찍기(넘치면 컵 확인을 9/22 오전). rig_coords 가 실기 실패 뒤 자동으로 HOME 가려던 안전 결함을 F4 가 발견·수정(브랜치)',
              '황인재 실기 9/21 08:40', 'H,M']
 
+HISTORY45 = ['v9.4', '일정 정정', 'MID-01, MID-02, NOTE-01, NOTE-02, ARCH-01, PM-01', '황인재 9/21 09:00 강사 확인: **오늘 중간점검 발표 없음** — 노션의 차시별 강의 일정표는 이전 기수 내용으로 보인다(날짜가 적힌 공지 페이지는 이번 기수 것이 맞다) → MID-01·MID-02 해당 없음, 발표 자료 10장 만들지 않는다. 대신 **9/22~23 에 1차 산출물 제출**(① GitHub 최신 ② 노드 구조 노션 ③ HMI 화면) → NOTE-01·NOTE-02 를 그 제출물로 명시',
+             '황인재 9/21 09:00', '전원']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -861,7 +883,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
