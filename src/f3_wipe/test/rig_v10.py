@@ -4,7 +4,8 @@
     soc && python3 src/f3_wipe/test/rig_v10.py --real --stage find     # ① 바닥 찾기까지만 (맨 처음 이것부터)
     soc && python3 src/f3_wipe/test/rig_v10.py --real --stage lift     # ② 띄우기까지 (문지르지 않는다)
     soc && python3 src/f3_wipe/test/rig_v10.py --real                  # ③ 전체 (기본 stage=scrub)
-    soc && python3 src/f3_wipe/test/rig_v10.py --real --cycles 1 --stroke 5 --twist 15   # 값 바꿔 가며
+    soc && python3 src/f3_wipe/test/rig_v10.py --real --cycles 1 --stroke 5 --twist 10   # 값 바꿔 가며
+    PREWASH_CONFIG_DIR=<임시 설정> python3 src/f3_wipe/test/rig_v10.py                 # Virtual(sodvir) — 흐름만
 
 준비(손으로): 컵을 스펀지 홈에 넣고, **솔을 그리퍼에 쥐여 준다**(그리퍼 끝을 세척부 윗면에 닿게 — 세척부 95 mm).
 🚨 E-Stop 에 손을 두고 본다. 첫 실행은 반드시 `--stage find` 로 **바닥만** 찾아 보고 숫자를 확인한다.
@@ -12,7 +13,8 @@
 이 rig 가 확인하는 것 (V-10)
   · 티칭 끝점(cell.beds.SPONGE_BED_C.wash) 대비 **실제 바닥이 어디인가** — 계산상 TCP Z 128 (아래 메모)
   · 솔이 얼마나 들어가는가 · 바닥에 닿을 때 힘이 어떻게 올라오는가
-  · 위아래 진폭 · 좌우 비틀기 각 · 주기를 얼마로 할 것인가 (Move Periodic 한 명령)
+  · 위아래 40 mm + 좌우 비틀기 ±18°(9/21 확정)가 컵 안에서 괜찮은가 · 속도를 얼마로 할 것인가
+    (직선 이어 붙이기 — wipe.cup_strokes 를 그대로 쓴다. Move Periodic 회전은 손목을 기울여서 버렸다, 9/21 Virtual)
   · 컵이 홈 안에서 딸려 올라오거나 도는가 (옆 힘으로 본다)
 
 🔸 끝점 계산 메모 (9/20 실기에서 나온 값으로 미리 계산한 것 — 내일 이 rig 로 확인한다)
@@ -34,6 +36,7 @@ import time
 
 import cobot_common as cc
 from cobot_common.bootstrap import dsr
+from f3_wipe.wipe import cup_stroke, cup_strokes, insert_depth
 
 STATION = 'SPONGE_BED_C'
 STAGES = ('find', 'lift', 'scrub')
@@ -117,7 +120,7 @@ def main() -> int:
     ap.add_argument('--cycles', type=int, default=None, help='왕복 횟수 (기본 params.yaml)')
     ap.add_argument('--stroke', type=float, default=None, help='위아래 편진폭 mm')
     ap.add_argument('--twist', type=float, default=None, help='좌우 비틀기 편진폭 deg')
-    ap.add_argument('--period', type=float, default=None, help='한 번 왕복에 걸리는 시간 s')
+    ap.add_argument('--vel', type=float, default=None, help='위아래 속도 mm/s (× vel_scale)')
     a = ap.parse_args()
 
     cc.init('rig_v10')                                                   # ① 맨 앞에서 한 번
@@ -126,7 +129,7 @@ def main() -> int:
     try:
         p = dict(cc.cfg()['f3']['wipe_cup'])                             # 값의 정본은 params.yaml — 인자는 덮어쓰기만
         for key, val in (('cycles', a.cycles), ('stroke_mm', a.stroke),
-                         ('twist_deg', a.twist), ('period_s', a.period)):
+                         ('twist_deg', a.twist), ('lin_vel_mm_s', a.vel)):
             if val is not None:
                 p[key] = val
                 log.warning(f'덮어씀: {key} = {val}  (확정되면 params.yaml 에 넣는다)')
@@ -151,7 +154,7 @@ def main() -> int:
         n0 = len(rec.rows)
         found, f_n = cc.contact_down(float(p['find_max_mm']), cc.cfg()['cell']['limits']['insert_limit_n'])
         z_bottom = cc.where()[2]
-        inserted = max(0.0, float(p['tool']['clean_h_mm']) - (gap - found))
+        inserted = insert_depth(p, found)
         rec.watch('bottom')
         rec.summarize('bottom', n0)
         log.info(f'🔸 바닥: TCP Z {z_bottom:.1f} (티칭 끝점 {z_top - up:.1f}, 차이 {z_bottom - (z_top - up):+.1f} mm) '
@@ -164,41 +167,36 @@ def main() -> int:
             code = 0
             return code
 
-        # ── ② 힘 풀고 왕복 가운데로 띄우기 ──────────────────────────────────
+        # ── ② 힘 풀고 왕복의 아래쪽 끝으로 띄우기 ─────────────────────────────
         lift = float(p['lift_mm'])
-        room = max(0.0, inserted - lift - float(p['keep_in_mm']))
-        stroke = min(float(p['stroke_mm']), room / 2.0)
+        stroke = cup_stroke(p, inserted)
         if stroke <= 0:
             log.error(f'솔이 {inserted:.1f} mm 밖에 안 들어가 왕복할 자리가 없다')
             return 1
-        cc.move_rel(0.0, 0.0, lift + stroke, 'BASE', vel_mm_s=float(p['lift_vel_mm_s']) * scale)
+        cc.move_rel(0.0, 0.0, lift, 'BASE', vel_mm_s=float(p['lift_vel_mm_s']) * scale)
         rec.watch('lift')
-        log.info(f'띄움: 바닥에서 {lift + stroke:.1f} mm (lift {lift:g} + 진폭 {stroke:.1f}) '
-                 f'→ 왕복의 가장 낮은 자리가 바닥 + {lift:g} mm')
+        log.info(f'띄움: 바닥 + {lift:g} mm = 왕복의 아래쪽 끝 · 꼭대기는 바닥 + {lift + 2 * stroke:.1f} mm')
         if a.stage == 'lift':
             code = 0
             return code
 
-        # ── ③ 위아래 + 좌우 비틀기 (Move Periodic 한 명령) ──────────────────
-        period = float(p['period_s'])
-        log.info(f'문지르기: 위아래 ±{stroke:.1f} mm · 비틀기 ±{p["twist_deg"]:g}° · 주기 {period:g} s '
-                 f'· {p["cycles"]} 회  (Move Periodic 한 명령 — 중급1 p.71)')
+        # ── ③ 위아래 바운스 + 좌우 비틀기 (z·c 만 바꾼 직선을 이어 붙인다) ───────
+        low = cc.where()
+        pts = cup_strokes(low, stroke, float(p['twist_deg']), int(p['cycles']), p['blend_radius_mm'])
+        log.info(f'문지르기: 위아래 {2 * stroke:.1f} mm · 비틀기 ±{p["twist_deg"]:g}° · {p["cycles"]} 회 '
+                 f'· 직선 {len(pts)} 개 (속도 {p["lin_vel_mm_s"]:g} mm/s · {p["rot_vel_deg_s"]:g} °/s × vel_scale)')
         n0 = len(rec.rows)
-        cc.move_periodic([0.0, 0.0, stroke, 0.0, 0.0, float(p['twist_deg'])],
-                         [0.0, 0.0, period, 0.0, 0.0, period * float(p['twist_period_ratio'])],
-                         repeat=int(p['cycles']), ref='TOOL')
         t_scrub = time.monotonic()
-        while not cc.motion_done():
+        for pose, blend in pts:
             if time.monotonic() - t_scrub > float(p['duration_s']):
                 raise cc.MotionTimeout('문지르기 시간 초과')
+            cc.move_line(pose, p['lin_vel_mm_s'], p['rot_vel_deg_s'], blend)
             rec.watch('scrub')
-            time.sleep(p['sample_s'])
+        dsr().mwait()
         rec.summarize('scrub', n0)
-
-        # ── ④ 위 말고 아래에서 끝낸다 ───────────────────────────────────────
-        cc.move_rel(0.0, 0.0, -stroke, 'BASE', vel_mm_s=float(p['lift_vel_mm_s']) * scale)
-        rec.watch('end')
-        log.info('아래쪽 끝에서 종료 → 솔을 곧게 뽑는다')
+        end = cc.where()
+        log.info(f'끝: 아래쪽 끝 · 시작 대비 z {end[2] - low[2]:+.1f} mm · c {end[5] - low[5]:+.1f}° '
+                 f'· 문지르기 {time.monotonic() - t_scrub:.1f} s → 솔을 곧게 뽑는다')
         code = 0
     except cc.ForceLimitError as e:                                      # 로봇은 정상 — 설계된 후퇴를 한다(AGENTS 규칙 2)
         log.error(f'🚨 힘 상한: {e} → 중단하고 후퇴한다')

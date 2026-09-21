@@ -14,7 +14,7 @@ Result.fail(code) 로 돌려준다. 숫자는 전부 params.yaml 의 f3 절 · c
 wipe_bowl = F3-02 **고정 좌표 방식**(9/20 결정 E6 · SDD §5.4) · soap · wipe_cup = F3-03.
 🔸 그릇만 고정 좌표다 — 컵은 깊고 솔이 단단해 **삽입만 힘으로 찾는다**(contact_down), 문지르기는 위치 제어다.
 🔸 두산 함수를 직접 부르지 않는다(AGENTS §3 규칙 4) — 나선·원호를 포함한 접촉 모션은 cobot_common 의 force.py 에 있다
-   (cc.move_spiral · cc.move_arc · cc.where · cc.motion_done).
+   (cc.move_spiral · cc.move_arc · cc.move_line · cc.where · cc.motion_done).
 실측 근거는 docs/test_logs/20260918_CELL-02a_용기치수측정.md · docs/test_logs/20260919_V-03_힘제어중_XY이동.md.
 """
 import csv
@@ -333,11 +333,12 @@ def wipe_cup() -> WipeCupResult:
       ① 컵 위 → **바닥 fast_gap_mm 위까지 빠르게** 내려간다
       ② **바닥을 찾는다** — cc.contact_down(순응 ON, 조금씩 하강, insert_limit_n)
          (중급2 "힘 방향과 같은 방향의 모션 불가" — Z 힘제어로는 내려갈 수 없다. 순응 + 걸음 하강이 매뉴얼 방식)
-      ③ 바닥을 찾으면 **힘을 풀고**(contact_down 이 해제한다) 살짝 띄운다 — 왕복의 가운데 자리로
-      ④⑤ **위아래 왕복 + 좌우 비틀기를 한 명령으로 동시에** — Move Periodic
-         (중급1 p.71 "일정한 진폭과 주기로 왕복 **이동/회전** 모션" · p.74 실습 15° 회전 왕복 ·
-          p.75 축마다 주기를 달리할 수 있다 / 🚨 진폭을 준 축은 주기도 줘야 한다 — 오류 2.1218)
-      ⑥ cycles 회가 끝나면 가운데로 돌아온다 → **아래쪽 끝으로 내려서 끝낸다**(사용자 시나리오 6)
+      ③ 바닥을 찾으면 **힘을 풀고**(contact_down 이 해제한다) lift_mm 만 띄운다 — 왕복의 아래쪽 끝
+      ④⑤ **위아래 바운스 + 좌우 비틀기를 동시에** — 올라가며 +twist, 내려오며 −twist 로 비튼 점들을
+         직선(Move L)으로 이어 붙인다(cc.move_line, 중급1 p.79 중첩). x·y·기울기(a·b)는 그대로, **z 와 c 만** 바뀐다.
+         그릇 벽면 원호의 c ±twist(9/20 실기)와 같은 방식이다.
+         🚨 Move Periodic 의 회전 진폭은 쓰지 않는다 — 9/21 Virtual 에서 툴 축이 아니라 4번 축이 돌아 손목이 기울었다
+      ⑥ cycles 번 오르내린 뒤 **아래쪽 끝에서 손목을 제자리(c)로 돌려놓고 끝낸다**(사용자 시나리오 6)
       ⑦ safe_retreat — 솔을 컵에서 곧게 뽑는다. HOME 복귀는 flow 가 부른다
 
     🚨 그릇(고정 좌표, 결정 E6)과 달리 컵은 **바닥을 힘으로 찾는다** — 컵이 깊고(95 mm) 솔이 단단해
@@ -346,7 +347,7 @@ def wipe_cup() -> WipeCupResult:
        그리퍼 끝은 컵 입구와 나란하다. 그래서 **삽입 깊이는 솔 길이 기준으로 센다**(내려온 거리가 아니다).
     🚨 왕복은 **순응·힘제어를 끈 상태**로 한다(시나리오 3 "힘 풀기") — 명령한 진폭이 실제 진폭이어야 한다.
        안전은 힘 감시가 맡는다: 누르는 힘 limit_n · 옆 힘 lateral_max_n · duration_s · 힘 로그.
-    진폭·비틀기 각·주기는 V-10(실기)에서 확정한다.
+    위아래 40 mm(stroke 20 × 2) · 비틀기 ±18°(그릇 벽면과 같게)는 9/21 박진용 확정. 속도는 V-10(실기)에서 본다.
     """
     p = cc.cfg()['f3']['wipe_cup']
     limits = cc.cfg()['cell']['limits']
@@ -366,7 +367,7 @@ def wipe_cup() -> WipeCupResult:
         # 🔸 삽입 깊이 = **솔이 컵 안에 들어간 길이**다 — 접근점에서 내려온 거리가 아니다(컵 위 빈 공간이 섞인다).
         #    솔 세척부 길이 = 컵 내부 높이 이므로(CELL-02a), 바닥에 닿으면 세척부가 통째로 들어간 것이고
         #    gap 을 다 내려가기 전에 막혔으면 그만큼 덜 들어간 것이다.
-        depth = max(0.0, float(p['tool']['clean_h_mm']) - (gap - found))
+        depth = insert_depth(p, found)
         _info(f'wipe_cup 바닥: 솔이 {depth:.1f} mm 들어갔다 (찾기 구간 {found:.1f} / {gap:g} mm) '
               f'· 실제 Z {log.center[2]:.1f} mm (접근점에서 {z_top - log.center[2]:.1f} mm 하강)')
         if found >= float(p['find_max_mm']) - 0.5:                       # 끝까지 내려가도 바닥이 없다
@@ -391,35 +392,62 @@ def wipe_cup() -> WipeCupResult:
                          duration_s=time.monotonic() - t0, insert_depth_mm=depth)
 
 
-def _scrub_cup(p, log, depth):
-    """③ 살짝 띄우고 → ④⑤ 위아래 왕복 + 좌우 비틀기를 **한 명령으로 동시에**(Move Periodic) → ⑥ 아래에서 끝낸다.
+def insert_depth(p, found):
+    """솔이 컵 안에 들어간 길이 — 솔 세척부 길이가 상한이다(솔 95 = 컵 깊이 95, CELL-02a).
 
-    진폭은 편진폭이라 왕복 한 번에 위아래로 2 × stroke 를 움직인다(중급1 p.71 그림).
-    가운데를 바닥 + lift + stroke 에 두면 **가장 낮은 자리가 바닥 + lift** 가 된다 — 바닥을 찧지 않는다.
+    clean_h − (fast_gap − 찾은 거리). 끝점이 실제 바닥보다 높으면 찾은 거리가 gap 보다 길어지는데,
+    그렇다고 솔이 세척부보다 더 들어가지는 않는다(9/21 Virtual: 끝점 28 mm 높음 → 125 mm 로 잘못 나왔다).
     """
-    lift = float(p['lift_mm'])
-    # 왕복의 꼭대기에서도 솔이 keep_in_mm 만큼은 컵 안에 남아야 한다. 꼭대기 = 바닥에서 lift + 2 × stroke.
-    room = max(0.0, depth - lift - float(p['keep_in_mm']))               # depth = 지금 컵 안에 들어가 있는 솔 길이
-    stroke = min(float(p['stroke_mm']), room / 2.0)
+    clean = float(p['tool']['clean_h_mm'])
+    return max(0.0, min(clean, clean - (float(p['fast_gap_mm']) - found)))
+
+
+def cup_stroke(p, depth):
+    """위아래 편진폭(mm). 꼭대기(바닥 + lift + 2 × stroke)에서도 솔이 keep_in_mm 은 컵 안에 남게 줄인다."""
+    room = max(0.0, depth - float(p['lift_mm']) - float(p['keep_in_mm']))
+    return min(float(p['stroke_mm']), room / 2.0)
+
+
+def cup_strokes(low, stroke, twist_deg, cycles, blend_mm):
+    """④⑤⑥ 이어 붙일 직선 점들 [(BASE 절대 자세, 이어 붙이는 거리), ...].
+
+    low = 왕복의 아래쪽 끝 자세. 올라가며 +twist(꼭대기 = low + 2 × stroke), 내려오며 −twist 를 cycles 번.
+    x·y·a·b 는 low 그대로 — **z 와 c(툴 축 비틀기)만** 바뀐다. 마지막 점은 아래쪽 끝 · 비틀기 0 · 이어 붙이지 않음.
+    """
+    x, y, z, a, b, c = (float(v) for v in low)
+    blend = min(float(blend_mm), 2.0 * stroke * 0.45)                    # 이어 붙이는 거리가 한 획의 절반을 넘으면 안 된다
+
+    def pose(zz, rz):
+        return [x, y, zz, a, b, (c + rz + 180.0) % 360.0 - 180.0]
+
+    pts = []
+    for k in range(int(cycles)):
+        last = k == int(cycles) - 1
+        pts.append((pose(z + 2.0 * stroke, twist_deg), blend))          # 올라가며 오른쪽으로
+        pts.append((pose(z, 0.0 if last else -twist_deg), 0.0 if last else blend))   # 내려오며 왼쪽 — 마지막은 제자리
+    return pts
+
+
+def _scrub_cup(p, log, depth):
+    """③ lift 만 띄우고 → ④⑤ 위아래 바운스 + 좌우 비틀기(직선 이어 붙이기) → ⑥ 아래쪽 끝에서 끝낸다.
+
+    왕복의 가장 낮은 자리가 바닥 + lift — 바닥을 찧지 않는다. 꼭대기는 바닥 + lift + 2 × stroke.
+    """
+    stroke = cup_stroke(p, depth)
     if stroke <= 0:
         raise RuntimeError(f'wipe_cup: 깊이 {depth:.1f} mm 로는 왕복할 자리가 없다 — 좌표·설정 확인')
     _halt_check('왕복 문지르기')
-    cc.move_rel(0.0, 0.0, lift + stroke, 'BASE',                         # ③ 왕복의 가운데로
+    cc.move_rel(0.0, 0.0, float(p['lift_mm']), 'BASE',                    # ③ 왕복의 아래쪽 끝으로
                 vel_mm_s=float(p['lift_vel_mm_s']) * _scale())
     log.watch('cup-lift')
-    period = float(p['period_s'])
-    cc.move_periodic([0.0, 0.0, stroke, 0.0, 0.0, float(p['twist_deg'])],    # ④⑤ z 왕복 + rz 비틀기 동시
-                     [0.0, 0.0, period, 0.0, 0.0, period * float(p['twist_period_ratio'])],
-                     repeat=int(p['cycles']), ref='TOOL')
-    _info(f'wipe_cup 문지르기: 위아래 ±{stroke:.0f} mm · 비틀기 ±{p["twist_deg"]:g}° · '
-          f'주기 {period:g} s · {p["cycles"]} 회 (Move Periodic 한 명령)')
-    while not cc.motion_done():                                          # 도는 동안 힘만 본다
+    pts = cup_strokes(cc.where(), stroke, float(p['twist_deg']), int(p['cycles']), p['blend_radius_mm'])
+    _info(f'wipe_cup 문지르기: 위아래 {2 * stroke:.0f} mm · 비틀기 ±{p["twist_deg"]:g}° · {p["cycles"]} 회 '
+          f'(직선 {len(pts)} 개 이어 붙임)')
+    for pose, blend in pts:                                              # ④⑤⑥
         if log.over_time():
             raise cc.MotionTimeout('wipe_cup: 문지르기 시간 초과')
+        cc.move_line(pose, p['lin_vel_mm_s'], p['rot_vel_deg_s'], blend)
         log.watch('cup-scrub')
-        time.sleep(p['sample_s'])
-    cc.move_rel(0.0, 0.0, -stroke, 'BASE',                               # ⑥ 위 말고 **아래**에서 끝낸다
-                vel_mm_s=float(p['lift_vel_mm_s']) * _scale())
     log.watch('cup-end')
 
 

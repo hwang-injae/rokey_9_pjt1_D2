@@ -368,6 +368,19 @@ def test_move_arc_blends_and_caps_speed(robot):
     assert d.arc['radius'] == 0.0
 
 
+def test_move_line_blends_absolute_and_caps_speed(robot):
+    cfg = copy.deepcopy(CFG)
+    cfg['run'] = {'vel_scale': 0.5}
+    d = robot(cfg)
+    pose = [100.0, 60.0, 90.0, 0.0, 180.0, 18.0]
+    force.move_line(pose, 80.0, 72.0, radius_mm=5.0)
+    assert d.last_movel['pos'] == pose and d.last_movel['mod'] == d.DR_MV_MOD_ABS
+    assert d.last_movel['vel'] == [pytest.approx(40.0), pytest.approx(36.0)]   # × vel_scale
+    assert d.pos == pose
+    force.move_line(pose, 9999.0, 72.0)                                 # 100 % 기준(400) 을 넘지 못한다
+    assert d.last_movel['vel'][0] == pytest.approx(200.0)
+
+
 def test_where_and_motion_done(robot):
     d = robot()
     assert force.where() == d.pos
@@ -412,5 +425,5 @@ def test_exports():
     import cobot_common as cc
     for name in ('force_on', 'force_off', 'force_reached', 'contact_down', 'periodic_search', 'safe_retreat',
                  'read_force', 'force_check', 'compliance_on', 'compliance_off',
-                 'where', 'motion_done', 'move_spiral', 'move_arc', 'ForceLimitError', 'MotionTimeout'):
+                 'where', 'motion_done', 'move_spiral', 'move_arc', 'move_line', 'ForceLimitError', 'MotionTimeout'):
         assert hasattr(cc, name), name

@@ -21,7 +21,8 @@ CFG = {
             'tool': {'clean_h_mm': 95, 'd_mm': 55},
             'fast_gap_mm': 10.0, 'find_max_mm': 40.0, 'insert_min_mm': 85.0,
             'lift_mm': 2.0, 'lift_vel_mm_s': 40.0,
-            'stroke_mm': 15.0, 'twist_deg': 45.0, 'period_s': 1.0, 'twist_period_ratio': 1.0,
+            'stroke_mm': 20.0, 'twist_deg': 18.0,
+            'lin_vel_mm_s': 80.0, 'rot_vel_deg_s': 72.0, 'blend_radius_mm': 5.0,
             'cycles': 5, 'keep_in_mm': 10.0,
             'limit_n': 10.0, 'lateral_max_n': 25.0, 'sample_s': 0.0,
             'duration_s': 120, 'log_dir': 'logs/f3',
@@ -52,7 +53,6 @@ class FakeCell:
         self.pose = list(POSE0)
         self.inserted = False
         self.halted = False
-        self.periodic = 0                        # 남은 왕복 조각 수
         self.logger = _Logger()
 
     def cfg(self):
@@ -67,15 +67,9 @@ class FakeCell:
         self.calls.append(('move_rel', round(dz, 1), round(kw.get('vel_mm_s') or 0.0, 1)))
         self.pose = [self.pose[0] + dx, self.pose[1] + dy, self.pose[2] + dz] + self.pose[3:]
 
-    def move_periodic(self, amp, period, repeat, ref='TOOL', atime=None):
-        self.calls.append(('periodic', list(amp), list(period), repeat, ref))
-        self.periodic = 5
-
-    def motion_done(self):
-        if self.periodic > 0:
-            self.periodic -= 1
-            return False
-        return True
+    def move_line(self, pose, vel_mm_s, vel_deg_s, radius_mm=0.0):
+        self.calls.append(('line', list(pose), radius_mm))
+        self.pose = list(pose)
 
     def contact_down(self, max_depth, limit):
         self.calls.append(('contact_down', max_depth, limit))
@@ -111,7 +105,7 @@ class FakeCell:
 def cell(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     c = FakeCell()
-    for name in ('cfg', 'move_to', 'move_rel', 'move_periodic', 'motion_done', 'contact_down',
+    for name in ('cfg', 'move_to', 'move_rel', 'move_line', 'contact_down',
                  'read_force', 'force_off', 'safe_retreat', 'io_node', 'is_halted', 'where'):
         monkeypatch.setattr(wipe.cc, name, getattr(c, name), raising=False)
     return c
@@ -185,42 +179,65 @@ def test_cup_fast_then_finds_bottom_by_force(cell):
     fast = [c for c in cell.calls if c[0] == 'move_rel' and c[1] < 0][0]
     assert fast[1] == pytest.approx(-(80.0 - 10.0))                        # up − fast_gap_mm
     assert ('contact_down', 40.0, 5.0) in cell.calls                       # find_max_mm · insert_limit_n
-    assert names.index('contact_down') < names.index('periodic')
+    assert names.index('contact_down') < names.index('line')
     assert r.insert_depth_mm == pytest.approx(DEPTH)                       # 솔이 컵에 들어간 길이 (내려온 거리가 아니다)
     assert names[-2:] == ['force_off', 'safe_retreat']
 
 
-def test_cup_lifts_to_middle_then_ends_at_bottom(cell):
-    """③ 왕복 가운데로 띄우고 → ⑥ 위 말고 **아래**에서 끝낸다(시나리오 3·6)."""
+def _lines(cell):
+    return [c for c in cell.calls if c[0] == 'line']
+
+
+def test_cup_lifts_only_lift_mm_then_bounces(cell):
+    """③ lift 만 띄운 자리가 왕복의 아래쪽 끝 — 바닥을 찧지 않는다(시나리오 3)."""
     wipe.wipe_cup()
     ups = [c for c in cell.calls if c[0] == 'move_rel' and c[1] > 0]
-    assert ups[-1][1] == pytest.approx(2.0 + 15.0)                         # lift_mm + stroke
-    last_rel = max(i for i, c in enumerate(cell.calls) if c[0] == 'move_rel')
-    assert cell.calls[last_rel][1] == pytest.approx(-15.0)                 # 마지막 이동은 내려가며 끝난다
-    assert [c[0] for c in cell.calls].index('periodic') < last_rel         # 왕복이 끝난 **뒤**에 내려간다
+    assert ups[-1][1] == pytest.approx(2.0)                                # lift_mm 만
+    bottom = POSE0[2] - 70.0 - 8.0                                         # 빠른 하강 70 + 찾기 8
+    zs = [c[1][2] for c in _lines(cell)]
+    assert min(zs) == pytest.approx(bottom + 2.0)                          # 가장 낮은 자리 = 바닥 + lift
+    assert max(zs) == pytest.approx(bottom + 2.0 + 40.0)                   # 위아래 40 mm (stroke 20 × 2)
 
 
-def test_cup_stroke_and_twist_are_one_periodic_command(cell):
-    """④⑤ 위아래와 좌우 비틀기를 **한 명령**으로 (중급1 p.71 왕복 이동/회전)."""
+def test_cup_only_z_and_twist_change(cell):
+    """④⑤ 위아래와 좌우 비틀기만 — x·y·기울기(a·b)는 그대로다(9/21 사용자: 손목이 기울면 안 된다)."""
     wipe.wipe_cup()
-    periodics = [c for c in cell.calls if c[0] == 'periodic']
-    assert len(periodics) == 1                                             # 한 번만 부른다
-    _n, amp, period, repeat, ref = periodics[0]
-    assert amp == [0.0, 0.0, 15.0, 0.0, 0.0, 45.0]                         # z 진폭 · rz 비틀기
-    assert period == [0.0, 0.0, 1.0, 0.0, 0.0, 1.0]
-    assert repeat == 5 and ref == 'TOOL'
+    lines = _lines(cell)
+    assert len(lines) == 2 * 5                                             # cycles 5 번 오르내림
+    for _n, pose, _r in lines:
+        assert pose[0:2] == POSE0[0:2] and pose[3:5] == POSE0[3:5]
+    twists = [round(pose[5] - POSE0[5], 6) for _n, pose, _r in lines]
+    assert twists[:4] == [18.0, -18.0, 18.0, -18.0]                        # 올라가며 오른쪽 · 내려오며 왼쪽
+    assert max(abs(t) for t in twists) == pytest.approx(18.0)              # 45° 같은 큰 각은 나오지 않는다
 
 
-def test_cup_amp_and_period_paired_on_every_axis(cell):
-    """🚨 진폭을 준 축은 주기도 줘야 한다 — 빠지면 두산 오류 2.1218 (중급1 p.71~72)."""
+def test_cup_ends_at_bottom_with_wrist_home(cell):
+    """⑥ 아래쪽 끝에서, 손목을 제자리로 돌려놓고, 이어 붙이지 않고 선다(시나리오 6)."""
     wipe.wipe_cup()
-    _n, amp, period, _r, _ref = [c for c in cell.calls if c[0] == 'periodic'][0]
-    assert all((a != 0) == (t != 0) for a, t in zip(amp, period))
+    lines = _lines(cell)
+    _n, last, radius = lines[-1]
+    assert last[2] == pytest.approx(min(c[1][2] for c in lines))
+    assert last[5] == pytest.approx(POSE0[5]) and radius == 0.0
+    assert all(r > 0 for _n, _p, r in lines[:-1])                          # 나머지는 이어 붙인다
+
+
+def test_cup_strokes_blend_capped_and_c_wraps():
+    """이어 붙이는 거리는 한 획의 45 % 이하 · c 는 −180~180 으로 감는다."""
+    pts = wipe.cup_strokes([0, 0, 100, 0, 180, 170.0], 2.0, 18.0, 2, 5.0)
+    assert pts[0][1] == pytest.approx(2 * 2.0 * 0.45)
+    assert pts[0][0][5] == pytest.approx(-172.0)                           # 170 + 18 = 188 → −172
+
+
+def test_insert_depth_capped_at_brush_length():
+    """끝점이 실제 바닥보다 높아 gap 보다 더 내려가도 솔 길이(95)보다 더 들어갔다고 하지 않는다(9/21 Virtual 125 mm)."""
+    p = CFG['f3']['wipe_cup']
+    assert wipe.insert_depth(p, 38.0) == pytest.approx(95.0)
+    assert wipe.insert_depth(p, 8.0) == pytest.approx(93.0)
 
 
 def test_cup_stroke_shrinks_so_brush_stays_in(cell):
     """얕게 들어갔으면 솔이 컵 밖으로 나오지 않게 진폭을 줄인다."""
-    cell.depth = 2.0                                                       # 8 mm 일찍 막힘 → 95 − 8 = 87... 을 더 줄여 본다
+    cell.depth = 2.0
     CFG['f3']['wipe_cup']['tool']['clean_h_mm'] = 40.0                     # 짧은 솔이라 치고
     CFG['f3']['wipe_cup']['insert_min_mm'] = 10.0
     try:
@@ -228,9 +245,9 @@ def test_cup_stroke_shrinks_so_brush_stays_in(cell):
     finally:
         CFG['f3']['wipe_cup']['tool']['clean_h_mm'] = 95
         CFG['f3']['wipe_cup']['insert_min_mm'] = 85.0
-    _n, amp, _p, _r, _ref = [c for c in cell.calls if c[0] == 'periodic'][0]
+    zs = [c[1][2] for c in _lines(cell)]
     inserted = 40.0 - (10.0 - 2.0)                                         # 32 mm 들어감
-    assert amp[2] == pytest.approx((inserted - 2.0 - 10.0) / 2)            # (들어간 길이 − lift − keep_in)/2 = 10
+    assert max(zs) - min(zs) == pytest.approx(inserted - 2.0 - 10.0)       # 2 × (들어간 길이 − lift − keep_in)/2 = 20
 
 
 def test_cup_blocked_before_bottom_is_force_limit(cell):
@@ -242,7 +259,7 @@ def test_cup_blocked_before_bottom_is_force_limit(cell):
     finally:
         CFG['f3']['wipe_cup']['insert_min_mm'] = 85.0
     assert not r.ok and r.code == FORCE_LIMIT
-    assert 'periodic' not in [c[0] for c in cell.calls]                    # 문지르지 않는다
+    assert 'line' not in [c[0] for c in cell.calls]                    # 문지르지 않는다
     assert r.insert_depth_mm == pytest.approx(95.0 - 9.0)                  # 어디까지 들어갔는지는 돌려준다
 
 
@@ -250,7 +267,7 @@ def test_cup_no_bottom_found_is_error(cell):
     cell.depth = 40.0                                                      # find_max_mm 까지 내려가도 못 찾음
     r = wipe.wipe_cup()
     assert not r.ok and r.code == ROBOT_ERROR
-    assert 'periodic' not in [c[0] for c in cell.calls]
+    assert 'line' not in [c[0] for c in cell.calls]
 
 
 def test_cup_press_over_limit_is_force_limit(cell):

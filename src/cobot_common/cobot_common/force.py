@@ -6,7 +6,8 @@
     cc.force_on('z', target=4.0, limit=10.0) → (닦기) → cc.force_off() → cc.safe_retreat()
     cc.move_spiral(rev=2.8, rmax_mm=14, time_s=3) → while not cc.motion_done(): (힘 확인)   # 바닥 나선 (비동기)
     cc.move_arc(mid, end, vel_mm_s=180, vel_deg_s=400, radius_mm=3)                        # 벽면 원호 (이어 붙임)
-    cc.move_periodic([0,0,15,0,0,45], [0,0,1,0,0,1], repeat=5)                             # 위아래 + 비틀기 동시 (비동기)
+    cc.move_line(pose, vel_mm_s=80, vel_deg_s=72, radius_mm=5)                              # 컵 위아래 + 비틀기 (이어 붙임)
+    cc.move_periodic([0,0,15,0,0,0], [0,0,1,0,0,0], repeat=5)                               # 왕복 (비동기) — 🚨 회전 진폭은 쓰지 않는다
 
 약속
 - 좌표계는 BASE. axis 는 'x'·'y'·'z'. target·limit·min·max 는 **양수 크기(N)** 이고, 누르는 방향(−axis)은 여기서 붙인다.
@@ -14,7 +15,7 @@
     cell.limits : safe_z_mm · timeout_s
     cell.force  : compliance_stx · contact_step_mm · contact_vel_mm_s · contact_acc_mm_s2 ·
                   retreat_vel_mm_s · retreat_acc_mm_s2 · force_max_n · search_y_period_ratio   (이슈 #7 ①, 키 골격 황인재)
-    cell.motion : 이동 속도 상한 — move_rel · move_arc 가 읽는다
+    cell.motion : 이동 속도 상한 — move_rel · move_arc · move_line 이 읽는다
 - 실행 인자 cfg()['run']['vel_scale'](0 초과 1 이하, 첫 실기 0.3)를 이동 속도에 곱한다 — 하강·후퇴 속도, 탐색은 주기를 나눠 느리게.
 - 실패는 예외다: ForceLimitError(힘 상한) · MotionTimeout(시간 초과) · RuntimeError(두산 함수가 -1).
   기능 함수(f1·f3)가 받아서 FORCE_LIMIT · TIMEOUT · ROBOT_ERROR 코드로 바꾸고, 후퇴는 safe_retreat().
@@ -35,7 +36,7 @@ from .motion import is_paused, move_rel
 
 __all__ = ['force_on', 'force_off', 'force_release', 'force_reached', 'force_check', 'compliance_on', 'compliance_off',
            'contact_down', 'periodic_search', 'safe_retreat', 'read_force',
-           'where', 'motion_done', 'move_spiral', 'move_arc', 'move_periodic',
+           'where', 'motion_done', 'move_spiral', 'move_arc', 'move_line', 'move_periodic',
            'ForceLimitError', 'MotionTimeout']
 
 _AXES = ('x', 'y', 'z')
@@ -312,7 +313,10 @@ def move_periodic(amp, period, repeat, ref='TOOL', atime=None):
 
     amp · period 는 **[x, y, z, rx, ry, rz]** 6개. 길이 mm · 회전 deg · 주기 s.
     한 명령으로 **이동과 회전을 같이** 왕복한다(중급교육1 p.71 "일정한 진폭과 주기로 왕복 이동/회전 모션",
-    p.73~75 실습 50 mm/2 s · 15°/2 s · 축마다 다른 주기). 컵 닦기의 "위아래 + 좌우 비틀기 동시"가 이것이다.
+    p.73~75 실습 50 mm/2 s · 15°/2 s · 축마다 다른 주기).
+    🚨 9/21 Virtual: ref=TOOL 로 rz 진폭 18° 를 주면 **툴 축 비틀기가 아니라 4번 축이 ±18° 움직여 손목이 기운다**
+       (6번 축은 ±6° 뿐). rz 45°·주기 1 s 는 오류 없이 아예 안 움직였다. → **회전 비틀기는 move_line 으로**(컵 닦기),
+       여기서는 직선 왕복만 믿는다.
     🚨 어떤 축에 진폭을 주면 **같은 축의 주기도 줘야 한다**(반대도 마찬가지) — 빠지면 두산 오류 2.1218 (p.71~72).
     repeat = 왕복 횟수. 한 번 왕복하면 출발한 자리로 돌아온다(진폭은 편진폭 — 총 이동거리는 2배, p.71 그림).
     vel_scale < 1 이면 주기를 그만큼 늘려 느리게 한다(진폭은 그대로 — periodic_search 와 같은 방식).
@@ -331,6 +335,23 @@ def move_periodic(amp, period, repeat, ref='TOOL', atime=None):
     _ok(d.amove_periodic(amp=[float(v) for v in amp], period=[float(v) * slow for v in period],
                          atime=0.0 if atime is None else float(atime),
                          repeat=int(repeat), ref={'BASE': d.DR_BASE, 'TOOL': d.DR_TOOL}[ref]), 'amove_periodic')
+
+
+def move_line(pose, vel_mm_s, vel_deg_s, radius_mm=0.0):
+    """직선(Move L) — BASE 절대 자세 하나로. 회전(a·b·c)도 같이 간다. move_arc 의 직선판.
+
+    컵 닦기의 "위아래 + 좌우 비틀기"가 이것이다 — 자세의 z 와 c 만 바꾼 점을 이어 붙이면 솔이 오르내리며
+    **툴 축으로만** 비틀린다(그릇 벽면 원호의 c ±twist 와 같은 방식, 9/20 실기로 확인된 방식).
+    radius_mm > 0 이면 다음 모션으로 **이어 붙는다**(중급교육1 p.79 — Move L 은 중첩 가능). 0 이면 그 자리에 선다.
+    속도에는 vel_scale 을 곱하고, cell.motion 의 100 % 기준을 넘지 못한다.
+    """
+    d = dsr()
+    s = _vel_scale()
+    top_v, top_a = float(_cell_key('motion', 'vel_tcp_max_mm_s')), float(_cell_key('motion', 'acc_tcp_max_mm_s2'))
+    vel = [min(_positive('vel_mm_s', vel_mm_s) * s, top_v * s), _positive('vel_deg_s', vel_deg_s) * s]
+    acc = [top_a * s, top_a * s]
+    _ok(d.movel([float(v) for v in pose], vel=vel, acc=acc,
+                radius=float(radius_mm), ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS), 'movel')
 
 
 def move_arc(mid, end, vel_mm_s, vel_deg_s, radius_mm=0.0):
