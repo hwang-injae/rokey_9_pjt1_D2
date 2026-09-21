@@ -49,6 +49,12 @@ ROUTE = [
     ('HOME', True, None, None), ('TOOL_BRUSH', True, None, 'return'), ('SPONGE_BED_C', False, None, 'regrip'),
     ('RINSE', True, 'CUP', None), ('HOME', True, None, None), ('RACK_C1', True, None, None),
     ('HOME', False, None, None), ('RACK_C2', True, None, None), ('HOME', False, None, None),
+    # 35~42: 공정 한 바퀴에는 안 나오지만 **티칭한 뒤 확인해야 하는** 자세들. 앞 번호가 밀리지 않게 **맨 뒤에** 붙인다.
+    #   SOAP 은 원래 툴을 쥔 채 가는 자리다 — 여기서는 자리·경로만 보므로 빈손으로 가도 된다(TCP 위치는 같다).
+    ('SOAP', True, 'BOWL', None), ('HOME', True, None, None),
+    ('SOAP', True, 'CUP', None), ('HOME', True, None, None),
+    ('ISOLATE', True, 'BOWL', None), ('HOME', False, None, None),
+    ('ISOLATE', True, 'CUP', None), ('HOME', False, None, None),
 ]
 # 아직 안 찍은 자세 — 움직이지 않고 KeyError 여야 한다
 UNTAUGHT = [('SOAP', 'BOWL', None), ('SOAP', 'CUP', None),
