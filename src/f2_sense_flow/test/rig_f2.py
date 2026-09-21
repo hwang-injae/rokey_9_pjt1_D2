@@ -7,6 +7,12 @@
     soc && python3 src/f2_sense_flow/test/rig_f2.py dip --kind CUP
     python3 src/f2_sense_flow/test/rig_f2.py weigh --no-robot             # 브링업 없이 반환만 확인
 
+용기를 쥐는 것부터 (V-02·V-07·V-16 은 전부 '쥔 상태' 에서 시작한다):
+    python3 src/f2_sense_flow/test/rig_f2.py release                      # ① 연다 (+ 힘 기준을 맞춘다)
+    (손으로 용기를 그리퍼 사이에 대 준다)
+    python3 src/f2_sense_flow/test/rig_f2.py grip --kind BOWL             # ② cell.yaml 프리셋으로 쥔다
+    → 같은 터미널이 아니어도 된다. 그리퍼는 프로그램이 끝나도 쥔 채로 남는다
+
 준비(손으로): 용기를 그리퍼에 쥐여 준다. weigh 시험은 100 g·200 g 추(TC-03).
 같은 함수를 연속 3회 이상 부른다(SDD §3.2 ⑧ — "첫 번째만 되는" 결함은 한 번으로는 안 보인다).
 
@@ -26,8 +32,9 @@ from f2_sense_flow import sense
 
 def main():
     ap = argparse.ArgumentParser(description='F2 단독 시험')
-    ap.add_argument('which', choices=['empty', 'weigh', 'loop', 'shake', 'dip'],
-                    help="empty = 빈 용기 기준값 측정(params.yaml f2.empty_weight_g 에 넣을 값)")
+    ap.add_argument('which', choices=['empty', 'weigh', 'loop', 'shake', 'dip', 'grip', 'release'],
+                    help="empty = 빈 용기 기준값 측정(params.yaml f2.empty_weight_g 에 넣을 값) · "
+                         "grip·release = 용기를 쥐고/놓는다(팔은 안 움직인다)")
     ap.add_argument('-n', type=int, default=3, help='연속 호출 횟수 (3 이상)')
     ap.add_argument('--kind', default='BOWL', choices=['BOWL', 'CUP'], help='용기 종류 (IRD §2)')
     ap.add_argument('--mode', default='WASTE', choices=['WASTE', 'RINSE'], help='shake 모드')
@@ -37,6 +44,11 @@ def main():
     ap.add_argument('--no-robot', action='store_true',
                     help='두산 드라이버 없이 (브링업 없이 함수 반환만 확인)')
     a = ap.parse_args()
+
+    if a.which in ('grip', 'release'):
+        if a.no_robot:
+            sys.exit('grip·release 는 실기에서만 됩니다 — 진짜 그리퍼가 있어야 합니다.')
+        return _hold_container(a)
 
     if a.which == 'empty':
         if a.no_robot:
@@ -64,6 +76,57 @@ def main():
             log.info(f'{i + 1}/{a.n} {a.which} → {fn()}')
     finally:
         cc.shutdown()                                # ③ 끝낼 때 (Ctrl+C 포함)
+
+
+def _close_target(kind, preset):
+    """그 종류에 맞는 **닫는 목표 폭**(드라이버 값 — 영점 포함)을 고른다.
+
+    · CUP  : 🚨 9/21 결정 E19 — 정해진 폭(`grip_target_mm`)까지 **만** 닫고 멈춘다.
+             끝까지 닫으면 RG2 최저 힘 5 N 으로도 컵이 눌린다(20 N 에서는 안전 스위치가 걸렸다).
+             대가로 빈손과 구분이 안 되므로 **파지 확인을 하지 않는다**.
+    · BOWL : SDD §5.2 — 기대 폭보다 `2 × 허용오차` 만큼 **작게** 준다.
+             기대 폭을 그대로 주면 **빈손으로도 그 폭에서 멈춰** 쥔 것처럼 보인다.
+    """
+    zero = float(preset.get('grip_zero_mm') or 0.0)          # 결정 E16 D-A — 명령에는 영점을 더한다
+    if kind == 'CUP':
+        target = preset.get('grip_target_mm')
+        if target is None:
+            raise KeyError('cell.presets.CUP.grip_target_mm 이 없다 — 결정 E19 의 고정 폭이다')
+        return float(target), '고정 폭(E19) — 파지 확인 안 함'
+    expect = float(preset['grip_width_mm'])
+    tol = float(preset['width_tol_mm'])
+    return zero + max(0.0, expect - 2 * tol), f'영점 {zero:.2f} + 기대 {expect:.2f} − 2 × 허용오차 {tol:.2f}'
+
+
+def _hold_container(a):
+    """용기를 쥔다(grip) / 놓는다(release). 🚨 팔은 움직이지 않는다 — 그리퍼만."""
+    cc.init('rig_f2', robot=True)
+    log = cc.io_node().get_logger()
+    try:
+        if a.which == 'release':
+            cc.release()                             # 열기 + (첫 호출이면) 힘 기준 맞추기
+            log.info('열었다 — 용기를 그리퍼 사이에 대 준 뒤 `grip --kind …` 를 부르세요')
+            return
+
+        preset = cc.cfg()['cell']['presets'][a.kind]
+        target, why = _close_target(a.kind, preset)
+        force = float(preset['grip_force_n'])
+        log.info(f'{a.kind} 쥐기 — 목표 {target:.2f} mm ({why}) · {force:.1f} N')
+        got = cc.grip(target, force)
+        log.info(f'  실제 폭 {got:.2f} mm')
+
+        if a.kind == 'CUP':                          # E19 — 폭으로 판정하지 않기로 한 자리
+            log.warn('  컵은 파지 확인을 하지 않는다(E19) — 눈으로 보고, 살짝 당겨 보세요')
+            return
+        zero = float(preset.get('grip_zero_mm') or 0.0)
+        net, tol = got - zero, float(preset['width_tol_mm'])
+        log.info(f'  영점 뺀 폭 {net:.2f} mm (기대 {preset["grip_width_mm"]:.2f} ± {tol:.2f})')
+        if abs(got - target) < 0.3:
+            log.error('  🚨 목표에 그대로 도달했다 — **빈손도 이렇게 보인다.** 용기가 안 물렸는지 보세요')
+        elif abs(net - float(preset['grip_width_mm'])) > tol:
+            log.warn('  🚨 기대 폭에서 벗어났다 — 대 준 자리·높이를 확인하세요')
+    finally:
+        cc.shutdown()                                # 🚨 그리퍼는 쥔 채로 남는다(의도한 것)
 
 
 def _measure_empty(a):
