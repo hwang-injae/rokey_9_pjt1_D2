@@ -5,11 +5,14 @@ flow_node(메인 프로그램)나 test/rig_f3.py 가 cobot_common.init() 뒤 **�
 Result.fail(code) 로 돌려준다. 숫자는 전부 params.yaml 의 f3 절 · cell.yaml 에서 읽는다(AGENTS 규칙 6).
 
 시작 전제: 용기는 스펀지 홈에 안착돼 있고(F1 place) 툴을 쥔 상태(F1 tool PICK).
-끝난 뒤: 툴을 쥔 채 안전 높이. 툴 반납·재파지는 flow 가 F1 을 부른다.
+🔸 닦기(wipe_bowl·wipe_cup)는 **언제나 초기자세 HOME(관절 0·0·90·0·90·0)에서 시작해 HOME 으로 끝난다**(박진용 9/21).
+   그릇은 HOME 바로 아래라 그 자리에서 내려가고, 컵은 HOME 에서 z +40 → y +140 → z −40 으로 컵 위에 간다.
+   돌아올 때는 곧게 올린 뒤 그 반대로 — 초기자세 높이에서 옆으로 바로 가면 솔이 컵에 걸린다.
+끝난 뒤: 툴을 쥔 채 HOME. 툴 반납·재파지는 flow 가 F1 을 부른다.
 
 🔸 툴 파지 기준(9/20 확정): 수세미·솔 모두 세척부 위에 손잡이가 있고, **그리퍼 끝을 세척부 윗면에 닿게** 쥔다
    → 그리퍼 끝에서 툴 끝까지 = 세척부 높이 = params.yaml 의 f3.wipe_bowl.tool.clean_h_mm(수세미 35) · f3.wipe_cup.tool.clean_h_mm(솔 95).
-   내려가는 거리·삽입 깊이·닦는 반경은 이 값과 cell.yaml 좌표로 계산한다 — 길이를 코드에 적지 않는다.
+   빠른 하강 길이(fast_down_mm, 9/21 실측)·닦는 반경은 params.yaml 에서 읽는다 — 길이를 코드에 적지 않는다. 바닥은 힘으로 찾는다.
 
 wipe_bowl = F3-02 **고정 좌표 방식**(9/20 결정 E6 · SDD §5.4) · soap · wipe_cup = F3-03.
 🔸 그릇만 고정 좌표다 — 컵은 깊고 솔이 단단해 **삽입만 힘으로 찾는다**(contact_down), 문지르기는 위치 제어다.
@@ -25,8 +28,7 @@ import time
 import cobot_common as cc
 from cobot_api import FORCE_LIMIT, OK, ROBOT_ERROR, TIMEOUT, Result, WipeBowlResult, WipeCupResult
 
-STATION_BOWL = 'SPONGE_BED_B'        # 그릇 홈 (cell.beds) — 닦기 자세는 point='wash'
-STATION_CUP = 'SPONGE_BED_C'         # 컵 홈
+START = 'HOME'                       # 닦기의 시작·끝 = 초기자세 (cell.stations.HOME, 관절 0·0·90·0·90·0)
 
 _R_MIN_MM = 2.0                      # 나선 방향을 재기 시작하는 반지름 — 중심 근처에서는 각도가 튄다
 
@@ -79,7 +81,7 @@ def wipe_bowl() -> WipeBowlResult:
     """그릇 안쪽을 수세미로 닦는다 — F3-02. 코드 OK / FORCE_LIMIT / TIMEOUT / ROBOT_ERROR.
 
     **9/20 실기(V-03)로 확정한 절차 그대로**다(rig_v03.py · docs/test_logs/20260919_V-03_*). 괄호 안은 강의자료 근거.
-      ① cc.move_to('SPONGE_BED_B', point='wash') → 빠르게 내려간 뒤 **바닥을 힘으로 찾는다**(cc.contact_down)
+      ① 초기자세 HOME(그릇 바로 위) → fast_down_mm 빠르게 내려간 뒤 **바닥을 힘으로 찾는다**(cc.contact_down)
       ② **순응 ON** — 바닥을 찾은 그 자리에서. 더 누르지 않는다 (중급2: 목표 TCP 근처에서 켜는 것을 권장)
       ③ 바닥: **나선 한 번** — 중심에서 벽 반지름까지, 좌우 비틀기 없음, **힘제어는 켜지 않는다**
          (중급2 "힘 방향과 같은 방향의 모션 불가" — 나선은 툴 Z 축 모션이라 Z 힘제어와 같은 축이다.
@@ -89,7 +91,7 @@ def wipe_bowl() -> WipeBowlResult:
       ⑤ 벽면: 원호를 이어 붙여 **반대 방향 turns 바퀴** + 손목(6번 축) ±twist_deg 좌우 비틀기
          (이동이 X·Y 라 Z 힘제어와 함께 쓸 수 있다 — 중급2 폴리싱 예시)
          (중급1 p.79 중첩 가능한 모션은 Move L·C·J·JX — radius 를 줘야 멈추지 않고 이어진다)
-      ⑥ **힘제어만 OFF**(순응은 유지) → ⑦ 올리지 않고 그 높이에서 중심 복귀 → 순응 OFF → safe_retreat
+      ⑥ **힘제어만 OFF**(순응은 유지) → ⑦ 올리지 않고 그 높이에서 중심 복귀 → 순응 OFF → 곧게 올려 HOME
 
     🚨 **벽은 찾지 않는다**(결정 E6): 벽 반지름 = (bowl_inner_d_mm − tool.d_mm)/2 + wall_press_mm 로 계산한다.
        수세미가 로봇 순응보다 훨씬 물러 "못 따라간 거리"가 생기지 않고, 바닥 마찰(5~14 N)이 벽 신호(1~2 N)를 덮는다(V-03).
@@ -103,9 +105,12 @@ def wipe_bowl() -> WipeBowlResult:
     p = cc.cfg()['f3']['wipe_bowl']
     t0 = time.monotonic()
     log = _Log(p, t0)
+    trip = _Trip([])                                                     # 그릇은 HOME 바로 아래 — 옆으로 갈 것이 없다
     code, moved = ROBOT_ERROR, True                                      # moved=False → 정리할 때 로봇을 움직이지 않는다
     try:
-        _descend(p, log)                                                 # ① 빠른 접근 → 바닥 찾기
+        _halt_check('그릇 닦기 시작')
+        trip.go()                                                        # HOME
+        _descend(p, log)                                                 # ① 빠른 하강 → 바닥 찾기
         cc.compliance_on()                                               # ② 순응 ON (찾은 자리 그대로)
         _spiral(p, log)                                                  # ③ 바닥 나선 (힘제어 없이)
         log.target = float(p['target_force_n'])
@@ -125,7 +130,7 @@ def wipe_bowl() -> WipeBowlResult:
     except (RuntimeError, ValueError, KeyError):
         code = ROBOT_ERROR
     finally:
-        _off_and_retreat(moved)                                          # 힘을 끄고, 위치를 알 때만 안전 높이로
+        trip.back(moved)                                                 # 힘을 끄고, 위치를 알 때만 곧게 올려 HOME
     return WipeBowlResult(ok=(code == OK), code=code, force_log_path=log.save(),
                           duration_s=time.monotonic() - t0, force_mean_n=log.mean())
 
@@ -147,6 +152,50 @@ def _off_and_retreat(move=True):
     if not move:
         _warn('🚨 로봇이 어디 있는지 모른다 → 힘만 끄고 **움직이지 않았다**. '
               '티치펜던트로 상태를 확인하고 사람이 복구한다')
+
+
+def cup_hops(p):
+    """HOME → 컵 위 상대 이동 [(dx, dy, dz), ...] (BASE). 올라가서 옆으로 가서 내려온다 — 솔이 컵에 걸리지 않게."""
+    up, dy = float(p['over_cup_up_mm']), float(p['over_cup_dy_mm'])
+    return [(0.0, 0.0, up), (0.0, dy, 0.0), (0.0, 0.0, -up)]
+
+
+class _Trip:
+    """초기자세 HOME ↔ 닦는 자리 오가기. go() 로 가고, back() 으로 **간 만큼만** 거꾸로 돌아온다.
+
+    back: 힘·순응 끄기(언제나) → 닦는 자리에 닿았으면 그 높이까지 **곧게** 올린다(툴을 용기에서 뽑는다)
+          → 간 이동을 거꾸로 → HOME(관절). 🚨 move=False(로봇 위치를 모름, 결정 E11)면 힘만 끄고 움직이지 않는다.
+    """
+
+    def __init__(self, hops):
+        self.hops, self.done, self.spot_z = list(hops), [], None
+
+    def go(self):
+        cc.move_to(START, carrying=True)
+        for hop in self.hops:
+            cc.move_rel(*hop, 'BASE')
+            self.done.append(hop)
+        self.spot_z = cc.where()[2]                                      # 닦는 자리 위 높이 — 돌아올 때 여기까지 곧게 올린다
+
+    def back(self, move=True):
+        try:
+            cc.force_off()
+        except Exception:                                                # noqa: BLE001 — 복구는 끝까지
+            _warn('정리 실패: force_off — 눈으로 확인')
+        if not move:
+            _warn('🚨 로봇이 어디 있는지 모른다 → 힘만 끄고 **움직이지 않았다**. '
+                  '티치펜던트로 상태를 확인하고 사람이 복구한다')
+            return
+        try:
+            if self.spot_z is not None:
+                rise = self.spot_z - cc.where()[2]
+                if rise > 0:
+                    cc.move_rel(0.0, 0.0, rise, 'BASE')                  # 용기에서 곧게 뽑는다
+            for dx, dy, dz in reversed(self.done):
+                cc.move_rel(-dx, -dy, -dz, 'BASE')
+            cc.move_to(START, carrying=True)
+        except Exception:                                                # noqa: BLE001
+            _warn('정리 실패: HOME 복귀 — 눈으로 확인')
 
 
 def _info(msg):
@@ -208,16 +257,14 @@ class _Log:
 def _descend(p, log):
     """닦는 자리 위 → 빠르게 내려간 뒤 **바닥을 힘으로 찾는다**(9/20 실기에서 확인한 방식, 박진용 9/21 확정).
 
-    빠른 하강은 티칭한 끝점(cell.beds.SPONGE_BED_B.wash.posx 의 z = 9/20 실기로 잰 바닥) **find_gap_mm 위**까지.
-       나머지는 힘으로 찾는다 — 접촉 깊이가 실행마다 12~17 mm 로 달라 끝점 하나로는 맞출 수 없다.
+    빠른 하강은 초기자세 HOME 에서 **fast_down_mm 만큼**(9/21 실측 145 mm − 10). 바닥 위치는 미리 정하지 않는다 —
+       나머지는 힘으로 찾는다(접촉 깊이가 실행마다 12~17 mm 로 달랐다, 9/20).
     바닥 찾기는 cc.contact_down — 순응을 켜고 cell.force.contact_step_mm 씩 내려가며
     **시작 힘 대비** cell.limits.contact_limit_n 만큼 힘이 커지면 멈춘다(공중 치우침 1.4~2.4 N 때문에 절대값으로 보면 안 된다).
     찾은 자리에서 더 누르지 않는다. contact_down 이 끝나며 순응을 꺼 주므로 닦기는 위치 제어로 이어진다.
     """
-    _halt_check('닦는 자리 이동')
-    up = cc.move_to(STATION_BOWL, carrying=True, point='wash')           # 접근점까지 · up = 티칭 끝점까지 남은 높이
     log.start(cc.read_force())                                           # 공중 기준값은 **내려가기 전에** 잰다
-    fast = max(0.0, up - float(p['find_gap_mm']))                        # ① 빠르게 (바닥 find_gap_mm 위까지)
+    fast = float(p['fast_down_mm'])                                      # ① 빠르게 (정한 길이만큼)
     if fast > 0:
         cc.move_rel(0.0, 0.0, -fast, 'BASE')
     depth, f = cc.contact_down(float(p['find_max_mm']),                   # ② 나머지는 힘으로
@@ -330,7 +377,8 @@ def wipe_cup() -> WipeCupResult:
     """컵 안을 솔로 닦는다 — F3-03. 코드 OK / FORCE_LIMIT / TIMEOUT / ROBOT_ERROR.
 
     9/21 확정 시나리오. 괄호 안은 강의자료 근거.
-      ① 컵 위 → **바닥 fast_gap_mm 위까지 빠르게** 내려간다
+      ⓪ 초기자세 HOME → z +over_cup_up_mm → y +over_cup_dy_mm → z −over_cup_up_mm (컵 위, 솔이 컵에 걸리지 않게)
+      ① 거기서 **fast_down_mm 만큼 빠르게** 내려간다(9/21 실측 90 mm − 10). 바닥 위치는 미리 정하지 않는다
       ② **바닥을 찾는다** — cc.contact_down(순응 ON, 조금씩 하강, insert_limit_n)
          (중급2 "힘 방향과 같은 방향의 모션 불가" — Z 힘제어로는 내려갈 수 없다. 순응 + 걸음 하강이 매뉴얼 방식)
       ③ 바닥을 찾으면 **힘을 풀고**(contact_down 이 해제한다) lift_mm 만 띄운다 — 왕복의 아래쪽 끝
@@ -339,12 +387,13 @@ def wipe_cup() -> WipeCupResult:
          그릇 벽면 원호의 c ±twist(9/20 실기)와 같은 방식이다.
          🚨 Move Periodic 의 회전 진폭은 쓰지 않는다 — 9/21 Virtual 에서 툴 축이 아니라 4번 축이 돌아 손목이 기울었다
       ⑥ cycles 번 오르내린 뒤 **아래쪽 끝에서 손목을 제자리(c)로 돌려놓고 끝낸다**(사용자 시나리오 6)
-      ⑦ safe_retreat — 솔을 컵에서 곧게 뽑는다. HOME 복귀는 flow 가 부른다
+      ⑦ 솔을 컵에서 곧게 뽑아 컵 위 높이로 → z +40 → y −140 → z −40 → HOME (⓪ 의 반대)
 
     🚨 그릇(고정 좌표, 결정 E6)과 달리 컵은 **바닥을 힘으로 찾는다** — 컵이 깊고(95 mm) 솔이 단단해
        높이가 어긋나면 바로 세게 박히고, 그릇과 달리 물러서 완충해 줄 것이 없다.
     🔸 솔 세척부 길이 = 컵 내부 높이(둘 다 95 mm, CELL-02a) → 바닥에 닿으면 세척부가 통째로 들어가고
-       그리퍼 끝은 컵 입구와 나란하다. 그래서 **삽입 깊이는 솔 길이 기준으로 센다**(내려온 거리가 아니다).
+       그리퍼 끝은 컵 입구와 나란하다 → 왕복 진폭은 솔 길이 기준으로 줄인다. 돌려주는 insert_depth_mm 은
+       **컵 위에서 바닥까지 내려간 거리**(빠른 하강 + 찾기)다 — 잰 값이다.
     🚨 왕복은 **순응·힘제어를 끈 상태**로 한다(시나리오 3 "힘 풀기") — 명령한 진폭이 실제 진폭이어야 한다.
        안전은 힘 감시가 맡는다: 누르는 힘 limit_n · 옆 힘 lateral_max_n · duration_s · 힘 로그.
     위아래 40 mm(stroke 20 × 2) · 비틀기 ±18°(그릇 벽면과 같게)는 9/21 박진용 확정. 속도는 V-10(실기)에서 본다.
@@ -353,29 +402,22 @@ def wipe_cup() -> WipeCupResult:
     limits = cc.cfg()['cell']['limits']
     t0 = time.monotonic()
     log = _Log(p, t0)
+    trip = _Trip(cup_hops(p))
     code, depth, moved = ROBOT_ERROR, 0.0, True
     try:
-        _halt_check('컵 닦는 자리 이동')
-        up = cc.move_to(STATION_CUP, carrying=True, point='wash')
+        _halt_check('컵 닦기 시작')
+        trip.go()                                                        # ⓪ HOME → 컵 위
         log.start(cc.read_force())                                       # 공중 기준값은 내려가기 전에
-        z_top = cc.where()[2]
-        gap = float(p['fast_gap_mm'])
-        if up - gap > 0:
-            cc.move_rel(0.0, 0.0, -(up - gap), 'BASE')                   # ① 바닥 gap 위까지 빠르게
+        fast = float(p['fast_down_mm'])
+        cc.move_rel(0.0, 0.0, -fast, 'BASE')                             # ① 정한 길이만큼 빠르게
         found, _f = cc.contact_down(float(p['find_max_mm']), limits['insert_limit_n'])   # ② 바닥 찾기
         log.center = cc.where()
-        # 🔸 삽입 깊이 = **솔이 컵 안에 들어간 길이**다 — 접근점에서 내려온 거리가 아니다(컵 위 빈 공간이 섞인다).
-        #    솔 세척부 길이 = 컵 내부 높이 이므로(CELL-02a), 바닥에 닿으면 세척부가 통째로 들어간 것이고
-        #    gap 을 다 내려가기 전에 막혔으면 그만큼 덜 들어간 것이다.
-        depth = insert_depth(p, found)
-        _info(f'wipe_cup 바닥: 솔이 {depth:.1f} mm 들어갔다 (찾기 구간 {found:.1f} / {gap:g} mm) '
-              f'· 실제 Z {log.center[2]:.1f} mm (접근점에서 {z_top - log.center[2]:.1f} mm 하강)')
+        depth = fast + found                                             # 컵 위에서 바닥까지 내려간 거리 (잰 값)
+        _info(f'wipe_cup 바닥: 빠르게 {fast:.0f} mm + 찾기 {found:.1f} mm (최대 {p["find_max_mm"]:g}) '
+              f'= {depth:.1f} mm · 실제 Z {log.center[2]:.1f} mm')
         if found >= float(p['find_max_mm']) - 0.5:                       # 끝까지 내려가도 바닥이 없다
             raise RuntimeError(f'wipe_cup: {p["find_max_mm"]:g} mm 를 내려가도 바닥을 못 찾았다 — 컵·좌표 확인')
-        if depth < float(p['insert_min_mm']):                            # 바닥에 닿기 전에 막혔다
-            raise cc.ForceLimitError(f'wipe_cup: 솔이 {depth:.1f} mm 밖에 못 들어갔다 '
-                                     f'(최소 {p["insert_min_mm"]:g} mm) — 컵이 제자리인지·솔에 걸리는 것이 없는지 확인')
-        _scrub_cup(p, log, depth)                                        # ③④⑤⑥
+        _scrub_cup(p, log)                                               # ③④⑤⑥
         code = OK
     except (cc.MotionHalted, cc.MoveIncomplete):                         # 로봇 위치를 모른다 → 올린다
         moved = False
@@ -387,24 +429,17 @@ def wipe_cup() -> WipeCupResult:
     except (RuntimeError, ValueError, KeyError):
         code = ROBOT_ERROR
     finally:
-        _off_and_retreat(moved)                                          # ⑦ 힘 끄고, 위치를 알 때만 컵 밖으로 곧게
+        trip.back(moved)                                                 # ⑦ 힘 끄고, 위치를 알 때만 곧게 뽑아 ⓪ 의 반대로 HOME
     return WipeCupResult(ok=(code == OK), code=code, force_log_path=log.save(),
                          duration_s=time.monotonic() - t0, insert_depth_mm=depth)
 
 
-def insert_depth(p, found):
-    """솔이 컵 안에 들어간 길이 — 솔 세척부 길이가 상한이다(솔 95 = 컵 깊이 95, CELL-02a).
+def cup_stroke(p):
+    """위아래 편진폭(mm). 꼭대기(바닥 + lift + 2 × stroke)에서도 솔이 keep_in_mm 은 컵 안에 남게 줄인다.
 
-    clean_h − (fast_gap − 찾은 거리). 끝점이 실제 바닥보다 높으면 찾은 거리가 gap 보다 길어지는데,
-    그렇다고 솔이 세척부보다 더 들어가지는 않는다(9/21 Virtual: 끝점 28 mm 높음 → 125 mm 로 잘못 나왔다).
+    바닥에서는 솔 세척부가 통째로 컵 안에 있다(솔 95 = 컵 깊이 95, CELL-02a) → 들어간 길이 = clean_h_mm.
     """
-    clean = float(p['tool']['clean_h_mm'])
-    return max(0.0, min(clean, clean - (float(p['fast_gap_mm']) - found)))
-
-
-def cup_stroke(p, depth):
-    """위아래 편진폭(mm). 꼭대기(바닥 + lift + 2 × stroke)에서도 솔이 keep_in_mm 은 컵 안에 남게 줄인다."""
-    room = max(0.0, depth - float(p['lift_mm']) - float(p['keep_in_mm']))
+    room = max(0.0, float(p['tool']['clean_h_mm']) - float(p['lift_mm']) - float(p['keep_in_mm']))
     return min(float(p['stroke_mm']), room / 2.0)
 
 
@@ -428,14 +463,14 @@ def cup_strokes(low, stroke, twist_deg, cycles, blend_mm):
     return pts
 
 
-def _scrub_cup(p, log, depth):
+def _scrub_cup(p, log):
     """③ lift 만 띄우고 → ④⑤ 위아래 바운스 + 좌우 비틀기(직선 이어 붙이기) → ⑥ 아래쪽 끝에서 끝낸다.
 
     왕복의 가장 낮은 자리가 바닥 + lift — 바닥을 찧지 않는다. 꼭대기는 바닥 + lift + 2 × stroke.
     """
-    stroke = cup_stroke(p, depth)
+    stroke = cup_stroke(p)
     if stroke <= 0:
-        raise RuntimeError(f'wipe_cup: 깊이 {depth:.1f} mm 로는 왕복할 자리가 없다 — 좌표·설정 확인')
+        raise RuntimeError('wipe_cup: 솔 길이로는 왕복할 자리가 없다 — f3.wipe_cup 설정 확인')
     _halt_check('왕복 문지르기')
     cc.move_rel(0.0, 0.0, float(p['lift_mm']), 'BASE',                    # ③ 왕복의 아래쪽 끝으로
                 vel_mm_s=float(p['lift_vel_mm_s']) * _scale())

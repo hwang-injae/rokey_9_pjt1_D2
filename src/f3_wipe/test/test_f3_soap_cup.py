@@ -19,7 +19,8 @@ CFG = {
         'soap': {'depth_mm': 40.0, 'hold_s': 0.0, 'vel_mm_s': 80.0, 'log_dir': 'logs/f3'},
         'wipe_cup': {
             'tool': {'clean_h_mm': 95, 'd_mm': 55},
-            'fast_gap_mm': 10.0, 'find_max_mm': 40.0, 'insert_min_mm': 85.0,
+            'over_cup_up_mm': 40.0, 'over_cup_dy_mm': 140.0,
+            'fast_down_mm': 80.0, 'find_max_mm': 40.0,
             'lift_mm': 2.0, 'lift_vel_mm_s': 40.0,
             'stroke_mm': 20.0, 'twist_deg': 18.0,
             'lin_vel_mm_s': 80.0, 'rot_vel_deg_s': 72.0, 'blend_radius_mm': 5.0,
@@ -64,7 +65,7 @@ class FakeCell:
         return self.up
 
     def move_rel(self, dx, dy, dz, frame, **kw):
-        self.calls.append(('move_rel', round(dz, 1), round(kw.get('vel_mm_s') or 0.0, 1)))
+        self.calls.append(('move_rel', round(dz, 1), round(kw.get('vel_mm_s') or 0.0, 1), round(dy, 1)))
         self.pose = [self.pose[0] + dx, self.pose[1] + dy, self.pose[2] + dz] + self.pose[3:]
 
     def move_line(self, pose, vel_mm_s, vel_deg_s, radius_mm=0.0):
@@ -167,21 +168,50 @@ def test_soap_halt_does_not_auto_move(cell):
 
 
 # ------------------------------------------------------------------ wipe_cup
-# 삽입 깊이 = 솔 길이 95 − (fast_gap 10 − 실제로 찾은 거리). 가짜는 8 mm 에서 바닥을 만나니 95 − 2 = 93 mm.
-DEPTH = 95.0 - (10.0 - 8.0)
+# 돌려주는 insert_depth_mm = 컵 위에서 바닥까지 내려간 거리 = 빠른 하강 80 + 찾기 8 (가짜는 8 mm 에서 바닥).
+DEPTH = 80.0 + 8.0
+TO_CUP = [(40.0, 0.0), (0.0, 140.0), (-40.0, 0.0)]                         # HOME → 컵 위 (dz, dy)
+
+
+def _rels(calls):
+    return [(c[1], c[3]) for c in calls if c[0] == 'move_rel']
+
+
+def _split(cell):
+    """(닦기까지의 호출, 마지막 force_off 부터의 정리 호출)."""
+    i = max(k for k, c in enumerate(cell.calls) if c[0] == 'force_off')
+    return cell.calls[:i], cell.calls[i:]
+
+
+def test_cup_starts_at_home_and_goes_up_over_down(cell):
+    """⓪ 초기자세 HOME → z +40 → y +140 → z −40 — 솔이 컵에 걸리지 않게(박진용 9/21)."""
+    wipe.wipe_cup()
+    assert cell.calls[0][:2] == ('move_to', 'HOME')
+    assert _rels(cell.calls)[:3] == TO_CUP
+
+
+def test_cup_returns_up_then_reverse_to_home(cell):
+    """⑦ 솔을 곧게 뽑아 컵 위 높이 → z +40 → y −140 → z −40 → HOME. 컵 위 높이에서 옆으로 바로 가지 않는다."""
+    wipe.wipe_cup()
+    _work, back = _split(cell)
+    rels = _rels(back)
+    assert rels[0][1] == 0.0 and rels[0][0] > 0                            # 먼저 곧게 뽑는다
+    assert rels[1:] == [(40.0, 0.0), (0.0, -140.0), (-40.0, 0.0)]
+    assert back[-1][:2] == ('move_to', 'HOME')
+    assert cell.pose[2] == pytest.approx(POSE0[2] + 0.0)                   # 가짜 HOME 높이로 돌아왔다
 
 
 def test_cup_fast_then_finds_bottom_by_force(cell):
-    """① 바닥 fast_gap 위까지 빠르게 → ② 나머지는 힘으로 찾는다(시나리오 1·2)."""
+    """① 컵 위에서 fast_down_mm 만큼 빠르게 → ② 나머지는 힘으로 찾는다(시나리오 1·2)."""
     r = wipe.wipe_cup()
     assert r.ok and r.code == OK
     names = [c[0] for c in cell.calls]
-    fast = [c for c in cell.calls if c[0] == 'move_rel' and c[1] < 0][0]
-    assert fast[1] == pytest.approx(-(80.0 - 10.0))                        # up − fast_gap_mm
+    fast = [c for c in cell.calls if c[0] == 'move_rel' and c[1] < 0][1]   # [0] 은 컵 위로 내려오는 −40
+    assert fast[1] == pytest.approx(-80.0)                                 # fast_down_mm — 티칭 끝점(up)과 무관
     assert ('contact_down', 40.0, 5.0) in cell.calls                       # find_max_mm · insert_limit_n
     assert names.index('contact_down') < names.index('line')
-    assert r.insert_depth_mm == pytest.approx(DEPTH)                       # 솔이 컵에 들어간 길이 (내려온 거리가 아니다)
-    assert names[-2:] == ['force_off', 'safe_retreat']
+    assert r.insert_depth_mm == pytest.approx(DEPTH)                       # 잰 값 — 바닥 위치를 미리 정하지 않는다
+    assert cell.calls[-1][:2] == ('move_to', 'HOME')
 
 
 def _lines(cell):
@@ -191,9 +221,10 @@ def _lines(cell):
 def test_cup_lifts_only_lift_mm_then_bounces(cell):
     """③ lift 만 띄운 자리가 왕복의 아래쪽 끝 — 바닥을 찧지 않는다(시나리오 3)."""
     wipe.wipe_cup()
-    ups = [c for c in cell.calls if c[0] == 'move_rel' and c[1] > 0]
+    work, _back = _split(cell)
+    ups = [c for c in work if c[0] == 'move_rel' and c[1] > 0]
     assert ups[-1][1] == pytest.approx(2.0)                                # lift_mm 만
-    bottom = POSE0[2] - 70.0 - 8.0                                         # 빠른 하강 70 + 찾기 8
+    bottom = POSE0[2] - 80.0 - 8.0                                         # 빠른 하강 80 + 찾기 8
     zs = [c[1][2] for c in _lines(cell)]
     assert min(zs) == pytest.approx(bottom + 2.0)                          # 가장 낮은 자리 = 바닥 + lift
     assert max(zs) == pytest.approx(bottom + 2.0 + 40.0)                   # 위아래 40 mm (stroke 20 × 2)
@@ -205,7 +236,7 @@ def test_cup_only_z_and_twist_change(cell):
     lines = _lines(cell)
     assert len(lines) == 2 * 5                                             # cycles 5 번 오르내림
     for _n, pose, _r in lines:
-        assert pose[0:2] == POSE0[0:2] and pose[3:5] == POSE0[3:5]
+        assert pose[0:2] == [POSE0[0], POSE0[1] + 140.0] and pose[3:5] == POSE0[3:5]   # 컵 위 x·y 그대로
     twists = [round(pose[5] - POSE0[5], 6) for _n, pose, _r in lines]
     assert twists[:4] == [18.0, -18.0, 18.0, -18.0]                        # 올라가며 오른쪽 · 내려오며 왼쪽
     assert max(abs(t) for t in twists) == pytest.approx(18.0)              # 45° 같은 큰 각은 나오지 않는다
@@ -228,39 +259,23 @@ def test_cup_strokes_blend_capped_and_c_wraps():
     assert pts[0][0][5] == pytest.approx(-172.0)                           # 170 + 18 = 188 → −172
 
 
-def test_insert_depth_capped_at_brush_length():
-    """끝점이 실제 바닥보다 높아 gap 보다 더 내려가도 솔 길이(95)보다 더 들어갔다고 하지 않는다(9/21 Virtual 125 mm)."""
-    p = CFG['f3']['wipe_cup']
-    assert wipe.insert_depth(p, 38.0) == pytest.approx(95.0)
-    assert wipe.insert_depth(p, 8.0) == pytest.approx(93.0)
-
-
 def test_cup_stroke_shrinks_so_brush_stays_in(cell):
-    """얕게 들어갔으면 솔이 컵 밖으로 나오지 않게 진폭을 줄인다."""
-    cell.depth = 2.0
+    """짧은 솔이면 꼭대기에서도 솔이 컵 안에 남게 진폭을 줄인다."""
     CFG['f3']['wipe_cup']['tool']['clean_h_mm'] = 40.0                     # 짧은 솔이라 치고
-    CFG['f3']['wipe_cup']['insert_min_mm'] = 10.0
     try:
         wipe.wipe_cup()
     finally:
         CFG['f3']['wipe_cup']['tool']['clean_h_mm'] = 95
-        CFG['f3']['wipe_cup']['insert_min_mm'] = 85.0
     zs = [c[1][2] for c in _lines(cell)]
-    inserted = 40.0 - (10.0 - 2.0)                                         # 32 mm 들어감
-    assert max(zs) - min(zs) == pytest.approx(inserted - 2.0 - 10.0)       # 2 × (들어간 길이 − lift − keep_in)/2 = 20
+    assert max(zs) - min(zs) == pytest.approx(40.0 - 2.0 - 10.0)           # 2 × (솔 − lift − keep_in)/2 = 28
 
 
-def test_cup_blocked_before_bottom_is_force_limit(cell):
-    """바닥에 닿기 전에 막히면 — 솔이 덜 들어갔다는 뜻이다(내려온 거리와 무관)."""
-    cell.depth = 1.0                                                       # gap 10 중 1 mm 만에 막힘 → 95 − 9 = 86... 아래 참조
-    CFG['f3']['wipe_cup']['insert_min_mm'] = 90.0                          # 90 mm 는 들어가야 한다고 두면
-    try:
-        r = wipe.wipe_cup()
-    finally:
-        CFG['f3']['wipe_cup']['insert_min_mm'] = 85.0
-    assert not r.ok and r.code == FORCE_LIMIT
-    assert 'line' not in [c[0] for c in cell.calls]                    # 문지르지 않는다
-    assert r.insert_depth_mm == pytest.approx(95.0 - 9.0)                  # 어디까지 들어갔는지는 돌려준다
+def test_cup_bottom_found_early_still_scrubs_from_there(cell):
+    """바닥이 예상(실측 90)보다 가까워도 **찾은 자리**에서 닦는다 — 바닥 위치를 미리 정하지 않는다."""
+    cell.depth = 1.0
+    r = wipe.wipe_cup()
+    assert r.ok and r.insert_depth_mm == pytest.approx(80.0 + 1.0)
+    assert min(c[1][2] for c in _lines(cell)) == pytest.approx(POSE0[2] - 81.0 + 2.0)
 
 
 def test_cup_no_bottom_found_is_error(cell):
@@ -296,7 +311,7 @@ def test_cup_halt_does_not_auto_move(cell):
     cell.halted = True
     with pytest.raises(wipe.cc.MotionHalted):
         wipe.wipe_cup()
-    assert 'safe_retreat' not in [c[0] for c in cell.calls]
+    assert [c[0] for c in cell.calls] == ['force_off']                     # 끄기만 하고 움직이지 않는다
 
 
 def test_cup_logs_depth_and_saves_force_log(cell):

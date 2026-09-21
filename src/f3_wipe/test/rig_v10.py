@@ -11,17 +11,13 @@
 🚨 E-Stop 에 손을 두고 본다. 첫 실행은 반드시 `--stage find` 로 **바닥만** 찾아 보고 숫자를 확인한다.
 
 이 rig 가 확인하는 것 (V-10)
-  · 티칭 끝점(cell.beds.SPONGE_BED_C.wash) 대비 **실제 바닥이 어디인가** — 계산상 TCP Z 128 (아래 메모)
+  · 초기자세 HOME → z +40 → y +140 → z −40 으로 컵 위에 간 뒤 fast_down_mm(80) 빠르게 내려간 뒤 **힘으로 바닥을 찾는가** — 실측으로는 컵 위 ~ 바닥 90 mm
   · 솔이 얼마나 들어가는가 · 바닥에 닿을 때 힘이 어떻게 올라오는가
   · 위아래 40 mm + 좌우 비틀기 ±18°(9/21 확정)가 컵 안에서 괜찮은가 · 속도를 얼마로 할 것인가
     (직선 이어 붙이기 — wipe.cup_strokes 를 그대로 쓴다. Move Periodic 회전은 손목을 기울여서 버렸다, 9/21 Virtual)
   · 컵이 홈 안에서 딸려 올라오거나 도는가 (옆 힘으로 본다)
 
-🔸 끝점 계산 메모 (9/20 실기에서 나온 값으로 미리 계산한 것 — 내일 이 rig 로 확인한다)
-    그릇 + 수세미(35)로 바닥 접촉 시 TCP Z 68  →  용기 안 바닥 = 68 − 35 = 33
-    컵·그릇 모두 관통 구멍으로 작업대 바닥에 직접 놓인다  →  컵 안 바닥도 ≈ 33
-    솔(95)로 컵 바닥 접촉 시 TCP Z = 33 + 95 = **128**.  지금 티칭값 156.54 는 **28 mm 높다**.
-    그래서 f3.wipe_cup.find_max_mm 을 40 으로 두었다(끝점이 128 로 고쳐지면 25 로 줄여도 된다).
+🔸 바닥 위치는 미리 정하지 않는다 — 빠른 하강 길이만 정하고(9/21 실측 90 − 10), 나머지는 contact_down 이 찾는다.
 
 제품 코드와 같은 공용 함수(cc.*)만 쓴다 — 여기서 정한 값이 그대로 params.yaml 의 f3.wipe_cup 으로 간다.
 파일 이름이 test_* 가 아니라서 pytest 는 모으지 않는다.
@@ -36,9 +32,8 @@ import time
 
 import cobot_common as cc
 from cobot_common.bootstrap import dsr
-from f3_wipe.wipe import cup_stroke, cup_strokes, insert_depth
+from f3_wipe.wipe import _Trip, cup_hops, cup_stroke, cup_strokes
 
-STATION = 'SPONGE_BED_C'
 STAGES = ('find', 'lift', 'scrub')
 EXPECTED_TOOL, EXPECTED_TCP = 'Tool Weight', 'GripperDA_v1'
 AIR_FORCE_MAX_N = 5.0           # 멈춰 있는데 이보다 크면 툴 무게 설정이 틀린 것 (V-03 과 같은 검사)
@@ -125,7 +120,7 @@ def main() -> int:
 
     cc.init('rig_v10')                                                   # ① 맨 앞에서 한 번
     log = cc.io_node().get_logger()
-    code, started, rec, can_move = 1, False, None, True      # can_move=False → 정리할 때 로봇을 움직이지 않는다
+    code, started, rec, can_move, trip = 1, False, None, True, None     # can_move=False → 정리할 때 로봇을 움직이지 않는다
     try:
         p = dict(cc.cfg()['f3']['wipe_cup'])                             # 값의 정본은 params.yaml — 인자는 덮어쓰기만
         for key, val in (('cycles', a.cycles), ('stroke_mm', a.stroke),
@@ -142,36 +137,33 @@ def main() -> int:
         input('컵·솔 준비됐으면 엔터 → 이후 키보드에서 손을 떼고 E-Stop 에 손을 둔다 ')
         started = True
 
-        # ── ① 접근 → 바닥 찾기 ─────────────────────────────────────────────
-        up = cc.move_to(STATION, carrying=True, point='wash')
+        # ── ① HOME → 컵 위 → 정한 길이만큼 빠르게 → 바닥 찾기 ───────────────────
+        trip = _Trip(cup_hops(p))                                       # 제품 코드와 같은 길: HOME → z +40 → y +140 → z −40
+        trip.go()
         z_top = cc.where()[2]
         rec.zero()
-        gap = float(p['fast_gap_mm'])
-        fast = max(0.0, up - gap)
-        log.info(f'접근점 Z {z_top:.1f} · 끝점까지 {up:.1f} mm → 빠르게 {fast:.1f} mm (끝점 {gap:g} mm 위까지)')
-        if fast > 0:
-            cc.move_rel(0.0, 0.0, -fast, 'BASE')
+        fast = float(p['fast_down_mm'])
+        log.info(f'컵 위 Z {z_top:.1f} → 빠르게 {fast:g} mm 내려간 뒤 힘으로 찾는다')
+        cc.move_rel(0.0, 0.0, -fast, 'BASE')
         n0 = len(rec.rows)
         found, f_n = cc.contact_down(float(p['find_max_mm']), cc.cfg()['cell']['limits']['insert_limit_n'])
         z_bottom = cc.where()[2]
-        inserted = insert_depth(p, found)
         rec.watch('bottom')
         rec.summarize('bottom', n0)
-        log.info(f'🔸 바닥: TCP Z {z_bottom:.1f} (티칭 끝점 {z_top - up:.1f}, 차이 {z_bottom - (z_top - up):+.1f} mm) '
-                 f'· 찾기 {found:.1f}/{p["find_max_mm"]:g} mm · 접촉 힘 {f_n:.1f} N · 솔이 {inserted:.1f} mm 들어감')
+        log.info(f'🔸 바닥: TCP Z {z_bottom:.1f} · 빠르게 {fast:g} + 찾기 {found:.1f}/{p["find_max_mm"]:g} mm '
+                 f'= 컵 위에서 {z_top - z_bottom:.1f} mm (실측 90) · 접촉 힘 {f_n:.1f} N')
         if found >= float(p['find_max_mm']) - 0.5 and not virtual:
-            log.error('바닥을 못 찾았다 → 끝점이 너무 높거나 컵이 없다. find_max_mm 을 늘리거나 끝점을 고친다')
+            log.error('바닥을 못 찾았다 → 컵이 없거나 fast_down_mm 이 짧다. 확인 뒤 다시')
             return 1
-        log.info(f'   → 계산 예상은 TCP Z 128 이었다. 이 값을 cell.beds.{STATION}.wash.posx 의 z 로 올린다')
         if a.stage == 'find':
             code = 0
             return code
 
         # ── ② 힘 풀고 왕복의 아래쪽 끝으로 띄우기 ─────────────────────────────
         lift = float(p['lift_mm'])
-        stroke = cup_stroke(p, inserted)
+        stroke = cup_stroke(p)
         if stroke <= 0:
-            log.error(f'솔이 {inserted:.1f} mm 밖에 안 들어가 왕복할 자리가 없다')
+            log.error('솔 길이로는 왕복할 자리가 없다 — 설정 확인')
             return 1
         cc.move_rel(0.0, 0.0, lift, 'BASE', vel_mm_s=float(p['lift_vel_mm_s']) * scale)
         rec.watch('lift')
@@ -222,7 +214,7 @@ def main() -> int:
                 steps = [('힘·순응 끄기', cc.force_off)]
                 if can_move or not a.real:
                     steps += [('동작 끝 대기', lambda: dsr().mwait()),
-                              ('안전 높이로', cc.safe_retreat), ('HOME', lambda: cc.move_to('HOME', False))]
+                              ('곧게 뽑아 HOME 으로', lambda: trip.back(True) if trip else cc.move_to('HOME', True))]
                 for what, step in steps:
                     try:
                         step()
