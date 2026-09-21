@@ -47,7 +47,7 @@ def soap(count: int, kind: str = None) -> Result:
     if count < 0:
         return Result(ok=False, code=ROBOT_ERROR)
     t0 = time.monotonic()
-    code = ROBOT_ERROR
+    code, moved = ROBOT_ERROR, True
     try:
         _halt_check('세제 수조 이동')
         up = cc.move_to('SOAP', carrying=True, kind=kind)
@@ -63,14 +63,15 @@ def soap(count: int, kind: str = None) -> Result:
             time.sleep(float(p['hold_s']))
             cc.move_rel(0.0, 0.0, +depth, 'BASE', vel_mm_s=vel)          # 넣은 만큼 그대로 뺀다
         code = OK
-    except cc.MotionHalted:
+    except (cc.MotionHalted, cc.MoveIncomplete):                         # 로봇 위치를 모른다 → 올린다
+        moved = False
         raise
     except (cc.MotionTimeout, cc.MoveTimeout):
         code = TIMEOUT
     except (RuntimeError, ValueError, KeyError):
         code = ROBOT_ERROR
     finally:
-        _off_and_retreat()
+        _off_and_retreat(moved)
     return Result(ok=(code == OK), code=code)
 
 
@@ -102,7 +103,7 @@ def wipe_bowl() -> WipeBowlResult:
     p = cc.cfg()['f3']['wipe_bowl']
     t0 = time.monotonic()
     log = _Log(p, t0)
-    code = ROBOT_ERROR
+    code, moved = ROBOT_ERROR, True                                      # moved=False → 정리할 때 로봇을 움직이지 않는다
     try:
         _descend(p, log)                                                 # ① 빠른 접근 → 바닥 찾기
         cc.compliance_on()                                               # ② 순응 ON (찾은 자리 그대로)
@@ -114,7 +115,8 @@ def wipe_bowl() -> WipeBowlResult:
         log.target = 0.0
         _to_center(p, log)                                               # ⑦ 그 높이에서 중심으로
         code = OK
-    except cc.MotionHalted:                                              # 강제정지는 코드로 바꾸지 않는다 — flow 의 중단 흐름으로 (결정 E11)
+    except (cc.MotionHalted, cc.MoveIncomplete):                         # 로봇 위치를 모른다 → 코드로 바꾸지 않고 올린다
+        moved = False                                                    # (결정 E11 · MoveIncomplete 약속 — motion.py)
         raise
     except cc.ForceLimitError:
         code = FORCE_LIMIT
@@ -123,18 +125,28 @@ def wipe_bowl() -> WipeBowlResult:
     except (RuntimeError, ValueError, KeyError):
         code = ROBOT_ERROR
     finally:
-        _off_and_retreat()                                               # 끝나든 실패하든 힘을 끄고 안전 높이로
+        _off_and_retreat(moved)                                          # 힘을 끄고, 위치를 알 때만 안전 높이로
     return WipeBowlResult(ok=(code == OK), code=code, force_log_path=log.save(),
                           duration_s=time.monotonic() - t0, force_mean_n=log.mean())
 
 
-def _off_and_retreat():
-    """어떤 실패에서도 힘·순응을 끄고 안전 높이로 (AGENTS §4). 하나가 실패해도 다음을 시도한다."""
-    for step in (cc.force_off, cc.safe_retreat):
+def _off_and_retreat(move=True):
+    """힘·순응을 끄고(움직이지 않는다) → move 면 안전 높이까지 올린다 (AGENTS §4). 하나가 실패해도 다음을 시도한다.
+
+    🚨 move=False 는 **로봇이 어디 있는지 모를 때**다(MoveIncomplete · 강제정지).
+       9/21 08:40 실기에서 6번 관절이 163° 돌아 케이블이 꼬인 채 로봇이 섰는데, 그 상태에서 도구가
+       자동으로 HOME 으로 가려 했다(F4 가 rig_coords 에서 발견). 꼬인 채 움직이면 더 꼬이거나 부딪힌다.
+       힘·순응 해제는 모션이 아니라서 어느 경우에도 한다.
+    """
+    steps = [cc.force_off] + ([cc.safe_retreat] if move else [])
+    for step in steps:
         try:
             step()
         except Exception:                                                # noqa: BLE001 — 복구는 끝까지
-            _warn(f'wipe_bowl 정리 실패: {step.__name__} — 눈으로 확인')
+            _warn(f'정리 실패: {step.__name__} — 눈으로 확인')
+    if not move:
+        _warn('🚨 로봇이 어디 있는지 모른다 → 힘만 끄고 **움직이지 않았다**. '
+              '티치펜던트로 상태를 확인하고 사람이 복구한다')
 
 
 def _info(msg):
@@ -244,11 +256,11 @@ def _spiral(p, log):
                     log.sweep += _wrap(th - last_th)                     # 한 조각이 180° 미만이라 그대로 더하면 풀린다
                 last_th = th
         time.sleep(p['sample_s'])
-    moved = _radius(cc.where(), log.center)
-    _info(f'wipe_bowl 나선 끝: 반지름 {moved:.1f} mm (목표 {r_wall:.1f}) · '
+    r_seen = _radius(cc.where(), log.center)                             # (바깥 함수의 moved 와 헷갈리지 않게 다른 이름)
+    _info(f'wipe_bowl 나선 끝: 반지름 {r_seen:.1f} mm (목표 {r_wall:.1f}) · '
           f'돈 각도 {math.degrees(log.sweep):+.0f}° (목표 {rev * 360:.0f}°) → 벽면은 반대로 돈다')
-    if moved < r_wall * 0.5:                                             # 명령은 받았는데 돌지 않았다(9/20 실기 증상)
-        raise RuntimeError(f'나선이 돌지 않았다(실제 {moved:.1f} mm / 목표 {r_wall:.1f} mm) — '
+    if r_seen < r_wall * 0.5:                                            # 명령은 받았는데 돌지 않았다(9/20 실기 증상)
+        raise RuntimeError(f'나선이 돌지 않았다(실제 {r_seen:.1f} mm / 목표 {r_wall:.1f} mm) — '
                            '회전 수·시간 조합을 확인(중급1 p.69)')
 
 
@@ -340,7 +352,7 @@ def wipe_cup() -> WipeCupResult:
     limits = cc.cfg()['cell']['limits']
     t0 = time.monotonic()
     log = _Log(p, t0)
-    code, depth = ROBOT_ERROR, 0.0
+    code, depth, moved = ROBOT_ERROR, 0.0, True
     try:
         _halt_check('컵 닦는 자리 이동')
         up = cc.move_to(STATION_CUP, carrying=True, point='wash')
@@ -364,7 +376,8 @@ def wipe_cup() -> WipeCupResult:
                                      f'(최소 {p["insert_min_mm"]:g} mm) — 컵이 제자리인지·솔에 걸리는 것이 없는지 확인')
         _scrub_cup(p, log, depth)                                        # ③④⑤⑥
         code = OK
-    except cc.MotionHalted:
+    except (cc.MotionHalted, cc.MoveIncomplete):                         # 로봇 위치를 모른다 → 올린다
+        moved = False
         raise
     except cc.ForceLimitError:
         code = FORCE_LIMIT
@@ -373,7 +386,7 @@ def wipe_cup() -> WipeCupResult:
     except (RuntimeError, ValueError, KeyError):
         code = ROBOT_ERROR
     finally:
-        _off_and_retreat()                                               # ⑦ 힘 끄고 컵 밖으로 곧게
+        _off_and_retreat(moved)                                          # ⑦ 힘 끄고, 위치를 알 때만 컵 밖으로 곧게
     return WipeCupResult(ok=(code == OK), code=code, force_log_path=log.save(),
                          duration_s=time.monotonic() - t0, insert_depth_mm=depth)
 

@@ -122,7 +122,7 @@ def main() -> int:
 
     cc.init('rig_v10')                                                   # ① 맨 앞에서 한 번
     log = cc.io_node().get_logger()
-    code, started, rec = 1, False, None
+    code, started, rec, can_move = 1, False, None, True      # can_move=False → 정리할 때 로봇을 움직이지 않는다
     try:
         p = dict(cc.cfg()['f3']['wipe_cup'])                             # 값의 정본은 params.yaml — 인자는 덮어쓰기만
         for key, val in (('cycles', a.cycles), ('stroke_mm', a.stroke),
@@ -200,13 +200,17 @@ def main() -> int:
         rec.watch('end')
         log.info('아래쪽 끝에서 종료 → 솔을 곧게 뽑는다')
         code = 0
-    except cc.ForceLimitError as e:
+    except cc.ForceLimitError as e:                                      # 로봇은 정상 — 설계된 후퇴를 한다(AGENTS 규칙 2)
         log.error(f'🚨 힘 상한: {e} → 중단하고 후퇴한다')
     except KeyboardInterrupt:
         log.warning('Ctrl+C — 정리하고 끝낸다')
         code = 130
-    except Exception as e:                                               # 두산 DR_Error 포함
+    except (cc.MoveIncomplete, cc.MotionHalted) as e:                    # 🚨 로봇이 어디 있는지 모른다
         log.error(f'중단: {type(e).__name__}: {e}')
+        can_move = False
+    except Exception as e:                                               # 두산 DR_Error 포함 — 상태를 믿을 수 없다
+        log.error(f'중단: {type(e).__name__}: {e}')
+        can_move = False
     finally:
         import rclpy
         if started:
@@ -214,12 +218,21 @@ def main() -> int:
                 log.error('🚨 두산 오류로 ROS 가 꺼졌다 → 힘·순응이 켜진 채일 수 있다. 새 터미널에서 바로:\n'
                           '    soc && python3 src/cobot_common/test/release_force.py --home   (E-Stop 에 손)')
             else:
-                for what, step in (('힘·순응 끄기', cc.force_off), ('동작 끝 대기', lambda: dsr().mwait()),
-                                   ('안전 높이로', cc.safe_retreat), ('HOME', lambda: cc.move_to('HOME', False))):
+                # 🚨 9/21 08:40 실기: 6번 관절이 163° 돌아 케이블이 꼬인 채 로봇이 멈췄는데 시험 도구가
+                #    자동으로 HOME 으로 가려 했다(F4 가 rig_coords 8ae86d2 에서 발견·수정). 꼬인 채 움직이면 더 꼬인다.
+                #    힘·순응 해제는 모션이 아니라 언제나 한다. **움직이는 것은 로봇 위치를 알 때만.**
+                steps = [('힘·순응 끄기', cc.force_off)]
+                if can_move or not a.real:
+                    steps += [('동작 끝 대기', lambda: dsr().mwait()),
+                              ('안전 높이로', cc.safe_retreat), ('HOME', lambda: cc.move_to('HOME', False))]
+                for what, step in steps:
                     try:
                         step()
                     except Exception as e:
                         log.error(f'복귀 — {what} 실패: {e!r} → 눈으로 확인, 필요하면 release_force.py --home')
+                if not can_move and a.real:
+                    log.error('🚨 실기에서 이동이 실패했다 — 힘만 끄고 **로봇을 자동으로 움직이지 않았다.**\n'
+                              '   티치펜던트로 상태(케이블 꼬임·오류)를 확인하고 사람이 복구한 뒤 다시 돌린다')
         if rec is not None and rec.rows:
             log.info(f'힘 로그: {rec.save()}')
             log.info('구간 | 샘플 | 평균 누름 N | 최대 누름 N | 최대 옆 N')

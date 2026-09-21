@@ -156,7 +156,11 @@ def main():
         features = load_features(use_mock, log)      # 진짜/가짜 선택 (IRD §10)
         # 전부 가짜면 물러날 로봇이 없다 → 후퇴를 부르지 않는다(cc.safe_retreat 는 뼈대라 예외를 낸다)
         flow = Flow(cc.cfg(), log, features=features,
-                    safe_retreat=cc.safe_retreat if robot else None)
+                    safe_retreat=cc.safe_retreat if robot else None,
+                    # 🚨 이동이 도중에 서면(MoveIncomplete) 로봇 위치를 모른다 → 후퇴 금지,
+                    #    힘·순응만 끄고 사람이 확인한다 (9/21 결정 · SDD §7)
+                    force_off=cc.force_off if robot else None,
+                    no_retreat_errors=(cc.MoveIncomplete,) if robot else ())
         io = Io(node, flow, sig)
         flow._publish_event = io.publish_event       # 두뇌 → 배선 (두뇌는 ROS 를 모른다)
 

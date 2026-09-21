@@ -41,6 +41,13 @@ import cobot_common as cc
 # 스테이션 이름 = shake 의 mode 이름과 같다(WASTE·RINSE). WEIGH 는 contracts 에 상수가 없어 여기 하나만 둔다.
 _WEIGH_STATION = 'WEIGH'
 
+# 🚨 이 예외들은 Result 로 바꾸지 **않고** 위로 그대로 올린다 (9/21 PM 요청 · SDD §7)
+#    MoveIncomplete : 이동이 도중에 섰다 → **로봇이 어디 있는지 모른다.** 여기서 코드로 바꾸면
+#                     flow 가 평범한 실패로 보고 재시도하거나 이어서 내려간다 — 그러면 안 된다.
+#    MotionHalted   : 강제정지(중단) — flow 의 중단 흐름이 받아야 한다(FLOW-03).
+#    flow.call() 이 받아서 ROBOT_ERROR(그 자리 정지 → PAUSED)로 마무리한다.
+_PASS_THROUGH = (cc.MoveIncomplete, cc.MotionHalted)
+
 
 # ────────────────────────────────────────────────────────── 설정 읽기
 def _log():
@@ -131,6 +138,8 @@ def _as_result(result_cls):
         def wrapper(*args, **kwargs):
             try:
                 return fn(*args, **kwargs)
+            except _PASS_THROUGH:                    # 🚨 삼키지 않는다 — 위 _PASS_THROUGH 주석
+                raise
             except Exception as e:                   # noqa: BLE001 — 코드로 바꿔 보고한다
                 try:
                     # 🚨 traceback 까지 남긴다 — finally 에서 난 예외가 원래 원인을 덮을 수 있고,
@@ -146,13 +155,19 @@ def _as_result(result_cls):
 
 
 # ────────────────────────────────────────────────────────── 동작 도구
-def _goto(station, carrying=True):
+def _goto(station, carrying=True, kind=None):
     """station 의 **티칭 자세까지** 간다.
 
-    🚨 cc.move_to 는 안전 높이 때문에 못 내려간 만큼을 돌려준다(상공까지만 간다).
+    🚨 kind('BOWL'·'CUP')를 반드시 넘긴다 — 9/20 결정 E8·PR #36 으로 WEIGH·WASTE·RINSE·ISOLATE 는
+       cell.yaml 에서 **종류별로 자세가 갈렸다**(그릇은 위에서·컵은 옆에서 잡아 자세가 다르다).
+       안 넘기면 cc.move_to 가 "골라야 하는데 안 줬다"로 ValueError 를 낸다(로봇은 움직이지 않는다).
+
+    🚨 cc.move_to 는 접근점이 있으면 **접근점까지만** 가고 끝점까지 남은 높이를 돌려준다
+       (9/20 결정 E7 — 안전 높이를 거치지 않는다. 접근점이 없으면 끝점까지 가고 0 을 돌려준다).
        티칭 자세 = 그 기능이 **동작을 시작하는 자세**다(SDD §5.3, 황인재 9/20 확정)
        → 남은 높이를 여기서 마저 내려가야 각 함수의 depth_mm 같은 값이 '티칭 자세 기준' 이 된다.
-       이렇게 해 두면 safe_z_mm 을 바꿔도 동작이 달라지지 않는다.
+       🟡 접근점이 끝점 바로 위가 아닌 자리는 이 값만으로 끝점에 못 간다 — F2 의 네 자리는
+          모두 접근점이 없어(0 이 온다) 해당 없지만, 접근점이 생기면 여기를 다시 본다.
 
     🚨 먼저 force_off() 를 부른다. 순응·힘제어가 켜진 채면 ① 관절 이동이 거부되고
        (오류 2.1903 — 설치본 DRFC.py:528 RC_ERROR_DRCL_STATE_INVALID_EVENT, RobotError group MOTION=2)
@@ -161,11 +176,21 @@ def _goto(station, carrying=True):
        꺼져 있어도 부를 수 있게 만들어져 있다(force.py force_off 머리말).
     """
     cc.force_off()
-    up = float(cc.move_to(station, carrying) or 0.0)
+    up = float(cc.move_to(station, carrying, kind) or 0.0)
     if up > 0.0:
         _log().info(f'{station} 상공에서 {up:.1f} mm 더 내려간다 (티칭 자세까지)')
         cc.move_rel(0.0, 0.0, -up, 'BASE')
     return up
+
+
+def _via_home():
+    """🚨 잔반통(로봇 **뒤**) ↔ 저울·스펀지 홈·반납 구역(**앞**) 사이는 HOME 을 거친다 (9/21 결정 E15).
+
+    잔반통 그릇 자세를 뒤쪽으로 옮기면서 생긴 제약이다 — 앞쪽 자세가 팔이 쭉 펴진 특이점이라
+    9/21 08:40 실기에서 6번 관절이 163° 돌아 그리퍼 케이블이 꼬였다.
+    앞뒤로 곧장 가면 로봇 몸통을 가로지른다. E7 로 안전 높이 경유가 없어져 더 그렇다.
+    """
+    _goto('HOME', carrying=True)
 
 
 def _hold(kind, level):
@@ -228,7 +253,7 @@ def weigh(kind: str) -> WeighResult:
                      hi=_need(lim, 'max_settle_s', where='f2.limits'))
     min_net = _need(lim, 'min_net_g', where='f2.limits')
 
-    _goto(_WEIGH_STATION, carrying=True)
+    _goto(_WEIGH_STATION, carrying=True, kind=kind)
     time.sleep(settle_s)                      # 🚨 움직이는 중에 재면 가속도가 섞인다(SDD §5.3)
     raw = float(cc.weigh(samples))            # cobot_common/weigh.py — 중앙값, 음수는 버린다
 
@@ -278,10 +303,12 @@ def leftover_loop(kind: str, max_rounds: int) -> LeftoverResult:
     done = 0                                          # 🚨 **끝난** 회차 수 (실패한 회차는 안 센다)
     for r in range(1, rounds_max + 1):
         _log().info(f'leftover_loop({kind}) — 잔반 {after:.1f} g · 털기 {r}/{rounds_max}')
+        _via_home()                                   # 🚨 E15: 저울(앞) → 잔반통(뒤)
         shaken = shake('WASTE', cycles, kind)
         if not shaken.ok:
             return LeftoverResult.fail(shaken.code, weight_before_g=before,
                                        weight_after_g=after, rounds=done)
+        _via_home()                                   # 🚨 E15: 잔반통(뒤) → 저울(앞)
         again = weigh(kind)
         if not again.ok:
             return LeftoverResult.fail(again.code, weight_before_g=before,
@@ -324,7 +351,7 @@ def shake(mode: str, count: int, kind: str) -> Result:
         _log().warn(f'shake({mode}) — count={count} 라 아무것도 안 한다')
         return Result()
 
-    _goto(mode, carrying=True)                  # force_off 는 _goto 안에서 먼저 부른다
+    _goto(mode, carrying=True, kind=kind)       # force_off 는 _goto 안에서 먼저 부른다
 
     # 🚨 폭은 **HOLD 로 바꾸기 전**에 잰다 — 두 번의 힘 전환을 모두 검사 범위에 넣으려고(_slipped).
     w_before = float(cc.grip_width())
@@ -388,7 +415,7 @@ def dip(station: str, count: int, kind: str) -> Result:
         _log().warn(f'dip({station}) — count={count} 라 아무것도 안 한다')
         return Result()
 
-    _goto(station, carrying=True)               # force_off 는 _goto 안에서 먼저 부른다
+    _goto(station, carrying=True, kind=kind)    # force_off 는 _goto 안에서 먼저 부른다
 
     w_before = float(cc.grip_width())           # HOLD 로 바꾸기 전 (shake 와 같은 이유)
 
