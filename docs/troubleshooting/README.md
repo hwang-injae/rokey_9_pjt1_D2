@@ -9,6 +9,7 @@
 | [TS-03](TS-03_하중_reset_제어권_교착.md) | 9/18 | `reset_workpiece_weight` 호출 후 컨트롤러 서비스 전체 정지 | 민범진 | F2 weigh·leftover_loop | 회피책 적용, 원인은 추정(제어권) |
 | [TS-04](TS-04_종료처리_실행기스레드_SIGINT.md) | 9/19 | 종료 시 Abort(`terminate called`) · 종료 로그가 `/rosout`에 안 남음 | 민범진 | `cobot_common.init`/`shutdown` 쓰는 모든 프로그램 | **종결** — `bootstrap.py` 에 반영됨(스레드 join · SIGINT 는 init 단독). 환경 함정 3건 함께 기록 |
 | [TS-05](TS-05_DR_Error_rclpy_shutdown_복구.md) | 9/19 | 두산 `DR_Error`(인자 오류) → 그 프로세스의 `rclpy.shutdown()` → 더는 명령 불가, 순응·힘제어가 켜진 채 남음 | 박진용 | 두산 API 를 부르는 모든 프로그램(특히 접촉 구간) | 회피책 적용 — 인자 검사·`finally` 정리, 복구는 `release_force.py`(공식 복구 도구, SDD §7) |
+| [TS-06](TS-06_그리퍼_안전스위치_전원재시작.md) | 9/21 | 그리퍼 안전 스위치(S1·S2)가 걸리면 전원을 다시 넣어야만 풀린다 · 드라이버의 `/onrobot/restartPower` 는 부르면 드라이버가 죽는다 | 민범진 | 그리퍼를 쓰는 모든 기능(F1·F2·F3) | 코드 적용(`cc.grip_safety`·`cc.grip_reset`) · 🟡 실기 확인 전 |
 
 ## 쓰는 법
 1. 파일 이름 `TS-번호_짧은제목.md`. 위 표에 한 줄 추가.

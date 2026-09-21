@@ -1,6 +1,21 @@
 # rig_gripper.py 전용 — 로더가 두 파일을 모두 요구해서 둔 빈 절. 팀 params.yaml 이 아니다.
 f1: {}
-f2: {}
+f2:
+  # 🆕 그리퍼 상자(컴퓨트박스) 주소 — 값은 팀 params.yaml 의 f2.gripper_box 와 같게 둔다.
+  #    이게 있어야 "명령했는데 폭이 안 변한다" 를 만났을 때 gripper.py 가 **안전 스위치를 진짜 읽어** 알려 준다.
+  #    없으면 예전처럼 "걸렸을 수도" 하고 짐작만 한다(그래도 시험은 돈다).
+  gripper_box:
+    ip: 192.168.1.1
+    port: 502
+    tool_unit: 65
+    box_unit: 63
+    status_addr: 258
+    status_count: 18
+    restart_addr: 0
+    restart_value: 2
+    connect_timeout_s: 1.0
+    restart_wait_s: 8.0
+    driver_alive_s: 2.0
 f3: {}
 flow: {}
 hmi: {}
