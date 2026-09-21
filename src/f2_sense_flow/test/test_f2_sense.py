@@ -61,8 +61,9 @@ class Rec:
         log = types.SimpleNamespace(info=lambda m: None, warn=lambda m: None, error=lambda m: None)
         return types.SimpleNamespace(get_logger=lambda: log)
 
-    def move_to(self, station, carrying):
-        self._note('move_to', station, carrying)
+    def move_to(self, station, carrying, kind=None):
+        # 🚨 kind 까지 적어 둔다 — 안 넘기면 실기에서 ValueError 가 난다(9/20 E8)
+        self._note('move_to', station, carrying, kind)
         return self._up
 
     def move_rel(self, dx, dy, dz, frame, **kw):
@@ -138,7 +139,7 @@ def test_weigh_goes_down_remaining_height(monkeypatch):
     r = Rec(weights=[180.0], up=35.0)
     s = _sense(monkeypatch, r)
     s.weigh('BOWL')
-    assert ('move_to', ('WEIGH', True), {}) in r.calls
+    assert ('move_to', ('WEIGH', True, 'BOWL'), {}) in r.calls
     assert ('move_rel', (0.0, 0.0, -35.0, 'BASE'), {}) in r.calls
 
 
@@ -427,8 +428,8 @@ def test_leftover_shakes_over_the_waste_bin(monkeypatch):
     r = Rec(weights=[280.0, 190.0])
     s = _sense(monkeypatch, r)
     s.leftover_loop('BOWL', 2)
-    assert ('move_to', ('WASTE', True), {}) in r.calls
-    assert ('move_to', ('RINSE', True), {}) not in r.calls
+    assert ('move_to', ('WASTE', True, 'BOWL'), {}) in r.calls
+    assert ('move_to', ('RINSE', True, 'BOWL'), {}) not in r.calls
     n_cycles = CFG['f2']['shake']['WASTE']['cycles']
     assert len(r.of('move_joint_rel')) == 3 * n_cycles, 'YAML 의 cycles 만큼 털어야 한다'
 
@@ -438,13 +439,33 @@ def test_shake_and_dip_go_to_their_station(monkeypatch):
     r = Rec(up=25.0)
     s = _sense(monkeypatch, r)
     s.dip('RINSE', 1, 'BOWL')
-    assert ('move_to', ('RINSE', True), {}) in r.calls
+    assert ('move_to', ('RINSE', True, 'BOWL'), {}) in r.calls
     assert r.of('move_rel')[0][1][2] == pytest.approx(-25.0), '남은 높이만큼 먼저 내려가야 한다'
 
     r2 = Rec()
     s2 = _sense(monkeypatch, r2)
     s2.shake('RINSE', 1, 'CUP')
-    assert ('move_to', ('RINSE', True), {}) in r2.calls
+    assert ('move_to', ('RINSE', True, 'CUP'), {}) in r2.calls
+
+
+def test_every_move_passes_kind(monkeypatch):
+    """🚨 세 함수 모두 move_to 에 kind 를 넘겨야 한다 (9/20 결정 E8 · PR #36).
+
+    WEIGH·WASTE·RINSE 자세가 cell.yaml 에서 BOWL/CUP 으로 갈렸다. 안 넘기면 cc.move_to 가
+    "골라야 하는데 안 줬다"로 ValueError 를 내고 **기능 셋이 통째로 멈춘다**.
+    빠뜨리기 쉬운 자리라(인자가 선택형이다) 함수별로 못 박는다.
+    """
+    for call, kind in (
+        (lambda s: s.weigh('BOWL'), 'BOWL'),
+        (lambda s: s.shake('WASTE', 1, 'CUP'), 'CUP'),
+        (lambda s: s.dip('RINSE', 1, 'BOWL'), 'BOWL'),
+    ):
+        r = Rec(weights=[180.0])
+        call(_sense(monkeypatch, r))
+        moves = r.of('move_to')
+        assert moves, 'move_to 를 한 번은 불러야 한다'
+        for c in moves:
+            assert c[1][2] == kind, f'move_to 에 kind 가 빠졌다 — {c[1]}'
 
 
 def test_moves_are_carrying(monkeypatch):

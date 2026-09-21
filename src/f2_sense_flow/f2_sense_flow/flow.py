@@ -399,11 +399,12 @@ class Flow:
         #    꺼내는 것까지 call_fn 안에서 해야 "함수가 없다"가 크래시가 아니라 Result 가 된다.
         steps = [
             ('PICK', 'f1', 'pick', (self.zone_id, self.kind)),
-            ('WEIGH', 'f1', 'move_to', ('WEIGH', True)),
+            # 🚨 kind 를 넘긴다 — WEIGH 자세는 종류별로 다르다(9/20 E8·PR #36). 없으면 ValueError
+            ('WEIGH', 'f1', 'move_to', ('WEIGH', True, self.kind)),
             ('WEIGH', 'f2', 'leftover_loop', (self.kind, rounds)),
             ('SEAT', 'f1', 'place', (bed,)),
             ('SOAP', 'f1', 'tool', (tool_id, 'PICK')),
-            ('SOAP', 'f3', 'soap', (n['soap_dips'],)),
+            ('SOAP', 'f3', 'soap', (n['soap_dips'], self.kind)),   # SOAP 자세도 종류별 (9/20 E8)
             ('WIPE', 'f3', wipe_fn, ()),
             ('WIPE', 'f1', 'tool', (tool_id, 'RETURN')),
             ('RINSE', 'f1', 'pick', (bed, self.kind)),
