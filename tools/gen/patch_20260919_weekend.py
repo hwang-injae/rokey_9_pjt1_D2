@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v10.2'
+VERSION = 'v10.4'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -84,6 +84,16 @@ EDIT = {
 }
 # 새 행: id, 뒤에 붙일 행, 서식 복제 행, 구분, 작업, 담당, 상태, 칸, 산출물, 기준, 비고
 NEW = [
+ ('V-26', 'V-25', 'V-25', '검증', 'V-26 Ctrl+C 정지 실기 확인 — 이동 **도중에** 터미널에서 Ctrl+C 를 누르면 로봇이 바로 서는가(move_stop · DR_QSTOP)',
+  'H(P)', '시작 전', S('9/21 오후'), 'docs/test_logs/20260921_V-26_CtrlC정지_실기_황인재.md',
+  '긴 이동(6 s 이상) 도중 Ctrl+C **3회 모두** 즉시 감속 정지 · 로그에 "정지 명령(move_stop) 완료" · 정지까지 움직인 거리(또는 각도) 기록 · 브링업이 살아 있어 다음 프로그램이 바로 뜬다 '
+  '(실패하면: 정지 명령이 안 나갔는지 · move_stop 서비스가 안 보였는지 · 이동이 끝난 뒤에야 반응했는지를 구분해 적는다)',
+  '황인재 9/21: 구현은 돼 있는데 **실기 기록이 없다** — cc.init() 이 ROS 기본 SIGINT 처리기를 끄고(rclpy 가 통신 통로부터 닫아 버려 정지 명령을 못 보내기 때문) 메인 스레드에 KeyboardInterrupt 를 일으키면, '
+  'try/finally 의 cc.shutdown() 이 move_stop(stop_mode=1 · DR_QSTOP · Stop Category 2)을 보낸다(bootstrap.py). 이동 도중에도 먹는 이유는 PR #34 로 이동이 비동기(amovel + 폴링)가 됐기 때문. '
+  'Virtual 은 rig_stop.py(V-24a) 5경우로 확인했고 실기만 남았다. 절차(30초): 긴 관절 이동 하나 걸고 2~3 s 뒤 Ctrl+C × 3회 · vel_scale 0.3. '
+  '🚨 같이 볼 것 ① 한계: shutdown() 이 메인 스레드 밖에서 불리면 정지 명령을 안 보낸다(경고만) · move_stop 서비스가 안 보이면 못 세운다 → 그때는 E-Stop '
+  '② **박진용 확인 대기**: stop_mode 가 DR_QSTOP(1)이 맞는지(선택지 DR_QSTOP_STO 0 · DR_QSTOP 1 · DR_SSTOP 2 · DR_HOLD 3) — SAFE-01 정지 항목과 같은 건. '
+  '③ Ctrl+C 는 개발자용 수단이고 공식 정지 수단은 웹 일시 정지와 E-Stop 이다(SDD §9 위험표)'),
  ('FLOW-03', 'FLOW-02', 'FLOW-02', '개발', '정지·재개·중단 연결 — /flow/stop = 즉시 일시 정지(이동 도중 멈춤) · /flow/resume = 하던 동작을 이어서(실패로 멈춘 경우는 실패한 단계부터 다시) · /flow/abort 신설(툴 반납 → 용기를 격리 구역에 → HOME → 다음 용기, ROBOT_ERROR 에서는 거부) · 이벤트 DONE/ISOLATED/ERROR',
   'M', '시작 전', S('9/22 오전', '9/22 오후'), 'src/f2_sense_flow/f2_sense_flow/flow.py · flow_node.py + test_f2_policy.py',
   'mock 으로: 일시 정지 → 재개(이어서) · 실패 PAUSE → 재개(그 단계부터 다시) · abort → ISOLATED 기록·다음 용기 · ROBOT_ERROR 에서 abort 거부 · rig_v20.py probe 통과',
@@ -772,6 +782,15 @@ GRIP_BLOCKED = {
 for _tid, _e in GRIP_BLOCKED.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 12:10 황인재: 환경 셋팅 작업은 전부 끝났다
+ENVDONE = {
+ 'ENV-03': dict(status='완료', prog='1.0', slots=[],
+                note_add='✅ 9/21 12:10 황인재: **환경 셋팅 작업은 전부 끝났다** — PC-A↔PC-B 가 DOMAIN 60 에서 서로의 토픽·서비스를 본다. '
+                         'v10.2 에서 민범진 → 황인재로 넘겼던 것인데 그 사이에 끝나 분담 자체가 없어졌다. 환경 4건(ENV-01·02·03·04)이 모두 완료다'),
+}
+for _tid, _e in ENVDONE.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -918,6 +937,11 @@ SLOT['9/21 월']['C'] = SLOT['9/21 월']['C'].replace(_o, '**④ 티칭 마무�
 SLOT['9/21 월']['B'] = ('🚨 **최우선(5분): 그리퍼 드라이버 `sudo apt install python3-pymodbus` — PC 4대 전부.** '
                         '이것이 안 돼서 민범진의 그리퍼·무게 검증이 전부 멈춰 있었다(로봇 경합이 아니었다). 되면 V-05 → V-01 → V-23 → V-02 가 바로 돈다 · '
                         ) + SLOT['9/21 월']['B']
+# 9/21 — V-26 Ctrl+C 정지 실기(30초짜리)를 오후 좌표 확인에 끼운다(v10.3)
+SLOT['9/21 월']['C'] = SLOT['9/21 월']['C'].replace('**⑤ V-22·V-19 그릇·컵 한 바퀴(H)**',
+    '**⑤ V-22·V-19 그릇·컵 한 바퀴(H)** → **⑤-b V-26 Ctrl+C 정지(H, 30초 — 긴 이동 도중 Ctrl+C × 3회)**')
+# 9/21 12:10 — ENV-03 완료 → 9/22 오전 칸에서 뺀다(v10.4)
+SLOT['9/22 화']['B'] = SLOT['9/22 화']['B'].replace('CR-01(전원)·ENV-03·NOTE-01', 'CR-01(전원)·NOTE-01')
 _b, _c = LECTURE['9/24 목~9/28 월']
 LECTURE['9/24 목~9/28 월'] = (_b, _c + ' · 🆕 **F4 웹 HMI**(F4-03 화면 다듬기·F4-04 기록/이력·UT-F4 전체)도 집에서 mock·fake_state_pub 로 이어 간다(황인재 9/20 — ROS 인터페이스·로봇 쪽 코드는 9/23 동결 그대로)')
 RULES = {       # (A 열, B 열 글자) → (새 B, 새 C)
@@ -1058,6 +1082,12 @@ HISTORY52 = ['v10.1', '결정 E15·진단 정정', 'F1-04, F2-01, V-07, SAFE-01,
 HISTORY53 = ['v10.2', '원인 정정·분담', 'V-05, V-01, V-23, V-02, V-16, V-07, FLOW-01, ENV-03, FLOW-02, UT-FLOW, CR-01', '민범진 회신 9/21 11:30: **그리퍼 검증이 막힌 진짜 원인은 로봇 경합이 아니라 그리퍼 드라이버가 안 뜬 것** — pymodbus 미설치(배포본 setup.py 가 pymodbustcp 로 오타). `sudo apt install python3-pymodbus`(3.6.9 · pip 최신은 인자 이름이 바뀌어 안 된다). PM 이 코드에서 확인 ✅, 이 PC 에도 없었다 → PC 4대 점검. 분담: ENV-03 = 민범진 → 황인재 · FLOW-02 를 기록/소모품(넘길 준비, 후보 박진용)과 발행(민범진)으로 나눔 · UT-FLOW·CR-01 은 그대로. FLOW-01 은 코드 완료(PR 대기) — GRIP_FAIL 재개가 그 용기를 버리던 버그까지 고쳤다',
              '황인재 9/21 11:30', 'M,H,P,S']
 
+HISTORY54 = ['v10.3', '신규', 'V-26', '황인재 9/21: **V-26 Ctrl+C 정지 실기 확인**을 새로 넣었다(9/21 오후 · 30초). 구현은 돼 있으나(cc.init 이 SIGINT 를 가로채 → shutdown 이 move_stop stop_mode=1 DR_QSTOP) Virtual(rig_stop.py)만 확인했고 실기 기록이 없다. 긴 이동 도중 Ctrl+C 3회 · 정지 거리 기록 · 브링업 생존 확인. 한계 2가지(메인 스레드 밖에서는 정지 명령이 안 나간다 · move_stop 서비스가 없으면 못 세운다 → E-Stop)와 박진용의 stop_mode 확인 대기도 같이 적었다',
+             '황인재 9/21 12:00', 'H,P']
+
+HISTORY55 = ['v10.4', '완료', 'ENV-03', '황인재 9/21 12:10: 환경 셋팅 작업은 전부 끝났다 → 마지막으로 남아 있던 ENV-03(다중 PC 통신 · PC-A↔PC-B DOMAIN 60 에서 토픽·서비스 보임)을 완료 처리. ENV-01·02·04 는 이미 완료였다. v10.2 에서 민범진 → 황인재로 넘긴 분담도 같이 없어졌고, 9/22 오전 "로봇 불필요" 칸에서도 뺐다',
+             '황인재 9/21 12:10', 'H,M']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1152,7 +1182,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
