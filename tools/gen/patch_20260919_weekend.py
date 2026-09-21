@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v12.3'
+VERSION = 'v12.4'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1032,6 +1032,10 @@ RB22 = {
 }
 for _tid, _e in RB22.items():
     EDIT.setdefault(_tid, {}).update(_e)
+
+# ---------------------------------------------------------------- 9/21 18:05 — F1-02 칸을 9/22 오후까지(pick() 구현·PR)
+EDIT.setdefault('F1-02', {}).update(dict(slots=S('9/21 오전', '9/21 오후', '9/21 저녁', '9/22 오전', '9/22 오후')))
+EDIT.setdefault('V-14', {}).update(dict(slots=S('9/21 오후', '9/21 저녁', '9/22 오전')))
 
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
