@@ -165,10 +165,11 @@ def test_soap_timeout(cell):
     assert not r.ok and r.code == TIMEOUT
 
 
-def test_soap_halt_is_raised(cell):
+def test_soap_halt_does_not_auto_move(cell):
     cell.halted = True
     with pytest.raises(wipe.cc.MotionHalted):
         wipe.soap(3)
+    assert 'safe_retreat' not in [c[0] for c in cell.calls]
 
 
 # ------------------------------------------------------------------ wipe_cup
@@ -273,10 +274,12 @@ def test_cup_over_time_is_timeout(cell):
     assert not r.ok and r.code == TIMEOUT
 
 
-def test_cup_halt_is_raised(cell):
+def test_cup_halt_does_not_auto_move(cell):
+    """강제정지 뒤에는 로봇 위치를 모른다 → 힘만 끄고 움직이지 않는다(9/21 케이블 꼬임 사고)."""
     cell.halted = True
     with pytest.raises(wipe.cc.MotionHalted):
         wipe.wipe_cup()
+    assert 'safe_retreat' not in [c[0] for c in cell.calls]
 
 
 def test_cup_logs_depth_and_saves_force_log(cell):

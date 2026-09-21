@@ -296,10 +296,37 @@ def test_over_time_is_timeout(cell):
 
 
 def test_halt_between_steps_is_raised(cell):
-    """강제정지는 코드로 바꾸지 않고 올린다 — flow 의 중단 흐름이 받는다(결정 E11)."""
+    """강제정지는 코드로 바꾸지 않고 올린다 — flow 의 중단 흐름이 받는다(결정 E11).
+
+    🚨 그리고 **로봇을 자동으로 움직이지 않는다** — 어디 있는지 모르기 때문이다.
+       힘·순응 해제는 모션이 아니라서 한다.
+    """
     cell.halted = True
     with pytest.raises(wipe.cc.MotionHalted):
         wipe.wipe_bowl()
+    assert [c[0] for c in cell.calls][-1] == 'force_off'
+    assert 'safe_retreat' not in [c[0] for c in cell.calls]
+
+
+def test_move_incomplete_does_not_auto_move(cell, monkeypatch):
+    """🚨 이동이 도중에 섰으면(MoveIncomplete) 로봇 위치를 모른다 → 힘만 끄고 그 자리에 둔다.
+
+    9/21 08:40 실기: 6번 관절이 163° 돌아 케이블이 꼬인 채 멈췄는데 도구가 자동으로 HOME 으로 가려 했다.
+    """
+    def stop_midway(*a, **kw):
+        raise wipe.cc.MoveIncomplete('목표까지 122 mm 남았다')
+
+    monkeypatch.setattr(wipe.cc, 'move_to', stop_midway)
+    with pytest.raises(wipe.cc.MoveIncomplete):
+        wipe.wipe_bowl()
+    assert 'safe_retreat' not in [c[0] for c in cell.calls]
+
+
+def test_force_limit_still_retreats(cell):
+    """힘 상한은 로봇이 정상이라는 뜻 — 설계대로 후퇴한다(AGENTS 규칙 2)."""
+    cell.press = 99.0
+    r = wipe.wipe_bowl()
+    assert r.code == FORCE_LIMIT
     assert [c[0] for c in cell.calls][-2:] == ['force_off', 'safe_retreat']
 
 
