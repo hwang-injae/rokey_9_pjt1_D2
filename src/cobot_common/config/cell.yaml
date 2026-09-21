@@ -48,24 +48,33 @@ cell:
     search_y_period_ratio: 2.0    # periodic_search 의 x:y 주기 비 — 한 선이 아니라 면을 훑게 (V-04 에서 재확인)
 
   presets:                        # 종류·툴별 파지. 🟡 그릇은 외경 114 mm > RG2 최대 폭 110 mm 라 지름 방향 파지 불가(CELL-02a §3) → 파지 방식은 DSN-03
+                                  # 🔑 grip_zero_mm (9/21 결정 E16 · 민범진 실측): 빈손으로 꽉 닫아도 드라이버가 읽는 폭이 0 이 아니라 **10.5~10.9 mm** 다
+                                  #   (알루미늄 손가락 사이를 재서 고무 핑거팁 두께가 안 빠진다). 그래서 그릇의 실제 파지 폭 2 mm 는 드라이버 값으로는 도달 불가능한 수다.
+                                  #   ㉠안(황인재 확정): 영점을 **새 키**로 두고 **폭 판정에서만** 빼고 본다 —
+                                  #     판정 폭 = cc.grip_width() − grip_zero_mm.  cc.grip_width() 의 반환과 cc.grip() 의 목표 폭은 **드라이버 값 그대로**(기존 코드 안 깨짐).
+                                  #   🟡 영점은 파지 힘에 따라 0.2~0.4 mm 달라진다 → **그 종류의 힘으로** 잰다(오후 V-01).
     BOWL:
-      grip_width_mm:              # 파지 목표 폭
+      grip_width_mm:              # 파지 목표 폭 (드라이버 값)
+      grip_zero_mm:               # 빈손 영점 — V-01 에서 BOWL 의 파지 힘으로 잰다
       grip_force_n:               # NORMAL (집기·이송·놓기)
       hold_force_n:               # HOLD   (털기·담금·물 털기) — V-16·V-23
       width_tol_mm:               # 폭 판정 허용 오차 — V-01
       approach_z_mm:              # 접근 높이
     CUP:                          # 옆면 파지 (9/18 V-17 확인)
       grip_width_mm:
+      grip_zero_mm:
       grip_force_n:
       hold_force_n:
       width_tol_mm:
       approach_z_mm:
     SPONGE:
       grip_width_mm:
+      grip_zero_mm:
       grip_force_n:
       width_tol_mm:
     BRUSH:
       grip_width_mm:
+      grip_zero_mm:
       grip_force_n:
       width_tol_mm:
 
