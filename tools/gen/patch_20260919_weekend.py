@@ -632,6 +632,16 @@ PULL_0921 = {
 for _tid, _e in PULL_0921.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 09:40 같은 결함이 제품 코드·flow 에도 — "위치를 모르면 움직이지 않는다"
+NM = '🚨 9/21 09:40 "위치를 모르면 자동으로 움직이지 않는다"(SDD §7 추가):'
+NOMOVE_0921 = {
+ 'FLOW-01': dict(note_add=NM + ' **flow.py 의 call() 이 예외를 잡으면 무조건 safe_retreat 을 부른다**(263행 부근) → cc.MoveIncomplete 일 때는 **후퇴도 하지 않아야** 한다(그 오류는 "어디 있는지 모른다"는 뜻). 힘·순응은 끄되 움직이지 않고 PAUSED. 힘 상한(ForceLimitError)은 로봇이 정상이므로 설계대로 후퇴 — 구분해서. 오늘 저녁 책상 시간에 kind·GRIP_FAIL 과 같이'),
+ 'F3-02':   dict(note_add=NM + ' ✅ 박진용이 **제품 코드(wipe.py)·rig_v10 에도 같은 결함**이 있는 것을 찾아 고쳤다(브랜치 jinyong/20260921-SAFE-rig-no-automove, 09:38) — _off_and_retreat(move=…) 로 나눠 "힘 해제는 언제나·이동은 위치를 알 때만", MoveIncomplete 는 MotionHalted 와 같이 그대로 올린다. PR 오면 검토'),
+ 'SAFE-01': dict(note_add=NM + ' 안전 대책 표에 이 줄을 넣는다 — "이동 실패(위치 불명) 뒤에는 어떤 자동 이동도 하지 않는다: 도구·기능 함수·flow 세 곳 모두"'),
+}
+for _tid, _e in NOMOVE_0921.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
