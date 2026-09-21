@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v10.5'
+VERSION = 'v10.6'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -818,6 +818,29 @@ M_REPORT = {
 for _tid, _e in M_REPORT.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 13시대 박진용 회신 → 결정 E17 + 로봇 시간 재배치
+E17 = '📌 9/21 결정 E17'
+P_REPORT = {
+ 'V-10':     dict(status='진행', prog='0.5', slots=S('9/21 저녁'),
+                  note_add='📈 9/21 박진용: **가상 검증 끝, 실기만 남음** — 값 확정: **위아래 40 mm · 비틀기 ±18° · 띄우기 2 mm** + 세척 속도(SR-09 "각도는 V-10 에서" → ±18°). '
+                           + E17 + ' `move_periodic` 회전은 손목(J4)을 기울여 쓰지 않고 **직선을 이어 붙인다**. 🗓 실기는 **오늘 저녁 첫 순서(60분)** — 오후 로봇은 좌표·그리퍼·집기로 차 있다(가장 밀린 F1·F2 먼저)'),
+ 'F3-03':    dict(slots=S('9/21 저녁', '9/22 오전'),
+                  note_add='📈 9/21 박진용: `wipe_cup` 코드 완료(가상) → **오늘 저녁 V-10 과 같이 실기**. `soap` 은 그다음 — **9/22 오전 첫 순서(90분)**, SOAP 좌표가 오늘 티칭에 들어간다(툴·홀더 확정 ✅)'),
+ 'F3-02':    dict(slots=S('9/21 저녁'),
+                  note_add='📈 9/21 박진용: **오늘 바뀐 방식으로 실기 재검증**(60분 · 저녁 두 번째) — ' + E17 + ' 닦기는 HOME 에서 시작해 HOME 으로 끝남(F3 가 직접 복귀) · 그릇은 HOME 바로 아래 → 135 mm 빠르게 → 3 mm 씩 바닥 찾기 · 바닥은 힘으로만. 🔎 PR 에서: 거리(135·40·140·80 mm)가 코드가 아니라 `params.yaml` `f3` 절에 있는지'),
+ 'V-18':     dict(slots=S('9/21 저녁'), note_add='9/21: F3-02 재검증과 같은 시간(저녁 두 번째)'),
+ 'CELL-02b': dict(status='완료', prog='1.0', slots=[],
+                  note_add='✅ 9/21 박진용: **툴·홀더는 지금 상태 그대로 간다 — 추가 변경 없음** → 툴 홀더 자세 2종 · SOAP 2개를 바로 티칭(' + E17 + '). 그릇 받침 유격은 E13 ⑤ 로 완료 기준에서 뺐다'),
+ 'SAFE-01':  dict(note_add='✅ 9/21 박진용 확인: **stop_mode = 1(DR_QSTOP) 맞다** — 최대 감속 정지(Stop Category 2)라 서보 전원·위치 유지 → 일시 정지 뒤 재개 가능 · SSTOP 은 감속 시간 약 1.5배 · QSTOP_STO 는 전원 차단(Category 1)이라 재개 흐름과 안 맞음(중급교육1 p.104~105). 확인 칸·🟡 줄 채우기 + 안전 대책 두 줄(위치 불명 뒤 자동 이동 금지 · J3≈0° 금지/HOME 경유 E15) 추가 예정. ⚠️ 표에 한 줄 더: **F3 세척 속도는 vel_scale 예외(E17)** — 0.3 으로 띄워도 닦기는 감속되지 않는다'),
+ 'V-26':     dict(note_add='✅ 9/21 박진용: stop_mode = 1(DR_QSTOP) 확인 완료 — 바꿀 필요 없음. 실기 때 같이 본다'),
+ 'CELL-04':  dict(note_add=E17 + ' **`SPONGE_BED_B/C.wash` 좌표는 티칭하지 않아도 된다**(F3 가 안 쓴다 — HOME 기준 상대 이동으로 바뀜). 🚨 **대신 HOME 을 다시 찍지 않는다** — 닦는 자리가 HOME 기준이라 HOME 이 움직이면 닦는 자리가 같이 움직인다. 툴 홀더 2종 · SOAP 2개는 **툴·홀더 확정(CELL-02b ✅)** 으로 바로 찍어도 된다'),
+ 'FLOW-02':  dict(note_add='🔁 9/21 13시대 확정: **민범진이 계속한다** — 후보였던 박진용은 오늘 18:30 까지 F3 세 개 · 저녁 F3 실기 · 9/22 soap·UT-F3·INT-13 으로 여력이 없다(' + E17 + ' ⑤)'),
+ 'UT-FLOW':  dict(note_add='9/21: FLOW-02 가 민범진에게 남아 TC-12 도 뒤로 밀 필요가 없어졌다'),
+ 'CELL-03':  dict(note_add='🔁 9/21 13시대: **민범진이 계속한다**(박진용에게 넘기지 않음 — ' + E17 + ' ⑤). 민범진은 책상 작업이 끝났고 로봇을 기다리는 중이라 **지금(그리퍼 세션 전)** 할 수 있다 — 이게 있어야 저녁 V-07 털기가 돈다'),
+}
+for _tid, _e in P_REPORT.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -974,6 +997,13 @@ SLOT['9/21 월']['C'] = SLOT['9/21 월']['C'].replace(
     'V-05 → V-23 → V-01 → V-02', '**V-05 → V-23 → V-01**(E16 D-C: V-02 는 저녁으로 — 60분에 안 들어가고 WEIGH 자세가 오늘 바뀐다)')
 SLOT['9/21 월']['D'] = SLOT['9/21 월']['D'].replace(
     'V-07 털기 · V-16 HOLD · F2-01·02 실기', 'V-02 무게 → V-07 털기 · V-16 HOLD · F2-01·02 실기')
+# 9/21 13시대 — 박진용 실기를 저녁 앞으로, soap 은 9/22 오전 첫 순서(v10.6)
+SLOT['9/21 월']['D'] = ('**18:30 ① V-10 컵 실기 + wipe_cup(P, 60분)** → **19:30 ② F3-02 그릇 재검증 + V-18(P, 60분 — E17 바뀐 방식: HOME 시작·끝)** → '
+                        '**20:30 ③ V-25 F1-01 실기(H, 25분)** → **20:55 ④ 민범진 두 번째: V-02 무게 → V-07 털기 → V-16 HOLD**(오후 티칭에서 WEIGH·WASTE 를 다시 찍은 뒤 · CELL-03 이 끝나 있어야 V-07 가능) · '
+                        '🛡 넘치면 V-16·F2 실기 → 9/22 오전 · ⚠ F3 닦기는 vel_scale 예외(E17) — 첫 실기는 f3 절 속도를 낮춰서 · 로봇 불필요: FLOW-03(M)·SAFE-01(P)·NOTE-01·02(H)')
+_o = 'V-10 → F3-03(P)'
+assert _o in SLOT['9/22 화']['B']
+SLOT['9/22 화']['B'] = SLOT['9/22 화']['B'].replace(_o, '**soap 실기(P, 90분 — 첫 순서 · SOAP 좌표는 9/21 티칭)** → UT-F3 준비(P)')
 _b, _c = LECTURE['9/24 목~9/28 월']
 LECTURE['9/24 목~9/28 월'] = (_b, _c + ' · 🆕 **F4 웹 HMI**(F4-03 화면 다듬기·F4-04 기록/이력·UT-F4 전체)도 집에서 mock·fake_state_pub 로 이어 간다(황인재 9/20 — ROS 인터페이스·로봇 쪽 코드는 9/23 동결 그대로)')
 RULES = {       # (A 열, B 열 글자) → (새 B, 새 C)
@@ -1123,6 +1153,9 @@ HISTORY55 = ['v10.4', '완료', 'ENV-03', '황인재 9/21 12:10: 환경 셋팅 �
 HISTORY56 = ['v10.5', '결정 E16·진행률', 'V-05·01·23·02·07·16, INF-02c·02d, FLOW-01·03, F2-01·02, UT-FLOW, CELL-03, CELL-04', '민범진 보고(9/21 12시대) → 결정 E16: D-A 폭 판정을 **영점 뺀 값**으로(㉠ — grip_zero_mm 새 키, grip_width() 반환값은 그대로 · 빈손으로 꽉 닫아도 10.5~10.9 mm 가 읽혀 BOWL 2.0 은 도달 불가였다) · D-B ISOLATE 2개를 오늘 티칭에 포함 · D-C 오후 세션에서 V-02 를 빼고 저녁으로 · D-D V-02 완료 기준을 "±20 g" → "같은 추 10회의 최대−최소 ≤ 20 g"(하중 옵셋 +42~45 g 은 빈 용기값을 빼며 상쇄된다) · D-E 9/20 D1 철회 확인, D2 는 V-23 뒤. 진행률 정정: FLOW-01 완료 · INF-02d 0.95 · V-05 0.7 · V-23 0.5 · F2-01 0.85 · F2-02 0.8 · FLOW-03 0.15 · V-02 는 진행 중 → 시작 전(실기 측정을 한 적이 없다). 털기 주기 실측 1.099 s(설정 0.60)로 V-07 전제 정정',
              '황인재 9/21 12:30', 'M,H,S,P']
 
+HISTORY57 = ['v10.6', '결정 E17·재배치', 'V-10, F3-02, F3-03, V-18, CELL-02b, SAFE-01, V-26, CELL-04, FLOW-02, CELL-03, UT-FLOW, 9/21 저녁·9/22 오전 로봇 슬롯', '박진용 회신(9/21 13시대) → 결정 E17: ① stop_mode = 1(DR_QSTOP) 확정 ② CELL-02b 툴·홀더 지금 상태로 확정(완료) → 툴 홀더·SOAP 바로 티칭 ③ F3 닦기가 HOME 시작·HOME 끝 + HOME 기준 상대 이동으로 바뀌어 SPONGE_BED wash 좌표 티칭 불필요, 대신 HOME 재티칭 금지 · wipe_cup 은 move_periodic 대신 직선 이어 붙이기 ④ 세척 속도는 vel_scale 예외(황인재 승인 — 0.3 으로 띄워도 닦기는 감속 안 됨) ⑤ FLOW-02·CELL-03 은 민범진이 계속. 진행률 V-10 0.0 → 0.5(값 확정 · 실기만 남음). 로봇: 박진용은 18:30 까지 셋 다 끝내길 원했지만 오후 로봇이 좌표·그리퍼·집기로 차 있어(가장 밀린 F1·F2 먼저) 저녁 첫 두 순서(V-10·F3-02 각 60분)로, soap(90분)은 9/22 오전 첫 순서로',
+             '황인재 9/21 13:10', 'P,M,H,S']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1217,7 +1250,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)

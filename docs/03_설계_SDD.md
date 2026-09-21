@@ -311,7 +311,7 @@ hmi: {port: 8000, state_rate_hz: 2, disconnect_after_s: 2.0, db_path: prewash.db
 | 런치 인자 | 환경변수 | 읽는 곳 | 규칙 |
 |---|---|---|---|
 | `use_mock:="f1,f3"` | `PREWASH_USE_MOCK` | `cc.cfg()['flow']['use_mock']` (YAML 값을 덮어씀) | 빈 값 = `[]` 전부 실제 · 변수가 없으면 YAML 그대로 · 이름은 `f1 f2 f3`만 |
-| `vel_scale:=0.3` | `PREWASH_VEL_SCALE` | `cc.cfg()['run']['vel_scale']` | **0 초과 1 이하**(속도를 낮추는 쪽으로만, 1 초과는 거부) · 없으면 1.0 · 이동 함수(`motion.py`)가 `cell.limits.vel_*_pct`에 곱한다 · rig를 손으로 돌릴 때는 `PREWASH_VEL_SCALE=0.3 python3 …/rig_f1.py` |
+| `vel_scale:=0.3` | `PREWASH_VEL_SCALE` | `cc.cfg()['run']['vel_scale']` | **0 초과 1 이하**(속도를 낮추는 쪽으로만, 1 초과는 거부) · 없으면 1.0 · 이동 함수(`motion.py`)가 `cell.limits.vel_*_pct`에 곱한다 · rig를 손으로 돌릴 때는 `PREWASH_VEL_SCALE=0.3 python3 …/rig_f1.py` · 🔄 **예외 1개 (9/21 결정 E17)**: **F3 세척 동작(`wipe_bowl`·`wipe_cup`)은 vel_scale 을 따르지 않고 F3 가 `params.yaml` `f3` 절의 자기 속도로 관리한다** — 세척은 빠르기가 닦이는 정도를 정하는데 실기 기본 0.3 으로는 안 닦인다(박진용 요청 · 황인재 승인). ⚠️ 그래서 **0.3 으로 띄워도 F3 닦기는 감속되지 않는다** → F3 첫 실기는 `f3` 절의 속도 값을 직접 낮춰 시작한다 |
 
 **YAML 소유·키 이름 규칙 (🟡 PM 제안 — 9/19 DSN-03에서 확정)**
 | 규칙 | 내용 | 예 |
@@ -425,6 +425,7 @@ return EMPTY_ZONE (attempts = 슬롯 수)
   - 🚨 **나선 구간에는 힘제어를 켜지 않는다** — 나선은 툴 Z 축 모션이라 Z 힘제어와 **같은 방향**이고, 중급2 "힘 방향과 같은 방향의 모션 불가"에 걸려 9/20 실기에서 시작조차 하지 않았다. 벽면 원호는 X·Y 이동이라 함께 쓸 수 있다(폴리싱 예시).
   - 🚨 **나선은 TOOL 기준, 원호는 BASE 기준**이고 닦는 자세는 툴 Z 가 아래를 향한다(b≈180°) → **툴에서 반시계 = 베이스에서 시계**. 벽면을 "반대 방향"으로 돌리려면 나선이 실제로 돈 각도를 재서 그 반대로 준다(PR #43). TOOL·BASE 를 섞는 다른 동작(팔레트 기울임 등)에도 같은 함정이 있다.
   - 두산 이동(`move_spiral` · `move_arc` · `move_periodic` · `compliance_on` · `force_release`)은 `cobot_common/force.py`(박진용)에 공용 함수로 있고 `wipe.py` 는 `cc.*` 만 부른다(AGENTS §3 규칙 4). 이 셋에는 **일시정지 폴링이 없다**(`move_periodic` 과 같은 취급) → 일시정지는 구간이 끝난 뒤 다음 이동에서 먹고, 구간 사이에서 `cc.is_halted()` 를 본다.
+- 🔄 **9/21 결정 E17 — F3 닦기 동작 변경(박진용 가상 검증)**: ① **닦기는 `HOME` 에서 시작해 `HOME` 으로 끝난다** — F3 가 직접 복귀한다. ② **그릇**: HOME 바로 아래 → 135 mm 빠르게 → 3 mm 씩 바닥 찾기. **컵**: HOME → z +40 → y +140 → z −40 → 80 mm 빠르게 → 바닥 찾기(돌아올 때 반대로). ③ 그래서 **`cell.beds.SPONGE_BED_B/C.wash` 좌표는 F3 가 쓰지 않는다**(티칭 불필요) — 대신 🚨 **닦는 자리가 `HOME` 기준 상대 위치로 정해진다 → `HOME` 을 다시 찍으면 닦는 자리가 같이 움직인다.** ④ 바닥 높이는 미리 정하지 않고 **힘으로만** 찾는다(E13 유지). ⑤ **`wipe_cup` 의 `move_periodic` 회전을 쓰지 않는다** — 손목(J4)을 기울여서. **직선을 이어 붙여** 위아래 + 비틀기를 만든다(아래 E13 의 "move_periodic 한 명령" 을 대체). ⑥ V-10 값: **위아래 40 mm · 비틀기 ±18° · 띄우기 2 mm** + 세척 속도(SR-09 의 "각도는 V-10 에서 확정" → ±18°). ⑦ **세척 속도는 vel_scale 예외**(§6 표). 🔎 PR 검토 때 볼 것: ②의 거리(135·40·140·80 mm)가 코드가 아니라 `params.yaml` `f3` 절에 있는가(AGENTS §3 규칙 6)
 - `wipe_cup()` — ✅ **9/20 결정 E13**: 컵 위 → 끝점 `fast_gap_mm` 위까지 빠르게 → `cc.contact_down` 으로 바닥 찾기 → 힘 풀고 (`lift_mm` + `stroke_mm`) 만큼 띄워 **왕복의 가운데**로 → **`cc.move_periodic` 한 명령으로 위아래 ±`stroke_mm` + 툴 축 비틀기 ±`twist_deg` 를 동시에** `cycles`회 → 왕복은 출발 자리로 돌아오므로 **아래쪽 끝으로 내려서 종료** → `safe_retreat`.
   - 🚨 `amp`·`period` 는 `[x, y, z, rx, ry, rz]` 6개이고 **어떤 축에 진폭을 주면 같은 축의 주기도 줘야 한다**(빠지면 두산 오류 2.1218 — 중급1 p.71~72). 진폭은 **편진폭**이라 한 번 왕복의 총 이동은 2배다.
   - 삽입 깊이 = `tool.clean_h_mm − (fast_gap_mm − 실제로 찾은 거리)` — "접근점에서 내려온 거리"에는 컵 위 빈 공간이 섞여 있어 솔이 들어간 길이와 무관하다(PR #43 에서 고침). `insert_min_mm` 보다 얕으면 바닥 전에 막힌 것 · `keep_in_mm` 은 왕복 꼭대기에서도 솔이 컵 안에 남아 있어야 하는 길이.
