@@ -33,6 +33,8 @@ _POLL_S = 0.05                   # 깃발을 들여다보는 간격
 GO_ON = 'go_on'                  # 이 구역의 다음 용기로
 SKIP_ZONE = 'skip_zone'          # 이 구역은 그만, 다음 구역으로 (EMPTY_ZONE)
 HALT = 'halt'                    # 전부 중단 (Ctrl+C 등)
+# handle_failure 만 돌려주는 값 — run_plan 까지 올라가지 않고 process_one 이 그 자리에서 쓴다
+RETRY_STEP = 'retry_step'        # 재개 — **실패한 그 단계부터 다시** (IRD §8 · 9/20 PM 결정)
 
 # 기능 이름 → (진짜 모듈 경로, 가짜 모듈 경로)
 _MODULES = {
@@ -413,7 +415,11 @@ class Flow:
             ('RACK', 'f1', 'rack_place', (self.rack_slot, self.kind)),
             ('RACK', 'f1', 'move_to', ('HOME', False)),
         ]
-        for step, mod, fname, args in steps:
+        # 🚨 for 가 아니라 while 이다 — PAUSED 에서 재개하면 **실패한 그 단계부터 다시** 해야 해서
+        #    같은 자리를 한 번 더 돌 수 있어야 한다(IRD §8 · 9/20 PM 결정). for 로는 못 돌아온다.
+        i = 0
+        while i < len(steps):
+            step, mod, fname, args = steps[i]
             # 🚨 stop 은 **단계 사이마다** 본다 (SDD §5.1 — 9/20 V-20 에서 찾은 결함).
             #    여기가 없으면 정지 버튼을 눌러도 용기 하나(실기 수십 초)를 끝까지 하고서야 멈춘다.
             #    용기·툴을 **든 채** 멈출 수 있다 → 🚨 그리퍼에 **아무 명령도 보내지 않는다**.
@@ -450,8 +456,12 @@ class Flow:
                     #    "ISOLATE, 그리고 재시도를 다 쓴 RETRY" 를 같은 갈래로 처리한다.
                     if action != PAUSE:
                         action, _ = self.policy_for(r.code)
-                    return self.handle_failure(sig, action)
+                    outcome = self.handle_failure(sig, action)
+                    if outcome != RETRY_STEP:
+                        return outcome
+                    continue                    # i 를 안 올린다 → 실패한 그 단계를 다시
             self.pause_between()
+            i += 1
 
         if self.kind == 'BOWL':
             self.done_bowl += 1
@@ -472,14 +482,28 @@ class Flow:
     def handle_failure(self, sig, action=None):
         """실패를 정책대로 마무리한다 (재시도는 process_one 이 이미 끝냈다).
 
-        돌려주는 값: GO_ON(다음 용기) · SKIP_ZONE(이 구역 그만) · HALT(중단)
+        돌려주는 값: RETRY_STEP(그 단계부터 다시) · GO_ON(다음 용기) · SKIP_ZONE(이 구역 그만) · HALT(중단)
         """
         if action is None:
             action, _ = self.policy_for(self.last_code)
 
         if action == PAUSE:
             self.to_paused(f'코드 {self.last_code}', sig)
-            return GO_ON if self.wait_resume(sig) else HALT
+            if not self.wait_resume(sig):
+                return HALT
+            # 🚨 ROBOT_ERROR 만 예외 — 로봇이 어디 있는지 모르는 채 같은 단계를 다시 하면 위험하다.
+            #    사람이 복구한 뒤 resume 하면 **다음 용기부터**이고 그 용기는 ERROR 로 기록한다
+            #    (IRD §8 · SDD §7 · 9/20 PM 결정). 후퇴가 실패해 강제된 PAUSE 도 여기로 온다 —
+            #    그때 last_code 는 ROBOT_ERROR 다(_retreat 실패).
+            if self.last_code == ROBOT_ERROR:
+                self.emit_event('ERROR')
+                return GO_ON
+            # 그 밖(GRIP_FAIL·RACK_FULL)은 사람이 확인·조치한 뒤 **실패한 그 단계부터** 이어 간다.
+            #    끝까지 가면 DONE 으로 기록되므로 여기서는 이벤트를 내지 않는다(9/20 PM 결정).
+            #    다시 실패하면 또 PAUSED 가 된다 — 풀려면 사람이 resume 을 눌러야 하므로 혼자 돌지 않는다.
+            #    사람이 "이 용기는 접자" 고 판단하면 /flow/abort 다(IRD §6 — 아직 구현 전).
+            self.log.info(f'재개 — {self.step} 단계부터 다시 (코드 {self.last_code})')
+            return RETRY_STEP
 
         if action == NEXT_ZONE:                 # 구역이 비었다 — 남은 count 도 의미 없다
             self.emit_event('SKIPPED')

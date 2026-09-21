@@ -8,7 +8,7 @@ import types
 
 import pytest
 
-from cobot_api import F1Api, F2Api, F3Api
+from cobot_api import F1Api, F2Api, F3Api, GRIP_FAIL, Result
 from f2_sense_flow import mock
 from f2_sense_flow.flow import _POLL_S, Flow, Signals, load_features
 
@@ -25,7 +25,8 @@ CFG = {'flow': {
     'policy': {'EMPTY_ZONE': 'next_zone', 'LEFTOVER_REMAIN': 'isolate', 'SEAT_FAIL': 'isolate',
                'FORCE_LIMIT': 'retry:1->isolate', 'TIMEOUT': 'retry:1->isolate',
                'RACK_JAM': 'retry:1->isolate', 'TOOL_FAIL': 'retry:1->isolate',
-               'RACK_FULL': 'pause', 'ROBOT_ERROR': 'pause'},
+               'RACK_FULL': 'pause', 'ROBOT_ERROR': 'pause',
+               'GRIP_FAIL': 'pause'},          # 9/20 결정 E12 — params.yaml 과 같은 값
     'counts': {'soap_dips': 3, 'rinse_dips': 1, 'rinse_shakes': 3},
     'step_delay_s': 0.0,
     'done_hold_s': 0.0,     # 시험에서는 기다리지 않는다
@@ -337,4 +338,68 @@ def test_new_code_in_retry_uses_new_policy():
     assert f.last_code == 'ROBOT_ERROR'
     assert f.isolated == 0, 'ROBOT_ERROR 를 격리로 처리하면 안 된다 — 로봇 위치를 모른다'
     assert sig.resumes >= 1, 'ROBOT_ERROR 인데 PAUSED 를 거치지 않았다 (SDD §7)'
-    assert [e['result'] for e in events] == [], 'PAUSE 는 용기 이벤트를 내지 않는다'
+    # 9/20 PM 결정: ROBOT_ERROR 로 멈춘 용기**만** ERROR 로 기록한다
+    # (GRIP_FAIL·RACK_FULL 은 재개하면 마저 해서 DONE 이 된다 — 아래 시험)
+    assert [e['result'] for e in events] == ['ERROR'], 'ROBOT_ERROR 로 멈춘 용기는 ERROR 로 남는다'
+
+
+def test_resume_redoes_the_failed_step():
+    """🚨 GRIP_FAIL 로 멈춘 뒤 재개하면 **실패한 그 단계부터 다시** 한다 (IRD §8 · 9/20 결정 E12).
+
+    전에는 재개해도 GO_ON(다음 용기)이라 **그 용기를 버렸다** — 사람이 가서 다시 쥐여 줬는데도
+    버리는 셈이라, 재개 버튼과 중단 버튼이 똑같이 동작했다.
+    """
+    mock.configure([])
+    mods = load_features(['f1', 'f2', 'f3'])
+    tries = []
+
+    def dip(station, count, kind):
+        tries.append(station)
+        if len(tries) == 1:                          # 첫 담금에서 미끄러짐
+            return Result.fail(GRIP_FAIL)
+        return mods['f2'].dip(station, count, kind)
+
+    f2 = types.SimpleNamespace(**{n: getattr(mods['f2'], n)
+                                  for n in dir(F2Api) if not n.startswith('_')})
+    f2.dip = dip
+
+    events = []
+    f = Flow(CFG, Quiet(), publish_event=events.append)
+    f.f = {'f1': mods['f1'], 'f2': f2, 'f3': mods['f3']}
+    f.plan = [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 1}]
+
+    sig = PauseWatcher()
+    f.run_plan(sig)
+
+    assert sig.resumes >= 1, 'GRIP_FAIL 인데 PAUSED 를 거치지 않았다 (E12)'
+    assert len(tries) == 2, f'재개 뒤 같은 단계를 다시 하지 않았다 (dip {len(tries)}회)'
+    assert f.isolated == 0, 'GRIP_FAIL 은 격리가 아니다 — 놓친 용기는 손에 없을 수 있다 (E12)'
+    assert [e['result'] for e in events] == ['DONE'], '마저 해서 끝났으면 DONE 이다'
+
+
+def test_resume_after_robot_error_goes_to_next_container():
+    """🚨 ROBOT_ERROR 만은 재개해도 **그 단계를 다시 하지 않는다** (IRD §8 · SDD §7).
+
+    로봇이 어디 있는지 모르는 채 같은 동작을 다시 하면 위험하다 → 다음 용기부터, 그 용기는 ERROR.
+    """
+    mods = load_features(['f1', 'f2', 'f3'])
+    tries = []
+
+    def dip(station, count, kind):
+        tries.append(station)
+        raise RuntimeError('드라이버 응답 없음')       # 기능 함수에서 샌 예외 → ROBOT_ERROR
+
+    f2 = types.SimpleNamespace(**{n: getattr(mods['f2'], n)
+                                  for n in dir(F2Api) if not n.startswith('_')})
+    f2.dip = dip
+
+    events = []
+    f = Flow(CFG, Quiet(), publish_event=events.append)
+    f.f = {'f1': mods['f1'], 'f2': f2, 'f3': mods['f3']}
+    f.plan = [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 1}]
+
+    f.run_plan(PauseWatcher())
+
+    assert len(tries) == 1, 'ROBOT_ERROR 인데 같은 단계를 다시 했다 — 위험하다'
+    assert [e['result'] for e in events] == ['ERROR']
+    assert f.isolated == 0, 'ROBOT_ERROR 를 격리로 옮기면 안 된다'
