@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v11.0'
+VERSION = 'v11.1'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -883,6 +883,16 @@ EDIT.setdefault('F1-04', {}).setdefault('note_add', '')
 EDIT['F1-04']['note_add'] = (EDIT['F1-04']['note_add'] + ' · ' if EDIT['F1-04']['note_add'] else '') + (
     '🔁 9/21 16시대 한석형(E14 보완 — 직접 수정 후 보고): **그릇 칸 경유점 = 실기값 posj [-8, 0, 107.8, 86.2, 101.5, -108]** — 그릇을 든 채 HOME → 경유 → B1 접근 → 하강 → 놓기 → y −25 → z +100 을 간섭 없이 확인. '
     'rack.via(HOME 위 z 338 · 계산값) 대신. PM 권고: `stations.RACK_B_VIA` 로 두면 코드 수정 없이 `cc.move_to` 로 부를 수 있다(move_to 는 stations·beds·zones·rack.slots 에서만 이름을 찾는다 — 지금 rack.via 는 부를 수 없는 자리). 컵 칸은 rack.via 유지(실기값이 생기면 같은 방식). RINSE.CUP 은 main 값 그대로(한석형)')
+# ---------------------------------------------------------------- 9/21 16시대 V-22·V-19 실기 기록(main 81331f9)
+VLOG = {
+ 'V-22': dict(status='완료', prog='1.0', slots=S('9/21 오전', '9/21 오후'),
+              note_add='✅ 9/21 실기 기록(docs/test_logs/20260921_V-22_V-19_좌표재현_황인재.md): 도착에 성공한 모든 자세 **0.00~0.24 mm** · 관절 자세 ≤ 0.03° → 완료 기준 ≤ 2 mm **통과**'),
+ 'V-19': dict(status='진행', prog='0.8',
+              note_add='🟡 9/21 실기: **부분 통과** — 팔레트 **컵 칸 2곳 미확인**(경유 자세를 넣은 뒤 아직 안 돌림) · 손목 큰 회전 경고 5구간. 남은 것은 한석형 F1-04 적재 실기에서 컵 칸을 돌 때 같이 닫는다(E14 보완 — 경유점도 한석형이 실기로 정한다)'),
+}
+for _tid, _e in VLOG.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -1210,6 +1220,9 @@ HISTORY60 = ['v10.9', '확인', 'F1-04, CELL-04', '황인재 9/21 오후 확인 
 HISTORY61 = ['v11.0', '좌표 변경 보고', 'F1-04', '한석형 9/21 16시대: 그릇 칸 경유점을 실기로 찾은 posj [-8, 0, 107.8, 86.2, 101.5, -108] 로(그릇 든 채 간섭 없음 확인) — rack.via(HOME 위 z 338 계산값) 대신. E14 보완(직접 수정 후 보고)의 첫 적용 사례. PM 권고: stations.RACK_B_VIA 로 두면 cc.move_to 로 바로 부를 수 있다(지금 rack.via 자리는 move_to 가 못 찾는다). RINSE.CUP 은 main 값 그대로',
              '한석형 9/21 16:00', 'S,H']
 
+HISTORY62 = ['v11.1', '실기 결과', 'V-22, V-19', '황인재 9/21 실기 기록(main 81331f9): V-22 좌표 재현 오차 0.00~0.24 mm → 완료. V-19 도달 범위는 부분 통과 — 팔레트 컵 칸 2곳 미확인(경유 자세를 넣은 뒤 안 돌림) · 손목 큰 회전 경고 5구간 → 한석형 F1-04 적재 실기에서 같이 닫는다',
+             '황인재 9/21 16:10', 'H,S']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1304,7 +1317,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
