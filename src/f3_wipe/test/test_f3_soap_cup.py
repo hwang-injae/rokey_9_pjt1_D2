@@ -257,14 +257,14 @@ def test_cup_scrub_is_one_periodic_on_tool_z_and_rz(cell):
     assert all((a != 0) == (t != 0) for a, t in zip(amp, period))          # 진폭 준 축은 주기도(오류 2.1218)
 
 
-def test_cup_lifts_only_lift_mm_after_bottom(cell):
-    """③ 바닥을 찾은 자리에서 **lift_mm(3) 만** 올리고 거기서 세척 → 거기서 끝난다(더 올리거나 내리지 않는다)."""
+def test_cup_lowest_point_is_bottom_plus_lift(cell):
+    """③ 가장 낮은 곳 = 바닥 + lift_mm(3). Periodic 은 가운데 기준 ±stroke 라 바닥 + 3 + stroke 에서 시작하고
+    ⑥ 끝나면 stroke 만큼 내려서 가장 낮은 곳(바닥 + 3)에서 끝낸다."""
     wipe.wipe_cup()
+    lift, stroke = CFG['f3']['wipe_cup']['lift_mm'], 20.0
     rels = _work_rels(cell)
-    assert rels[-1] == pytest.approx(CFG['f3']['wipe_cup']['lift_mm'])
-    names = [c[0] for c in cell.calls]
-    i_contact, i_per = names.index('contact_down'), names.index('periodic')
-    assert [c[1] for c in cell.calls[i_contact:i_per] if c[0] == 'move_rel'] == [pytest.approx(3.0)]
+    assert rels[-2] == pytest.approx(lift + stroke) and rels[-1] == pytest.approx(-stroke)
+    assert rels[-2] + rels[-1] == pytest.approx(lift)                     # 끝 = 바닥 + 3
 
 
 def test_cup_j6_stays_inside_limit(cell):

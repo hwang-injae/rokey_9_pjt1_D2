@@ -381,11 +381,11 @@ def wipe_cup() -> WipeCupResult:
       ① 거기서 **fast_down_mm 만큼 빠르게** 내려간다(9/21 실측 90 mm − 10). 바닥 위치는 미리 정하지 않는다
       ② **바닥을 찾는다** — cc.contact_down(순응 ON, 조금씩 하강, f3.wipe_cup.find_limit_n 5 N — 15 N 이면 컵이 눌렸다)
          (중급2 "힘 방향과 같은 방향의 모션 불가" — Z 힘제어로는 내려갈 수 없다. 순응 + 걸음 하강이 매뉴얼 방식)
-      ③ 바닥을 찾으면 **힘을 풀고**(contact_down 이 해제한다) **3 mm 만** 올린다 — 여기가 세척의 가운데
+      ③ 바닥을 찾으면 **힘을 풀고**(contact_down 이 해제한다) — 세척의 **가장 낮은 곳 = 바닥 + 3 mm**
       ④⑤ **Move Periodic 한 명령**(TOOL 기준): 위아래 z ±20 mm + 그리퍼 축 rz ±180° 를 같은 주기로 → 6번 조인트만 360° 폭
          (중급1 p.71 "왕복 이동/회전") · 🚨 도는 동안 1·4번 조인트 감시, 1° 넘으면 즉시 정지
          🚨 Move Periodic 의 회전 진폭은 쓰지 않는다 — 9/21 Virtual 에서 툴 축이 아니라 4번 축이 돌아 손목이 기울었다
-      ⑥ cycles(3) 번 뒤 가운데(바닥 + 3)에서 끝난다 — 6번 조인트도 제자리
+      ⑥ cycles(3) 번 뒤 가장 낮은 곳(바닥 + 3)으로 내려서 끝낸다 — 6번 조인트도 제자리
       ⑦ 솔을 컵에서 곧게 뽑아 컵 위 높이로 → z +40 → y −140 → z −40 → HOME (⓪ 의 반대)
 
     🚨 그릇(고정 좌표, 결정 E6)과 달리 컵은 **바닥을 힘으로 찾는다** — 컵이 깊고(95 mm) 솔이 단단해
@@ -461,8 +461,8 @@ def cup_periodic(p, stroke):
 
 
 def _scrub_cup(p, log):
-    """③ 바닥에서 lift_mm(3) 만 올리고 → ④⑤ 그 자리를 가운데로 Move Periodic 한 명령(TOOL z ±stroke + TOOL rz ±spin/2) × cycles
-    → ⑥ 가운데에서 끝낸다. 한 주기가 끝나면 6번 조인트는 제자리.
+    """③ **가장 낮은 곳 = 바닥 + lift_mm(3)** — Periodic 은 시작 자리를 가운데로 위아래 똑같이 움직이므로 바닥 + 3 + stroke 에서 시작
+    → ④⑤ Move Periodic 한 명령(TOOL z ±stroke + TOOL rz ±spin/2) × cycles → ⑥ 가장 낮은 곳(바닥 + 3)으로 내려서 끝낸다.
 
     🚨 도는 동안 1·4번 조인트를 계속 읽어 joint_guard_deg 를 넘으면 **즉시 정지**하고 멈춘다 — 6번 조인트만 돌아야 한다.
     세척 주기는 vel_scale 예외(결정 E17).
@@ -471,7 +471,7 @@ def _scrub_cup(p, log):
     if stroke <= 0:
         raise RuntimeError('wipe_cup: 솔 길이로는 왕복할 자리가 없다 — f3.wipe_cup 설정 확인')
     _halt_check('세척')
-    cc.move_rel(0.0, 0.0, float(p['lift_mm']), 'BASE',                   # ③ 바닥에서 lift_mm(3) 만 올린 자리 = 세척의 가운데
+    cc.move_rel(0.0, 0.0, float(p['lift_mm']) + stroke, 'BASE',          # ③ 가장 낮은 곳 = 바닥 + lift_mm(3) 이 되게 가운데로
                 vel_mm_s=float(p['lift_vel_mm_s']) * _scale())
     log.watch('cup-lift')
     q0 = cc.joints()
@@ -496,7 +496,9 @@ def _scrub_cup(p, log):
     end = cc.joints()[5]
     if abs(end - q0[5]) > 5.0:
         _warn(f'wipe_cup: 끝난 뒤 6번 조인트 {end:.1f}° — 시작 {q0[5]:.1f}° 로 돌아오지 않았다')
-    log.watch('cup-end')                                                 # ⑥ 가운데(바닥 + 3)에서 끝난다
+    cc.move_rel(0.0, 0.0, -stroke, 'BASE',                               # ⑥ 가장 낮은 곳(바닥 + 3)에서 끝낸다
+                vel_mm_s=float(p['lift_vel_mm_s']) * _scale())
+    log.watch('cup-end')
 
 
 def _save_force_log(samples, log_dir):
