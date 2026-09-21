@@ -1,0 +1,247 @@
+'use client';
+// 운영 화면 1장 — F4-00 §3. HMI 는 **보여 주고 전달만** 한다(흐름·복구 판단·로봇 동작은 하지 않는다).
+import { useRef, useState } from 'react';
+import { useHmi } from './lib/useHmi';
+import {
+  FLOW, RUNNING, STEP_KO, KIND_KO, RESULT_KO, CODE_KO,
+  buttons, pallet, zones, cycle, alarm, problems, clock, why,
+} from './lib/derive';
+
+const BTN_KO = { start: '시작', stop: '일시 정지', resume: '재개', abort: '중단' };
+const KEY = 'prewash.lastStep';
+function recall() { try { return sessionStorage.getItem(KEY) || ''; } catch { return ''; } }   // 개인 창·막힌 저장소에서도 화면은 뜬다
+function remember(v) { try { sessionStorage.setItem(KEY, v); } catch { /* 없어도 된다 */ } }
+
+export default function Monitor() {
+  const { d, mode, press } = useHmi();
+  const [reply, setReply] = useState(null);
+  // 일시 정지됐을 때 "어느 단계에서" 를 보여 주려고 기억한다 — flow 가 보내는 값(FlowState)에는 그 칸이 없다.
+  // 같은 탭에서 새로고침해도 잊지 않게 탭 저장소(sessionStorage)에도 둔다. 멈춘 **뒤에** 새 탭으로 열면 모른다.
+  const lastRunning = useRef(null);
+  const s = d.state;
+  if (lastRunning.current === null) lastRunning.current = recall();
+  if (s && RUNNING.includes(s.step) && lastRunning.current !== s.step) { lastRunning.current = s.step; remember(s.step); }
+  if (s && (s.step === 'IDLE' || s.step === 'DONE') && lastRunning.current) { lastRunning.current = ''; remember(''); }
+
+  const can = buttons(d);
+  async function onPress(name) {
+    if (name === 'abort' && !window.confirm('이 용기를 격리 구역으로 보내고 다음 용기로 넘어갑니다.\n중단할까요?')) return;
+    setReply({ pending: true, text: `${BTN_KO[name]} 보내는 중…` });
+    const r = await press(name);
+    setReply({ ok: r.ok, text: `${r.ok ? '✔' : '✖'} ${BTN_KO[name]}: ${r.message}${r.latency_ms != null ? ` (${r.latency_ms} ms)` : ''}` });
+  }
+
+  return (
+    <div className="page">
+      <TopBar d={d} can={can} onPress={onPress} />
+      <Alarm d={d} step={lastRunning.current || null} />
+      <Controls can={can} onPress={onPress} reply={reply} />
+      <StepBar d={d} paused={s && s.step === 'PAUSED' ? lastRunning.current || null : null} />
+      <div className="grid">
+        <Zones d={d} />
+        <Pallet d={d} />
+        <Counts d={d} />
+      </div>
+      <Problems d={d} />
+      <footer className="dim small">
+        받는 방식: {mode} · 받은 상태 메시지 {d.received}건 · 점검용 <a href="/test">시험 페이지</a>
+      </footer>
+    </div>
+  );
+}
+
+function TopBar({ d, can, onPress }) {
+  const conn = !d.server ? { cls: 'bad', text: 'HMI 서버에 닿지 않는다' }
+    : d.connected ? { cls: 'ok', text: 'flow 연결됨' }
+    : d.state ? { cls: 'bad', text: 'flow 연결 끊김 — 마지막 값을 보여 주는 중' }
+    : { cls: 'bad', text: 'flow 의 방송을 아직 못 받았다' };
+  const grip = d.gripping == null ? { cls: 'dim', text: '파지 —' }
+    : d.gripping ? { cls: 'on', text: '✊ 파지 중' } : { cls: 'off', text: '✋ 파지 안 함' };
+  return (
+    <header className="top">
+      <div className="brand">PreWash-Cell</div>
+      <div className={`pill ${conn.cls}`}><span className="dot" />{conn.text}</div>
+      <div className={`pill grip ${grip.cls}`}>{grip.text}</div>
+      <div className="spacer" />
+      <div className="stopbox">
+        <button className="btn stop" disabled={!can.stop} onClick={() => onPress('stop')}>일시 정지</button>
+        <div className="dim tiny">즉시 멈춘다 · 재개하면 이어서 · 급하면 로봇 E-Stop</div>
+      </div>
+    </header>
+  );
+}
+
+function Alarm({ d, step }) {
+  const a = alarm(d);
+  if (!a) return null;
+  const label = CODE_KO[a.code] || a.code;
+  if (a.level === 'error') {
+    return (
+      <section className="alarm error">
+        <div className="alarm-title">🚨 운영자 복구 필요 — {label}</div>
+        {a.message && <div className="alarm-msg">{a.message}</div>}
+        <ol className="alarm-steps">
+          <li>로봇과 주변을 확인한다(용기·툴이 걸려 있지 않은지)</li>
+          <li>필요하면 <code>release_force.py</code> 로 힘제어를 푼다</li>
+          <li><b>재개</b> 를 누른다 — 1초 안에 대답이 없으면 flow_node 를 다시 띄운다</li>
+        </ol>
+      </section>
+    );
+  }
+  if (a.level === 'pause') {
+    return (
+      <section className="alarm pause">
+        <div className="alarm-title">일시 정지됨{step ? ` — ${STEP_KO[step]} 단계` : ''}</div>
+        <div className="alarm-msg">
+          {a.message || '운영자 요청'} · 확인한 뒤 <b>재개</b>(하던 동작을 이어서) 또는 <b>중단</b>(이 용기를 격리)
+          {a.code && a.code !== 'OK' ? ` · 원인: ${label}` : ''}
+        </div>
+      </section>
+    );
+  }
+  return (
+    <section className="alarm warn">
+      <div className="alarm-title">⚠ {label}</div>
+      {a.message && <div className="alarm-msg">{a.message}</div>}
+    </section>
+  );
+}
+
+function Controls({ can, onPress, reply }) {
+  return (
+    <section className="controls">
+      <button className="btn go" disabled={!can.start} onClick={() => onPress('start')}>시작</button>
+      <button className="btn go" disabled={!can.resume} onClick={() => onPress('resume')}>재개</button>
+      <button className="btn warn" disabled={!can.abort} onClick={() => onPress('abort')}>중단</button>
+      <div className={`reply ${reply ? (reply.pending ? 'dim' : reply.ok ? 'ok' : 'bad') : 'dim'}`}>
+        {reply ? reply.text : '버튼을 누르면 flow 의 대답이 여기에 나온다'}
+      </div>
+    </section>
+  );
+}
+
+function StepBar({ d, paused }) {
+  const s = d.state;
+  const step = s ? s.step : null;
+  const at = paused || step;                         // 일시 정지 중이면 멈춘 단계를 가리킨다
+  const idx = FLOW.indexOf(at);
+  const finished = step === 'DONE';
+  return (
+    <section className="stepbar">
+      <div className="steps">
+        {FLOW.map((name, i) => {
+          const cls = finished || (idx >= 0 && i < idx) ? 'past'
+            : i === idx ? (paused ? 'now paused' : 'now') : '';
+          return (
+            <div key={name} className={`step ${cls}`}>
+              <span className="mark">{cls.startsWith('past') ? '✓' : i + 1}</span>
+              <span>{STEP_KO[name]}</span>
+            </div>
+          );
+        })}
+        {step === 'ISOLATE' && <div className="step now isolate"><span className="mark">!</span><span>격리 중</span></div>}
+      </div>
+      <div className="current">
+        <div className="big-state">{step ? STEP_KO[step] || step : '-'}</div>
+        <div className="dim">{s && s.kind ? `${KIND_KO[s.kind] || s.kind} · ${s.zone_id || '-'}` : '처리 중인 용기 없음'}</div>
+      </div>
+    </section>
+  );
+}
+
+function Zones({ d }) {
+  const zs = zones(d);
+  return (
+    <section className="card">
+      <h2>반납 구역</h2>
+      {!zs.length && <div className="dim">계획이 아직 없다</div>}
+      {zs.map((z) => (
+        <div key={z.zone} className="zone">
+          <div className="zone-name">{KIND_KO[z.kind]} <span className="dim small">{z.zone}</span></div>
+          <div className="cups">
+            {Array.from({ length: z.count }, (_, i) => <span key={i} className={`cup ${i < z.left ? 'full' : ''}`} />)}
+          </div>
+          <div className={`zone-status ${z.status === '처리 중' ? 'ok' : z.status === '비었음' ? 'warn' : 'dim'}`}>
+            {z.status} · 남음 {z.left}
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function Pallet({ d }) {
+  const cells = pallet(d);
+  const rows = ['BOWL', 'CUP'].map((k) => [k, cells.filter((c) => c.kind === k)]);
+  return (
+    <section className="card">
+      <h2>팔레트</h2>
+      {rows.map(([kind, cs]) => (
+        <div key={kind} className="rack-row">
+          <div className="rack-kind">{KIND_KO[kind]}</div>
+          {cs.map((c) => (
+            <div key={c.slot} className={`slot ${c.filled ? 'filled' : ''} ${c.loading ? 'loading' : ''}`}>
+              <div className="slot-id">{c.slot.replace('RACK_', '')}</div>
+              <div className="tiny">{c.filled ? '적재됨' : c.loading ? '적재 중' : '비어 있음'}</div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function Bar({ value, max }) {
+  const pct = max ? Math.min(100, (value / max) * 100) : 0;
+  return <div className="bar"><i style={{ width: `${pct}%` }} className={pct >= 90 ? 'hot' : ''} /></div>;
+}
+
+function Counts({ d }) {
+  const s = d.state || {};
+  const c = (d.plan && d.plan.consumables) || {};
+  const cy = cycle(d);
+  return (
+    <section className="card">
+      <h2>수량</h2>
+      <div className="count-row"><span>그릇</span><b>{s.done_bowl ?? '-'} / {s.target_bowl ?? '-'}</b></div>
+      <Bar value={s.done_bowl || 0} max={s.target_bowl} />
+      <div className="count-row"><span>컵</span><b>{s.done_cup ?? '-'} / {s.target_cup ?? '-'}</b></div>
+      <Bar value={s.done_cup || 0} max={s.target_cup} />
+      <div className="count-row"><span>격리</span><b className={s.isolated ? 'warn' : ''}>{s.isolated ?? '-'}</b></div>
+      <h2 className="gap">소모품</h2>
+      <div className="count-row"><span>수세미</span><b>{s.sponge_uses ?? '-'}{c.sponge_max_uses ? ` / ${c.sponge_max_uses}` : ''}</b></div>
+      <Bar value={s.sponge_uses || 0} max={c.sponge_max_uses} />
+      <div className="count-row"><span>세제 담금</span><b>{s.soap_dips ?? '-'}{c.soap_max_dips ? ` / ${c.soap_max_dips}` : ''}</b></div>
+      <Bar value={s.soap_dips || 0} max={c.soap_max_dips} />
+      <div className="count-row"><span>헹굼 담금</span><b>{s.rinse_dips ?? '-'}</b></div>
+      <h2 className="gap">사이클 타임</h2>
+      <div className="count-row">
+        <span>최근 · 평균</span>
+        <b>{cy ? `${cy.last.toFixed(1)} s · ${cy.mean.toFixed(1)} s` : '-'}</b>
+      </div>
+    </section>
+  );
+}
+
+function Problems({ d }) {
+  const ps = problems(d);
+  if (!ps.length) return null;
+  return (
+    <section className="card">
+      <h2>최근 문제 (완료가 아닌 용기)</h2>
+      <table className="list">
+        <tbody>
+          {ps.map((e, i) => (
+            <tr key={i} className={e.result === 'ERROR' ? 'bad' : 'warn'}>
+              <td>{clock(e.stamp)}</td>
+              <td>{KIND_KO[e.kind] || e.kind || '-'}</td>
+              <td>{e.zone_id || '-'}</td>
+              <td>{RESULT_KO[e.result] || e.result}</td>
+              <td>{why(e)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}

@@ -1,13 +1,102 @@
-/* 색은 한곳에서 — 밝은/어두운 화면 모두 */
+/* 운영 화면 — 시연에서 청중이 보는 화면이라 글자를 크게(F4-00 §3). 색은 여기 한곳에서. */
 :root {
-  --bg: #f6f7f9; --card: #ffffff; --ink: #1c2430; --dim: #6b7686; --line: #dde2ea;
-  --ok: #1a8f4c; --bad: #c62f2f; --warn: #b7791f;
+  --bg: #f4f6f9; --card: #ffffff; --ink: #1c2430; --dim: #6b7686; --line: #dde2ea;
+  --ok: #1a8f4c; --ok-bg: #e3f4ea; --bad: #c62f2f; --bad-bg: #fbe6e6;
+  --warn: #b7791f; --warn-bg: #fdf1dc; --accent: #2563eb; --accent-bg: #e3ecfd;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #12161c; --card: #1b212a; --ink: #e8ecf2; --dim: #93a0b3; --line: #2c3440; }
+  :root {
+    --bg: #12161c; --card: #1b212a; --ink: #e8ecf2; --dim: #93a0b3; --line: #2c3440;
+    --ok-bg: #14301f; --bad-bg: #3a1717; --warn-bg: #36280f; --accent: #6b9bff; --accent-bg: #1a2742;
+  }
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, "Noto Sans KR", sans-serif; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.5 system-ui, "Noto Sans KR", sans-serif; }
 a { color: inherit; }
-.shell { padding: 16px; }
-.dim { color: var(--dim); }
+code { font-size: .9em; padding: 0 4px; border-radius: 4px; background: var(--line); }
+
+.page { max-width: 1400px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.dim { color: var(--dim); } .small { font-size: 14px; } .tiny { font-size: 12px; }
+.ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); }
+
+/* ── 상단 막대 */
+.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.brand { font-size: 24px; font-weight: 800; letter-spacing: .5px; }
+.spacer { flex: 1; }
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+        background: var(--card); border: 1px solid var(--line); font-weight: 600; }
+.pill .dot { width: 12px; height: 12px; border-radius: 50%; background: currentColor; }
+.pill.grip.on { color: var(--accent); background: var(--accent-bg); border-color: transparent; }
+.pill.grip.off { color: var(--dim); }
+.stopbox { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+
+/* ── 버튼 */
+.btn { font: 700 20px/1 inherit; padding: 16px 26px; border-radius: 12px; border: 1px solid var(--line);
+       background: var(--card); color: var(--ink); cursor: pointer; min-width: 120px; }
+.btn.go { background: var(--ok); color: #fff; border-color: var(--ok); }
+.btn.warn { background: var(--warn); color: #fff; border-color: var(--warn); }
+.btn.stop { background: var(--bad); color: #fff; border-color: var(--bad); font-size: 22px; padding: 18px 34px; }
+.btn:disabled { opacity: .3; cursor: not-allowed; }
+.controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.reply { font-weight: 600; min-height: 1.5em; }
+
+/* ── 알람 띠 */
+.alarm { border-radius: 12px; padding: 14px 18px; border: 2px solid; }
+.alarm.error { background: var(--bad-bg); border-color: var(--bad); }
+.alarm.pause { background: var(--warn-bg); border-color: var(--warn); }
+.alarm.warn { background: var(--warn-bg); border-color: var(--warn); }
+.alarm-title { font-size: 26px; font-weight: 800; }
+.alarm.error .alarm-title { color: var(--bad); }
+.alarm.pause .alarm-title, .alarm.warn .alarm-title { color: var(--warn); }
+.alarm-msg { margin-top: 4px; font-size: 18px; }
+.alarm-steps { margin: 8px 0 0; padding-left: 24px; font-size: 18px; }
+
+/* ── 단계 표시줄 */
+.stepbar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; background: var(--card);
+           border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+.steps { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+.step { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 10px; color: var(--dim);
+        border: 1px solid var(--line); font-weight: 600; }
+.step .mark { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+              background: var(--line); font-size: 13px; }
+.step.past { color: var(--ok); } .step.past .mark { background: var(--ok); color: #fff; }
+.step.now { color: #fff; background: var(--accent); border-color: var(--accent); }
+.step.now .mark { background: rgba(255,255,255,.25); }
+.step.now.paused { background: var(--warn); border-color: var(--warn); }
+.step.now.isolate { background: var(--warn); border-color: var(--warn); }
+.current { text-align: right; min-width: 160px; }
+.big-state { font-size: 34px; font-weight: 800; line-height: 1.1; }
+
+/* ── 카드 3칸 */
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.card h2 { font-size: 14px; font-weight: 700; color: var(--dim); margin: 0 0 10px; letter-spacing: .3px; }
+.card h2.gap { margin-top: 16px; }
+
+.zone { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 12px; padding: 8px 0;
+        border-bottom: 1px solid var(--line); }
+.zone:last-child { border-bottom: 0; }
+.zone-name { font-size: 20px; font-weight: 700; }
+.cups { display: flex; gap: 6px; justify-self: end; }
+.cup { width: 26px; height: 26px; border-radius: 6px; border: 2px dashed var(--line); }
+.cup.full { background: var(--accent); border: 2px solid var(--accent); }
+.zone-status { grid-column: 1 / -1; font-weight: 600; }
+
+.rack-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.rack-kind { width: 44px; font-weight: 700; }
+.slot { flex: 1; text-align: center; padding: 12px 6px; border-radius: 10px; border: 2px dashed var(--line); color: var(--dim); }
+.slot-id { font-size: 22px; font-weight: 800; }
+.slot.filled { border: 2px solid var(--ok); background: var(--ok-bg); color: var(--ok); }
+.slot.loading { border: 2px solid var(--accent); background: var(--accent-bg); color: var(--accent); }
+
+.count-row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px; }
+.count-row b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.bar { height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; margin-top: 4px; }
+.bar i { display: block; height: 100%; background: var(--ok); transition: width .4s; }
+.bar i.hot { background: var(--warn); }
+
+table.list { width: 100%; border-collapse: collapse; font-size: 16px; }
+table.list td { padding: 6px 8px; border-top: 1px solid var(--line); }
+table.list tr.bad td { color: var(--bad); } table.list tr.warn td { color: var(--warn); }
+
+footer { padding: 4px 0 12px; }
