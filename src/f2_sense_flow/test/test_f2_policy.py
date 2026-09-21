@@ -99,6 +99,41 @@ def test_retry_recovers():
     assert f.isolated == 0
 
 
+def test_retry_does_not_rerun_earlier_steps():
+    """🚨 재시도가 성공한 뒤 **그다음 단계로** 가야 한다 — 앞 단계로 되돌아가면 안 된다.
+
+    9/21 에 찾은 결함: 재시도를 세는 변수가 바깥의 단계 인덱스와 이름이 같아(둘 다 i)
+    재시도가 성공하면 단계 인덱스가 재시도 횟수로 덮였다. rack_place(마지막에서 두 번째)가
+    한 번 실패했다 성공하면 **steps[1] 로 뛰어** 무게·안착·닦기·헹굼·적재를 한 바퀴 더 돌았다.
+
+    실기에서 무슨 일이 나나: 용기는 이미 팔레트에 들어가 있으므로 **빈 그리퍼로** 저울에 가고,
+    스펀지 홈에 허공을 안착시키고, 이미 찬 칸에 다시 삽입한다. 그런데도 결과는 'DONE' 이다.
+
+    위의 test_retry_recovers 는 이벤트 결과만 보므로 이 결함을 **통과시킨다** →
+    여기서는 기능 함수가 몇 번 불렸는지를 센다.
+    """
+    def count(fail_on):
+        mock.configure(fail_on)
+        calls, events = [], []
+        f = Flow(CFG, Quiet(), publish_event=events.append)
+        f.f = load_features(['f1', 'f2', 'f3'])
+        orig = f.call_fn
+        f.call_fn = lambda mod, fname, *a: (calls.append(fname), orig(mod, fname, *a))[1]
+        f.run_plan(AutoResume())
+        mock.reset()
+        return calls, [e['result'] for e in events]
+
+    base, ok = count([])
+    assert ok == ['DONE'] * 4
+
+    calls, results = count(['rack_place:RACK_JAM:1'])
+    assert results == ['DONE'] * 4
+    # 늘어나도 되는 것은 **실패해서 다시 부른 rack_place 한 번**뿐이다
+    assert len(calls) == len(base) + 1, (
+        f'재시도 뒤 앞 단계로 되돌아갔다 — {len(calls) - len(base)} 회 더 불렀다\n{calls}')
+    assert calls.count('rack_place') == base.count('rack_place') + 1
+
+
 def test_retry_exhausted_isolates():
     """재시도를 다 써도 실패하면 격리."""
     results, f = run(['rack_place:RACK_JAM'])
@@ -618,3 +653,32 @@ def test_leftover_abort_flag_does_not_fire_next_run():
     f2nd.run_plan(watcher)
     assert watcher.resumes >= 1, 'GRIP_FAIL 인데 PAUSED 를 거치지 않았다 — 중단 깃발이 살아 있었다'
     assert f2nd.isolated == 0, '사람이 안 눌렀는데 중단 정리가 돌았다'
+
+
+# ────────────────────────────────────────────── 예외 주입 (TC-10 · UT-FLOW ③)
+def test_boom_injects_a_real_exception():
+    """🚨 코드 BOOM 은 Result 가 아니라 **예외**를 던진다.
+
+    왜 필요한가: 실패 **코드**만 주입해서는 "기능 함수가 터지는 길" 을 한 번도 안 지난다 —
+    코드는 함수가 스스로 돌려준 것이라 이미 정상 경로다. flow 가 예외를 ROBOT_ERROR 로
+    바꿔 PAUSED 로 가는지는 진짜 예외로만 확인된다(SDD §9.3 TC-10).
+    """
+    mock.configure(['soap:BOOM'])
+    with pytest.raises(RuntimeError):
+        mock.code_for('soap')
+    assert mock.code_for('wipe_bowl') is None      # 다른 함수는 멀쩡하다
+
+
+def test_boom_becomes_robot_error_and_pauses():
+    """터진 뒤 flow 는 ROBOT_ERROR 로 바꾸고 멈춘다 (params.yaml ROBOT_ERROR: pause)."""
+    results, f = run(['soap:BOOM'])
+    assert f.last_code == 'ROBOT_ERROR'
+    assert results and all(r == 'ERROR' for r in results), results
+
+
+def test_boom_with_count_only_throws_that_many_times():
+    """횟수를 주면 그만큼만 터진다 — 재시도로 회복되는 길도 볼 수 있다."""
+    mock.configure(['soap:BOOM:1'])
+    with pytest.raises(RuntimeError):
+        mock.code_for('soap')
+    assert mock.code_for('soap') is None

@@ -45,7 +45,8 @@ import time
 from .bootstrap import cfg, dsr, io_node
 
 __all__ = ['move_to', 'move_rel', 'move_joint_rel',
-           'pause', 'resume', 'is_paused', 'halt', 'clear_halt', 'is_halted', 'MotionHalted', 'MoveTimeout', 'MoveIncomplete']
+           'pause', 'resume', 'is_paused', 'halt', 'clear_halt', 'is_halted', 'stop',
+           'MotionHalted', 'MoveTimeout', 'MoveIncomplete']
 
 FRAMES = ('BASE', 'TOOL')
 KINDS = ('BOWL', 'CUP')                             # 종류별 자세의 키 (IRD §2 kind)
@@ -191,6 +192,21 @@ def clear_halt():
 
 def is_halted() -> bool:
     return _halt_flag.is_set()
+
+
+def stop():
+    """**지금 바로** 정지 명령을 보낸다 — move_stop(DR_QSTOP · Stop Category 2, 서보 전원 유지). 기다리지 않는다.
+
+    halt() 와 무엇이 다른가:
+      halt()  깃발만 세운다. 이동 함수(move_to · move_rel · move_joint_rel)의 **다음 폴링**(≤ _POLL_S)에서 세우고
+              MotionHalted 로 끝낸다. clear_halt() 전까지 새 이동도 막는다. → 운영자·flow 가 "멈춰" 할 때
+      stop()  컨트롤러에 **지금 바로** 정지 명령을 보낸다. 깃발은 건드리지 않는다 — 다음 이동은 그대로 나간다.
+              → 이동 함수의 폴링 **밖에서** 도는 동작(힘제어 · move_periodic · 나선 등)을 감시하다 즉시 세울 때
+                 (박진용 force.stop_now — PR #56·#57 요청으로 공개 함수로 뺐다. 전에는 내부 함수 _call('stop') 을 불렀다)
+    멈췄는지는 부르는 쪽이 본다(force.motion_done · check_motion). 드라이버가 거절하면 경고만 남긴다.
+    기능 함수(메인 스레드)에서 부른다 — 보내는 일은 통신 노드가 한다.
+    """
+    _call('stop')
 
 
 def setup_io(node):
