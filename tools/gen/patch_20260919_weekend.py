@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v12.1'
+VERSION = 'v12.2'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1001,6 +1001,21 @@ P21 = {
 for _tid, _e in P21.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 17:40 팀원 보고 3건 반영
+R = '📣 9/21 17:40 보고'
+REP = {
+ 'FLOW-03': dict(prog='0.9', note_add=R + '(민범진): **코드는 끝** — 정지·재개·중단(PR #50). 🟡 남은 것은 abort 실기뿐(격리 자리 가는 길 미확인 — E-Stop 에 손)'),
+ 'F1-02':   dict(status='진행', prog='0.3', note_add=R + '(한석형): **그릇 집기 실기 검증 중** — 실제 TCP GripperDA_v1 확인, REAL STEP 스크립트로 RET_B 집기부터 전체 경로를 순서대로 확인 중(그릇 값 영점 10.58 · 2.15 ± 0.6 · 20 N 반영). 로컬 cell.yaml 이 옛것이라 limits/motion 이 비어 막혔다가 main 최신으로 맞춤. 🔜 실기 끝나면 handling.py pick() 본 구현 → push. GitHub push 아직 없음'),
+ 'INT-12a': dict(note_add='🚨 9/21 17:40(민범진 보고): **한석형 f1.pick() 이 main 에서 아직 빈 함수** — INT-12a(9/22 저녁 · 민범진 주도)의 전제. 한석형 pick() PR 이 **9/22 오후까지** 들어와야 한다'),
+ 'F1-05':   dict(note_add=R + '(한석형): insert_limit_n 15 = force_max_n 15 여유 0 문제는 F1 구현하며 같이 정리하겠다'),
+ 'F3-02':   dict(note_add=R + '(박진용): 그릇 재검증 = HOME 시작·끝 + 135 mm 빠른 하강을 가상에서 바닥 조건 흉내로 그릇→컵 연속 디버깅 중 → **오늘 저녁 실기(rig_f3.py bowl)** 로 기록. 빠른 하강·곧게 올라오기 1.5 배(fast_vel_mm_s 180 → vel_scale 0.3 에서 54 mm/s)는 브랜치 jinyong/20260921-F3-guard-cleanup(#57 뒤 커밋 · main 미반영) → 그릇 실기 뒤 새 PR'),
+ 'SAFE-01': dict(note_add=R + '(박진용): 실측 줄은 그릇 재검증 뒤 find_max_mm(40 → 25 여부)와 함께 오늘 저녁'),
+ 'CELL-03': dict(note_add=R + '(민범진): 0.7 그대로 — 아직 손 못 댐(잔반 대용품은 F2-01 전까지면 된다)'),
+ 'V-07':    dict(note_add=R + '(민범진): 준비 끝(run_tonight.sh check 통과) · 털기 최고 회전 계산 150~200 °/s 로 225 °/s 한계 안 — 알람 1212 가 뜨면 진폭부터 줄인다'),
+}
+for _tid, _e in REP.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -1172,6 +1187,13 @@ if _o in SLOT['9/21 월']['D']:
 _o = '**20:55 ④ 민범진 두 번째: V-02 무게 → V-07 털기 → V-16 HOLD**(오후 티칭에서 WEIGH·WASTE 를 다시 찍은 뒤 · CELL-03 이 끝나 있어야 V-07 가능)'
 if _o in SLOT['9/21 월']['D']:
     SLOT['9/21 월']['D'] = SLOT['9/21 월']['D'].replace(_o, '**20:55 ④ 민범진 두 번째: V-02 무게 → 🔴 컵 78 mm 들리는지(E19) → V-07 털기(그릇·컵 · 대용품 없이) → V-16(그릇만)** — run_tonight.sh')
+# 9/21 17:40 — 보고 반영: V-10·V-18 은 오후에 끝났으니 저녁을 당긴다(v12.2)
+SLOT['9/21 월']['D'] = ('🔁 17:40 재배치(보고 반영 — V-10·V-18 은 오후에 끝남): '
+                        '**18:30 ① F3-02 그릇 재검증 + SAFE-01 실측(P, 40분 · rig_f3.py bowl)** → '
+                        '**19:10 ② 민범진: V-02 무게 → 🔴 컵 78 mm 들리는지(E19) → V-07 털기(그릇·컵) → V-16(그릇만)** (약 100분 · run_tonight.sh) → '
+                        '**20:50 ③ V-25 F1-01 실기(H, 25분)** · '
+                        '🔸 한석형 F1-02 그릇 집기 실기는 **오후(지금) 진행 중 → 18:30 전에 로봇을 넘긴다**, 남으면 ③ 뒤 · '
+                        '로봇 불필요: 한석형 pick() 본 구현 · 민범진 FLOW-02 · NOTE-01·02(H)')
 _b, _c = LECTURE['9/24 목~9/28 월']
 LECTURE['9/24 목~9/28 월'] = (_b, _c + ' · 🆕 **F4 웹 HMI**(F4-03 화면 다듬기·F4-04 기록/이력·UT-F4 전체)도 집에서 mock·fake_state_pub 로 이어 간다(황인재 9/20 — ROS 인터페이스·로봇 쪽 코드는 9/23 동결 그대로)')
 RULES = {       # (A 열, B 열 글자) → (새 B, 새 C)
@@ -1369,6 +1391,9 @@ HISTORY71 = ['v12.0', '검증 수준', 'INT-4b, UT-FLOW, V-02, V-07', 'PR #59 me
 HISTORY72 = ['v12.1', '결정 E20·E21', 'FLOW-02, F4-03, NOTE-02, V-24', '결정 E20(황인재 A): PR merge 는 자동 시험으로 하되 PM 승인 코멘트·일정표에 검증 수준(자동 시험/가상/실기)을 항상 밝힌다. 결정 E21(황인재): /cell/force·/cell/gripping 삭제 — 발행한 적이 없고 힘제어는 몇 초뿐·컵은 파지 판정 안 함 → HMI 힘 그래프·파지 표시 대신 셀 평면도. 민범진·박진용은 발행을 만들지 않는다. PR #60 merge(cc.stop() 공개 정지 함수 · 🟡 실기 미확인)',
              '황인재 9/21 17:40', 'M,P,H']
 
+HISTORY73 = ['v12.2', '보고 반영', 'FLOW-03, F1-02, INT-12a, F1-05, F3-02, SAFE-01, CELL-03, V-07, 9/21 저녁 슬롯', '팀원 보고 3건(9/21 17:40): 민범진 — FLOW-03 코드 끝(0.9 · abort 실기만) · V-02/07/16 준비 끝 · 막힘: 저녁 로봇 시간 · INT-12a 가 한석형 pick() 을 기다림. 한석형 — F1-02 그릇 집기 실기 검증 중(0.3 · push 전 · 실기 뒤 pick() 구현). 박진용 — 막힘 없음 · 그릇 재검증 오늘 저녁 · 속도 1.5 배는 브랜치. 저녁 재배치: V-10·V-18 이 오후에 끝나 18:30 박진용 그릇 40분 → 19:10 민범진 약 100분 → 20:50 V-25. 민범진이 요청한 "force.py 최신 힘 저장 함수" 는 E21(/cell/force 삭제)로 필요 없어짐',
+             '황인재 9/21 17:45', 'M,S,P,H']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1463,7 +1488,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
