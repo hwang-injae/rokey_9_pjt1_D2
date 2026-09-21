@@ -91,8 +91,11 @@ def main() -> int:
     ap.add_argument('--real', action='store_true', help='실기: 진짜 cell.yaml 을 그대로 쓰고 구간마다 Enter 로 확인한다')
     ap.add_argument('--step', action='store_true', help='구간마다 Enter (실기는 기본으로 켜진다)')
     ap.add_argument('--from', dest='start', type=int, default=1, help='몇 번째 이동부터 돌까 (1 부터 · 막힌 구간을 고친 뒤 이어서)')
+    ap.add_argument('--skip', default='', help='건너뛸 번호 (쉼표로: 3,21,31) — 좌표가 틀렸다고 이미 아는 자세를 빼고 한 번에 돈다')
+    ap.add_argument('--where', action='store_true', help='로봇을 **움직이지 않고** 지금 자세(관절·좌표)만 찍고 끝낸다')
     opt = ap.parse_args([v for v in sys.argv[1:] if not v.startswith('--ros-args')])
     opt.step = opt.step or opt.real
+    skip = {int(v) for v in opt.skip.replace(' ', '').split(',') if v}
 
     with open(HERE / 'rig_coords.yaml', encoding='utf-8') as f:
         p = yaml.safe_load(f)
@@ -127,6 +130,12 @@ def main() -> int:
 
         def posj():
             return [float(v) for v in d.get_current_posj()]
+
+        if opt.where:                                          # 로봇을 움직이지 않는다 — 지금 자세를 읽어서 찍기만 한다
+            log.info('지금 자세 (로봇은 움직이지 않았다)')
+            log.info('  관절 posj: [' + ', '.join(f'{v:.2f}' for v in posj()) + ']')
+            log.info('  좌표 posx: [' + ', '.join(f'{v:.2f}' for v in posx()) + ']')
+            return 0
 
         def off(now, want):
             """(위치 오차 mm, 방향 오차 deg)"""
@@ -164,6 +173,9 @@ def main() -> int:
         for n, (station, carrying, kind, point) in enumerate(ROUTE, start=1):
             label = station + (f' {kind}' if kind else '') + (f' point={point}' if point is not None else '')
             if n < opt.start:
+                continue
+            if n in skip:
+                log.info(f'[{n}/{len(ROUTE)}] {label} — ⏭ 건너뛴다 (--skip)')
                 continue
             _, spec = _named_pose(station, kind, point)
             if opt.step:
