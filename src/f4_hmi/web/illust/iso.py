@@ -15,6 +15,7 @@ def mix(a, b, t):
 
 MAT = {                       # (그늘 색, 빛 받은 색)
     'ceramic': ('#8a8377', '#ffffff'),
+    'pink':    ('#62203a', '#fbc5d3'),        # 다회용기 — 탁한 분홍 플라스틱(황인재 9/22 예시 사진)
     'steel':   ('#4a5462', '#f1f4f8'),
     'alu':     ('#2e353f', '#aab4c1'),
     'graphite': ('#101419', '#707b8b'),
@@ -40,6 +41,7 @@ def lum(nx, ny, nz):
     return 0.625 - 0.125 * nx + 0.125 * ny + 0.375 * nz
 
 ACC = '#6b9bff'
+REUSE = 'pink'                              # 그릇·컵 재질
 
 
 class Scene:
@@ -131,26 +133,70 @@ class Scene:
             self.raw(f'<ellipse cx="{X1:.1f}" cy="{Y1:.1f}" rx="{rx1:.1f}" ry="{ry1:.1f}" fill="{f}"' + (f' fill-opacity="{alpha}"' if alpha != 1 else '') + f'{ol}/>')
         return X1, Y1, rx1, ry1
 
-    def vessel(self, cx, cy, z0, r0, h, r1, mat='ceramic', wall=3.5, inner=None, alpha=1):
-        """열린 그릇·컵 — 겉면 · 테두리 · 안쪽. 돌려주는 값: 테두리 타원(안쪽 물건을 가릴 때 씀)"""
+    def vessel(self, cx, cy, z0, r0, h, r1, mat='ceramic', wall=3.5, inner=None, alpha=1, flange=0, ears=0, foot=0, band=0):
+        """열린 그릇·컵 — 겉면 · 테두리 · 안쪽. 돌려주는 값: 입구 타원(안쪽 물건을 가릴 때 씀)
+           다회용기 모양(황인재 9/22 예시 사진): flange = 테두리 날개 폭 · ears = 양옆 손잡이 귀 길이 · foot = 받침 굽 반지름
+           band = 컵 윗부분 매끈한 띠의 비율(아래는 세로 주름)"""
         z1 = z0 + h
-        X1, Y1, rx1, ry1 = self.cyl(cx, cy, z0, r0, z1, r1, mat, top=None, alpha=alpha)
-        self.raw(f'<ellipse cx="{X1:.1f}" cy="{Y1:.1f}" rx="{rx1:.1f}" ry="{ry1:.1f}" fill="{shade(mat, .99)}" stroke="{shade(mat, .45)}" stroke-width="1" stroke-opacity=".5"/>')
+        zt = z1 - 3 if flange else z1                                          # 날개가 있으면 몸통은 날개 밑까지
+        if foot:                                                               # 받침 굽
+            self.cyl(cx, cy, z0, foot - 2, z0 + 4, foot, mat, top=None, alpha=alpha)
+        zs = z0 + 4 if foot else z0
+        if band:                                                               # 컵 — 아래 주름 몸통 + 위 띠(살짝 굵다)
+            zb = z0 + h * (1 - band)
+            rb = r0 + (r1 - r0) * (1 - band)
+            self.cyl(cx, cy, zs, r0, zb, rb - 1.5, mat, top=None, alpha=alpha)
+            self._ribs(cx, cy, zs, r0, zb, rb - 1.5, mat)
+            X1, Y1, rx1, ry1 = self.cyl(cx, cy, zb, rb + .8, zt, r1, mat, top=None, alpha=alpha)
+            Xs, Ys, rxs, rys = self.ell(cx, cy, zb, rb + .8)
+            self.raw(f'<path d="M{Xs - rxs:.1f} {Ys:.1f} A{rxs:.1f} {rys:.1f} 0 0 0 {Xs + rxs:.1f} {Ys:.1f}" fill="none" stroke="{shade(mat, .3)}" stroke-width="1.2" stroke-opacity=".6"/>')
+        else:
+            X1, Y1, rx1, ry1 = self.cyl(cx, cy, zs, r0, zt, r1, mat, top=None, alpha=alpha)
+        if flange:                                                             # 테두리 날개 + 손잡이 귀
+            ea = math.radians(70)                                              # 귀 방향 — 그리퍼가 잡는 쪽(−20°)과 직각
+            ux, uy = math.cos(ea), math.sin(ea)
+            def ear(sign):
+                ex, ey = cx + sign * (r1 + flange + ears / 2 - 2) * ux, cy + sign * (r1 + flange + ears / 2 - 2) * uy
+                self.rbox(ex, ey, z1 - 3, ears / 2 + 2, 12, 3, mat, ang=70)
+            if ears:
+                ear(-1)                                                        # 뒤쪽 귀 — 날개보다 먼저
+            self.cyl(cx, cy, z1 - 3, r1 + flange, z1, r1 + flange, mat, top='solid', alpha=alpha, top_fill=shade(mat, .96))
+            if ears:
+                ear(1)
+                Xf, Yf, rxf, ryf = self.ell(cx, cy, z1, r1 + flange)
+                self.raw(f'<ellipse cx="{Xf:.1f}" cy="{Yf:.1f}" rx="{rxf:.1f}" ry="{ryf:.1f}" fill="{shade(mat, .96)}"/>')
+            X1, Y1, rx1, ry1 = self.ell(cx, cy, z1, r1)
+            self.raw(f'<ellipse cx="{X1:.1f}" cy="{Y1:.1f}" rx="{rx1:.1f}" ry="{ry1:.1f}" fill="{shade(mat, .99)}" stroke="{shade(mat, .5)}" stroke-width="1" stroke-opacity=".45"/>')
+        else:
+            lip = 1.2 if band else 0                                           # 컵 입술 — 살짝 말려 있다
+            Xl, Yl, rxl, ryl = self.ell(cx, cy, z1, r1 + lip)
+            self.raw(f'<ellipse cx="{Xl:.1f}" cy="{Yl:.1f}" rx="{rxl:.1f}" ry="{ryl:.1f}" fill="{shade(mat, .99)}" stroke="{shade(mat, .45)}" stroke-width="1" stroke-opacity=".5"/>')
         ri = r1 - wall
         Xi, Yi, rxi, ryi = self.ell(cx, cy, z1, ri)
         g = inner or self.lgrad([(0, shade(mat, .50), 1), (.55, shade(mat, .74), 1), (1, shade(mat, .90), 1)], 0, 0, 0, 1)
         self.raw(f'<ellipse cx="{Xi:.1f}" cy="{Yi:.1f}" rx="{rxi:.1f}" ry="{ryi:.1f}" fill="{g}"/>')
         # 바닥 — 안쪽 아래에 밝은 둥근 면
-        Xb, Yb, rxb, ryb = self.ell(cx, cy, z0 + 4, r0 - wall)
+        Xb, Yb, rxb, ryb = self.ell(cx, cy, zs + 4, r0 - wall)
         if h < 60:                                                                 # 얕은 그릇만 바닥이 보인다
             self.raw(f'<ellipse cx="{Xb:.1f}" cy="{min(Yb, Yi + ryi * .45):.1f}" rx="{rxb * .9:.1f}" ry="{ryb * .9:.1f}" fill="{shade(mat, .93)}" fill-opacity=".8"/>')
         # 안쪽 윗가장자리 그늘
         self.raw(f'<path d="M{Xi - rxi:.1f} {Yi:.1f} A{rxi:.1f} {ryi:.1f} 0 0 1 {Xi + rxi:.1f} {Yi:.1f}" fill="none" stroke="{shade(mat, .40)}" stroke-width="2.5" stroke-opacity=".45"/>')
-        # 겉면 반짝임
-        hx, Y0 = X1 - rx1 * .62, self.ell(cx, cy, z0, r0)[1]
-        self.raw(f'<path d="M{hx:.1f} {Y1 + ry1 * .75:.1f} Q{hx - 3:.1f} {(Y1 + Y0) / 2 + 4:.1f} {hx + 2:.1f} {Y0 + 2:.1f}" '
-                 f'stroke="#fff" stroke-opacity=".55" stroke-width="3" fill="none" stroke-linecap="round"/>')
+        # 겉면 반짝임 — 플라스틱은 은은하게
+        Xa, Ya, rxa, rya = self.ell(cx, cy, zt, r1)
+        hx, Y0 = Xa - rxa * .62, self.ell(cx, cy, zs, r0)[1]
+        self.raw(f'<path d="M{hx:.1f} {Ya + rya * .75:.1f} Q{hx - 3:.1f} {(Ya + Y0) / 2 + 4:.1f} {hx + 2:.1f} {Y0 + 2:.1f}" '
+                 f'stroke="#fff" stroke-opacity="{.3 if mat == REUSE else .55}" stroke-width="3" fill="none" stroke-linecap="round"/>')
         return (X1, Y1, rx1, ry1)
+
+    def _ribs(self, cx, cy, za, ra, zb, rb, mat, n=22):
+        """컵 아랫부분 세로 주름 — 보이는 앞쪽 반에만 골을 긋는다"""
+        for i in range(n):
+            phi = math.radians(-45 + 180 * (i + .5) / n)
+            (ax, ay), (bx, by) = self.P(cx + ra * math.cos(phi), cy + ra * math.sin(phi), za + 1.5), self.P(cx + rb * math.cos(phi), cy + rb * math.sin(phi), zb - 1)
+            face = math.cos(phi - math.radians(45))                           # 1 = 정면
+            self.raw(f'<line x1="{ax:.1f}" y1="{ay:.1f}" x2="{bx:.1f}" y2="{by:.1f}" stroke="{shade(mat, .25)}" stroke-opacity="{.22 + .3 * (1 - face):.2f}" stroke-width="1.2"/>')
+            (ax2, ay2), (bx2, by2) = self.P(cx + ra * math.cos(phi + .07), cy + ra * math.sin(phi + .07), za + 1.5), self.P(cx + rb * math.cos(phi + .07), cy + rb * math.sin(phi + .07), zb - 1)
+            self.raw(f'<line x1="{ax2:.1f}" y1="{ay2:.1f}" x2="{bx2:.1f}" y2="{by2:.1f}" stroke="#ffffff" stroke-opacity="{.25 * face:.2f}" stroke-width=".9"/>')
 
     def clip_open(self, rim):
         """열린 그릇 안쪽 물건용 클립 — 테두리 타원 안 + 테두리 가운데 줄보다 위"""
@@ -180,9 +226,9 @@ class Scene:
             up.append(p)
         return lo[:-1] + up[:-1]
 
-    def standing_bowl(self, cx, cy, zb, r1=57, r0=32, depth=40, alpha=1, mat='ceramic'):
-        """세운 그릇 — 입구가 +x(오른쪽 아래)를 본다. zb = 그릇 아래 끝 높이"""
-        zc = zb + r1
+    def standing_bowl(self, cx, cy, zb, r1=55, r0=44, depth=40, alpha=1, mat=REUSE, flange=7):
+        """세운 그릇 — 입구가 +x(오른쪽 아래)를 본다. zb = 그릇 아래 끝 높이(날개 포함)"""
+        zc = zb + r1 + flange
         foot = self.circle3((cx - depth / 2, cy, zc), (0, 1, 0), (0, 0, 1), r0)
         rim = self.circle3((cx + depth / 2, cy, zc), (0, 1, 0), (0, 0, 1), r1)
         rim_in = self.circle3((cx + depth / 2, cy, zc), (0, 1, 0), (0, 0, 1), r1 - 3.5)
@@ -190,6 +236,12 @@ class Scene:
         a = f' fill-opacity="{alpha}" stroke-opacity="{alpha}"' if alpha != 1 else ''
         g = self.lgrad([(0, shade(mat, .92), 1), (.45, shade(mat, .72), 1), (1, shade(mat, .45), 1)], 0, 0, 1, 1)
         self.raw(f'<polygon points="{" ".join("%.1f,%.1f" % p for p in H)}" fill="{g}" stroke="{shade(mat, .3)}" stroke-width="1" stroke-opacity=".5"{a}/>')
+        if flange:                                                             # 테두리 날개
+            fl = self.circle3((cx + depth / 2, cy, zc), (0, 1, 0), (0, 0, 1), r1 + flange)
+            fl2 = self.circle3((cx + depth / 2 - 3, cy, zc), (0, 1, 0), (0, 0, 1), r1 + flange)
+            FH = self.hull([self.P(*p) for p in fl + fl2])
+            self.raw(f'<polygon points="{" ".join("%.1f,%.1f" % p for p in FH)}" fill="{shade(mat, .6)}"{a}/>')
+            self.raw(f'<polygon points="{self.pts(fl)}" fill="{shade(mat, .95)}" stroke="{shade(mat, .45)}" stroke-width=".8" stroke-opacity=".6"{a}/>')
         self.raw(f'<polygon points="{self.pts(rim)}" fill="{shade(mat, .99)}"{a}/>')
         gi = self.lgrad([(0, shade(mat, .66), 1), (.5, shade(mat, .48), 1), (1, shade(mat, .34), 1)], 1, 0, 0, 1)
         self.raw(f'<polygon points="{self.pts(rim_in)}" fill="{gi}" stroke="{shade(mat, .5)}" stroke-width="1"{a}/>')
@@ -223,16 +275,21 @@ def pedestal(s, r=100):
     g = s.rgrad([(0, '#3b4654', 1), (.75, '#2c3541', 1), (1, '#252d38', 1)], .45, .4, .7)
     s.raw(f'<ellipse cx="{X:.1f}" cy="{Y:.1f}" rx="{rx:.1f}" ry="{ry:.1f}" fill="{g}" stroke="#4a5666" stroke-width="1"/>')
 
-BOWL = dict(r0=32, h=42, r1=57)
-CUP = dict(r0=31, h=86, r1=39)
+# 다회용기(황인재 9/22 예시 사진) — 그릇: 둥근 몸통 + 테두리 날개 + 손잡이 귀 + 받침 굽 · 컵: 위 매끈한 띠 + 아래 세로 주름
+BOWL = dict(r0=44, h=44, r1=55, flange=7, ears=9, foot=30)
+CUP = dict(r0=29, h=98, r1=40, band=.3)
 
 def container(s, kind, cx, cy, z0, alpha=1):
-    d = BOWL if kind == 'BOWL' else CUP
-    return s.vessel(cx, cy, z0, d['r0'], d['h'], d['r1'], alpha=alpha)
+    if kind == 'BOWL':
+        d = BOWL
+        return s.vessel(cx, cy, z0, d['r0'], d['h'], d['r1'], mat=REUSE, alpha=alpha, flange=d['flange'], ears=d['ears'], foot=d['foot'])
+    d = CUP
+    return s.vessel(cx, cy, z0, d['r0'], d['h'], d['r1'], mat=REUSE, alpha=alpha, band=d['band'])
 
-def gripper(s, cx, cy, zt, gap, finger=46, ang=-20, part='all', inner_min_z=None):
+def gripper(s, cx, cy, zt, gap, finger=46, ang=-20, part='all', inner_min_z=None, arm=200):
     """RG2 비슷한 그리퍼 — 손가락 끝 높이 zt, 손가락 사이 반간격 gap. part: back|front|top|all
-       손가락은 화면 가로에 가까운 축(ang)으로 벌어진다. 뒤 손가락(-) 은 물건 앞에, 앞 손가락(+) 은 물건 뒤에 그린다"""
+       손가락은 화면 가로에 가까운 축(ang)으로 벌어진다. 뒤 손가락(-) 은 물건 앞에, 앞 손가락(+) 은 물건 뒤에 그린다
+       arm = 손목 띠 위로 그릴 로봇 팔 길이(기본은 화면 밖까지). 손목을 꺾는 그림은 짧게 그리고 s.wrist(팔 끝)에 이어 붙인다"""
     a = math.radians(ang)
     ux, uy = math.cos(a), math.sin(a)          # ang = -20° → (0.94, −0.34): 화면 오른쪽 약간 앞
     def finger_at(sign, zmin=None):
@@ -255,4 +312,5 @@ def gripper(s, cx, cy, zt, gap, finger=46, ang=-20, part='all', inner_min_z=None
         s.rbox(cx, cy, zb + 33, bw - 3, 8, 3, 'steel', ang=ang)                    # 윗판
         s.cyl(cx, cy, zb + 36, 15, zb + 44, 15, 'steel')                           # 툴 체인저
         s.cyl(cx, cy, zb + 44, 19, zb + 60, 19, 'dark')                            # 로봇 손목 띠
-        s.cyl(cx, cy, zb + 60, 22, zb + 260, 22, 'robot', top=None)                # 로봇 팔(화면 밖까지)
+        s.cyl(cx, cy, zb + 60, 22, zb + 60 + arm, 22, 'robot', top=None if arm >= 120 else 'solid')   # 로봇 팔
+        s.wrist = (cx, cy, zb + 60 + arm)

@@ -1,7 +1,7 @@
 # 팔레트 입체 그림 — 황인재 배치 그림 그대로(위에서 본 배치: 왼쪽 컵 칸[컵 1 오른쪽 위 · 컵 2 왼쪽 아래] · 가운데 그릇 2 · 오른쪽 그릇 1)
 #   위에서 본 (u 오른쪽, v 아래) → 3D (x = u − 180, y = v − 105). 칸 상태: 'done'(적재됨) | 'now'(넣는 중) | 'empty'(비어 있음)
 #   화면(Pallet)은 칸마다 상태에 맞는 조각을 골라 아래 ORDER 순서(뒤 → 앞)로 겹친다 — 조각은 build.py 가 palletArt.js 로 만든다.
-from iso import Scene, shade, CUP, ACC
+from iso import Scene, shade, container, CUP, ACC
 
 OK, DIM = '#4cc38a', '#93a0b3'
 PW, PH = 620, 440
@@ -47,7 +47,7 @@ def _pins(s, x):
 
 def _item(s, kind, x, y, st, n):
     """칸 하나 — 돌려주는 값: 번호표 (X, Y)"""
-    lift = 40 if st == 'now' else 0
+    lift = 30 if st == 'now' else 0
     if st != 'done':
         _footprint(s, kind, x, y, st)
     if st == 'empty':
@@ -58,11 +58,11 @@ def _item(s, kind, x, y, st, n):
         if st == 'done':
             s.shadow(x, y, FLOOR, 26, op=.45, squash=.7)
         s.standing_bowl(x, y, FLOOR + 1 + lift)
-        X, Y = s.P(x + 20, y, FLOOR + 1 + lift + 114)
+        X, Y = s.P(x + 20, y, FLOOR + 1 + lift + 124)
     else:
         if st == 'done':
             s.shadow(x, y, FLOOR, 36, op=.45)
-        s.vessel(x, y, FLOOR + lift, CUP['r0'], CUP['h'], CUP['r1'])
+        container(s, 'CUP', x, y, FLOOR + lift)
         X, Y = s.P(x, y, FLOOR + lift + CUP['h'])
     if st == 'now':
         s.raw('</g>')

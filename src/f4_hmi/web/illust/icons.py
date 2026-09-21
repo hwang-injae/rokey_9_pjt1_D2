@@ -1,15 +1,15 @@
 # 숫자 패널용 작은 아이콘 — 96 × 96 등각
 import math
-from iso import Scene, shade, ACC
+from iso import Scene, shade, container, ACC, REUSE
 
 def _s(pid, oy=64, k=.62):
     return Scene(pid, 96, 96, 48, oy, k=k)
 
 def bowl(pid):
-    s = _s(pid, 70, .7); s.shadow(0, 0, 0, 40, op=.45); s.vessel(0, 0, 0, 32, 42, 57); return s.svg('그릇')
+    s = _s(pid, 70, .7); s.shadow(0, 0, 0, 40, op=.45); container(s, 'BOWL', 0, 0, 0); return s.svg('그릇')
 
 def cup(pid):
-    s = _s(pid, 80, .62); s.shadow(0, 0, 0, 34, op=.45); s.vessel(0, 0, 0, 31, 86, 39); return s.svg('컵')
+    s = _s(pid, 84, .56); s.shadow(0, 0, 0, 34, op=.45); container(s, 'CUP', 0, 0, 0); return s.svg('컵')
 
 def crate(pid):
     s = _s(pid, 66, .5)
@@ -17,7 +17,7 @@ def crate(pid):
     s.shadow(0, 0, 0, 66, op=.45)
     s.raw(f'<polygon points="{s.pts([(x0, y0, 0), (x1, y0, 0), (x1, y0, h), (x0, y0, h)])}" fill="{shade("amber", .55)}"/>')
     s.raw(f'<polygon points="{s.pts([(x0, y0, 0), (x0, y1, 0), (x0, y1, h), (x0, y0, h)])}" fill="{shade("amber", .68)}"/>')
-    s.vessel(0, 0, 2, 26, 34, 44)
+    s.vessel(0, 0, 2, 32, 32, 40, mat=REUSE, flange=5, foot=22)
     s.raw(f'<polygon points="{s.pts([(x0, y1, 0), (x1, y1, 0), (x1, y1, h), (x0, y1, h)])}" fill="{shade("amber", .8)}"/>')
     s.raw(f'<polygon points="{s.pts([(x1, y0, 0), (x1, y1, 0), (x1, y1, h), (x1, y0, h)])}" fill="{shade("amber", .55)}"/>')
     for face in ([(x0, y1, 14), (x1, y1, 14), (x1, y1, 26), (x0, y1, 26)], [(x1, y0, 14), (x1, y1, 14), (x1, y1, 26), (x1, y0, 26)]):
@@ -84,7 +84,7 @@ def pallet_icon(pid):
     for x in (45.5, 135.5):
         s.standing_bowl(x, 0, 13)
     for x, y in ((-48.5, -48.5), (-131, 55.5)):
-        s.vessel(x, y, 12, 31, 86, 39)
+        container(s, 'CUP', x, y, 12)
     s.box(-180, 99, 12, 360, 6, 30, 'rack'); s.box(174, -105, 12, 6, 210, 30, 'rack')
     return s.svg('팔레트')
 

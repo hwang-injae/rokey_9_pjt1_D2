@@ -1,7 +1,7 @@
 # 단계 그림 9장 × (그릇 · 컵) — 320 × 240, 받침대 위 등각 장면
 #   그릇은 벽을 세로로 잡고, 컵은 몸통을 통째로 잡는다(AGENTS.md 시나리오 ①). 툴은 그릇 = 수세미 · 컵 = 솔(E18)
 import math
-from iso import Scene, pedestal, container, gripper, shade, mix, BOWL, CUP, ACC
+from iso import Scene, pedestal, container, gripper, shade, mix, BOWL, CUP, ACC, C as C_
 
 W, H = 320, 240
 AX = -20                                    # 그리퍼 손가락이 벌어지는 축(도) — 화면 오른쪽 약간 앞
@@ -15,7 +15,7 @@ def new(pid):
 def dims(kind):
     return BOWL if kind == 'BOWL' else CUP
 
-def hold(s, kind, cx, cy, z0, draw_container=True, alpha=1, between=None):
+def hold(s, kind, cx, cy, z0, draw_container=True, alpha=1, between=None, arm=200):
     """용기를 잡은 그리퍼 + 용기 — 그릇은 오른쪽 벽을 세로로, 컵은 몸통을 통째로"""
     d = dims(kind)
     top = z0 + d['h']
@@ -26,7 +26,7 @@ def hold(s, kind, cx, cy, z0, draw_container=True, alpha=1, between=None):
         if between: between()
         gripper(s, gx, gy, top - 22, 6, finger=44, ang=AX, part='back', inner_min_z=top)
         gripper(s, gx, gy, top - 22, 6, finger=44, ang=AX, part='front')
-        gripper(s, gx, gy, top - 22, 6, finger=44, ang=AX, part='top')
+        gripper(s, gx, gy, top - 22, 6, finger=44, ang=AX, part='top', arm=arm)
     else:
         zt = z0 + 30
         rr = d['r0'] + (d['r1'] - d['r0']) * .45 + 3.4
@@ -34,7 +34,7 @@ def hold(s, kind, cx, cy, z0, draw_container=True, alpha=1, between=None):
         rim = container(s, kind, cx, cy, z0, alpha) if draw_container else None
         if between: between()
         gripper(s, cx, cy, zt, rr, finger=d['h'] - 30 + 14, ang=AX, part='front')
-        gripper(s, cx, cy, zt, rr, finger=d['h'] - 30 + 14, ang=AX, part='top')
+        gripper(s, cx, cy, zt, rr, finger=d['h'] - 30 + 14, ang=AX, part='top', arm=arm)
     return rim
 
 def right_of(s, kind, cx, cy, z0, pad=16):
@@ -105,7 +105,7 @@ def bubbles(s, pts):
 def PICK(kind, pid):
     s = new(pid)
     tray(s)
-    z0 = 14 + 26
+    z0 = 14 + (26 if kind == 'BOWL' else 18)                          # 컵은 키가 커서 덜 들어 올린 모습(그리퍼가 화면에 들어오게)
     s.shadow(0, 0, 14, dims(kind)['r0'] + 8, op=.4)
     hold(s, kind, 0, 0, z0)
     x, y = right_of(s, kind, 0, 0, z0, 22)
@@ -114,7 +114,7 @@ def PICK(kind, pid):
 
 def WEIGH(kind, pid):
     s = new(pid)
-    z0 = 34
+    z0 = 34 if kind == 'BOWL' else 28
     s.shadow(0, 0, 0, dims(kind)['r0'] + 10, op=.35)
     hold(s, kind, 0, 0, z0)
     # 무게 표시 — 추 모양
@@ -127,33 +127,84 @@ def WEIGH(kind, pid):
     s.arrow([(x - 4, y - 8), (x - 4, y + 40)])
     return s
 
-def SHAKE(kind, pid):
+FOOD = ['#8a5a2b', '#c77d36', '#6e4521', '#e2b05a', '#5f8f3e', '#efe6d2', '#b8452c']      # 잔반 — 갈색·주황·초록 채소·밥알·고춧가루
+
+def food(s, pts):
+    """잔반 덩어리 (x, y, 반지름) — 색과 모양을 섞는다"""
+    for i, (x, y, r) in enumerate(pts):
+        col = FOOD[(i * 5 + 2) % len(FOOD)]
+        s.raw(f'<ellipse cx="{x:.1f}" cy="{y:.1f}" rx="{r * 1.2:.1f}" ry="{r * .85:.1f}" transform="rotate({i * 53 % 180} {x:.1f} {y:.1f})" '
+              f'fill="{col}" stroke="{mix(col, "#000000", .35)}" stroke-width=".6"/>')
+
+def _rot(p, c, deg):
+    a = math.radians(deg)
+    x, y = p[0] - c[0], p[1] - c[1]
+    return (c[0] + x * math.cos(a) - y * math.sin(a), c[1] + x * math.sin(a) + y * math.cos(a))
+
+SHAKE_TILT = {'BOWL': -140, 'CUP': -125}   # 손목을 꺾어 기울이는 각도(화면 기준, 반시계 −) — 입구가 잔반통을 향한다(황인재 9/22: 많이 기울여 쏟는 모양)
+
+def SHAKE(kind, pid, tilt=None):
+    """털기 — 잔반통 위에서 손목을 꺾어 용기를 크게 기울이고, 입구에서 잔반이 쏟아진다"""
+    tilt = SHAKE_TILT[kind] if tilt is None else tilt
     s = new(pid)
-    s.shadow(0, 0, 0, 60, op=.4)
-    rim = s.vessel(0, 0, 0, 50, 54, 60, mat='bin', wall=4)
-    X, Y, rx, ry = rim
-    crumbs(s, [(X - 20, Y + 4), (X - 6, Y + 8), (X + 12, Y + 3), (X + 24, Y + 7), (X + 2, Y + 12), (X - 30, Y + 9)], 2.6)
     d = dims(kind)
-    z0 = 88 if kind == 'BOWL' else 70
-    px, py = s.P(0, 0, z0 + d['h'] + 60)
-    s.raw(f'<g transform="rotate(-24 {px:.1f} {py:.1f})">')
-    hold(s, kind, -8, 8, z0)
+    bx, by = -30, 34                                               # 잔반통 자리(받침대 왼쪽 앞)
+    s.shadow(bx, by, 0, 56, op=.4)
+    rim = s.vessel(bx, by, 0, 46, 44, 55, mat='bin', wall=4)
+    X, Y, rx, ry = rim
+    s.raw(f'<g {s.clip_open(rim)}>')                               # 통 안에 쌓인 잔반
+    food(s, [(X - 24, Y + 10, 4), (X - 8, Y + 14, 5), (X + 10, Y + 12, 4.5), (X + 26, Y + 9, 3.5), (X - 14, Y + 4, 3.5),
+             (X + 2, Y + 6, 4), (X + 18, Y + 3, 3), (X - 30, Y + 2, 3), (X + 6, Y + 18, 3.5), (X - 2, Y - 2, 3)])
     s.raw('</g>')
-    # 떨어지는 잔반
-    ox, oy = s.P(0, 0, z0 - 6)
-    crumbs(s, [(ox - 26, oy + 24), (ox - 12, oy + 38), (ox - 30, oy + 52), (ox - 4, oy + 60), (ox - 18, oy + 72)], 2.8)
-    # 흔드는 표시
-    lx, ly = s.P(0, 0, z0 + d['h'] / 2)
-    for sg in (-1, 1):
-        x0 = lx + sg * (d['r1'] * 1.25 + 26)
-        s.raw(f'<path d="M{x0:.1f} {ly - 24:.1f} Q{x0 + sg * 12:.1f} {ly:.1f} {x0:.1f} {ly + 24:.1f}" fill="none" stroke="{ACC}" stroke-width="3.5" stroke-linecap="round"/>'
-              f'<path d="M{x0 + sg * 10:.1f} {ly - 16:.1f} Q{x0 + sg * 19:.1f} {ly:.1f} {x0 + sg * 10:.1f} {ly + 16:.1f}" fill="none" stroke="{ACC}" stroke-opacity=".55" stroke-width="3" stroke-linecap="round"/>')
+
+    # 기울일 덩어리(그리퍼 + 용기)를 한 번 그려 보고 손목 끝(J)과 입구의 가장 낮은 곳(lip)을 구한다
+    z0 = 70
+    probe = Scene(pid + 'p', W, H, s.ox, s.oy, s.k)
+    hold(probe, kind, 0, 0, z0, arm=24)
+    J = probe.P(*probe.wrist)
+    ring = [probe.P(d['r1'] * math.cos(t), d['r1'] * math.sin(t), z0 + d['h']) for t in [i * math.pi / 24 for i in range(48)]]
+    lip = max((_rot(p, J, tilt) for p in ring), key=lambda q: q[1])
+    # 입구 끝이 잔반통 위 조금 오른쪽에 오도록 옮긴다
+    want = (X + rx * .3, Y - (24 if kind == 'BOWL' else 18))
+    dx, dy = want[0] - lip[0], want[1] - lip[1]
+    Jx, Jy = J[0] + dx, J[1] + dy
+
+    # 로봇 팔 — 위에서 내려와 손목(J)에서 꺾인다
+    fx = (Jx - s.ox) / (2 * C_ * s.k)
+    fz = (s.oy - Jy) / s.k
+    s.cyl(fx, -fx, fz, 22, fz + 300, 22, 'robot', top=None)
+    s.raw(f'<g transform="translate({dx:.1f} {dy:.1f}) rotate({tilt} {J[0]:.1f} {J[1]:.1f})">')
+    hold(s, kind, 0, 0, z0, arm=24)
+    s.raw('</g>')
+    g = s.rgrad([(0, '#ffffff', 1), (.7, '#dfe3e8', 1), (1, '#9aa3ae', 1)], .4, .35, .7)
+    s.raw(f'<circle cx="{Jx:.1f}" cy="{Jy:.1f}" r="21" fill="{g}" stroke="#2a323d" stroke-width="3"/>'
+          f'<circle cx="{Jx:.1f}" cy="{Jy:.1f}" r="9" fill="#2a323d"/>')
+
+    # 쏟아지는 잔반 — 입구 끝에서 통 안으로 휘어 떨어진다
+    lx, ly = want
+    pts = []
+    for n, t in enumerate([i / 10 for i in range(11)]):
+        x = lx - 10 * t - 6 * t * t
+        y = ly + 40 * t * t + 8 * t
+        spread = 2 + 7 * t
+        for m, off in enumerate((-1, 0, 1) if n % 2 else (-.5, .5)):
+            pts.append((x + off * spread + ((n * 7 + m * 3) % 5 - 2), y + ((n * 5 + m) % 4) - 2, 2.6 + ((n + m) % 3) * .9))
+    food(s, pts)
+    # 흔드는 표시 — 3~5회 턴다
+    cx_, cy_ = _rot(probe.P(0, 0, z0 + d['h'] / 2), J, tilt)
+    cx_, cy_ = cx_ + dx, cy_ + dy
+    for sg, rr, op in ((1, 1.0, 1), (1, 1.25, .5)):
+        a0, a1 = math.radians(-60), math.radians(-10)
+        R = (d['r1'] * 1.3 + 20) * rr
+        p0 = (cx_ + R * math.cos(a0), cy_ + R * math.sin(a0))
+        p1 = (cx_ + R * math.cos(a1), cy_ + R * math.sin(a1))
+        s.raw(f'<path d="M{p0[0]:.1f} {p0[1]:.1f} A{R:.1f} {R:.1f} 0 0 1 {p1[0]:.1f} {p1[1]:.1f}" fill="none" stroke="{ACC}" stroke-opacity="{op}" stroke-width="3.5" stroke-linecap="round"/>')
     return s
 
 def SEAT(kind, pid):
     s = new(pid)
     bed(s)
-    z0 = 38 + 24
+    z0 = 38 + 24 if kind == 'BOWL' else 38 - 10                        # 컵은 홈에 반쯤 들어간 모습
     s.shadow(0, 0, 38, dims(kind)['r0'] + 6, op=.35)
     hold(s, kind, 0, 0, z0)
     x, y = right_of(s, kind, 0, 0, z0, 22)
@@ -262,9 +313,9 @@ def RACK(kind, pid):
         s.shadow(0, 0, 6, 30, op=.4, squash=.6)
         s.standing_bowl(0, 0, zb)
         tines(26)
-        top = zb + 2 * 57
+        top = zb + 2 * (BOWL["r1"] + BOWL["flange"])
         gripper(s, 20 + 2, 0, top - 22, 6, finger=44, ang=0)
-        X, Y = s.P(0, 57, zb + 57)
+        X, Y = s.P(0, 62, zb + 62)
         s.arrow([(X - 26, Y - 40), (X - 26, Y + 14)])
     else:
         for a in (45, 135, 225, 315):
@@ -311,8 +362,9 @@ def ISOLATE(kind, pid):
     s.raw(f'<path d="M{bx} {by - 26} L{bx + 26} {by + 18} H{bx - 26} Z" fill="#f8cb52" stroke="#161616" stroke-width="3" stroke-linejoin="round"/>'
           f'<path d="M{bx} {by - 8} V{by + 4}" stroke="#161616" stroke-width="4" stroke-linecap="round"/><circle cx="{bx}" cy="{by + 11}" r="2.4" fill="#161616"/>')
     # 놓고 올라가는 그리퍼
-    gripper(s, 0, 0, 104, 26 if kind == 'BOWL' else 48, finger=40, ang=AX)
-    X, Y = s.P(0, 0, 104)
+    zg = 104 if kind == 'BOWL' else 112                                # 놓고 올라간 그리퍼 — 컵 입구보다 위
+    gripper(s, 0, 0, zg, 26 if kind == 'BOWL' else 48, finger=40, ang=AX)
+    X, Y = s.P(0, 0, zg)
     s.arrow([(X + 70, Y + 20), (X + 70, Y - 20)], w=3.5, head=7)
     return s
 
