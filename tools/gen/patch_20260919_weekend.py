@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v11.6'
+VERSION = 'v11.7'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -947,6 +947,17 @@ P55 = {
 for _tid, _e in P55.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 PR #56 merge — F3 닦기 main 반영 · 컵 세척 확정
+P56 = {
+ 'V-10':    dict(status='완료', prog='1.0', note_add='✅ 9/21 PR #56 — **컵 세척 실기 확정**: Move Periodic 한 명령(TOOL z ±15 mm + **6번 관절 ±90°**) · 3.0 s × 5 · 바닥 + 3 mm · 컵 바닥 힘 5 N · 1·4번 관절 안 움직임(감시 — 1° 넘으면 즉시 정지) · 컵 안 딸려 옴. 오후의 6번 축 360° 는 ±90° 로 줄어 케이블 걱정도 덜었다'),
+ 'F3-03':   dict(prog='0.9', note_add='✅ 9/21 PR #56 merge — wipe_cup 코드 main 반영(HOME 시작·끝). 남은 것: soap 실기(9/22 오전 · SOAP = 툴 홀더 + 40 계산값)'),
+ 'F3-02':   dict(prog='0.85', note_add='✅ 9/21 PR #56 merge — **E17 닦기 코드(HOME 시작·끝 · 그릇 빠른 하강 135 mm · 바닥은 힘으로만)가 main 에 들어왔다.** 남은 것: 그릇 재검증 실기(rig_f3.py bowl) → 기록'),
+ 'SAFE-01': dict(note_add='✅ 9/21 PR #56 — 안전 파라미터 표·실측 기록지를 바뀐 닦기에 맞추고 **안전 대책 4줄** 추가(main 반영). 남은 것: 실측 줄'),
+ 'F1-05':   dict(note_add='🔎 9/21 PR #56 박진용 요청: `cell.limits.insert_limit_n`(15)은 컵 닦기가 더 이상 안 쓴다 · **`force_max_n` 15 와 여유 0** — 삽입·안착 힘 상한이 공용 최대와 같다 → F1 에서 판단(한석형)'),
+}
+for _tid, _e in P56.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -1296,6 +1307,9 @@ HISTORY66 = ['v11.5', '결정 E19·완료', 'V-05, V-01, V-23, V-16, V-07, F1-02
 HISTORY67 = ['v11.6', '진척', 'INF-02d, F1-02, V-07', 'PR #55 merge(민범진): 팀 cell.yaml 에 그리퍼 프리셋(그릇 E16 확정값 · 컵 E19 고정 폭 78) — 집기 실기·V-07 이 풀림. 20 N 사고의 원인(rig_gripper 가 기본 힘을 미리 채워 컵도 20 N 으로 닫힘)을 찾아 고침. 같은 값의 PR #54(F4)는 충돌로 닫힘 예정',
              '황인재 9/21 16:45', 'M,S,H']
 
+HISTORY68 = ['v11.7', '진척', 'V-10, F3-03, F3-02, SAFE-01, F1-05', 'PR #56 merge(박진용): E17 닦기 코드(HOME 시작·끝 · 바닥은 힘으로만)가 main 에 — 한때 main 에 없던 것이 해결. V-10 완료: 컵 세척 = Periodic 한 명령(TOOL z ±15 + 6번 관절 ±90°) · 3.0 s × 5 · 바닥 + 3 mm · 컵 바닥 힘 5 N · 1·4번 관절 감시. SR-09 각도 ±90° 로 닫음. F3-02 는 그릇 재검증만 남음',
+             '황인재 9/21 16:55', 'P']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1390,7 +1404,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
