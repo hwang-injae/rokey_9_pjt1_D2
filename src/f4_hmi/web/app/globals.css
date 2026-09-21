@@ -1,0 +1,13 @@
+/* 색은 한곳에서 — 밝은/어두운 화면 모두 */
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --ink: #1c2430; --dim: #6b7686; --line: #dde2ea;
+  --ok: #1a8f4c; --bad: #c62f2f; --warn: #b7791f;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #12161c; --card: #1b212a; --ink: #e8ecf2; --dim: #93a0b3; --line: #2c3440; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, "Noto Sans KR", sans-serif; }
+a { color: inherit; }
+.shell { padding: 16px; }
+.dim { color: var(--dim); }

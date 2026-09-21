@@ -49,8 +49,13 @@ def main():
     log.info(f'HMI 서버를 연다 → http://localhost:{port}  ('
              + ('이 PC 에서만 접속된다 — 태블릿에서 보려면 params.yaml 의 hmi.host 를 0.0.0.0 으로' if local_only
                 else f'🚨 같은 망의 누구나 접속·버튼 조작이 된다(hmi.host={host}) → http://<이 PC 의 IP>:{port}') + ')')
+    app = create_app(store, cfg, link.call)
+    if app.state.web:
+        log.info('  / = 운영 화면(web/out) · /test = 시험 페이지')
+    else:
+        log.warn('  운영 화면이 아직 없다 → / 에 시험 페이지. 만들려면: cd src/f4_hmi/web && npm install && npm run build')
     try:
-        uvicorn.run(create_app(store, cfg, link.call), host=host, port=port, log_level='warning', lifespan='off')     # Ctrl+C 까지 여기서 돈다 (시작·종료 훅은 안 쓴다 → 끌 때 조용하다)
+        uvicorn.run(app, host=host, port=port, log_level='warning', lifespan='off')     # Ctrl+C 까지 여기서 돈다 (시작·종료 훅은 안 쓴다 → 끌 때 조용하다)
     except KeyboardInterrupt:                           # 런치에서 끄면 Ctrl+C 가 두 번 온다(터미널 + 런치가 전달) → 두 번째는 조용히 넘긴다
         pass
     finally:

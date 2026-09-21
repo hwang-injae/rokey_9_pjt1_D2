@@ -4,7 +4,8 @@
     GET  /api/state                     지금 값 전부(연결·상태·그리퍼·힘·최근 이벤트·계획)
     POST /api/start|stop|resume|abort   버튼 → flow 의 같은 이름 서비스 → {ok, message, latency_ms} 를 그대로 돌려준다 (F4-02)
     WS   /ws/state                      서버 → 브라우저. 붙자마자 type=state(전부) 1번, 그 뒤로 state · event · force · gripping · conn
-    GET  /                              시험 페이지                                     이력(GET /api/history)은 F4-04
+    GET  /                              운영 화면(F4-03 · Next.js 로 만든 web/out/) — 아직 안 만들었으면 시험 페이지
+    GET  /test                          시험 페이지(F4-01·02 점검용 — 그대로 둔다)      이력(GET /api/history)은 F4-04
 응답 모양은 docs/ref/20260920_F4-00_HMI_설계초안.md §2.
 """
 import asyncio
@@ -17,12 +18,14 @@ from fastapi.staticfiles import StaticFiles
 from .hub import Hub
 
 STATIC_DIR = Path(__file__).resolve().parent / 'static'
+WEB_DIR = Path(__file__).resolve().parent.parent / 'web' / 'out'   # F4-03 화면 — `cd src/f4_hmi/web && npm run build` 가 만든다(GitHub 에는 안 올림)
 COMMANDS = ('start', 'stop', 'resume', 'abort')         # IRD §6 의 /flow/* 서비스 이름과 같다
 CONN_CHECK_S = 0.5                                      # 연결 끊김(conn)을 알아채는 간격 — 새 값이 안 와야 끊긴 것이라 기다리다 확인한다
 
 
-def create_app(store, cfg: dict, command=None) -> FastAPI:
-    """store: StateStore · cfg: config.load() 결과 · command(name) → {ok, message, latency_ms}: 버튼을 flow 에 전하는 함수(RosLink.call)."""
+def create_app(store, cfg: dict, command=None, web_dir: Path = WEB_DIR) -> FastAPI:
+    """store: StateStore · cfg: config.load() 결과 · command(name) → {ok, message, latency_ms}: 버튼을 flow 에 전하는 함수(RosLink.call).
+    web_dir: 운영 화면 파일 묶음(index.html 이 있어야 쓴다 — 없으면 / 에 시험 페이지). 시험에서 바꿔 끼운다."""
     app = FastAPI(title='PreWash-Cell HMI', docs_url='/api/docs', redoc_url=None)
     flow = cfg.get('flow') or {}
     plan = {'plan': flow.get('plan') or [], 'rack_order': flow.get('rack_order') or {},
@@ -69,9 +72,16 @@ def create_app(store, cfg: dict, command=None) -> FastAPI:
         finally:
             hub.leave(q)
 
-    @app.get('/')
-    def index():
+    @app.get('/test')
+    def test_page():
         return FileResponse(STATIC_DIR / 'test.html')
 
     app.mount('/static', StaticFiles(directory=STATIC_DIR), name='static')
+    app.state.web = (web_dir / 'index.html').is_file()
+    if app.state.web:                                   # 운영 화면 — 위의 /api · /ws · /test · /static 에 안 걸린 주소를 전부 여기서 찾는다
+        app.mount('/', StaticFiles(directory=web_dir, html=True), name='web')
+    else:                                               # 아직 빌드 안 함 → 시험 페이지로 대신한다(hmi_bridge 는 그대로 뜬다)
+        @app.get('/')
+        def index():
+            return FileResponse(STATIC_DIR / 'test.html')
     return app

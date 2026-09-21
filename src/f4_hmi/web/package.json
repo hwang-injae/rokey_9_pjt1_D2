@@ -1,0 +1,18 @@
+{
+  "name": "prewash-hmi",
+  "private": true,
+  "version": "0.1.0",
+  "description": "PreWash-Cell 시스템 모니터 화면 (F4-03) — 정적 내보내기(out/)를 hmi_bridge 가 보여준다",
+  "scripts": {
+    "dev": "NEXT_TELEMETRY_DISABLED=1 next dev -p 3000",
+    "build": "NEXT_TELEMETRY_DISABLED=1 next build"
+  },
+  "dependencies": {
+    "next": "15.5.25",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "engines": {
+    "node": ">=18.18"
+  }
+}
