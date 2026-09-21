@@ -653,3 +653,32 @@ def test_leftover_abort_flag_does_not_fire_next_run():
     f2nd.run_plan(watcher)
     assert watcher.resumes >= 1, 'GRIP_FAIL 인데 PAUSED 를 거치지 않았다 — 중단 깃발이 살아 있었다'
     assert f2nd.isolated == 0, '사람이 안 눌렀는데 중단 정리가 돌았다'
+
+
+# ────────────────────────────────────────────── 예외 주입 (TC-10 · UT-FLOW ③)
+def test_boom_injects_a_real_exception():
+    """🚨 코드 BOOM 은 Result 가 아니라 **예외**를 던진다.
+
+    왜 필요한가: 실패 **코드**만 주입해서는 "기능 함수가 터지는 길" 을 한 번도 안 지난다 —
+    코드는 함수가 스스로 돌려준 것이라 이미 정상 경로다. flow 가 예외를 ROBOT_ERROR 로
+    바꿔 PAUSED 로 가는지는 진짜 예외로만 확인된다(SDD §9.3 TC-10).
+    """
+    mock.configure(['soap:BOOM'])
+    with pytest.raises(RuntimeError):
+        mock.code_for('soap')
+    assert mock.code_for('wipe_bowl') is None      # 다른 함수는 멀쩡하다
+
+
+def test_boom_becomes_robot_error_and_pauses():
+    """터진 뒤 flow 는 ROBOT_ERROR 로 바꾸고 멈춘다 (params.yaml ROBOT_ERROR: pause)."""
+    results, f = run(['soap:BOOM'])
+    assert f.last_code == 'ROBOT_ERROR'
+    assert results and all(r == 'ERROR' for r in results), results
+
+
+def test_boom_with_count_only_throws_that_many_times():
+    """횟수를 주면 그만큼만 터진다 — 재시도로 회복되는 길도 볼 수 있다."""
+    mock.configure(['soap:BOOM:1'])
+    with pytest.raises(RuntimeError):
+        mock.code_for('soap')
+    assert mock.code_for('soap') is None
