@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v13.0'
+VERSION = 'v13.1'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1075,6 +1075,16 @@ CUP = {
 for _tid, _e in CUP.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 21:50 F4 보고 — F4-03 화면 진척
+F4R = '📈 9/21 21:50 F4 보고(브랜치 injae/20260921-F4-03-hmi-screen `1ac917b` · PR 전)'
+P4 = {
+ 'F4-03':   dict(prog='0.85', note_add=F4R + ': Next.js 15 정적 화면을 hmi_bridge 가 / 에서 서빙 · 상단 막대(연결 + 항상 보이는 빨간 일시 정지) · 알람 띠(ROBOT_ERROR 면 복구 3단계) · 시작·재개·중단(확인 창) · **9단계 그림 카드**(그릇/컵별) · 지금 하는 일(큰 그림·경과·다음 할 일) · **팔레트 입체 그림**(적재됨/넣는 중/비어 있음) · 숫자 패널(반납 구역 남은 수 · 소모품 교체까지 N회) · 이력 표(전체/문제만). 그림 = 등각 일러스트(황인재 승인). '
+                          '검증: 화면 빌드 · f4_hmi pytest 30 · **가짜 flow 대본 5개**(정상·일시 정지·격리·오류·빈 구역)를 브라우저로(격리 환경). 🟡 **실제 flow_node 연결은 L3**. 🔜 9/22 황인재 그림 수정 → 직접 확인·승인 → PR. 열린 질문: 실제 컵1·컵2 칸 자리가 배치 그림과 맞는지(좌표상 그릇 옆 칸이 C2)'),
+ 'NOTE-02': dict(note_add='9/21 21:50: HMI 화면이 거의 완성(F4-03 0.85) — 9/22 그림 수정 뒤 가짜 flow 대본으로 gif 를 찍으면 된다(1차 산출물 9/22~23)'),
+}
+for _tid, _e in P4.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -1484,6 +1494,9 @@ HISTORY79 = ['v12.9', '진척', 'F1-02, F1-04, CELL-04, INT-12a', 'GitHub 기준
 HISTORY80 = ['v13.0', '진척', 'F1-02, F1-04, V-14, UT-F1, INT-3b, INT-4a', '황인재 확인(9/21 21:45): 한석형 F1 은 그릇만 구현(실기 스크립트로 한 바퀴 확인) · 컵 동작은 지금 구현 중. 컵에 걸리는 항목(V-14 컵 슬롯 · UT-F1 컵 칸 · INT-3b · INT-4a)에 표시',
              '황인재 9/21 21:45', 'S']
 
+HISTORY81 = ['v13.1', '진척', 'F4-03, NOTE-02', 'F4 보고(9/21 21:50): F4-03 운영 화면 0.7 → 0.85 — 그림 카드 · 팔레트 입체 그림 · 숫자 패널 · 이력 표 · 알람 띠까지, 가짜 flow 대본 5개로 확인(🟡 실제 flow_node 연결은 L3). 9/22 그림 수정 → 확인·승인 → PR',
+             '황인재 9/21 21:50', 'H']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1578,7 +1591,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
