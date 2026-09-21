@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v10.6'
+VERSION = 'v10.7'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -841,6 +841,18 @@ P_REPORT = {
 for _tid, _e in P_REPORT.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 오후 F4 회신 → E15 ④ · E18 + PR #50 변경 요청
+F4PM = {
+ 'CELL-04':  dict(note_add='📈 9/21 오후 F4: **남은 티칭은 ISOLATE 1곳(그릇·컵 공용)뿐** — SOAP·툴 홀더·rack.via·WASTE.CUP 은 끝났다(SOAP 은 E18 로 계산값 · WASTE.CUP 은 그릇과 같은 통 posj · rack.via 는 HOME 실측에서 z 만 338). 팔레트 그릇 칸 실기 오차 0.16~0.24 mm. 🚨 **팔레트에 부딪힌 사고 1건** → E15 ④. 팔레트가 밀렸는지 확인 대기(밀렸으면 RACK_B1·B2 재티칭)'),
+ 'F1-04':    dict(note_add='🚧 9/21 E15 ④(황인재): **팔레트에서 다른 구역으로 갈 때는 HOME 을 거친다** — 팔레트 그릇 칸 → 컵 반납 구역을 곧장 가다가 로봇이 팔레트에 부딪혔다(팔레트 자세 J4 101°·J6 −118°). 팔레트 칸끼리는 곧장 가도 된다. 🔓 구현하면서 필요 없다고 판단되면 **실기 근거와 함께** 빼고 PM 에 알린다'),
+ 'FLOW-01':  dict(note_add='🚧 9/21 E15 ④: flow 의 RACK 다음 단계는 HOME 을 거친다(지금 steps 는 rack_place 뒤 move_to HOME 이라 맞다 — 새 단계를 넣을 때 주의). 🔓 필요 없으면 근거와 함께 뺄 수 있다'),
+ 'F3-03':    dict(note_add='🔄 9/21 E18(황인재): **세제 수조를 따로 두지 않는다 — 툴 홀더의 비눗물 컵에서 위아래로 담근다.** SOAP 자세 = 툴 홀더 좌표 + `f3.soap.depth_mm`(40) 계산값(🟡 BOWL z 105.24 · CUP z 167.27). 🚨 **depth_mm 을 바꾸면 SOAP 의 z 도 같이** 바꿔야 한다'),
+ 'CELL-03':  dict(note_add='🔄 9/21 E18: 세제 수조가 없어져 **수조는 헹굼 1개만** 고정하면 된다(잔반통 1 + 헹굼 수조 1 + 잔반 대용품)'),
+ 'FLOW-03':  dict(note_add='🔴 9/21 PR #50 **변경 요청**(PM): 이동 도중 중단 경로에서 `stop`·`abort` 깃발이 안 내려가 — 마지막 용기였으면 **다음 실행의 GRIP_FAIL 이 사람 확인 없이 자동 중단 정리**된다(mock 재현 확인). 고치는 법 3줄(abort_container 에서 깃발 내리기 · run_plan 시작에서 abort 도 지우기 · 용기 사이 wait_resume 반환값 처리) + 시험 2개. 나머지(is_paused 로 막다른 길 막기 · ROBOT_ERROR 에서 abort 거부 · 콜백은 깃발만)는 맞다'),
+}
+for _tid, _e in F4PM.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -1156,6 +1168,9 @@ HISTORY56 = ['v10.5', '결정 E16·진행률', 'V-05·01·23·02·07·16, INF-02
 HISTORY57 = ['v10.6', '결정 E17·재배치', 'V-10, F3-02, F3-03, V-18, CELL-02b, SAFE-01, V-26, CELL-04, FLOW-02, CELL-03, UT-FLOW, 9/21 저녁·9/22 오전 로봇 슬롯', '박진용 회신(9/21 13시대) → 결정 E17: ① stop_mode = 1(DR_QSTOP) 확정 ② CELL-02b 툴·홀더 지금 상태로 확정(완료) → 툴 홀더·SOAP 바로 티칭 ③ F3 닦기가 HOME 시작·HOME 끝 + HOME 기준 상대 이동으로 바뀌어 SPONGE_BED wash 좌표 티칭 불필요, 대신 HOME 재티칭 금지 · wipe_cup 은 move_periodic 대신 직선 이어 붙이기 ④ 세척 속도는 vel_scale 예외(황인재 승인 — 0.3 으로 띄워도 닦기는 감속 안 됨) ⑤ FLOW-02·CELL-03 은 민범진이 계속. 진행률 V-10 0.0 → 0.5(값 확정 · 실기만 남음). 로봇: 박진용은 18:30 까지 셋 다 끝내길 원했지만 오후 로봇이 좌표·그리퍼·집기로 차 있어(가장 밀린 F1·F2 먼저) 저녁 첫 두 순서(V-10·F3-02 각 60분)로, soap(90분)은 9/22 오전 첫 순서로',
              '황인재 9/21 13:10', 'P,M,H,S']
 
+HISTORY58 = ['v10.7', '결정 E15④·E18·PR #50', 'CELL-04, F1-04, FLOW-01, F3-03, CELL-03, FLOW-03', 'F4 회신(9/21 오후): 남은 티칭은 ISOLATE 1곳(공용)뿐. **팔레트 그릇 칸 → 컵 반납 구역을 곧장 가다가 로봇이 팔레트에 부딪힌 사고** → 결정 E15 ④ "팔레트에서 다른 구역으로 갈 때는 HOME 을 거친다"(황인재 — 기본 규칙이되 구현하며 불필요하다고 판단되면 실기 근거와 함께 뺄 수 있다). 결정 E18(황인재): 세제 수조를 따로 두지 않고 툴 홀더의 비눗물 컵에서 담근다 → SOAP 자세는 계산값, depth_mm 과 연동 · CELL-03 수조는 헹굼 1개. PR #50(FLOW-03) 변경 요청: 이동 도중 중단 뒤 깃발이 남아 다음 실행의 GRIP_FAIL 이 사람 확인 없이 자동 중단 정리됨(mock 재현)',
+             '황인재 9/21 14:00', 'S,M,P,H']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1250,7 +1265,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
