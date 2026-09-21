@@ -5,6 +5,7 @@
     soc && python3 src/f3_wipe/test/rig_v10.py --real                  # ③ 전체 (기본 stage=scrub)
     soc && python3 src/f3_wipe/test/rig_v10.py --real --cycles 1 --stroke 5              # 값 바꿔 가며
     soc && python3 src/f3_wipe/test/rig_v10.py --real --speed 1.5                        # 세척 속도만 배수로
+    soc && python3 src/f3_wipe/test/rig_v10.py --real --air                              # 컵 위 공중에서 세척 동작만(소리 확인)
     PREWASH_CONFIG_DIR=<임시 설정> python3 src/f3_wipe/test/rig_v10.py                 # Virtual(sodvir) — 흐름만
 
 준비(손으로): 컵을 스펀지 홈에 넣고, **솔을 그리퍼에 쥐여 준다**(그리퍼 끝을 세척부 윗면에 닿게 — 세척부 95 mm).
@@ -117,6 +118,8 @@ def main() -> int:
     ap.add_argument('--stage', choices=STAGES, default='scrub', help='어디까지 할지 (기본 scrub = 전체)')
     ap.add_argument('--cycles', type=int, default=None, help='왕복 횟수 (기본 params.yaml)')
     ap.add_argument('--stroke', type=float, default=None, help='위아래 편진폭 mm')
+    ap.add_argument('--air', action='store_true',
+                    help='컵에 넣지 않고 컵 위 공중(+60 mm)에서 세척 동작만 — 6번 축 소리가 로봇인지 솔인지 가른다')
     ap.add_argument('--speed', type=float, default=None,
                     help='세척 동작 속도 배수 — 위아래·비틀기 속도 × 배수, 가속도 × 배수² (예 1.5 · 2)')
     a = ap.parse_args()
@@ -152,6 +155,17 @@ def main() -> int:
         # ── ① HOME → 컵 위 → 정한 길이만큼 빠르게 → 바닥 찾기 ───────────────────
         trip = _Trip(cup_hops(p))                                       # 제품 코드와 같은 길: HOME → z +40 → y +140 → z −40
         trip.go()
+        if a.air:                                                        # 공중에서 돌리기 — 솔 끝이 컵 테두리보다 55 mm 위
+            cc.move_rel(0.0, 0.0, 60.0, 'BASE')
+            rec.zero()
+            p['lift_mm'] = 0.5
+            log.info('🔸 공중 시험: 컵 위 +60 mm 에서 세척 동작만 한다(컵에 닿지 않는다) — 소리가 나는지 들어 본다')
+            t_air = time.monotonic()
+            _scrub_cup(p, rec)
+            dsr().mwait()
+            log.info(f'공중 세척 끝 · 6번 축 {cc.joints()[5]:.1f}° · {time.monotonic() - t_air:.1f} s')
+            code = 0
+            return code
         z_top = cc.where()[2]
         rec.zero()
         fast = float(p['fast_down_mm'])
