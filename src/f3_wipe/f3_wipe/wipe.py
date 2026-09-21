@@ -109,7 +109,7 @@ def wipe_bowl() -> WipeBowlResult:
     p = cc.cfg()['f3']['wipe_bowl']
     t0 = time.monotonic()
     log = _Log(p, t0)
-    trip = _Trip([])                                                     # 그릇은 HOME 바로 아래 — 옆으로 갈 것이 없다
+    trip = _Trip([], p)                                                  # 그릇은 HOME 바로 아래 — 옆으로 갈 것이 없다
     code, moved = ROBOT_ERROR, True                                      # moved=False → 정리할 때 로봇을 움직이지 않는다
     try:
         _halt_check('그릇 닦기 시작')
@@ -164,6 +164,13 @@ def cup_hops(p):
     return [(0.0, 0.0, up), (0.0, dy, 0.0), (0.0, 0.0, -up)]
 
 
+def _fast_z(p, dz):
+    """빠른 하강 · 곧게 올라오기 — Move L 상대(BASE z). 속도·가속도는 f3.wipe_*.fast_vel_mm_s · fast_acc_mm_s2 (× vel_scale).
+    그릇과 컵이 **같은 값**이어야 한다(박진용 9/21) — test_fast_z_same_for_bowl_and_cup 이 본다."""
+    cc.move_rel(0.0, 0.0, float(dz), 'BASE',
+                vel_mm_s=float(p['fast_vel_mm_s']) * _scale(), acc_mm_s2=float(p['fast_acc_mm_s2']) * _scale())
+
+
 class _Trip:
     """초기자세 HOME ↔ 닦는 자리 오가기. go() 로 가고, back() 으로 **간 만큼만** 거꾸로 돌아온다.
 
@@ -171,8 +178,9 @@ class _Trip:
           → 간 이동을 거꾸로 → HOME(관절). 🚨 move=False(로봇 위치를 모름, 결정 E11)면 힘만 끄고 움직이지 않는다.
     """
 
-    def __init__(self, hops):
+    def __init__(self, hops, p):
         self.hops, self.done, self.spot_z, self.started = list(hops), [], None, False
+        self.p = p
 
     def go(self):
         self.started = True
@@ -197,7 +205,7 @@ class _Trip:
             if self.spot_z is not None:
                 rise = self.spot_z - cc.where()[2]
                 if rise > 0:
-                    cc.move_rel(0.0, 0.0, rise, 'BASE')                  # 용기에서 곧게 뽑는다
+                    _fast_z(self.p, rise)                                # 용기에서 곧게 뽑는다 — 빠른 하강과 같은 속도
             for dx, dy, dz in reversed(self.done):
                 cc.move_rel(-dx, -dy, -dz, 'BASE')
             cc.move_to(START, carrying=True)
@@ -273,7 +281,7 @@ def _descend(p, log):
     log.start(cc.read_force())                                           # 공중 기준값은 **내려가기 전에** 잰다
     fast = float(p['fast_down_mm'])                                      # ① 빠르게 (정한 길이만큼)
     if fast > 0:
-        cc.move_rel(0.0, 0.0, -fast, 'BASE')
+        _fast_z(p, -fast)
     depth, f = cc.contact_down(float(p['find_max_mm']),                   # ② 나머지는 힘으로
                                cc.cfg()['cell']['limits']['contact_limit_n'])
     log.center = cc.where()
@@ -409,7 +417,7 @@ def wipe_cup() -> WipeCupResult:
     p = cc.cfg()['f3']['wipe_cup']
     t0 = time.monotonic()
     log = _Log(p, t0)
-    trip = _Trip(cup_hops(p))
+    trip = _Trip(cup_hops(p), p)
     code, depth, moved = ROBOT_ERROR, 0.0, True
     try:
         _halt_check('컵 닦기 시작')
@@ -417,7 +425,7 @@ def wipe_cup() -> WipeCupResult:
         trip.go()                                                        # ⓪ HOME → 컵 위
         log.start(cc.read_force())                                       # 공중 기준값은 내려가기 전에
         fast = float(p['fast_down_mm'])
-        cc.move_rel(0.0, 0.0, -fast, 'BASE')                             # ① 정한 길이만큼 빠르게
+        _fast_z(p, -fast)                                                # ① 정한 길이만큼 빠르게
         found, _f = cc.contact_down(float(p['find_max_mm']), float(p['find_limit_n']))   # ② 바닥 찾기 (컵 전용 힘)
         log.center = cc.where()
         depth = fast + found                                             # 컵 위에서 바닥까지 내려간 거리 (잰 값)

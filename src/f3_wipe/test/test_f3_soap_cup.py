@@ -22,7 +22,7 @@ CFG = {
         'wipe_cup': {
             'tool': {'clean_h_mm': 95, 'd_mm': 55},
             'over_cup_up_mm': 40.0, 'over_cup_dy_mm': 140.0, 'find_limit_n': 5.0,
-            'fast_down_mm': 80.0, 'find_max_mm': 40.0,
+            'fast_down_mm': 80.0, 'fast_vel_mm_s': 180.0, 'fast_acc_mm_s2': 360.0, 'find_max_mm': 40.0,
             'lift_mm': 3.0, 'lift_vel_mm_s': 40.0,
             'stroke_mm': 20.0,
             'spin_deg': 360.0, 'period_s': 6.3, 'rot_vel_limit_deg_s': 225.0, 'ramp_s': 1.5, 'joint_guard_deg': 1.0, 'j6_limit_deg': 360.0, 'j6_margin_deg': 10.0,
@@ -281,6 +281,27 @@ def test_spin_speed_over_robot_limit_stops_before_moving(cell):
         CFG['f3']['wipe_cup']['period_s'] = 6.3
     assert not r.ok and r.code == ROBOT_ERROR
     assert [c[0] for c in cell.calls if c[0] in ('move_to', 'move_rel', 'periodic')] == []
+
+
+def test_fast_z_same_for_bowl_and_cup():
+    """빠른 하강 · 곧게 올라오기 속도·가속도는 그릇과 컵이 **같아야** 한다(박진용 9/21) — 실제 params.yaml 로 본다."""
+    import os
+    import yaml
+    here = os.path.dirname(os.path.abspath(__file__))
+    with open(os.path.join(here, '..', '..', 'cobot_common', 'config', 'params.yaml'), encoding='utf-8') as f:
+        f3 = yaml.safe_load(f)['f3']
+    for key in ('fast_vel_mm_s', 'fast_acc_mm_s2'):
+        assert f3['wipe_bowl'][key] == f3['wipe_cup'][key], key
+
+
+def test_cup_fast_moves_use_fast_speed(cell):
+    """빠른 하강(−80)과 곧게 뽑기가 fast_vel_mm_s × vel_scale(0.3) = 54 mm/s 로 간다."""
+    wipe.wipe_cup()
+    fast = [c for c in cell.calls if c[0] == 'move_rel' and c[1] == pytest.approx(-80.0)]
+    assert fast and fast[0][2] == pytest.approx(180.0 * 0.3)
+    i = max(k for k, c in enumerate(cell.calls) if c[0] == 'force_off')
+    rise = [c for c in cell.calls[i:] if c[0] == 'move_rel'][0]
+    assert rise[1] > 0 and rise[2] == pytest.approx(180.0 * 0.3)
 
 
 def test_spin_room():

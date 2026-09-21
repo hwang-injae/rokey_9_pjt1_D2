@@ -22,7 +22,7 @@ CFG = {
     'cell': {'limits': {'safe_z_mm': 235.0, 'contact_limit_n': 2.0}},
     'f3': {'wipe_bowl': {
         'tool': {'clean_h_mm': 35, 'd_mm': 90},
-        'fast_down_mm': 135.0, 'find_max_mm': 40.0,
+        'fast_down_mm': 135.0, 'fast_vel_mm_s': 180.0, 'fast_acc_mm_s2': 360.0, 'find_max_mm': 40.0,
         'target_force_n': 1.5, 'limit_n': 10.0, 'lateral_max_n': 25.0,
         'bowl_inner_d_mm': 110.0, 'wall_press_mm': 4.0,
         'spiral_pitch_mm': 5.0, 'spiral_time_s': 3.0,
