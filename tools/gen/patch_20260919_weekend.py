@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v12.0'
+VERSION = 'v12.1'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -990,6 +990,17 @@ P59 = {
 for _tid, _e in P59.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 17시대 결정 E21 · PR #60 merge
+E21 = '📌 9/21 결정 E21(/cell/force · /cell/gripping 삭제)'
+P21 = {
+ 'FLOW-02': dict(note_add=E21 + ' → **`/cell/force`·`/cell/gripping` 발행은 만들지 않는다**(HMI 힘 그래프·파지 표시 삭제). FLOW-02 는 기록(records.csv)·이벤트·소모품 카운트만 남는다'),
+ 'F4-03':   dict(note_add=E21 + ' → HMI 에서 힘 그래프·파지 표시를 뺐다(F4 `d9a8d2d`). 대신 **셀 평면도에 로봇 위치·동작**을 그린다(cell.yaml 좌표 + /flow/state — 새 인터페이스 없음)'),
+ 'NOTE-02': dict(note_add=E21 + ' → HMI gif 에 힘 그래프를 넣지 않는다(실제 로봇에서는 안 나오는 기능이었다). 발표에서 힘제어를 보이려면 F3 CSV(force_log_path)로 그래프를 따로'),
+ 'V-24':    dict(note_add='✅ 9/21 PR #60 merge — 공개 정지 함수 `cc.stop()`(지금 바로 move_stop DR_QSTOP · halt 깃발은 안 건드림). 🟡 실기 미확인 — 박진용이 stop_now() 를 바꾼 뒤 F3 컵 세척 실기에서'),
+}
+for _tid, _e in P21.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -1355,6 +1366,9 @@ HISTORY70 = ['v11.9', '최신화', 'V-07, F2-01, CELL-03, V-02, F4-03, INF-02d, 
 HISTORY71 = ['v12.0', '검증 수준', 'INT-4b, UT-FLOW, V-02, V-07', 'PR #59 merge(민범진 — flow 재시도 인덱스 겹침 수정 + 저녁 실기 도구). 팀 지적 "실기 검증 없이 가상 검증만 했다" — 사실이다: ① flow 수정은 자동 시험(회귀 시험)만, 실제 재시도 경로는 INT-4b 에서 ② rig_f2 변경(로봇을 움직임)은 오늘 저녁 첫 실행이 검증. PR 에 검증 수준 코멘트를 보충하고 일정표에 "실기 미확인" 표시. 되돌리지 않음(버그 재발 · 저녁 절차가 이 도구를 씀)',
              '황인재 9/21 17:30', 'M,H']
 
+HISTORY72 = ['v12.1', '결정 E20·E21', 'FLOW-02, F4-03, NOTE-02, V-24', '결정 E20(황인재 A): PR merge 는 자동 시험으로 하되 PM 승인 코멘트·일정표에 검증 수준(자동 시험/가상/실기)을 항상 밝힌다. 결정 E21(황인재): /cell/force·/cell/gripping 삭제 — 발행한 적이 없고 힘제어는 몇 초뿐·컵은 파지 판정 안 함 → HMI 힘 그래프·파지 표시 대신 셀 평면도. 민범진·박진용은 발행을 만들지 않는다. PR #60 merge(cc.stop() 공개 정지 함수 · 🟡 실기 미확인)',
+             '황인재 9/21 17:40', 'M,P,H']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1449,7 +1463,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)

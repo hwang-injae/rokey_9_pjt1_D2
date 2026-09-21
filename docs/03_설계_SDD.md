@@ -41,7 +41,7 @@ PC-A ↔ 컨트롤러는 두산 전용 TCP(DDS 아님). PC-A ↔ PC-B는 ROS 2 D
 |---|---|---|---|
 | `/flow/state` | `cobot_msgs/msg/FlowState` (2 Hz) | flow_node → hmi_bridge | PC-A → PC-B (DDS) |
 | `/flow/event` | `cobot_msgs/msg/FlowEvent` | flow_node → hmi_bridge | PC-A → PC-B (DDS) |
-| `/cell/force`(`std_msgs/msg/Float32` @10 Hz, 닦는 동안만) · `/cell/gripping`(`std_msgs/msg/Bool`, 바뀔 때 + 2 Hz) | `std_msgs` | flow_node → hmi_bridge | PC-A → PC-B (DDS) · ✅ 황인재 9/20(힘 그래프 · "파지 중/아님" 표시 — `/cell/grip_width`는 삭제) · IRD §6 |
+| ~~`/cell/force` · `/cell/gripping`~~ | — | — | ❌ **삭제(황인재 9/21 결정 E21)** — 발행한 적이 없고(HMI 가짜만), 힘제어는 몇 초뿐 · 컵은 파지 판정을 안 한다(E19). HMI 는 힘 그래프·파지 표시 대신 **셀 평면도에 로봇 위치·동작**을 그린다(새 인터페이스 없음) · IRD §6 |
 | `/flow/start` `/flow/stop` `/flow/resume` `/flow/abort`(9/20 신설) | `std_srvs/srv/Trigger` | hmi_bridge → flow_node | PC-B → PC-A (DDS) |
 | **기능 함수 12개** `f1.pick` `place` `move_to` `tool` `rack_place` · `f2.weigh` `leftover_loop` `shake` `dip` · `f3.soap` `wipe_bowl` `wipe_cup` | **파이썬 함수 호출** (반환 타입 `cobot_api.*Result`) | flow_node 메인 스레드 → 기능 패키지 | PC-A 같은 프로세스 (ROS 통신 아님) |
 | `/dsr01/dsr_controller2/motion/move_joint` · `move_line` … | `dsr_msgs2/srv/MoveJoint` · `MoveLine` | cobot_common(DSR_ROBOT2) → dsr_controller2 | PC-A 내부 |
