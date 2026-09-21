@@ -5,7 +5,8 @@
   "description": "PreWash-Cell 시스템 모니터 화면 (F4-03) — 정적 내보내기(out/)를 hmi_bridge 가 보여준다",
   "scripts": {
     "dev": "NEXT_TELEMETRY_DISABLED=1 next dev -p 3000",
-    "build": "NEXT_TELEMETRY_DISABLED=1 next build"
+    "build": "NEXT_TELEMETRY_DISABLED=1 next build",
+    "illust": "python3 illust/build.py"
   },
   "dependencies": {
     "next": "15.5.25",

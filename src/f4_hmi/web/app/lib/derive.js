@@ -88,11 +88,46 @@ export function zones(d) {
   });
 }
 
-// 사이클 타임 — 이번 회차에 끝난 용기의 소요 시간
+// 사이클 타임 — 이번 회차에 끝난 용기의 소요 시간. recent = 최근 8개(오래된 것 → 최근 것, 작은 막대 그림용)
 export function cycle(d) {
   const ds = currentRun(d).filter((e) => e.result === 'DONE' || e.result === 'ISOLATED').map((e) => e.duration_s || 0);
   if (!ds.length) return null;
-  return { last: ds[0], mean: ds.reduce((a, b) => a + b, 0) / ds.length, n: ds.length };
+  return { last: ds[0], mean: ds.reduce((a, b) => a + b, 0) / ds.length, n: ds.length, recent: ds.slice(0, 8).reverse() };
+}
+
+// 몇 번째 용기인가 — 끝난 용기(완료 + 격리) 수와 계획 수
+export function progress(d) {
+  const s = d.state || {};
+  return {
+    finished: (s.done_bowl || 0) + (s.done_cup || 0) + (s.isolated || 0),
+    total: (s.target_bowl || 0) + (s.target_cup || 0),
+  };
+}
+
+// 다음 할 일 — "지금 하는 일" 칸의 한 줄. 적재 뒤에는 다음 용기(남았으면) 또는 끝
+export function nextStep(step, p) {
+  if (step === 'IDLE') return '시작 누르기';
+  if (step === 'DONE') return '팔레트 확인';
+  if (step === 'PAUSED') return '재개 또는 중단';
+  if (step === 'ERROR') return '운영자 복구';
+  if (step === 'WEIGH') return '털기 또는 안착';               // 잔반(50 g 이상)이 있을 때만 턴다
+  const i = FLOW.indexOf(step);
+  if (i >= 0 && i < FLOW.length - 1) return STEP_KO[FLOW[i + 1]];
+  return p.finished + 1 < p.total ? '다음 용기 집기' : '마지막 — 완료';
+}
+
+// 소모품 — 교체까지 남은 횟수. 한도의 15 % 이하로 남으면 warn(곧 교체), 0 이면 bad(교체 필요)
+function remain(used, max) {
+  if (used == null) return null;
+  if (!max) return { used, max: null, left: null, level: 'ok' };
+  const left = Math.max(0, max - used);
+  const level = left === 0 ? 'bad' : left <= Math.max(1, Math.round(max * 0.15)) ? 'warn' : 'ok';
+  return { used, max, left, level };
+}
+export function consumables(d) {
+  const s = d.state || {};
+  const c = (d.plan && d.plan.consumables) || {};
+  return { sponge: remain(s.sponge_uses, c.sponge_max_uses), soap: remain(s.soap_dips, c.soap_max_dips), rinse: s.rinse_dips };
 }
 
 // 알람 — 로봇 오류(붉은색) > 일시 정지 > 경고(주황)
