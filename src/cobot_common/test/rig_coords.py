@@ -99,6 +99,7 @@ def main() -> int:
     ap.add_argument('--from', dest='start', type=int, default=1, help='몇 번째 이동부터 돌까 (1 부터 · 막힌 구간을 고친 뒤 이어서)')
     ap.add_argument('--skip', default='', help='건너뛸 번호 (쉼표로: 3,21,31) — 좌표가 틀렸다고 이미 아는 자세를 빼고 한 번에 돈다')
     ap.add_argument('--where', action='store_true', help='로봇을 **움직이지 않고** 지금 자세(관절·좌표)만 찍고 끝낸다')
+    ap.add_argument('--home', action='store_true', help='HOME 으로만 가고 끝낸다 (Enter 한 번 확인 · 속도·상태 검사는 그대로)')
     opt = ap.parse_args([v for v in sys.argv[1:] if not v.startswith('--ros-args')])
     opt.step = opt.step or opt.real
     skip = {int(v) for v in opt.skip.replace(' ', '').split(',') if v}
@@ -208,6 +209,14 @@ def main() -> int:
 
         if opt.real and not state_ok('첫 이동'):
             return 2
+
+        if opt.home:                                            # HOME 으로만 — 9/21 실기에서 자주 필요했다(q 를 누를 틈 없이 다음 구간으로 넘어가던 문제)
+            log.info(f'HOME 으로 간다 (관절 이동) · 지금 관절 [{", ".join(f"{v:.1f}" for v in posj())}]')
+            if opt.step and input('    🚨 관절 이동이라 팔 전체가 휜다 — 갈 길에 걸릴 것이 없으면 Enter / q = 그만 > ').strip().lower() == 'q':
+                return 2
+            cc.move_to('HOME', False)
+            log.info('OK   HOME' + jinfo())
+            return 0
 
         stopped = False
         log.info(f'──── ① ② 찍은 자세 {len(ROUTE)}번 이동 — 자세에서 자세로 곧장(9/20 E7) ────')
