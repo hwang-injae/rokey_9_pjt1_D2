@@ -17,7 +17,7 @@ Result.fail(code) 로 돌려준다. 숫자는 전부 params.yaml 의 f3 절 · c
 wipe_bowl = F3-02 **고정 좌표 방식**(9/20 결정 E6 · SDD §5.4) · soap · wipe_cup = F3-03.
 🔸 그릇만 고정 좌표다 — 컵은 깊고 솔이 단단해 **삽입만 힘으로 찾는다**(contact_down), 문지르기는 위치 제어다.
 🔸 두산 함수를 직접 부르지 않는다(AGENTS §3 규칙 4) — 나선·원호를 포함한 접촉 모션은 cobot_common 의 force.py 에 있다
-   (cc.move_spiral · cc.move_arc · cc.move_line · cc.where · cc.motion_done).
+   (cc.move_spiral · cc.move_arc · cc.move_periodic · cc.where · cc.joints · cc.motion_done · cc.stop_now).
 실측 근거는 docs/test_logs/20260918_CELL-02a_용기치수측정.md · docs/test_logs/20260919_V-03_힘제어중_XY이동.md.
 """
 import csv
@@ -27,6 +27,10 @@ import time
 
 import cobot_common as cc
 from cobot_api import FORCE_LIMIT, OK, ROBOT_ERROR, TIMEOUT, Result, WipeBowlResult, WipeCupResult
+
+class JointGuardStop(RuntimeError):
+    """컵 세척 중 1·4번 조인트가 움직여 즉시 정지했다 — 손목이 이미 꺾였을 수 있어 **자동으로 움직이지 않는다**(PR #56 리뷰)."""
+
 
 START = 'HOME'                       # 닦기의 시작·끝 = 초기자세 (cell.stations.HOME, 관절 0·0·90·0·90·0)
 
@@ -387,7 +391,8 @@ def wipe_cup() -> WipeCupResult:
       ③ 바닥을 찾으면 **힘을 풀고**(contact_down 이 해제한다) — 세척의 **가장 낮은 곳 = 바닥 + 3 mm**
       ④⑤ **Move Periodic 한 명령**(TOOL 기준): 위아래 z ±15 mm(2·3·5번 조인트) + 그리퍼 축 rz **좌우 ±90°(6번 조인트)** 를
          같은 주기 3.0 s 로 — 그릇 벽면 비틀기처럼 왔다 갔다 (중급1 p.71 "왕복 이동/회전")
-         🚨 도는 동안 1·4번 조인트 감시, 1° 넘으면 즉시 정지 · 회전 최고 속도가 로봇 한계 225 °/s 를 넘으면 움직이기 전에 멈춘다
+         🚨 도는 동안 1·4번 조인트 감시, 1° 넘으면 즉시 정지하고 **자동으로 움직이지 않는다**(힘만 끔 → 사람이 확인)
+         🚨 회전 최고 속도가 로봇 한계 225 °/s 를 넘으면 움직이기 전에 멈춘다
          🚨 회전 칸은 **rz** — rx 는 실기에서 4번 조인트를 돌렸다. Virtual 은 rx ↔ rz 를 뒤바꿔 움직여 믿지 않는다(9/21)
       ⑥ cycles(5) 번 뒤 가장 낮은 곳(바닥 + 3)으로 내려서 끝낸다 — 6번 조인트도 제자리
       ⑦ 솔을 컵에서 곧게 뽑아 컵 위 높이로 → z +40 → y −140 → z −40 → HOME (⓪ 의 반대)
@@ -425,6 +430,10 @@ def wipe_cup() -> WipeCupResult:
     except (cc.MotionHalted, cc.MoveIncomplete):                         # 로봇 위치를 모른다 → 올린다
         moved = False
         raise
+    except JointGuardStop as e:                                          # 🚨 손목이 꺾였을 수 있다 → 힘만 끄고 그대로 둔다
+        moved = False                                                    #   곧게 뽑으면 꺾인 솔이 컵을 끌고 올라온다(PR #56 리뷰)
+        code = ROBOT_ERROR
+        _warn(f'{e} → 티치펜던트로 자세를 확인하고 사람이 컵에서 빼낸다')
     except cc.ForceLimitError:
         code = FORCE_LIMIT
     except (cc.MotionTimeout, cc.MoveTimeout):
@@ -502,8 +511,8 @@ def _scrub_cup(p, log):
         bad = [(k + 1, q[k] - q0[k]) for k in (0, 3) if abs(q[k] - q0[k]) > guard]
         if bad:
             cc.stop_now()
-            raise RuntimeError('wipe_cup: ' + ' · '.join(f'{k}번 조인트 {d:+.1f}°' for k, d in bad)
-                               + ' 가 움직였다 — 6번 조인트만 돌아야 한다. 즉시 정지')
+            raise JointGuardStop('wipe_cup: ' + ' · '.join(f'{k}번 조인트 {d:+.1f}°' for k, d in bad)
+                                 + ' 가 움직였다 — 6번 조인트만 돌아야 한다. 즉시 정지 · 자동으로 움직이지 않는다')
         if log.over_time():
             cc.stop_now()
             raise cc.MotionTimeout('wipe_cup: 세척 시간 초과')

@@ -14,7 +14,7 @@
     cell.limits : safe_z_mm · timeout_s
     cell.force  : compliance_stx · contact_step_mm · contact_vel_mm_s · contact_acc_mm_s2 ·
                   retreat_vel_mm_s · retreat_acc_mm_s2 · force_max_n · search_y_period_ratio   (이슈 #7 ①, 키 골격 황인재)
-    cell.motion : 이동 속도 상한 — move_rel · move_arc · move_line 이 읽는다
+    cell.motion : 이동 속도 상한 — move_rel · move_arc 가 읽는다
 - 실행 인자 cfg()['run']['vel_scale'](0 초과 1 이하, 첫 실기 0.3)를 이동 속도에 곱한다 — 하강·후퇴 속도, 탐색은 주기를 나눠 느리게.
 - 실패는 예외다: ForceLimitError(힘 상한) · MotionTimeout(시간 초과) · RuntimeError(두산 함수가 -1).
   기능 함수(f1·f3)가 받아서 FORCE_LIMIT · TIMEOUT · ROBOT_ERROR 코드로 바꾸고, 후퇴는 safe_retreat().
@@ -36,7 +36,7 @@ from .motion import is_paused, move_rel
 
 __all__ = ['force_on', 'force_off', 'force_release', 'force_reached', 'force_check', 'compliance_on', 'compliance_off',
            'contact_down', 'periodic_search', 'safe_retreat', 'read_force',
-           'where', 'joints', 'stop_now', 'motion_done', 'move_spiral', 'move_arc', 'move_line', 'move_periodic',
+           'where', 'joints', 'stop_now', 'motion_done', 'move_spiral', 'move_arc', 'move_periodic',
            'ForceLimitError', 'MotionTimeout']
 
 _AXES = ('x', 'y', 'z')
@@ -289,8 +289,9 @@ def joints():
 
 
 def stop_now():
-    """지금 하던 동작을 **즉시 정지**(QSTOP · Stop Category 2 — 서보 전원 유지, 위치를 안다). 기다리지 않는다.
-    비동기 모션(Periodic 등)이 도는 중에 감시하다 이상을 보면 부른다. 정지는 통신 노드가 보낸다(motion._call)."""
+    """지금 하던 동작을 **즉시 정지**(QSTOP · Stop Category 2 — 서보 전원 유지). 멈출 때까지 최대 3 s 기다린다.
+    비동기 모션(Periodic 등)이 도는 중에 감시하다 이상을 보면 부른다. 정지는 통신 노드가 보낸다.
+    🟡 motion.py(황인재)의 내부 함수 _call('stop') 을 쓴다 — 공개 함수가 생기면 그것으로 바꾼다(PR #56 리뷰)."""
     _motion._call('stop')
     t0 = time.monotonic()
     while not motion_done() and time.monotonic() - t0 < 3.0:
@@ -351,23 +352,6 @@ def move_periodic(amp, period, repeat, ref='TOOL', atime=None, scale=True):
     _ok(d.amove_periodic(amp=[float(v) for v in amp], period=[float(v) * slow for v in period],
                          atime=0.0 if atime is None else float(atime),
                          repeat=int(repeat), ref={'BASE': d.DR_BASE, 'TOOL': d.DR_TOOL}[ref]), 'amove_periodic')
-
-
-def move_line(pose, vel_mm_s, vel_deg_s, acc_mm_s2, acc_deg_s2, radius_mm=0.0):
-    """직선(Move L) — BASE 절대 자세 하나로. 회전(a·b·c)도 같이 간다. move_arc 의 직선판.
-
-    컵 닦기의 "위아래 + 좌우 비틀기"가 이것이다 — 자세의 z 와 c 만 바꾼 점을 이어 붙이면 솔이 오르내리며
-    **툴 축으로만** 비틀린다(그릇 벽면 원호의 c ±twist 와 같은 방식, 9/20 실기로 확인된 방식).
-    radius_mm > 0 이면 다음 모션으로 **이어 붙는다**(중급교육1 p.79 — Move L 은 중첩 가능). 0 이면 그 자리에 선다.
-    🔸 속도·가속도는 **부르는 쪽 값 그대로** 쓴다 — cell.motion 공용 상한도, 실행 인자 vel_scale 도 곱하지 않는다.
-       세척 동작 자체는 빠른 속도가 필요하고 실제로 잘 닦이는 것이 목표라, 팀 속도 규정과 따로 F3 가 값을 관리한다
-       (박진용 9/21 결정 — params.yaml f3.wipe_cup 의 lin/rot_vel · lin/rot_acc).
-    """
-    d = dsr()
-    vel = [_positive('vel_mm_s', vel_mm_s), _positive('vel_deg_s', vel_deg_s)]
-    acc = [_positive('acc_mm_s2', acc_mm_s2), _positive('acc_deg_s2', acc_deg_s2)]
-    _ok(d.movel([float(v) for v in pose], vel=vel, acc=acc,
-                radius=float(radius_mm), ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS), 'movel')
 
 
 def move_arc(mid, end, vel_mm_s, vel_deg_s, radius_mm=0.0):

@@ -297,14 +297,16 @@ def test_cup_no_room_to_spin_is_error_and_retreats(cell):
     assert _periodic(cell) == [] and cell.calls[-1][:2] == ('move_to', 'HOME')
 
 
-def test_cup_stops_now_if_j4_moves(cell):
-    """🚨 세척 도는 중 4번 조인트가 1° 넘게 움직이면 **즉시 정지** → ROBOT_ERROR → HOME (9/21 실기에서 4번 조인트가 돌았다)."""
+def test_cup_stops_now_if_j4_moves_and_does_not_auto_move(cell):
+    """🚨 세척 도는 중 4번 조인트가 1° 넘게 움직이면 **즉시 정지** → ROBOT_ERROR → **힘만 끄고 움직이지 않는다**
+    (손목이 꺾였을 수 있어 곧게 뽑으면 컵을 끌고 올라온다 — PR #56 리뷰)."""
     cell.j4_during = 5.0
     r = wipe.wipe_cup()
     assert not r.ok and r.code == ROBOT_ERROR
     names = [c[0] for c in cell.calls]
-    assert names.index('periodic') < names.index('stop_now')
-    assert cell.calls[-1][:2] == ('move_to', 'HOME')
+    i = names.index('stop_now')
+    assert names.index('periodic') < i
+    assert names[i + 1:] == ['force_off']                                  # 정지 뒤에는 힘만 끈다 — 이동 없음
 
 
 def test_cup_stroke_shrinks_so_brush_stays_in(cell):
