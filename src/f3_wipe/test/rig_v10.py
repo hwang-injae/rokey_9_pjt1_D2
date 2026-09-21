@@ -158,7 +158,7 @@ def main() -> int:
         log.info(f'컵 위 Z {z_top:.1f} → 빠르게 {fast:g} mm 내려간 뒤 힘으로 찾는다')
         cc.move_rel(0.0, 0.0, -fast, 'BASE')
         n0 = len(rec.rows)
-        found, f_n = cc.contact_down(float(p['find_max_mm']), cc.cfg()['cell']['limits']['insert_limit_n'])
+        found, f_n = cc.contact_down(float(p['find_max_mm']), float(p['find_limit_n']))
         z_bottom = cc.where()[2]
         rec.watch('bottom')
         rec.summarize('bottom', n0)

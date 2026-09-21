@@ -379,7 +379,7 @@ def wipe_cup() -> WipeCupResult:
     9/21 확정 시나리오. 괄호 안은 강의자료 근거.
       ⓪ 초기자세 HOME → z +over_cup_up_mm → y +over_cup_dy_mm → z −over_cup_up_mm (컵 위, 솔이 컵에 걸리지 않게)
       ① 거기서 **fast_down_mm 만큼 빠르게** 내려간다(9/21 실측 90 mm − 10). 바닥 위치는 미리 정하지 않는다
-      ② **바닥을 찾는다** — cc.contact_down(순응 ON, 조금씩 하강, insert_limit_n)
+      ② **바닥을 찾는다** — cc.contact_down(순응 ON, 조금씩 하강, f3.wipe_cup.find_limit_n 5 N — 15 N 이면 컵이 눌렸다)
          (중급2 "힘 방향과 같은 방향의 모션 불가" — Z 힘제어로는 내려갈 수 없다. 순응 + 걸음 하강이 매뉴얼 방식)
       ③ 바닥을 찾으면 **힘을 풀고**(contact_down 이 해제한다) lift_mm 만 띄운다 — 왕복의 아래쪽 끝
       ④⑤ **올라가며 6번 축 360° 한 방향(반시계), 내려오며 반대로 360°** — 90° 조각으로 나눈 점들을
@@ -398,7 +398,6 @@ def wipe_cup() -> WipeCupResult:
     위아래 40 mm(stroke 20 × 2) · 360° 회전 3 회는 9/21 박진용 확정(비틀기 ±18° 에서 바꿈). 속도는 V-10(실기)에서 본다.
     """
     p = cc.cfg()['f3']['wipe_cup']
-    limits = cc.cfg()['cell']['limits']
     t0 = time.monotonic()
     log = _Log(p, t0)
     trip = _Trip(cup_hops(p))
@@ -409,7 +408,7 @@ def wipe_cup() -> WipeCupResult:
         log.start(cc.read_force())                                       # 공중 기준값은 내려가기 전에
         fast = float(p['fast_down_mm'])
         cc.move_rel(0.0, 0.0, -fast, 'BASE')                             # ① 정한 길이만큼 빠르게
-        found, _f = cc.contact_down(float(p['find_max_mm']), limits['insert_limit_n'])   # ② 바닥 찾기
+        found, _f = cc.contact_down(float(p['find_max_mm']), float(p['find_limit_n']))   # ② 바닥 찾기 (컵 전용 힘)
         log.center = cc.where()
         depth = fast + found                                             # 컵 위에서 바닥까지 내려간 거리 (잰 값)
         _info(f'wipe_cup 바닥: 빠르게 {fast:.0f} mm + 찾기 {found:.1f} mm (최대 {p["find_max_mm"]:g}) '

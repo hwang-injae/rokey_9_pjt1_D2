@@ -16,12 +16,12 @@ from f3_wipe import wipe
 
 CFG = {
     'run': {'vel_scale': 0.3},
-    'cell': {'limits': {'insert_limit_n': 5.0, 'timeout_s': 30.0}},
+    'cell': {'limits': {'insert_limit_n': 15.0, 'timeout_s': 30.0}},     # main 값 — 컵은 이것을 쓰지 않는다
     'f3': {
         'soap': {'depth_mm': 40.0, 'hold_s': 0.0, 'vel_mm_s': 80.0, 'log_dir': 'logs/f3'},
         'wipe_cup': {
             'tool': {'clean_h_mm': 95, 'd_mm': 55},
-            'over_cup_up_mm': 40.0, 'over_cup_dy_mm': 140.0,
+            'over_cup_up_mm': 40.0, 'over_cup_dy_mm': 140.0, 'find_limit_n': 5.0,
             'fast_down_mm': 80.0, 'find_max_mm': 40.0,
             'lift_mm': 2.0, 'lift_vel_mm_s': 40.0,
             'stroke_mm': 20.0,
@@ -220,7 +220,7 @@ def test_cup_fast_then_finds_bottom_by_force(cell):
     names = [c[0] for c in cell.calls]
     fast = [c for c in cell.calls if c[0] == 'move_rel' and c[1] < 0][1]   # [0] 은 컵 위로 내려오는 −40
     assert fast[1] == pytest.approx(-80.0)                                 # fast_down_mm — 티칭 끝점(up)과 무관
-    assert ('contact_down', 40.0, 5.0) in cell.calls                       # find_max_mm · insert_limit_n
+    assert ('contact_down', 40.0, 5.0) in cell.calls                       # find_max_mm · find_limit_n (insert_limit_n 15 아님)
     assert names.index('contact_down') < names.index('line')
     assert r.insert_depth_mm == pytest.approx(DEPTH)                       # 잰 값 — 바닥 위치를 미리 정하지 않는다
     assert cell.calls[-1][:2] == ('move_to', 'HOME')
