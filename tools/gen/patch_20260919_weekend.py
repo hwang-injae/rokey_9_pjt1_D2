@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v9.8'
+VERSION = 'v9.9'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -702,6 +702,30 @@ MORN_0921 = {
 for _tid, _e in MORN_0921.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 10:15 황인재: 좌표 작업이 가장 먼저 — 로봇 순서를 좌표 우선으로
+FIRST = '🥇 9/21 10:15 황인재: **좌표 작업이 가장 먼저**'
+COORD_FIRST = {
+ 'CELL-04':  dict(slots=S('9/19 오전', '9/19 오후', '9/20 오전', '9/20 오후', '9/21 오전', '9/21 오후'),
+                  note_add=FIRST + ' — 오늘 로봇 순서의 **1번**이다. 오전: 값 마무리·PR(책상) → V-24 이동 함수 실기 → **티칭 착수**, 오후: 티칭 마무리 → V-22·V-19. 뒤의 모든 실기(집기·닦기·F2)가 이 좌표 위에서 돈다 — 9/21 08:00·08:40 에 드러난 경로 문제(손목 특이점 · 팔레트 걸림 · 6번 관절 163° 회전)를 먼저 잡지 않으면 남이 같은 곳에서 막힌다'),
+ 'V-24':     dict(slots=S('9/20 오후', '9/21 오전', '9/22 오전'), note_add=FIRST + ' → 이동 함수 실기를 **오전**으로(값 PR 직후). 티칭이 이 코드로 돈다'),
+ 'CELL-04b': dict(slots=S('9/20 오후', '9/21 오전', '9/21 오후', '9/22 오전')),
+ 'V-22':     dict(slots=S('9/21 오후'), note_add=FIRST + ' → 티칭 마무리 직후 오후에'),
+ 'V-19':     dict(slots=S('9/20 오전', '9/20 오후', '9/21 오후')),
+ # 민범진 — 좌표 뒤로. 다만 값 작업(책상) 동안 로봇이 비면 그때 끼워 넣는다
+ 'V-05':     dict(slots=S('9/20 오전', '9/20 오후', '9/21 오후'),
+                  note_add=FIRST + ' → 그리퍼 세션은 **좌표 뒤(오후)**. 🔸 다만 좌표의 **값 마무리는 책상 작업이라 그동안 로봇이 빈다** — 그 시간(오전)에 끼워 넣으면 좌표를 늦추지 않는다(황인재 판단). 좌표 실기가 시작되면 바로 로봇을 넘긴다'),
+ 'V-23':     dict(slots=S('9/20 오전', '9/20 오후', '9/21 오후')),
+ 'V-01':     dict(slots=S('9/20 오전', '9/20 오후', '9/21 오후')),
+ 'V-02':     dict(slots=S('9/20 오전', '9/20 오후', '9/21 오후')),
+ 'INF-02c':  dict(slots=S('9/20 오전', '9/20 오후', '9/21 오후')),
+ 'INF-02d':  dict(slots=S('9/19 오후', '9/20 오전', '9/20 오후', '9/21 오후')),
+ 'F1-02':    dict(slots=S('9/21 오전', '9/21 오후', '9/21 저녁'), note_add=FIRST + ' → 집기 실기는 좌표·프리셋 뒤 — 오후 늦게나 저녁 첫 순서로'),
+ 'V-14':     dict(slots=S('9/21 오후', '9/21 저녁')),
+ 'INT-12a':  dict(slots=S('9/22 저녁'), note_add='9/21 10:15: 오늘 착수는 무리 — 좌표를 먼저 하기로 해 저녁이 다시 찬다'),
+}
+for _tid, _e in COORD_FIRST.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -826,6 +850,15 @@ SLOT['9/21 월']['C'] = ('**14:00 ① V-24 이동 함수 실기(H, 30분)** — 
 SLOT['9/21 월']['D'] = ('**18:30 ① F3-02 닦기 3회 + V-18(P, 40분)** → **19:10 ② V-25 F1-01 실기(H, 25분)** → '
                         '**19:35 ③ 민범진 두 번째 순서**: V-07 털기 진폭 · V-16 HOLD 힘 · F2-01·02 실기(오후에 WASTE 자세를 다시 찍었다) → '
                         '**20:40 ④ 여유가 되면 L2 착수: INT-12a(M·S)** · 로봇 불필요: FLOW-03·FLOW-02(M)·SAFE-01 마무리(P)·NOTE-01·02(H)')
+# 9/21 10:15 — 좌표가 가장 먼저(v9.9)
+SLOT['9/21 월']['B'] = ('🥇 **좌표가 1번**(황인재 10:15) — 뒤의 모든 실기가 이 좌표 위에서 돈다: '
+                        '**① 값 마무리·PR(H, 책상)** → **② V-24 이동 함수 실기(H, 30분)** → **③ 티칭 착수(H · M 입회)** 그릇 경로 6번 관절 재티칭부터 · '
+                        '같은 시간에 로봇 없이: **툴·홀더 확정(P, 작업대 — 툴 홀더 티칭 전까지 끝낸다)** · **F1-02 집기 코드(S)** · SAFE-01 착수(P) · FLOW-01 kind·GRIP_FAIL·MoveIncomplete(M) · '
+                        '🔸 ① 은 책상 작업이라 그동안 로봇이 빈다 → 그 틈에 **민범진 그리퍼 세션(60분)** 을 넣을 수 있다(좌표 실기가 시작되면 바로 넘긴다)')
+SLOT['9/21 월']['C'] = ('**④ 티칭 마무리(H)** → **⑤ V-22·V-19 그릇·컵 한 바퀴(H)** → **⑥ 그리퍼·무게 세션(M, 60분 · P 옆에서)** V-05 → V-23 → V-01 → V-02 → '
+                        '**⑦ F1-02 집기 실기 + V-14(S)** — ⑥ 의 프리셋과 ④⑤ 의 좌표가 전제 · 로봇 불필요: SAFE-01(P)·FLOW-03(M)')
+SLOT['9/21 월']['D'] = ('**⑧ F3-02 닦기 3회 + V-18(P, 40분)** → **⑨ V-25 F1-01 실기(H, 25분)** → **⑩ 민범진 두 번째: V-07 털기 · V-16 HOLD · F2-01·02 실기** '
+                        '(오후 티칭에서 WASTE 자세를 다시 찍은 뒤) · 🛡 밀리면 ⑦ 집기 실기를 저녁 첫 순서로 · 로봇 불필요: FLOW-02·FLOW-03(M)·NOTE-01·02(H)')
 _b, _c = LECTURE['9/24 목~9/28 월']
 LECTURE['9/24 목~9/28 월'] = (_b, _c + ' · 🆕 **F4 웹 HMI**(F4-03 화면 다듬기·F4-04 기록/이력·UT-F4 전체)도 집에서 mock·fake_state_pub 로 이어 간다(황인재 9/20 — ROS 인터페이스·로봇 쪽 코드는 9/23 동결 그대로)')
 RULES = {       # (A 열, B 열 글자) → (새 B, 새 C)
@@ -954,6 +987,9 @@ HISTORY48 = ['v9.7', '원인·재배치', 'V-05·23·01·02, INF-02c·02d, V-07�
 HISTORY49 = ['v9.8', '재배치', '9/21 오전·오후·저녁 전부, V-05·23·01·02, CELL-02b, F1-02, V-14, V-24, F3-02, V-18, V-25, V-07, INT-12a', '황인재 9/21 10:05: **오늘 오전도 작업 시간**(강의가 비었다) → 전체를 두 시간 더 앞으로. 오전 = 민범진 그리퍼·무게 세션(이틀 밀린 것 · 좌표와 무관) + 툴·홀더(P) + F1-02 코드(S) + 값 PR(H). 오후 = V-24 실기 → 티칭 2 h → V-22 → **F1-02 집기 실기**. 저녁 = 닦기 → V-25 → 민범진 2차 → 여유되면 INT-12a(L2 착수)',
              '황인재 9/21 10:05', 'M,P,S,H']
 
+HISTORY50 = ['v9.9', '우선순위', 'CELL-04·04b, V-24, V-22, V-19, V-05·23·01·02, INF-02c·02d, F1-02, V-14, INT-12a', '황인재 9/21 10:15: **좌표 작업이 가장 먼저** — 오늘 로봇 순서 1번. 오전 = 값 PR → V-24 실기 → 티칭 착수 / 오후 = 티칭 마무리 → V-22·V-19 → 그리퍼 세션 → F1-02 집기 실기 / 저녁 = 닦기 → V-25 → 민범진 2차. 뒤의 모든 실기가 좌표 위에서 돌고, 08:00·08:40 에 드러난 경로 문제를 먼저 잡지 않으면 남이 같은 곳에서 막힌다. 🔸 값 마무리는 책상 작업이라 그동안 로봇이 비면 그리퍼 세션을 끼워 넣을 수 있다',
+             '황인재 9/21 10:15', 'H,M,S,P']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1048,7 +1084,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
