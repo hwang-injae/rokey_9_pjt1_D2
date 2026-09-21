@@ -9,13 +9,13 @@
     PREWASH_CONFIG_DIR=<임시 설정> python3 src/f3_wipe/test/rig_v10.py                 # Virtual(sodvir) — 흐름만
 
 준비(손으로): 컵을 스펀지 홈에 넣고, **솔을 그리퍼에 쥐여 준다**(그리퍼 끝을 세척부 윗면에 닿게 — 세척부 95 mm).
-🚨 E-Stop 에 손을 두고 본다. 첫 실행은 반드시 `--stage find` 로 **바닥만** 찾아 보고 숫자를 확인한다.
+🚨 E-Stop 에 손을 두고 본다. 값을 바꿨으면 먼저 `--air`(컵 위 공중)로 동작만 본다.
 
 이 rig 가 확인하는 것 (V-10)
   · 초기자세 HOME → z +40 → y +140 → z −40 으로 컵 위에 간 뒤 fast_down_mm(80) 빠르게 내려간 뒤 **힘으로 바닥을 찾는가** — 실측으로는 컵 위 ~ 바닥 90 mm
   · 솔이 얼마나 들어가는가 · 바닥에 닿을 때 힘이 어떻게 올라오는가
-  · 위아래 40 mm + 좌우 비틀기 ±18°(9/21 확정)가 컵 안에서 괜찮은가 · 속도를 얼마로 할 것인가
-    (직선 이어 붙이기 — wipe.cup_strokes 를 그대로 쓴다. Move Periodic 회전은 손목을 기울여서 버렸다, 9/21 Virtual)
+  · 세척(Move Periodic — 위아래 3 cm + 6번 조인트 좌우 ±90°, 주기 3.0 s × 5)이 컵 안에서 괜찮은가
+    (제품 코드 wipe._scrub_cup 을 그대로 부른다 — 1·4번 조인트 감시 포함)
   · 컵이 홈 안에서 딸려 올라오거나 도는가 (옆 힘으로 본다)
 
 🔸 바닥 위치는 미리 정하지 않는다 — 빠른 하강 길이만 정하고(9/21 실측 90 − 10), 나머지는 contact_down 이 찾는다.
@@ -184,8 +184,8 @@ def main() -> int:
             code = 0
             return code
 
-        # ── ② ~ ⑥ 띄우기 → 올라가며 6번 축 360° / 내려오며 반대로 → 아래쪽 끝 (제품 코드 wipe._scrub_cup 그대로) ──
-        log.info(f'문지르기: 위아래 {2 * cup_stroke(p):.0f} mm · 6번 축 {p["spin_deg"]:g}° 올라가며 / 반대로 내려오며 · '
+        # ── ② ~ ⑥ 띄우기 → Periodic(위아래 + 6번 조인트 좌우) → 가장 낮은 곳 (제품 코드 wipe._scrub_cup 그대로) ──
+        log.info(f'세척: 위아래 {2 * cup_stroke(p):.0f} mm · 6번 조인트 좌우 ±{float(p["spin_deg"]) / 2:g}° · '
                  f'{p["cycles"]} 회 (주기 {p["period_s"]:g} s — vel_scale 무관)')
         n0 = len(rec.rows)
         t_scrub = time.monotonic()
