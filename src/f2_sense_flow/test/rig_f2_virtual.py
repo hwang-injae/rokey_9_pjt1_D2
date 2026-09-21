@@ -62,11 +62,16 @@ _FAKE_RAW_G = 180.0           # 가짜 하중 — 빈 용기 기준값과 같게
 
 def _stub_what_virtual_lacks(log):
     """🚨 Virtual 에 없는 것만 가짜로 바꾼다. 이동은 **진짜 가상 로봇**이 한다."""
-    calls = {'weigh': 0, 'grip_level': 0, 'grip_width': 0}
+    calls = {'weigh': 0, 'grip_level': 0, 'grip_width': 0, 'queue': []}
 
     def fake_weigh(n, reset=False):
+        """queue 에 값을 넣어 두면 그 순서대로, 비면 _FAKE_RAW_G.
+
+        leftover_loop 은 "재고 → 털고 → 다시 잰다" 라 값이 **바뀌어야** 루프를 돈다.
+        """
         calls['weigh'] += 1
-        return _FAKE_RAW_G
+        q = calls['queue']
+        return q.pop(0) if q else _FAKE_RAW_G
 
     def fake_grip_level(kind, level):
         calls['grip_level'] += 1
@@ -95,7 +100,7 @@ def _j(i):
 
 def main() -> int:
     ap = argparse.ArgumentParser(description='F2-01·F2-02 Virtual 확인 (이동만)')
-    ap.add_argument('which', choices=['weigh', 'shake', 'dip', 'all'])
+    ap.add_argument('which', choices=['weigh', 'shake', 'dip', 'loop', 'all'])
     ap.add_argument('-n', type=int, default=3, help='연속 호출 횟수 (SDD §3.2 ⑧ — 3 이상)')
     ap.add_argument('--kind', default='BOWL', choices=['BOWL', 'CUP'])
     ap.add_argument('--real', action='store_true', help='🚨 Virtual 이 아니어도 실행 (쓰지 마라)')
@@ -178,6 +183,21 @@ def main() -> int:
                 check(f'dip {i}/{a.n}', r.ok, f'{took:.2f} s · Z {z_after:.1f} mm')
                 check(f'dip {i} — 내려간 만큼 되올라왔다', abs(z_after - z_before) < 1.0,
                       f'Z {z_before:.1f} → {z_after:.1f} (담금 깊이 {depth:.0f} mm)')
+
+        # ── leftover_loop : 🚨 잔반통(뒤) ↔ 저울(앞) 을 HOME 을 거쳐 오간다 (9/21 결정 E15) ──
+        if a.which in ('loop', 'all'):
+            log.info(f'── leftover_loop × {a.n} ── (재고 → 털고 → 다시 잰다)')
+            for i in range(1, a.n + 1):
+                # 빈 용기 기준값 180 g → 280 = 잔반 100 g(임계 초과) · 190 = 잔반 10 g(통과)
+                calls['queue'] = [280.0, 190.0]
+                t0 = time.monotonic()
+                r = sense.leftover_loop(a.kind, 2)
+                took = time.monotonic() - t0
+                check(f'leftover_loop {i}/{a.n}', r.ok and r.rounds == 1,
+                      f'{r.rounds}회 털어 {r.weight_after_g:.1f} g · {took:.2f} s')
+            # 마지막이 '다시 재기'(WEIGH, 앞)라 저울 자세에서 끝나야 한다
+            check('leftover_loop 은 저울 자세에서 끝난다', abs(_z() - _WEIGH_Z) < 1.0,
+                  f'Z {_z():.1f} ≈ {_WEIGH_Z}')
 
         cc.move_to('HOME', False)
         log.info(f'가짜로 부른 횟수 — weigh {calls["weigh"]} · grip_level {calls["grip_level"]} '
