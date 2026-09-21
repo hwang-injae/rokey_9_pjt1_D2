@@ -122,7 +122,7 @@ def main() -> int:
         if not opt.real and not virtual:
             log.error('Virtual 이 아니다 → 실행하지 않는다 (실기는 --real, 값이 채워진 cell.yaml 로)')
             return 2
-        if opt.real:
+        if opt.real and not opt.where:              # --where 는 로봇을 움직이지 않는다 → 속도·E-Stop 확인을 요구하지 않는다
             scale = cc.cfg()['run']['vel_scale']
             log.info(f"실기 절차{' (Virtual 에서 돈다)' if virtual else ''} · vel_scale {scale:g} · 구간마다 Enter")
             if not virtual and scale > 0.3:
