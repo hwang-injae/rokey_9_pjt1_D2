@@ -6,12 +6,22 @@ HMI 의 "일시정지 ↔ 재개"(9/20 황인재 결정: 즉시 멈추고, 재�
     메인 스레드      : cc.move_joint_rel · cc.move_rel 로 긴 이동을 한다 — flow_node 가 기능 함수를 도는 자리
     통신 노드 스레드 : 타이머 콜백에서 cc.pause()·cc.resume()·cc.halt() 를 부른다 — /flow/stop·resume 콜백이 도는 자리
 
-실행 (저장소 루트 · rosinfo 로 RANGE=LOCALHOST · sodvir 가 떠 있어야 한다 — 이미 떠 있으면 그대로 쓴다)
-    soc && python3 src/cobot_common/test/rig_pause.py
-RViz 에서 볼 것: ① J1 이 돌다가 **2초 멈췄다가 이어서** 끝까지 ② 옆으로 곧게 가다가 멈췄다 이어서 ③ 돌다가 **멈추고 끝**(강제정지)
+실행 — 세 가지 모드 (rosinfo 로 RANGE=LOCALHOST 확인 · AGENTS 규칙 13)
+  ① Virtual 시험 (기본, 지금까지 쓰던 것)   sod && sodvir  →  soc && python3 src/cobot_common/test/rig_pause.py
+       시험용 좌표(config_virtual)로 크게 움직인다. 🚨 Virtual 이 아니면 거부한다.
+  ② 실기 예행연습 (오늘 밤, 로봇 없이 절차만)  soc && python3 src/cobot_common/test/rig_pause.py --real --rehearse
+       ③ 과 **같은 절차**를 Virtual 에서 돈다 — 진짜 cell.yaml 좌표 + 비어 있는 limits·motion 만 시험 값으로 채움.
+       🚨 실기면 거부한다(시험 값으로 실기를 움직이지 않는다).
+  ③ 실기 확인 (V-24 · 9/21 저녁)             sod && sodreal →  PREWASH_VEL_SCALE=0.3 python3 src/cobot_common/test/rig_pause.py --real
+       진짜 cell.yaml 그대로 · rig_pause.yaml 의 `real:` 절(작은 이동) · **단계마다 Enter** 로 사람이 확인하고 넘어간다.
+       용기를 든 이동까지 보려면 그리퍼에 그릇을 쥐여 주고 --carrying 을 붙여 한 번 더 돈다(완료 기준 "관절·직선·용기를 든 이동 3회").
+       🚨 E-Stop 을 손에 잡고, 로봇 반경 안에 사람이 없는지 확인한 뒤에 시작한다.
+
+RViz·로봇에서 볼 것: ① J1 이 돌다가 **잠깐 멈췄다가 이어서** 끝까지 ② 옆으로 곧게 가다가 멈췄다 이어서 ③ 돌다가 **멈추고 끝**(강제정지)
                ④ 일시정지를 먼저 눌러 두면 **출발하지 않다가** 재개 뒤에 출발.
 시험 값은 rig_pause.yaml. 종료 코드 0(통과) / 1(실패) / 2(실행 거부).
 """
+import argparse
 import math
 import os
 import sys
@@ -21,7 +31,18 @@ from pathlib import Path
 import yaml
 
 HERE = Path(__file__).resolve().parent
-os.environ.setdefault('PREWASH_CONFIG_DIR', str(HERE / 'config_virtual'))
+# 🚨 설정 폴더는 cobot_common 을 import 하기 **전에** 정해야 한다 → 여기서 인자를 먼저 본다.
+#    --real 이면 진짜 cell.yaml 을 그대로 쓴다(시험용 좌표로 실기를 움직이지 않는다).
+#    --rehearse 는 그 위에 **비어 있는** limits·motion 만 Virtual 시험 값으로 채운다(rig_coords 와 같은 방식).
+REAL = '--real' in sys.argv
+REHEARSE = '--rehearse' in sys.argv
+if not REAL:
+    os.environ.setdefault('PREWASH_CONFIG_DIR', str(HERE / 'config_virtual'))
+elif REHEARSE:
+    sys.path.insert(0, str(HERE))
+    import rig_coords                                    # noqa: E402  같은 폴더의 시험 도구
+    with open(HERE / 'rig_coords.yaml', encoding='utf-8') as _f:
+        os.environ['PREWASH_CONFIG_DIR'] = str(rig_coords._filled_copy(yaml.safe_load(_f)['fill']))
 
 import cobot_common as cc                   # noqa: E402
 from cobot_common.bootstrap import dsr      # noqa: E402  cobot_common 자체 시험이라 내부 함수를 쓴다
@@ -30,8 +51,16 @@ from cobot_common.bootstrap import dsr      # noqa: E402  cobot_common 자체 �
 def main() -> int:
     from sensor_msgs.msg import JointState
 
+    ap = argparse.ArgumentParser(description='V-24 일시정지·재개 시험 (기본 Virtual · --real 로 실기 절차)')
+    ap.add_argument('--real', action='store_true', help='실기 절차로 돈다 — 진짜 cell.yaml · 작은 이동 · 단계마다 Enter')
+    ap.add_argument('--rehearse', action='store_true', help='--real 절차를 Virtual 에서 예행연습(비어 있는 값만 시험 값으로) · 실기면 거부')
+    ap.add_argument('--carrying', action='store_true', help='그리퍼에 용기를 쥔 채로 돈다 (라벨·안내만 바뀐다 — V-24 완료 기준의 "용기를 든 이동")')
+    opt = ap.parse_args([v for v in sys.argv[1:] if not v.startswith('--ros-args')])
+
     with open(HERE / 'rig_pause.yaml', encoding='utf-8') as f:
         p = yaml.safe_load(f)
+    if opt.real:
+        p = {**p, **p['real']}                              # 실기용 작은 값으로 덮어쓴다
     cc.init('rig_pause')
     io = cc.io_node()
     log = io.get_logger()
@@ -68,20 +97,40 @@ def main() -> int:
             fails.append(what)
 
     def home():
-        d.movej(cc.cfg()['cell']['stations']['HOME']['posj'], vel=60, acc=60)   # 시험 사이 복귀(시험 대상 아님)
+        cc.move_to('HOME', False)                           # 시험 사이 복귀(시험 대상 아님) — vel_scale·limits 를 지킨다
         time.sleep(0.5)
+
+    def step(title):
+        """실기에서는 단계마다 사람이 확인하고 넘어간다. Enter = 진행 / q = 그만."""
+        log.info(f'──── {title} ────')
+        if opt.real and input('    Enter = 실행 / q = 그만 > ').strip().lower() == 'q':
+            raise KeyboardInterrupt
 
     d = dsr()
     try:
-        if d.get_robot_system() != d.ROBOT_SYSTEM_VIRTUAL:
-            log.error('Virtual 이 아니다 → 실행하지 않는다')
+        virtual = d.get_robot_system() == d.ROBOT_SYSTEM_VIRTUAL
+        if not opt.real and not virtual:
+            log.error('Virtual 이 아니다 → 실행하지 않는다 (실기는 --real, 값이 채워진 cell.yaml 로)')
             return 2
+        if opt.rehearse and not virtual:
+            log.error('--rehearse 는 예행연습이다(시험 값으로 실기를 움직이지 않는다) → 실행하지 않는다')
+            return 2
+        if opt.real:
+            scale = cc.cfg()['run']['vel_scale']
+            log.info(f"실기 절차{' (Virtual 예행연습)' if virtual else ''} · vel_scale {scale:g}"
+                     f"{' · 그리퍼에 용기를 쥔 상태' if opt.carrying else ' · 빈손'}")
+            if not virtual and scale > 0.3:
+                log.error(f'첫 실기는 vel_scale ≤ 0.3 이다 (지금 {scale:g}) → PREWASH_VEL_SCALE=0.3 으로 다시')
+                return 2
+            if not virtual and input('    🚨 E-Stop 을 손에 · 로봇 반경 안에 사람 없음 · 격리(rosinfo) 확인했으면 Enter > ').strip().lower() == 'q':
+                return 2
         k, line = p['long_joint'], p['long_line']
         t_press, t_gap, within = p['press_at_s'], p['resume_after_s'], p['stop_within_s']
+        hand = ' (용기를 든 채)' if opt.carrying else ''
 
         # ① 관절 이동 도중 일시정지 → 재개
         home()
-        log.info('──── ① 관절 이동 도중 일시정지 → 재개 ────')
+        step(f'① 관절 이동 도중 일시정지 → 재개{hand}')
         a, b = later(t_press, cc.pause), later(t_press + t_gap, cc.resume)
         t0, j0 = time.monotonic(), j1(time.monotonic())
         cc.move_joint_rel(k['joint'], k['delta_deg'], time_s=k['time_s'])
@@ -94,7 +143,7 @@ def main() -> int:
 
         # ② 직선 이동 도중 일시정지 → 재개
         home()
-        log.info('──── ② 직선 이동 도중 일시정지 → 재개 ────')
+        step(f'② 직선 이동 도중 일시정지 → 재개{hand}')
         y0 = float(d.get_current_posx(ref=d.DR_BASE)[0][1])
         a, b = later(t_press, cc.pause), later(t_press + t_gap, cc.resume)
         cc.move_rel(0, line['dy_mm'], 0, 'BASE', vel_mm_s=line['vel_mm_s'], acc_mm_s2=line['acc_mm_s2'])
@@ -105,7 +154,7 @@ def main() -> int:
 
         # ③ 강제정지: 끊기고, 풀기 전에는 새 이동이 나가지 않는다
         home()
-        log.info('──── ③ 강제정지(halt) ────')
+        step(f'③ 강제정지(halt){hand}')
         a = later(t_press, cc.halt)
         halted = False
         try:
@@ -131,7 +180,7 @@ def main() -> int:
 
         # ④ 이동이 없을 때 누른 일시정지 → 다음 이동이 출발하지 않는다
         home()
-        log.info('──── ④ 멈춰 있을 때 누른 일시정지 ────')
+        step(f'④ 멈춰 있을 때 누른 일시정지{hand}')
         cc.pause()
         b = later(t_gap, cc.resume)
         t0 = time.monotonic()

@@ -45,7 +45,8 @@ import time
 from .bootstrap import cfg, dsr, io_node
 
 __all__ = ['move_to', 'move_rel', 'move_joint_rel',
-           'pause', 'resume', 'is_paused', 'halt', 'clear_halt', 'is_halted', 'MotionHalted', 'MoveTimeout', 'MoveIncomplete']
+           'pause', 'resume', 'is_paused', 'halt', 'clear_halt', 'is_halted', 'stop',
+           'MotionHalted', 'MoveTimeout', 'MoveIncomplete']
 
 FRAMES = ('BASE', 'TOOL')
 KINDS = ('BOWL', 'CUP')                             # 종류별 자세의 키 (IRD §2 kind)
@@ -193,6 +194,21 @@ def is_halted() -> bool:
     return _halt_flag.is_set()
 
 
+def stop():
+    """**지금 바로** 정지 명령을 보낸다 — move_stop(DR_QSTOP · Stop Category 2, 서보 전원 유지). 기다리지 않는다.
+
+    halt() 와 무엇이 다른가:
+      halt()  깃발만 세운다. 이동 함수(move_to · move_rel · move_joint_rel)의 **다음 폴링**(≤ _POLL_S)에서 세우고
+              MotionHalted 로 끝낸다. clear_halt() 전까지 새 이동도 막는다. → 운영자·flow 가 "멈춰" 할 때
+      stop()  컨트롤러에 **지금 바로** 정지 명령을 보낸다. 깃발은 건드리지 않는다 — 다음 이동은 그대로 나간다.
+              → 이동 함수의 폴링 **밖에서** 도는 동작(힘제어 · move_periodic · 나선 등)을 감시하다 즉시 세울 때
+                 (박진용 force.stop_now — PR #56·#57 요청으로 공개 함수로 뺐다. 전에는 내부 함수 _call('stop') 을 불렀다)
+    멈췄는지는 부르는 쪽이 본다(force.motion_done · check_motion). 드라이버가 거절하면 경고만 남긴다.
+    기능 함수(메인 스레드)에서 부른다 — 보내는 일은 통신 노드가 한다.
+    """
+    _call('stop')
+
+
 def setup_io(node):
     """init() 이 불러 준다: 이동 제어 서비스의 클라이언트를 통신 노드에 단다(응답은 통신 노드의 실행기가 받는다)."""
     from dsr_msgs2.srv import MovePause, MoveResume, MoveStop
@@ -264,9 +280,37 @@ def _move_timeout():
     return float(_cell_key('motion', 'move_timeout_s'))
 
 
+# 컨트롤러가 명령을 **받지도 않고** 거부할 때(반환 -1) 로봇이 어떤 상태였는지 — 오류 문구에 붙인다.
+#   9/21 실기: 서보가 꺼져 있어(SAFE_OFF) amovej 가 1 초 만에 -1 로 거부됐는데 문구에는 '반환 -1' 뿐이라
+#   원인을 찾는 데 시간이 걸렸다. 상태를 같이 알려 주면 무엇을 해야 하는지가 바로 보인다.
+_STATE = {
+    0: 'INITIALIZING 초기화 중',
+    1: 'STANDBY 대기 — 명령을 받을 수 있는 정상 상태',
+    2: 'MOVING 이동 중',
+    3: 'SAFE_OFF 서보 꺼짐 — 티치펜던트에서 서보를 켜거나 set_robot_control 3 으로 푼다',
+    4: 'TEACHING 직접 교시 중 — 티치펜던트에서 빠져나온다',
+    5: 'SAFE_STOP 안전 정지 — set_robot_control 2 로 푼다',
+    6: 'EMERGENCY_STOP 비상 정지 — 하드웨어 E-Stop 을 풀고 복구한다',
+    7: 'HOMMING 원점 복귀 중',
+    8: 'RECOVERY 복구 중 — set_robot_control 7 로 푼다',
+    9: 'SAFE_STOP2 안전 정지2',
+    10: 'SAFE_OFF2 서보 꺼짐2 — 복구 필요',
+    15: 'NOT_READY 준비 안 됨',
+}
+
+
+def _why():
+    """로봇이 명령을 거부한 까닭(상태)을 짧게. 읽기만 하므로 로봇을 움직이지 않는다."""
+    try:
+        s = int(dsr().get_robot_state())
+    except Exception:                                   # noqa: BLE001  상태조차 못 읽으면 원래 오류를 가리지 않는다
+        return ''
+    return f' · 로봇 상태 {s} = {_STATE.get(s, "알 수 없음")}'
+
+
 def _ok(ret, what):
     if ret != 0:
-        raise RuntimeError(f'{what} 실패 (반환 {ret!r})')
+        raise RuntimeError(f'{what} 실패 (반환 {ret!r}){_why() if ret == -1 else ""}')
 
 
 def _warn(text):

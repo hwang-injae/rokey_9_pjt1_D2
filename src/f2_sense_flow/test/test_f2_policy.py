@@ -8,7 +8,7 @@ import types
 
 import pytest
 
-from cobot_api import F1Api, F2Api, F3Api
+from cobot_api import F1Api, F2Api, F3Api, GRIP_FAIL, Result
 from f2_sense_flow import mock
 from f2_sense_flow.flow import _POLL_S, Flow, Signals, load_features
 
@@ -25,7 +25,8 @@ CFG = {'flow': {
     'policy': {'EMPTY_ZONE': 'next_zone', 'LEFTOVER_REMAIN': 'isolate', 'SEAT_FAIL': 'isolate',
                'FORCE_LIMIT': 'retry:1->isolate', 'TIMEOUT': 'retry:1->isolate',
                'RACK_JAM': 'retry:1->isolate', 'TOOL_FAIL': 'retry:1->isolate',
-               'RACK_FULL': 'pause', 'ROBOT_ERROR': 'pause'},
+               'RACK_FULL': 'pause', 'ROBOT_ERROR': 'pause',
+               'GRIP_FAIL': 'pause'},          # 9/20 결정 E12 — params.yaml 과 같은 값
     'counts': {'soap_dips': 3, 'rinse_dips': 1, 'rinse_shakes': 3},
     'step_delay_s': 0.0,
     'done_hold_s': 0.0,     # 시험에서는 기다리지 않는다
@@ -96,6 +97,41 @@ def test_retry_recovers():
     results, f = run(['rack_place:RACK_JAM:1'])
     assert results == ['DONE'] * 4
     assert f.isolated == 0
+
+
+def test_retry_does_not_rerun_earlier_steps():
+    """🚨 재시도가 성공한 뒤 **그다음 단계로** 가야 한다 — 앞 단계로 되돌아가면 안 된다.
+
+    9/21 에 찾은 결함: 재시도를 세는 변수가 바깥의 단계 인덱스와 이름이 같아(둘 다 i)
+    재시도가 성공하면 단계 인덱스가 재시도 횟수로 덮였다. rack_place(마지막에서 두 번째)가
+    한 번 실패했다 성공하면 **steps[1] 로 뛰어** 무게·안착·닦기·헹굼·적재를 한 바퀴 더 돌았다.
+
+    실기에서 무슨 일이 나나: 용기는 이미 팔레트에 들어가 있으므로 **빈 그리퍼로** 저울에 가고,
+    스펀지 홈에 허공을 안착시키고, 이미 찬 칸에 다시 삽입한다. 그런데도 결과는 'DONE' 이다.
+
+    위의 test_retry_recovers 는 이벤트 결과만 보므로 이 결함을 **통과시킨다** →
+    여기서는 기능 함수가 몇 번 불렸는지를 센다.
+    """
+    def count(fail_on):
+        mock.configure(fail_on)
+        calls, events = [], []
+        f = Flow(CFG, Quiet(), publish_event=events.append)
+        f.f = load_features(['f1', 'f2', 'f3'])
+        orig = f.call_fn
+        f.call_fn = lambda mod, fname, *a: (calls.append(fname), orig(mod, fname, *a))[1]
+        f.run_plan(AutoResume())
+        mock.reset()
+        return calls, [e['result'] for e in events]
+
+    base, ok = count([])
+    assert ok == ['DONE'] * 4
+
+    calls, results = count(['rack_place:RACK_JAM:1'])
+    assert results == ['DONE'] * 4
+    # 늘어나도 되는 것은 **실패해서 다시 부른 rack_place 한 번**뿐이다
+    assert len(calls) == len(base) + 1, (
+        f'재시도 뒤 앞 단계로 되돌아갔다 — {len(calls) - len(base)} 회 더 불렀다\n{calls}')
+    assert calls.count('rack_place') == base.count('rack_place') + 1
 
 
 def test_retry_exhausted_isolates():
@@ -337,4 +373,312 @@ def test_new_code_in_retry_uses_new_policy():
     assert f.last_code == 'ROBOT_ERROR'
     assert f.isolated == 0, 'ROBOT_ERROR 를 격리로 처리하면 안 된다 — 로봇 위치를 모른다'
     assert sig.resumes >= 1, 'ROBOT_ERROR 인데 PAUSED 를 거치지 않았다 (SDD §7)'
-    assert [e['result'] for e in events] == [], 'PAUSE 는 용기 이벤트를 내지 않는다'
+    # 9/20 PM 결정: ROBOT_ERROR 로 멈춘 용기**만** ERROR 로 기록한다
+    # (GRIP_FAIL·RACK_FULL 은 재개하면 마저 해서 DONE 이 된다 — 아래 시험)
+    assert [e['result'] for e in events] == ['ERROR'], 'ROBOT_ERROR 로 멈춘 용기는 ERROR 로 남는다'
+
+
+def test_resume_redoes_the_failed_step():
+    """🚨 GRIP_FAIL 로 멈춘 뒤 재개하면 **실패한 그 단계부터 다시** 한다 (IRD §8 · 9/20 결정 E12).
+
+    전에는 재개해도 GO_ON(다음 용기)이라 **그 용기를 버렸다** — 사람이 가서 다시 쥐여 줬는데도
+    버리는 셈이라, 재개 버튼과 중단 버튼이 똑같이 동작했다.
+    """
+    mock.configure([])
+    mods = load_features(['f1', 'f2', 'f3'])
+    tries = []
+
+    def dip(station, count, kind):
+        tries.append(station)
+        if len(tries) == 1:                          # 첫 담금에서 미끄러짐
+            return Result.fail(GRIP_FAIL)
+        return mods['f2'].dip(station, count, kind)
+
+    f2 = types.SimpleNamespace(**{n: getattr(mods['f2'], n)
+                                  for n in dir(F2Api) if not n.startswith('_')})
+    f2.dip = dip
+
+    events = []
+    f = Flow(CFG, Quiet(), publish_event=events.append)
+    f.f = {'f1': mods['f1'], 'f2': f2, 'f3': mods['f3']}
+    f.plan = [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 1}]
+
+    sig = PauseWatcher()
+    f.run_plan(sig)
+
+    assert sig.resumes >= 1, 'GRIP_FAIL 인데 PAUSED 를 거치지 않았다 (E12)'
+    assert len(tries) == 2, f'재개 뒤 같은 단계를 다시 하지 않았다 (dip {len(tries)}회)'
+    assert f.isolated == 0, 'GRIP_FAIL 은 격리가 아니다 — 놓친 용기는 손에 없을 수 있다 (E12)'
+    assert [e['result'] for e in events] == ['DONE'], '마저 해서 끝났으면 DONE 이다'
+
+
+def test_resume_after_robot_error_goes_to_next_container():
+    """🚨 ROBOT_ERROR 만은 재개해도 **그 단계를 다시 하지 않는다** (IRD §8 · SDD §7).
+
+    로봇이 어디 있는지 모르는 채 같은 동작을 다시 하면 위험하다 → 다음 용기부터, 그 용기는 ERROR.
+    """
+    mods = load_features(['f1', 'f2', 'f3'])
+    tries = []
+
+    def dip(station, count, kind):
+        tries.append(station)
+        raise RuntimeError('드라이버 응답 없음')       # 기능 함수에서 샌 예외 → ROBOT_ERROR
+
+    f2 = types.SimpleNamespace(**{n: getattr(mods['f2'], n)
+                                  for n in dir(F2Api) if not n.startswith('_')})
+    f2.dip = dip
+
+    events = []
+    f = Flow(CFG, Quiet(), publish_event=events.append)
+    f.f = {'f1': mods['f1'], 'f2': f2, 'f3': mods['f3']}
+    f.plan = [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 1}]
+
+    f.run_plan(PauseWatcher())
+
+    assert len(tries) == 1, 'ROBOT_ERROR 인데 같은 단계를 다시 했다 — 위험하다'
+    assert [e['result'] for e in events] == ['ERROR']
+    assert f.isolated == 0, 'ROBOT_ERROR 를 격리로 옮기면 안 된다'
+
+
+# ────────────────────────────────── 후퇴하면 안 되는 실패 (9/21 PM 요청 · SDD §7)
+def _flow_with(retreats, force_offs, no_retreat, fail_with):
+    """f2.leftover_loop 이 주어진 예외를 던지는 Flow 를 만든다."""
+    mods = load_features(['f1', 'f2', 'f3'])
+
+    def leftover_loop(kind, max_rounds):
+        raise fail_with('이동이 도중에 섰다')
+
+    f2 = types.SimpleNamespace(**{n: getattr(mods['f2'], n)
+                                  for n in dir(F2Api) if not n.startswith('_')})
+    f2.leftover_loop = leftover_loop
+    f = Flow(CFG, Quiet(),
+             safe_retreat=lambda: retreats.append(1),
+             force_off=lambda: force_offs.append(1),
+             no_retreat_errors=no_retreat)
+    f.f = {'f1': mods['f1'], 'f2': f2, 'f3': mods['f3']}
+    f.plan = [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 1}]
+    return f
+
+
+def test_move_incomplete_does_not_retreat():
+    """🚨 이동이 도중에 서면(MoveIncomplete) **후퇴하지 않는다.**
+
+    로봇이 어디 있는지 모르는데 Z 를 올리는 후퇴를 하면 더 꼬인다
+    (9/21 08:40 케이블 꼬임과 같은 길) → 힘·순응만 끄고 사람이 확인한다.
+    """
+    from cobot_common.motion import MoveIncomplete
+    retreats, force_offs = [], []
+    f = _flow_with(retreats, force_offs, (MoveIncomplete,), MoveIncomplete)
+    f.run_plan(PauseWatcher())
+
+    assert retreats == [], '위치를 모르는데 후퇴했다'
+    assert force_offs, '힘·순응은 꺼야 한다'
+    assert f.last_code == 'ROBOT_ERROR'
+
+
+def test_other_errors_still_retreat():
+    """🚨 반대쪽 — 힘 상한처럼 **접촉에서 벗어나야 하는** 실패는 설계대로 후퇴한다."""
+    retreats, force_offs = [], []
+    f = _flow_with(retreats, force_offs, (), RuntimeError)
+    f.run_plan(PauseWatcher())
+
+    assert retreats, '후퇴했어야 한다'
+    assert f.last_code == 'ROBOT_ERROR'
+
+
+# ────────────────────────────────── FLOW-03 중단(/flow/abort) · 결정 E11
+class AutoAbort(Signals):
+    """시험용 — PAUSED 가 되면 재개 대신 **중단**을 누른다."""
+
+    def take(self, name):
+        if name == 'abort':
+            return True
+        return super().take(name)
+
+
+def _flow_for_abort(calls, fail_on=('leftover_loop:LEFTOVER_REMAIN',)):
+    """LEFTOVER_REMAIN(정책 isolate)을 pause 로 바꿔 PAUSED 를 만들고, 거기서 중단을 누른다."""
+    mock.configure(list(fail_on))
+    mods = load_features(['f1', 'f2', 'f3'])
+
+    def spy(name, fn):
+        def wrapped(*a):
+            calls.append((name, a))
+            return fn(*a)
+        return wrapped
+
+    f1 = types.SimpleNamespace(**{n: spy(n, getattr(mods['f1'], n))
+                                  for n in dir(F1Api) if not n.startswith('_')})
+    cfg = {'flow': dict(CFG['flow'])}
+    cfg['flow']['policy'] = dict(CFG['flow']['policy'], LEFTOVER_REMAIN='pause')
+    events = []
+    f = Flow(cfg, Quiet(), publish_event=events.append)
+    f.f = {'f1': f1, 'f2': mods['f2'], 'f3': mods['f3']}
+    f.plan = [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 1}]
+    return f, events
+
+
+def test_abort_cleans_up_in_the_decided_order():
+    """🚨 중단 정리 순서 = **HOME 먼저** → 툴 반납 → 격리 → HOME (IRD §6 · 결정 E11).
+
+    HOME 이 먼저인 이유: E7 로 이동에서 안전 높이 경유가 없어져 **지금 자리에서 다음 자리로
+    곧장** 간다. 중단은 아무 때나 눌리므로 티칭 경로의 출발점에서 시작해야 한다.
+    """
+    calls = []
+    f, events = _flow_for_abort(calls)
+    f.run_plan(AutoAbort())
+
+    order = [(n, a) for n, a in calls if n in ('move_to', 'place', 'tool')]
+    tail = order[-3:]
+    assert tail[0] == ('move_to', ('HOME', True)), f'HOME 이 맨 먼저여야 한다 — {tail}'
+    assert tail[1] == ('place', ('ISOLATE', 'BOWL')), f'격리 구역에 놓아야 한다 — {tail}'
+    assert tail[2] == ('move_to', ('HOME', False)), f'HOME 으로 끝나야 한다 — {tail}'
+    assert f.isolated == 1
+    assert [e['result'] for e in events] == ['ISOLATED'], '중단한 용기는 ISOLATED 로 남는다'
+
+
+def test_abort_returns_the_tool_it_was_holding():
+    """🚨 툴을 쥔 채 중단하면 **반납**하고 간다 — 홀더에 안 돌려놓으면 다음 용기가 못 쓴다."""
+    calls = []
+    f, events = _flow_for_abort(calls, fail_on=['wipe_bowl:FORCE_LIMIT'])
+    f.policy['FORCE_LIMIT'] = 'pause'                # 툴을 쥔 단계에서 멈추게
+    f.run_plan(AutoAbort())
+
+    tools = [a for n, a in calls if n == 'tool']
+    assert ('SPONGE', 'RETURN') in tools, f'쥔 툴을 반납하지 않았다 — {tools}'
+    assert f.holding_tool is None
+
+
+def test_abort_keeps_going_when_a_cleanup_step_fails():
+    """🚨 치우는 중에 한 단계가 실패해도 **멈추지 않는다** — 더 나아가 치우는 편이 낫다."""
+    calls = []
+    f, events = _flow_for_abort(calls)
+    mods = f.f
+    f1 = mods['f1']
+    orig = f1.place
+
+    def place(station, kind=None):
+        calls.append(('place', (station, kind)))
+        return Result.fail('SEAT_FAIL')               # 격리 구역에 놓기가 실패한다
+
+    f1.place = place
+    f.run_plan(AutoAbort())
+
+    assert ('move_to', ('HOME', False)) in calls, '놓기가 실패해도 HOME 으로는 가야 한다'
+    assert [e['result'] for e in events] == ['ISOLATED']
+    assert orig is not None
+
+
+# ── 🚨 이동 **도중** 중단 (halt_errors 경로) — wait_resume 을 거치지 않는다 (PM 검토 PR #50)
+class _Halted(RuntimeError):
+    """cc.MotionHalted 대역 — 중단이 하던 이동을 끊었을 때 올라오는 예외."""
+
+
+def _flow_halted_midmove(sig, n_containers=1):
+    """leftover_loop 안에서 사람이 stop·abort 를 누르고 이동이 끊긴 상황을 만든다."""
+    mock.configure([])
+    mods = load_features(['f1', 'f2', 'f3'])
+    fired = []
+
+    def leftover_loop(kind, max_rounds):
+        if not fired:                                # 첫 용기에서만 한 번
+            fired.append(True)
+            sig.raise_('stop')                       # /flow/stop → cc.pause()
+            sig.raise_('abort')                      # /flow/abort → cc.halt()
+            raise _Halted('중단으로 이동이 끊겼다')
+        return mods['f2'].leftover_loop(kind, max_rounds)
+
+    f2 = types.SimpleNamespace(**{n: getattr(mods['f2'], n)
+                                  for n in dir(F2Api) if not n.startswith('_')})
+    f2.leftover_loop = leftover_loop
+
+    events = []
+    f = Flow(CFG, Quiet(), publish_event=events.append, halt_errors=(_Halted,))
+    f.f = {'f1': mods['f1'], 'f2': f2, 'f3': mods['f3']}
+    f.plan = [{'zone': 'RET_B', 'kind': 'BOWL', 'count': n_containers}]
+    return f, events
+
+
+def test_abort_midmove_clears_the_flags():
+    """🚨 이동 도중 중단은 wait_resume 을 **안 거친다** → abort_container 가 깃발을 내려야 한다.
+
+    안 내리면 stop·abort 가 남아 다음 용기·다음 실행까지 따라간다(PM 검토 PR #50).
+    """
+    sig = AutoResume()
+    f, events = _flow_halted_midmove(sig, n_containers=2)
+    f.run_plan(sig)
+
+    assert [e['result'] for e in events] == ['ISOLATED', 'DONE'], \
+        '첫 용기는 중단으로 격리, 둘째 용기는 정상이어야 한다'
+    assert (sig.peek('stop'), sig.peek('abort')) == (False, False), \
+        f"깃발이 남았다 — stop={sig.peek('stop')} abort={sig.peek('abort')}"
+
+
+def test_leftover_abort_flag_does_not_fire_next_run():
+    """🚨 마지막 용기에서 중단하면 소비해 줄 다음 용기가 없다 → 깃발이 **다음 실행**까지 남는다.
+
+    그러면 다음 실행에서 GRIP_FAIL(정책 pause — E12 "멈추고 사람이 확인")이 나는 순간
+    **사람이 아무것도 안 눌렀는데** 중단 정리가 돌아 로봇이 HOME → 격리 → HOME 으로 움직인다.
+    """
+    sig = AutoResume()
+    f1st, _ = _flow_halted_midmove(sig, n_containers=1)   # 마지막 용기에서 중단
+    f1st.run_plan(sig)
+    assert (sig.peek('stop'), sig.peek('abort')) == (False, False), '실행이 끝났는데 깃발이 남았다'
+
+    # 2회차 — GRIP_FAIL 로 멈추면 **사람을 기다려야** 한다(중단 정리가 돌면 안 된다)
+    #    🚨 GRIP_FAIL 은 pause → 재개하면 **그 단계부터 다시** 다(E12·IRD §8).
+    #       그래서 계속 실패하게 두면 시험이 무한히 돈다 → **첫 번째만** 실패시킨다.
+    mock.configure([])
+    mods = load_features(['f1', 'f2', 'f3'])
+    once = []
+
+    def shake(mode, count, kind):
+        if not once:
+            once.append(True)
+            return Result.fail(GRIP_FAIL)
+        return mods['f2'].shake(mode, count, kind)
+
+    f2fake = types.SimpleNamespace(**{n: getattr(mods['f2'], n)
+                                      for n in dir(F2Api) if not n.startswith('_')})
+    f2fake.shake = shake
+
+    events = []
+    cfg = {'flow': dict(CFG['flow'])}
+    cfg['flow']['policy'] = dict(CFG['flow']['policy'], GRIP_FAIL='pause')
+    f2nd = Flow(cfg, Quiet(), publish_event=events.append)
+    f2nd.f = {'f1': mods['f1'], 'f2': f2fake, 'f3': mods['f3']}
+    f2nd.plan = [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 1}]
+
+    watcher = PauseWatcher()
+    f2nd.run_plan(watcher)
+    assert watcher.resumes >= 1, 'GRIP_FAIL 인데 PAUSED 를 거치지 않았다 — 중단 깃발이 살아 있었다'
+    assert f2nd.isolated == 0, '사람이 안 눌렀는데 중단 정리가 돌았다'
+
+
+# ────────────────────────────────────────────── 예외 주입 (TC-10 · UT-FLOW ③)
+def test_boom_injects_a_real_exception():
+    """🚨 코드 BOOM 은 Result 가 아니라 **예외**를 던진다.
+
+    왜 필요한가: 실패 **코드**만 주입해서는 "기능 함수가 터지는 길" 을 한 번도 안 지난다 —
+    코드는 함수가 스스로 돌려준 것이라 이미 정상 경로다. flow 가 예외를 ROBOT_ERROR 로
+    바꿔 PAUSED 로 가는지는 진짜 예외로만 확인된다(SDD §9.3 TC-10).
+    """
+    mock.configure(['soap:BOOM'])
+    with pytest.raises(RuntimeError):
+        mock.code_for('soap')
+    assert mock.code_for('wipe_bowl') is None      # 다른 함수는 멀쩡하다
+
+
+def test_boom_becomes_robot_error_and_pauses():
+    """터진 뒤 flow 는 ROBOT_ERROR 로 바꾸고 멈춘다 (params.yaml ROBOT_ERROR: pause)."""
+    results, f = run(['soap:BOOM'])
+    assert f.last_code == 'ROBOT_ERROR'
+    assert results and all(r == 'ERROR' for r in results), results
+
+
+def test_boom_with_count_only_throws_that_many_times():
+    """횟수를 주면 그만큼만 터진다 — 재시도로 회복되는 길도 볼 수 있다."""
+    mock.configure(['soap:BOOM:1'])
+    with pytest.raises(RuntimeError):
+        mock.code_for('soap')
+    assert mock.code_for('soap') is None

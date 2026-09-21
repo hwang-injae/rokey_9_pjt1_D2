@@ -412,5 +412,5 @@ def test_exports():
     import cobot_common as cc
     for name in ('force_on', 'force_off', 'force_reached', 'contact_down', 'periodic_search', 'safe_retreat',
                  'read_force', 'force_check', 'compliance_on', 'compliance_off',
-                 'where', 'motion_done', 'move_spiral', 'move_arc', 'ForceLimitError', 'MotionTimeout'):
+                 'where', 'motion_done', 'move_spiral', 'move_arc', 'move_periodic', 'joints', 'stop_now', 'ForceLimitError', 'MotionTimeout'):
         assert hasattr(cc, name), name

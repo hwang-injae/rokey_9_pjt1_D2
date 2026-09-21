@@ -58,7 +58,7 @@
 ## 5. F3 접촉 닦기 (IR-03) · 박진용 · 모듈 `f3_wipe.wipe`
 | 함수 | 인자 | 반환 | 비고 |
 |---|---|---|---|
-| `soap(count, kind=None)` | 횟수, (선택) `BOWL`/`CUP` | `Result` | 툴 든 채 세제 수조 담금. ✅ 9/20 추가: **`kind`** — `SOAP` 이 종류별 자리가 됐다(`BOWL` = 수세미를 쥔 자세 · `CUP` = 솔을 쥔 자세, #36) |
+| `soap(count, kind=None)` | 횟수, (선택) `BOWL`/`CUP` | `Result` | 툴 든 채 세제 담금(🔄 9/21 E18: 세제 수조를 따로 두지 않고 **툴 홀더의 비눗물 컵**에서 담근다 — 서명·반환은 그대로). ✅ 9/20 추가: **`kind`** — `SOAP` 이 종류별 자리가 됐다(`BOWL` = 수세미를 쥔 자세 · `CUP` = 솔을 쥔 자세, #36) |
 | `wipe_bowl()` | — | `WipeBowlResult`: `ok, code, force_log_path, duration_s, force_mean_n` | **그릇**: 수세미 툴로 힘제어(목표 힘 유지) 나선 닦기. 상한 초과 → `FORCE_LIMIT` |
 | `wipe_cup()` | — | `WipeCupResult`: `ok, code, force_log_path, duration_s, insert_depth_mm` | **컵**: 수세미 솔을 컵 안에 삽입(힘 감시) → J6 회전 + Z 상하 스트로크. 동작이 그릇과 달라 함수를 분리(9/18 팀 결정) |
 
@@ -73,8 +73,8 @@
 | `/flow/abort` | srv `std_srvs/Trigger` | 🆕 ✅ 신설(황인재 9/20) — `PAUSED`일 때만. 사람이 **문제가 있다고 판단하면 지금 용기를 접는다**: **먼저 `HOME` 자세로**(✅ 황인재 9/20 17:25 — 이동에서 안전 높이 경유를 없앴으므로 임의의 자세에서 다음 자리로 곧장 가지 않게) → 쥐고 있는 툴 반납 → 용기를 격리 구역(`ISOLATE`)에 놓기(`f1.place('ISOLATE', kind)`) → `HOME` → **다음 용기**부터. 이벤트는 `ISOLATED`. 🚨 `ROBOT_ERROR`로 멈춘 경우는 **거부**한다(로봇 위치를 모른다 — 사람이 복구, SDD §7) |
 | `/flow/state` | msg `cobot_msgs/FlowState` @2 Hz | 아래 정의. HMI는 2 s 이상 안 오면 "연결 끊김" 표시 |
 | `/flow/event` | msg `cobot_msgs/FlowEvent` | 용기 1개 완료·격리·오류마다 1건 → HMI가 SQLite에 저장 |
-| `/cell/force` | msg `std_msgs/Float32` @10 Hz(**닦는 동안만**) | ✅ 확정(황인재 9/20 — HMI에 닦는 힘 그래프를 넣는다). 접촉 힘의 크기(N, 누르는 축 기준 양수). 닦지 않을 때는 발행하지 않는다. **발행 = `flow_node`의 통신 노드**(민범진), 값은 닦기 루프가 `force.py`에 **저장만** 한다(박진용) — 기능 함수 안에서 발행기를 만들지 않는다(SDD §3.2). 발행 쪽 기한 9/22 오전 |
-| `/cell/gripping` | msg `std_msgs/Bool` — 값이 바뀔 때 1번 + @2 Hz | ✅ 신설(황인재 9/20, 제안이던 `/cell/grip_width`는 **삭제**). `true` = 무언가(용기·툴)를 쥐고 있다 / `false` = 아니다 → HMI의 "파지 중 / 파지 안 하는 중" 표시. 폭(mm)은 화면에 내지 않는다 — 그릇 옆면 파지 폭이 약 2 mm라 **판정은 로봇 쪽(`gripper.py`)이 하고 결과만 보낸다**. 발행 = `flow_node`의 통신 노드(민범진), 기한 9/22 오전. `cobot_msgs` 변경 없음(둘 다 `std_msgs`) → 재빌드 불필요 |
+| ~~`/cell/force`~~ | ~~msg `std_msgs/Float32` @10 Hz(닦는 동안만)~~ | ❌ **삭제(황인재 9/21 결정 E21)** — main 어디에서도 발행하지 않았다(HMI 가짜 발행기만). F3 힘제어는 그릇 벽면을 도는 몇 초뿐이고 컵은 없어(E17), 실제 로봇에서는 HMI 그래프가 늘 "닦는 중 아님" 이었다 → **HMI 힘 그래프 삭제**. 힘 데이터는 F3 가 용기마다 CSV(`force_log_path`)로 남긴다 — 발표에 힘제어를 보이려면 그 파일로 그래프를 따로 그린다. (9/20 결정: 힘 그래프를 넣는다 → 철회) |
+| ~~`/cell/gripping`~~ | ~~msg `std_msgs/Bool`~~ | ❌ **삭제(황인재 9/21 결정 E21)** — 발행 코드가 한 번도 안 들어왔고, 결정 E19 로 **컵은 쥐었는지 판정하지 않으므로** "파지 중" 을 정확히 낼 수도 없다 → **HMI 파지 표시 삭제**. 대신 HMI 는 **셀 평면도 위에 로봇이 지금 어디서 무엇을 하는지** 그린다(`cell.yaml` 좌표 + `/flow/state` 의 step — 새 인터페이스 없음). 민범진·박진용은 발행을 만들지 않는다 |
 | HMI 브리지 | REST `POST /api/start` `/api/stop` `/api/resume` `/api/abort`, `GET /api/state`, `GET /api/history`, WS `/ws/state` | FastAPI가 rclpy로 중계 (PC-B) |
 
 이 서비스·토픽은 `flow_node`의 **통신 노드**(백그라운드 실행기)가 맡는다. 콜백은 값 저장·깃발 세우기만 하고 로봇 함수를 부르지 않는다(SDD §3.2). 하드웨어 비상정지는 로봇 E-Stop이다. HMI 버튼은 소프트 정지이며 화면에 항상 보이게 둔다.
