@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v10.0'
+VERSION = 'v10.1'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -736,6 +736,18 @@ NO_2ND = {
 for _tid, _e in NO_2ND.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 11:00 결정 E15 — 경로 제약 3가지(몸통 가로지르기 금지)
+E15 = '🚧 9/21 결정 E15(경로 제약)'
+PATH15 = {
+ 'F1-04': dict(note_add=E15 + ' → **`cell.rack.via` 경유 필수**(HOME 의 x·y·방향 그대로 z 338). 곧장 칸으로 가면 손목 J4 가 휘둘려 몸통에 부딪힌다(황인재 실기 2회 실패 — 한석형 스크립트에 있던 자세가 cell.yaml 로 옮길 때 빠졌다). 그릇 칸은 놓은 뒤 `exit_rel_mm`(y −25 → z +100)으로 빠져나온다 — 곧장 올라가면 그리퍼가 팔레트에 걸린다. 담당: 한석형'),
+ 'F2-01': dict(note_add=E15 + ' → **털기 반복(`leftover_loop`)에 HOME 경유 추가**. 잔반통 그릇 자세를 로봇 뒤쪽 posj 로 옮겨서, 잔반통(뒤) ↔ 스펀지 홈·저울·반납 구역(앞) 사이를 곧장 가면 로봇 몸통을 가로지른다. 담당: 민범진'),
+ 'V-07':   dict(note_add=E15 + ' → 털기 자세가 **로봇 뒤쪽**으로 바뀌었다(posj [-180, 0, 90, 0, 90, 0]) — 진폭·속도 확인을 새 자세에서 다시 한다'),
+ 'SAFE-01':dict(note_add=E15 + ' → 안전 대책에 한 줄 추가: "팔이 쭉 펴지는 자세(J3 ≈ 0°)를 티칭하지 않는다 · 잔반통(뒤)과 앞쪽 자리 사이는 HOME 을 거친다". 9/21 08:40 케이블 꼬임의 원인은 손목(J6)이 아니라 **팔꿈치 특이점(J3 = 1.7°)** 이었다'),
+ 'CELL-04':dict(note_add='📋 9/21 11:00 F4 회신 — 오늘 남은 좌표 **11개**: 안 찍은 자세 4(SOAP BOWL·CUP · ISOLATE BOWL·CUP) · 다시 찍을 것 4(WASTE CUP 은 그릇 잔반통과 615 mm 떨어져 있다 · TOOL_SPONGE.pick 은 J6 −220° · RET_B slots[1] 접근점 2.78 mm 어긋남 · RACK_C2 접근점이 끝점 위가 아님) · 새 접근점 3(RACK_B1·B2 · rack.via 는 HOME 에서 `--where` 로 읽어 계산). RINSE 접근점 2개는 임시값으로 넣고 실기에서 숫자만 조정'),
+}
+for _tid, _e in PATH15.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -1012,6 +1024,9 @@ HISTORY50 = ['v9.9', '우선순위', 'CELL-04·04b, V-24, V-22, V-19, V-05·23·
 HISTORY51 = ['v10.0', '결정 E14', 'CELL-04, CELL-04b, 9/22 오전 로봇 슬롯', '황인재 9/21 10:20: **2차 티칭 일정을 잡지 않는다** — 좌표는 9/21 안에 한 번에 전부 찍어 끝내고, 그 뒤 F1~F3 이 기능 함수를 만들다 이상한 자리를 만나면 그때 요청 → 황인재가 확인해서 고친다(통합 중 요청 기반 수정). 9/22 오전의 "남은 티칭"과 CELL-04b 의 9/22 오전 여유 칸을 뺐다. 이유: 어느 자세가 어떻게 틀렸는지는 함수를 돌려 봐야 나오므로, 미리 잡은 2차 티칭은 고칠 것을 모른 채 로봇을 묶는다. 요청 3줄 양식 = ① 설정 키 이름 ② 무엇이 몇 mm 어느 방향 / 자세 안 나옴 / 길에 걸림 ③ 지금 막혔는지',
              '황인재 9/21 10:20', 'H,S,M,P']
 
+HISTORY52 = ['v10.1', '결정 E15·진단 정정', 'F1-04, F2-01, V-07, SAFE-01, CELL-04', '황인재 9/21 오전(F4 세션 실기) 결정 E15 — 경로 제약 3가지: ① 잔반통(로봇 뒤) ↔ 앞쪽 자리 사이는 HOME 경유(f2.leftover_loop·f1.place) ② 팔레트 칸은 cell.rack.via 경유 + 그릇 칸은 exit_rel_mm 으로 빠져나오기(f1.rack_place) ③ 팔이 쭉 펴지는 자세(J3 ≈ 0°) 금지. 🔄 **9/21 08:40 케이블 꼬임 원인 정정** — 손목(J6 163°)이 아니라 **팔꿈치 특이점(J3 = 1.7°)** 이었다(J6 회전은 posj·posx 어느 쪽이든 비슷하게 난다). 잔반통 그릇 자세를 로봇 뒤쪽 posj [-180,0,90,0,90,0] 로 재티칭. 남은 좌표 11개 목록은 CELL-04 비고',
+             '황인재 9/21 11:00', 'S,M,P,H']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1106,7 +1121,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)

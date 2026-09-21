@@ -267,7 +267,14 @@ cell:                                   # 여러 기능이 같이 쓰는 값. �
     SPONGE_BED_B: {place: {approach_posx: [...], posx: [...]}, wash: {approach_posx: [...], posx: [...]},
                    seat: {contact_limit_n: 15, search_amp_mm: 3, search_period_s: 0.8, search_max_s: 6}}
     SPONGE_BED_C: {place: {...}, regrip: {posj: [...]}, wash: {...}, seat: {...}}
-  rack: {slots: {RACK_B1: {posx: [...]}, RACK_B2: {posx: [...]}, RACK_C1: {approach_posx: [...], posx: [...]}, RACK_C2: {...}}}   # 칸마다 절대 자세 · 컵 칸 4 → 2 (황인재 9/20)
+  rack:                                 # 식기세척기 팔레트 — 칸마다 절대 자세 · 컵 칸 4 → 2 (황인재 9/20)
+    via: {posx: [...]}                  # 🆕 9/21 E15: 칸으로 가기 **전에 반드시 거치는 자세**(HOME 의 x·y·방향 그대로 z 만 338).
+                                        #   곧장 가면 올라가며 손목(J4)이 휘둘려 몸통에 부딪힌다(황인재 실기 2회 실패). f1.rack_place 가 쓴다
+    slots:
+      RACK_B1: {posx: [...], exit_rel_mm: [[0, -25, 0], [0, 0, 100]]}   # 🆕 9/21 E15: 꽂고 놓은 뒤 **이 순서대로** 빠져나온다(BASE 상대 이동).
+      RACK_B2: {posx: [...], exit_rel_mm: [[0, -25, 0], [0, 0, 100]]}   #   곧장 HOME 으로 가면 그리퍼가 팔레트에 걸린다(황인재 9/21 실기)
+      RACK_C1: {approach_posx: [...], posx: [...]}                      #   컵 칸은 접근점으로 수직 복귀하므로 exit_rel_mm 이 없다
+      RACK_C2: {approach_posx: [...], posx: [...]}
 # ===== params.yaml (기능별 절 · 자기 절만 수정) =====
 f1: {insert_approach_mm: 30, tool_return_contact_n: 8}            # ── f1 절 (한석형) ──
 f2:                                                                 # ── f2 절 (민범진) ──
@@ -382,7 +389,9 @@ return EMPTY_ZONE (attempts = 슬롯 수)
 
 **place (안착 놓기)** — `station`이 `SPONGE_BED_B/C`일 때: 용기를 쥔 채 홈 상공(`cell.beds.*.seat.approach_z_mm`) → `force_on(z)` 순응 하강 → `contact_down`으로 접촉·깊이 판정 → 깊이 미달이면 `periodic_search(amp, period, max_s)` 중 접촉 조건 감시 → 들어가면 `release` → 후퇴(`OK`, `offset_mm`) / 한도 초과면 들고 후퇴(`SEAT_FAIL`). 그 외 station은 상공 → 하강 → 놓기 → 후퇴.
 
-**rack_place**: 팔레트 기준점 + 칸 오프셋 → 지정 각도(tilt) → 상공 → `force_on(z)` 하강 → `contact_down`으로 삽입력 감시 → 도달 시 `release` → 후퇴. 걸림(힘 > limit, 깊이 미달) → 후퇴 → `RACK_JAM`.
+**rack_place**: **`cell.rack.via` 경유**(🆕 9/21 E15 — 이것 없이 칸으로 곧장 가면 손목이 휘둘려 몸통에 부딪힌다) → 칸 접근점(있으면) → 끝점 → `force_on(z)` 하강 → `contact_down`으로 삽입력 감시 → 도달 시 `release` → **`cell.rack.slots.*.exit_rel_mm` 이 있으면 그 순서대로 빠져나온다**(그릇 칸: y −25 로 칸에서 뺀 뒤 z +100 — 곧장 올라가면 그리퍼가 팔레트에 걸린다) → 없으면 접근점으로 수직 복귀. 걸림(힘 > limit, 깊이 미달) → 후퇴 → `RACK_JAM`.
+
+**🚨 경로 제약 (9/21 E15 — 실기에서 사고로 확인한 것)**: ① **잔반통(로봇 뒤) ↔ 앞쪽 자리(스펀지 홈·저울·반납 구역) 사이는 반드시 `HOME` 을 거친다** — 곧장 가면 로봇 몸통을 가로지른다. `f2.leftover_loop`(털기 반복)·`f1.place`·`f1.move_to` 를 부르는 순서에 넣는다. ② **팔레트 칸은 `cell.rack.via` 를 거친다**(위). ③ **팔이 쭉 펴지는 자세(J3 ≈ 0°)를 티칭하지 않는다** — 9/21 08:40 사고의 원인은 손목(J6)이 아니라 **팔꿈치 특이점(J3 = 1.7°)** 이었다(잔반통 그릇 자세). 그 자리에 직선으로 들어가면 6 mm 앞에서 멈추고, 빠져나올 때 손목이 요동쳐 케이블이 꼬인다. → 잔반통 그릇 자세를 로봇 뒤쪽 `posj [-180, 0, 90, 0, 90, 0]`(J3 90°·J6 0°)로 다시 찍었다. 도구는 도착마다 J3·J6 를 찍어 경고한다(`rig_coords.py`).
 
 **tool**: 홀더 방향 고정, 픽업 후 폭 확인(범위 밖 → `TOOL_FAIL`), 반납 시 홀더 상공 → 하강 → 힘 접촉으로 바닥 확인 → release.
 
