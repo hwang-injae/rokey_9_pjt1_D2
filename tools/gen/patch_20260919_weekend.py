@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v13.2'
+VERSION = 'v13.3'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1586,6 +1586,24 @@ HISTORY82 = ['v13.2', '보고 반영·신규', 'ENV-05(신규), V-02, V-07, V-16
              '황인재 9/22 07:50', 'S,M,P,H']
 
 
+# ---------------------------------------------------------------- 9/22 08:15 황인재 결정(120 s 상한 남김) + F4 확인(V-24·25·26 실기 9/21 미실시)
+F4C = '🔎 9/22 08:15 F4 확인'
+P0815 = {
+ 'F3-02': dict(note_add='✅ 9/22 08:05 황인재 결정: **그릇 닦기 전체 120 s 상한(`f3.wipe_bowl.duration_s`)은 남긴다** — 박진용 요청은 실기 근거가 아니었다(본인 보고 "실기 확인 전" · 어젯밤 5회 실패 중 120 s 에 걸린 것 없음 · 되돌린 9/20 rig_v03 에 전체 상한이 없어 같이 빠진 것으로 보임). '
+                          '정상 19 s 라 평소엔 안 걸리고, 있어야 flow 의 TIMEOUT 정책(재시도 1 → 격리)이 닦기에서 작동한다. 오늘 단위시험(재검증 · UT-F3)에서 상한 때문에 막히면 **몇 초에 걸렸는지 기록과 함께** 삭제 요청'),
+ 'V-24':  dict(note_add=F4C + ': 실기 기록(`docs/test_logs/20260921_V-24_실기_일시정지_황인재.md`)의 결과 칸이 비어 있다 → **실기는 아직**(Virtual 10/10 만). 9/22 오후 H 30분 칸'),
+ 'V-25':  dict(note_add=F4C + ': 9/21 **안 함** — 기록 양식(`docs/test_logs/20260921_F1-01_실기_황인재.md`) 결과 칸 전부 빈칸 · 저녁엔 F4-03 작업. 9/22 오후 H 30분 칸'),
+ 'V-26':  dict(note_add=F4C + ': 9/21 **안 함** — 기록 파일(`20260921_V-26_CtrlC정지_실기_황인재.md`)이 main 에 없다. 9/22 오후 H 30분 칸(30초 작업)'),
+}
+for _tid, _e in P0815.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+SLOT['9/22 화']['C'] = SLOT['9/22 화']['C'].replace('V-24·V-25·V-26(H · 20분 · 안 한 것만)', 'V-24·V-25·V-26(H · 30분 — 셋 다 9/21 실기 안 함 · F4 확인)')
+HISTORY83 = ['v13.3', '결정·확인', 'F3-02, V-24, V-25, V-26, 9/22 오후 로봇 슬롯',
+             '황인재 9/22 08:05: 그릇 닦기 전체 120 s 상한은 남긴다 — 박진용 요청은 실기 근거가 아니었다(9/20 rig_v03 에 맞추다 같이 빠진 것) · 오늘 단위시험에서 막히면 기록과 함께 요청. '
+             'F4 확인(08:15): V-24 실기 · V-25 · V-26 은 9/21 에 하지 않았다(기록 칸 빈칸 · 파일 없음) → 9/22 오후 황인재 칸 20 → 30분',
+             '황인재 9/22 08:15', 'P,H']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -1674,7 +1692,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
