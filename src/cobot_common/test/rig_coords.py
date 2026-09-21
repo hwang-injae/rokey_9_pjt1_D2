@@ -56,9 +56,20 @@ ROUTE = [
     ('ISOLATE', True, 'BOWL', None), ('HOME', False, None, None),
     ('ISOLATE', True, 'CUP', None), ('HOME', False, None, None),
 ]
-# 아직 안 찍은 자세 — 움직이지 않고 KeyError 여야 한다
-UNTAUGHT = [('SOAP', 'BOWL', None), ('SOAP', 'CUP', None),
-            ('ISOLATE', 'BOWL', None), ('ISOLATE', 'CUP', None)]
+def _untaught(cfg):
+    """지금 **비어 있는** 자세 → [(station, kind, None)]. ③ 은 이 자세로 move_to 를 불러 'KeyError · 안 움직임'을 본다.
+
+    🚨 9/21 PR #51 검토(PM): 전에는 고정 목록(SOAP·ISOLATE)이었는데 그 자세들이 채워지자
+       ③ 이 **Enter 확인 없이** 실제로 로봇을 움직이게 됐다. 그래서 목록을 설정에서 그때그때 뽑는다 —
+       채워진 자세는 절대 여기 들어오지 않는다.
+    """
+    from cobot_common import config
+    out = []
+    for path in config.unfilled(cfg):
+        parts = path.split('.')                           # cell.stations.<STATION>.<KIND>.<posx|posj>
+        if len(parts) == 5 and parts[:2] == ['cell', 'stations'] and parts[4] in ('posx', 'posj'):
+            out.append((parts[2], parts[3], None))
+    return out
 
 
 def _filled_copy(fill):
@@ -314,7 +325,19 @@ def main() -> int:
             _walk(_rel('exit_rel_mm'), '빠져나오기')                      # ④ 팔레트 칸에서 빠져나오기 (cell.yaml 의 exit_rel_mm)
 
         log.info('──── ③ 아직 안 찍은 자세 — 움직이지 않고 KeyError ────')
-        for station, kind, point in ([] if stopped else UNTAUGHT):
+        todo = [] if stopped else _untaught(cc.cfg())
+        if opt.real:                                            # 🚨 실기에서는 돌리지 않는다 — 로봇에게 '거부하는지' 물어볼 이유가 없다
+            log.info('   실기에서는 건너뛴다(빈 자세 확인은 Virtual·자동 시험이 한다)')
+            todo = []
+        elif not todo:
+            log.info('   빈 자세 없음 — 건너뛴다')
+        for station, kind, point in todo:
+            try:                                                # 움직이기 전에 **설정만** 본다 — 값이 있으면 절대 move_to 를 부르지 않는다
+                _named_pose(station, kind, point)
+                log.warn(f'   {station} {kind}: 값이 있다 — 움직이지 않고 건너뛴다')
+                continue
+            except KeyError:
+                pass
             before = posj()
             try:
                 cc.move_to(station, False, kind, point)
