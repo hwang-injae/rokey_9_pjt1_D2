@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v9.9'
+VERSION = 'v10.0'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -726,6 +726,16 @@ COORD_FIRST = {
 for _tid, _e in COORD_FIRST.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 10:20 황인재: 2차 티칭 일정을 잡지 않는다(E14) — 좌표 수정은 요청 기반
+E14 = '🔁 9/21 10:20 황인재(결정 E14): **2차 티칭 일정 없음**'
+NO_2ND = {
+ 'CELL-04':  dict(note_add=E14 + ' — 좌표는 **9/21 안에 한 번에 전부** 찍어 끝낸다. 그 뒤 F1~F3 이 기능 함수를 만들다 이상한 자리를 만나면 **그때 요청**하고 황인재가 확인해서 고친다(통합 중 요청 기반 수정). 요청 3줄: ① 설정 키 이름(예 `stations.WASTE.BOWL`) ② 무엇이 몇 mm 어느 방향으로 이상한지 / 자세가 안 나오는지 / 가는 길에 걸리는지 ③ 지금 막혔는지 나중이어도 되는지'),
+ 'CELL-04b': dict(slots=S('9/20 오후', '9/21 오전', '9/21 오후'),
+                  note_add=E14 + ' → 9/22 오전 여유 칸을 뺀다. 값(limits·motion·좌표)은 9/21 오후까지 · 프리셋 6개는 그리퍼 세션 직후 채운다'),
+}
+for _tid, _e in NO_2ND.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -859,6 +869,15 @@ SLOT['9/21 월']['C'] = ('**④ 티칭 마무리(H)** → **⑤ V-22·V-19 그�
                         '**⑦ F1-02 집기 실기 + V-14(S)** — ⑥ 의 프리셋과 ④⑤ 의 좌표가 전제 · 로봇 불필요: SAFE-01(P)·FLOW-03(M)')
 SLOT['9/21 월']['D'] = ('**⑧ F3-02 닦기 3회 + V-18(P, 40분)** → **⑨ V-25 F1-01 실기(H, 25분)** → **⑩ 민범진 두 번째: V-07 털기 · V-16 HOLD · F2-01·02 실기** '
                         '(오후 티칭에서 WASTE 자세를 다시 찍은 뒤) · 🛡 밀리면 ⑦ 집기 실기를 저녁 첫 순서로 · 로봇 불필요: FLOW-02·FLOW-03(M)·NOTE-01·02(H)')
+# 9/21 10:20 — 2차 티칭 없음(E14, v10.0)
+_o = '남은 티칭·V-24 접촉 중 일시정지(H)'
+assert _o in SLOT['9/22 화']['B']
+SLOT['9/22 화']['B'] = SLOT['9/22 화']['B'].replace(_o,
+    'V-24 접촉 중 일시정지(H) · 🔁 **2차 티칭 없음**(E14) — 좌표는 9/21 에 끝. 기능 함수를 만들다 이상한 자리가 나오면 '
+    '**그때 황인재에게 요청**(① 설정 키 이름 ② 무엇이 어떻게 ③ 지금 막혔는지) → 급하면 그 자리에서, 아니면 모아서 한 번에 다시 찍는다')
+_o = '**④ 티칭 마무리(H)**'
+assert _o in SLOT['9/21 월']['C']
+SLOT['9/21 월']['C'] = SLOT['9/21 월']['C'].replace(_o, '**④ 티칭 마무리(H) — 🔁 오늘 안에 전부 끝낸다, 2차 티칭 칸은 없다(E14)**')
 _b, _c = LECTURE['9/24 목~9/28 월']
 LECTURE['9/24 목~9/28 월'] = (_b, _c + ' · 🆕 **F4 웹 HMI**(F4-03 화면 다듬기·F4-04 기록/이력·UT-F4 전체)도 집에서 mock·fake_state_pub 로 이어 간다(황인재 9/20 — ROS 인터페이스·로봇 쪽 코드는 9/23 동결 그대로)')
 RULES = {       # (A 열, B 열 글자) → (새 B, 새 C)
@@ -990,6 +1009,9 @@ HISTORY49 = ['v9.8', '재배치', '9/21 오전·오후·저녁 전부, V-05·23�
 HISTORY50 = ['v9.9', '우선순위', 'CELL-04·04b, V-24, V-22, V-19, V-05·23·01·02, INF-02c·02d, F1-02, V-14, INT-12a', '황인재 9/21 10:15: **좌표 작업이 가장 먼저** — 오늘 로봇 순서 1번. 오전 = 값 PR → V-24 실기 → 티칭 착수 / 오후 = 티칭 마무리 → V-22·V-19 → 그리퍼 세션 → F1-02 집기 실기 / 저녁 = 닦기 → V-25 → 민범진 2차. 뒤의 모든 실기가 좌표 위에서 돌고, 08:00·08:40 에 드러난 경로 문제를 먼저 잡지 않으면 남이 같은 곳에서 막힌다. 🔸 값 마무리는 책상 작업이라 그동안 로봇이 비면 그리퍼 세션을 끼워 넣을 수 있다',
              '황인재 9/21 10:15', 'H,M,S,P']
 
+HISTORY51 = ['v10.0', '결정 E14', 'CELL-04, CELL-04b, 9/22 오전 로봇 슬롯', '황인재 9/21 10:20: **2차 티칭 일정을 잡지 않는다** — 좌표는 9/21 안에 한 번에 전부 찍어 끝내고, 그 뒤 F1~F3 이 기능 함수를 만들다 이상한 자리를 만나면 그때 요청 → 황인재가 확인해서 고친다(통합 중 요청 기반 수정). 9/22 오전의 "남은 티칭"과 CELL-04b 의 9/22 오전 여유 칸을 뺐다. 이유: 어느 자세가 어떻게 틀렸는지는 함수를 돌려 봐야 나오므로, 미리 잡은 2차 티칭은 고칠 것을 모른 채 로봇을 묶는다. 요청 3줄 양식 = ① 설정 키 이름 ② 무엇이 몇 mm 어느 방향 / 자세 안 나옴 / 길에 걸림 ③ 지금 막혔는지',
+             '황인재 9/21 10:20', 'H,S,M,P']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1084,7 +1106,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
