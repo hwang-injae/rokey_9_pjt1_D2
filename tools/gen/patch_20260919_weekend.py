@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v11.9'
+VERSION = 'v12.0'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -979,6 +979,17 @@ UPD_1710 = {
 for _tid, _e in UPD_1710.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 PR #59 merge — 검증 수준을 밝혀 둔다(실기 미확인 지적)
+V59 = '🟡 9/21 PR #59 — **자동 시험만 확인 · 실기 미확인**(팀 지적으로 명시)'
+P59 = {
+ 'INT-4b':  dict(note_add=V59 + ': flow 재시도 인덱스 겹침 수정(재시도가 성공하면 이미 적재한 용기로 공정을 한 바퀴 더 돌던 것)의 **실제 재시도 경로는 여기(실패 주입 — 팔레트 걸림 → 후퇴·재시도)에서 처음 실기로 본다**. 회귀 시험은 호출 횟수로 못 박혀 있다'),
+ 'UT-FLOW': dict(note_add='✅ 9/21 PR #59 — 재시도 인덱스 겹침 수정 + 회귀 시험(기능 함수 호출 횟수). 기존 test_retry_recovers 는 결과(DONE)만 봐서 이 버그를 통과시키고 있었다 — PM 이 #48 검토 때도 놓침'),
+ 'V-02':    dict(note_add=V59 + ': rig_f2 가 바뀌었다(grip 은 "열기 → 댐 → 쥐기" 한 프로그램 · empty 가 **HOME 을 거쳐 그 종류의 WEIGH 자세로 이동**해서 잰다) — **오늘 저녁 첫 실행이 곧 실기 검증.** 첫 왕복 vel_scale 0.3 · 단계마다 Enter · 손은 E-Stop'),
+ 'V-07':    dict(note_add=V59 + ': weigh 도 HOME 경유로 바뀌었다(E15) — 털기 뒤 저울로 갈 때 용기를 쥔 채 J1 180° 를 도는 것은 **오늘 저녁이 처음**'),
+}
+for _tid, _e in P59.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -1341,6 +1352,9 @@ HISTORY69 = ['v11.8', '진척', 'V-18, F3-03', 'PR #57 merge(박진용): 컵 세
 HISTORY70 = ['v11.9', '최신화', 'V-07, F2-01, CELL-03, V-02, F4-03, INF-02d, V-24', 'GitHub 기준 최신화(9/21 17:10): PR #58 merge(민범진 저녁 F2 실기 절차서) — V-07 은 CELL-03 없이 가능(완료 기준이 충돌 감지 오작동뿐 · 잔반 대용품은 F2-01 전제로). 저녁 순서 V-02 → 컵 78 mm 들리는지 → V-07 → V-16. 브랜치 진척: F4-03 STEP 4·5(0.7) · 민범진 그리퍼 안전 스위치 읽기·풀기(TS-06) · 황인재 공개 정지 함수 cc.stop(). 한석형 — 오늘 push 없음(진척 미확인) · 박진용 — 그릇 재검증 기록 대기',
              '황인재 9/21 17:15', 'M,H']
 
+HISTORY71 = ['v12.0', '검증 수준', 'INT-4b, UT-FLOW, V-02, V-07', 'PR #59 merge(민범진 — flow 재시도 인덱스 겹침 수정 + 저녁 실기 도구). 팀 지적 "실기 검증 없이 가상 검증만 했다" — 사실이다: ① flow 수정은 자동 시험(회귀 시험)만, 실제 재시도 경로는 INT-4b 에서 ② rig_f2 변경(로봇을 움직임)은 오늘 저녁 첫 실행이 검증. PR 에 검증 수준 코멘트를 보충하고 일정표에 "실기 미확인" 표시. 되돌리지 않음(버그 재발 · 저녁 절차가 이 도구를 씀)',
+             '황인재 9/21 17:30', 'M,H']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1435,7 +1449,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
