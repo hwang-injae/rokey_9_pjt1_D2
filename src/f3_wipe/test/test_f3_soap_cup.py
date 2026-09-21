@@ -25,7 +25,7 @@ CFG = {
             'fast_down_mm': 80.0, 'find_max_mm': 40.0,
             'lift_mm': 3.0, 'lift_vel_mm_s': 40.0,
             'stroke_mm': 20.0,
-            'spin_deg': 360.0, 'period_s': 6.3, 'ramp_s': 1.5, 'joint_guard_deg': 1.0, 'j6_limit_deg': 360.0, 'j6_margin_deg': 10.0,
+            'spin_deg': 360.0, 'period_s': 6.3, 'rot_vel_limit_deg_s': 225.0, 'ramp_s': 1.5, 'joint_guard_deg': 1.0, 'j6_limit_deg': 360.0, 'j6_margin_deg': 10.0,
             'cycles': 3, 'keep_in_mm': 10.0,
             'limit_n': 10.0, 'lateral_max_n': 25.0, 'sample_s': 0.0,
             'duration_s': 120, 'log_dir': 'logs/f3',
@@ -270,6 +270,17 @@ def test_cup_lowest_point_is_bottom_plus_lift(cell):
 def test_cup_j6_stays_inside_limit(cell):
     wipe.wipe_cup()
     assert cell.j6_min == pytest.approx(21.0 - 180.0) and cell.j6_max == pytest.approx(21.0 + 180.0)
+
+
+def test_spin_speed_over_robot_limit_stops_before_moving(cell):
+    """🚨 회전 최고 속도가 로봇 한계(225 °/s)를 넘는 주기면 **움직이기 전에** ROBOT_ERROR — 9/21 주기 3 s 는 251 °/s 로 거절됐다."""
+    CFG['f3']['wipe_cup']['period_s'] = 3.0 * 360.0 / 240.0                # ±180° 설정에서 251 °/s 가 되는 주기
+    try:
+        r = wipe.wipe_cup()
+    finally:
+        CFG['f3']['wipe_cup']['period_s'] = 6.3
+    assert not r.ok and r.code == ROBOT_ERROR
+    assert [c[0] for c in cell.calls if c[0] in ('move_to', 'move_rel', 'periodic')] == []
 
 
 def test_spin_room():

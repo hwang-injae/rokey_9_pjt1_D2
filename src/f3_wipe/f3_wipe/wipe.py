@@ -168,9 +168,10 @@ class _Trip:
     """
 
     def __init__(self, hops):
-        self.hops, self.done, self.spot_z = list(hops), [], None
+        self.hops, self.done, self.spot_z, self.started = list(hops), [], None, False
 
     def go(self):
+        self.started = True
         cc.move_to(START, carrying=True)
         for hop in self.hops:
             cc.move_rel(*hop, 'BASE')
@@ -185,6 +186,8 @@ class _Trip:
         if not move:
             _warn('🚨 로봇이 어디 있는지 모른다 → 힘만 끄고 **움직이지 않았다**. '
                   '티치펜던트로 상태를 확인하고 사람이 복구한다')
+            return
+        if not self.started:                                             # 움직이기 전에 멈췄다 — 돌아갈 것이 없다
             return
         try:
             if self.spot_z is not None:
@@ -404,6 +407,7 @@ def wipe_cup() -> WipeCupResult:
     code, depth, moved = ROBOT_ERROR, 0.0, True
     try:
         _halt_check('컵 닦기 시작')
+        check_spin_speed(p)                                              # 로봇 한계를 넘는 설정이면 움직이기 전에 멈춘다
         trip.go()                                                        # ⓪ HOME → 컵 위
         log.start(cc.read_force())                                       # 공중 기준값은 내려가기 전에
         fast = float(p['fast_down_mm'])
@@ -446,6 +450,17 @@ def spin_room(j6, p):
     half, lim = float(p['spin_deg']) / 2.0, float(p['j6_limit_deg']) - float(p['j6_margin_deg'])
     if abs(j6) + half > lim:
         raise ValueError(f'wipe_cup: 6번 조인트 {j6:.1f}° 에서 ±{half:g}° 를 돌면 한계(±{lim:g}°)를 넘는다 — 돌지 않는다')
+
+
+def check_spin_speed(p):
+    """세척 회전 최고 속도 2π × (spin_deg/2) / period_s 가 로봇 한계(rot_vel_limit_deg_s)를 넘으면 ValueError — **내려가기 전에** 본다.
+    넘으면 컨트롤러가 Periodic 을 거절한다(9/21 알람 1212: 251 > 225 °/s)."""
+    peak = 2.0 * math.pi * float(p['spin_deg']) / 2.0 / float(p['period_s'])
+    lim = float(p['rot_vel_limit_deg_s'])
+    if peak > lim:
+        raise ValueError(f'wipe_cup: 세척 회전 최고 {peak:.0f} °/s > 로봇 한계 {lim:g} °/s — period_s 를 '
+                         f'{2 * math.pi * float(p["spin_deg"]) / 2 / lim:.2f} s 이상으로')
+    return peak
 
 
 def cup_periodic(p, stroke):
