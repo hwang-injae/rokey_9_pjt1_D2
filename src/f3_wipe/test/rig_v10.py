@@ -4,7 +4,7 @@
     soc && python3 src/f3_wipe/test/rig_v10.py --real --stage find     # ① 바닥 찾기까지만 (맨 처음 이것부터)
     soc && python3 src/f3_wipe/test/rig_v10.py --real                  # ③ 전체 (기본 stage=scrub)
     soc && python3 src/f3_wipe/test/rig_v10.py --real --cycles 1 --stroke 5              # 값 바꿔 가며
-    soc && python3 src/f3_wipe/test/rig_v10.py --real --speed 1.5                        # 세척 속도만 배수로
+    soc && python3 src/f3_wipe/test/rig_v10.py --real --speed 0.7                        # 세척 속도만 배수로(주기 ÷ 배수)
     soc && python3 src/f3_wipe/test/rig_v10.py --real --air                              # 컵 위 공중에서 세척 동작만(소리 확인)
     PREWASH_CONFIG_DIR=<임시 설정> python3 src/f3_wipe/test/rig_v10.py                 # Virtual(sodvir) — 흐름만
 
@@ -119,11 +119,11 @@ def main() -> int:
     ap.add_argument('--cycles', type=int, default=None, help='왕복 횟수 (기본 params.yaml)')
     ap.add_argument('--stroke', type=float, default=None, help='위아래 편진폭 mm')
     ap.add_argument('--lift', type=float, default=None, help='바닥을 찾은 뒤 띄우는 양 mm (세척의 가장 낮은 자리)')
-    ap.add_argument('--blend', type=float, default=None, help='90° 조각을 이어 붙이는 거리 mm (0 = 조각마다 선다)')
+    ap.add_argument('--period', type=float, default=None, help='한 번 오르내리는 시간 s (6번 축 최고 = 2π×180/주기 °/s)')
     ap.add_argument('--air', action='store_true',
                     help='컵에 넣지 않고 컵 위 공중(+60 mm)에서 세척 동작만 — 6번 축 소리가 로봇인지 솔인지 가른다')
     ap.add_argument('--speed', type=float, default=None,
-                    help='세척 동작 속도 배수 — 위아래·비틀기 속도 × 배수, 가속도 × 배수² (예 1.5 · 2)')
+                    help='세척 속도 배수 — 주기 ÷ 배수 (예 0.7 · 1.1)')
     a = ap.parse_args()
 
     cc.init('rig_v10')                                                   # ① 맨 앞에서 한 번
@@ -132,19 +132,17 @@ def main() -> int:
     try:
         p = dict(cc.cfg()['f3']['wipe_cup'])                             # 값의 정본은 params.yaml — 인자는 덮어쓰기만
         for key, val in (('cycles', a.cycles), ('stroke_mm', a.stroke),
-                         ('lift_mm', a.lift), ('blend_radius_mm', a.blend)):
+                         ('lift_mm', a.lift), ('period_s', a.period)):
             if val is not None:
                 p[key] = val
                 log.warning(f'덮어씀: {key} = {val}  (확정되면 params.yaml 에 넣는다)')
-        if a.speed is not None:                                          # 한 획이 짧아 가속도도 같이 올려야 시간이 준다
-            if not 0.2 <= a.speed <= 3.0:
-                log.error(f'--speed {a.speed:g} — 0.2 ~ 3 사이로')
+        if a.speed is not None:                                          # 세척 속도 배수 = 주기를 배수로 나눈다
+            if not 0.2 <= a.speed <= 1.2:
+                log.error(f'--speed {a.speed:g} — 0.2 ~ 1.2 사이로 (1.25 배면 6번 축이 최고 225 °/s 에 닿는다)')
                 return 2
-            for key, k in (('lin_vel_mm_s', a.speed), ('rot_vel_deg_s', a.speed),
-                           ('lin_acc_mm_s2', a.speed ** 2), ('rot_acc_deg_s2', a.speed ** 2)):
-                p[key] = round(float(p[key]) * k, 1)
-            log.warning(f'덮어씀: 세척 속도 × {a.speed:g} → 위아래 {p["lin_vel_mm_s"]:g} mm/s · 비틀기 {p["rot_vel_deg_s"]:g} °/s '
-                        f'· 가속 {p["lin_acc_mm_s2"]:g} · {p["rot_acc_deg_s2"]:g}  (확정되면 params.yaml 에 넣는다)')
+            p['period_s'] = round(float(p['period_s']) / a.speed, 2)
+            log.warning(f'덮어씀: 세척 속도 × {a.speed:g} → 주기 {p["period_s"]:g} s '
+                        f'(6번 축 최고 {2 * math.pi * float(p["spin_deg"]) / 2 / p["period_s"]:.0f} °/s)  (확정되면 params.yaml 에 넣는다)')
         virtual = guards(a, log)
         if virtual is None:
             return 2
@@ -189,7 +187,7 @@ def main() -> int:
 
         # ── ② ~ ⑥ 띄우기 → 올라가며 6번 축 360° / 내려오며 반대로 → 아래쪽 끝 (제품 코드 wipe._scrub_cup 그대로) ──
         log.info(f'문지르기: 위아래 {2 * cup_stroke(p):.0f} mm · 6번 축 {p["spin_deg"]:g}° 올라가며 / 반대로 내려오며 · '
-                 f'{p["cycles"]} 회 (속도 {p["rot_vel_deg_s"]:g} °/s — vel_scale 무관)')
+                 f'{p["cycles"]} 회 (주기 {p["period_s"]:g} s — vel_scale 무관)')
         n0 = len(rec.rows)
         t_scrub = time.monotonic()
         _scrub_cup(p, rec)

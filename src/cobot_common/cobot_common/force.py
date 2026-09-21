@@ -6,8 +6,7 @@
     cc.force_on('z', target=4.0, limit=10.0) → (닦기) → cc.force_off() → cc.safe_retreat()
     cc.move_spiral(rev=2.8, rmax_mm=14, time_s=3) → while not cc.motion_done(): (힘 확인)   # 바닥 나선 (비동기)
     cc.move_arc(mid, end, vel_mm_s=180, vel_deg_s=400, radius_mm=3)                        # 벽면 원호 (이어 붙임)
-    cc.move_line(pose, 96, 86.4, 900, 810, radius_mm=5)                                      # 컵 위아래 + 비틀기 (vel_scale 무관)
-    cc.move_periodic([0,0,15,0,0,0], [0,0,1,0,0,0], repeat=5)                               # 왕복 (비동기) — 🚨 회전 진폭은 쓰지 않는다
+    cc.move_periodic([0,0,20,180,0,0], [0,0,6.3,6.3,0,0], repeat=3, scale=False)          # 컵: 위아래 + 6번 축 360° (rx 칸 = 6번 축)
 
 약속
 - 좌표계는 BASE. axis 는 'x'·'y'·'z'. target·limit·min·max 는 **양수 크기(N)** 이고, 누르는 방향(−axis)은 여기서 붙인다.
@@ -313,18 +312,20 @@ def move_spiral(rev, rmax_mm, time_s, axis='z', ref='TOOL'):
                        time=float(time_s) / _vel_scale(), axis=axis_c, ref=ref_c), 'amove_spiral')
 
 
-def move_periodic(amp, period, repeat, ref='TOOL', atime=None):
+def move_periodic(amp, period, repeat, ref='TOOL', atime=None, scale=True):
     """Move Periodic 을 **비동기로 시작**한다 — 끝을 기다리지 않는다(부르는 쪽이 motion_done() 으로 본다).
 
     amp · period 는 **[x, y, z, rx, ry, rz]** 6개. 길이 mm · 회전 deg · 주기 s.
     한 명령으로 **이동과 회전을 같이** 왕복한다(중급교육1 p.71 "일정한 진폭과 주기로 왕복 이동/회전 모션",
     p.73~75 실습 50 mm/2 s · 15°/2 s · 축마다 다른 주기).
-    🚨 9/21 Virtual: ref=TOOL 로 rz 진폭 18° 를 주면 **툴 축 비틀기가 아니라 4번 축이 ±18° 움직여 손목이 기운다**
-       (6번 축은 ±6° 뿐). rz 45°·주기 1 s 는 오류 없이 아예 안 움직였다. → **회전 비틀기는 move_line 으로**(컵 닦기),
-       여기서는 직선 왕복만 믿는다.
+    🚨 **회전 칸이 이름과 다르게 움직인다**(9/21 Virtual · 툴이 아래를 보는 자세 — HOME·컵 위, TOOL·BASE 같음):
+         amp[3](rx) → **6번 축만**(툴 축 비틀기) · amp[4](ry) → 2·3·5번 축(앞뒤로 숙임) · amp[5](rz) → **4번 축**(손목이 기운다)
+       → 그리퍼를 툴 축으로 돌리려면 **rx 칸(4번째)** 에 준다. rz 칸에 주면 손목이 기운다(9/21 오전 사고).
+       컵 위: z ±20 mm + rx ±180°, 주기 6.3 s → 6번 축 360° 폭 · 위아래 40 mm · x·y 그대로 · 4번 축 1.9°(9/21 Virtual).
     🚨 어떤 축에 진폭을 주면 **같은 축의 주기도 줘야 한다**(반대도 마찬가지) — 빠지면 두산 오류 2.1218 (p.71~72).
     repeat = 왕복 횟수. 한 번 왕복하면 출발한 자리로 돌아온다(진폭은 편진폭 — 총 이동거리는 2배, p.71 그림).
     vel_scale < 1 이면 주기를 그만큼 늘려 느리게 한다(진폭은 그대로 — periodic_search 와 같은 방식).
+    scale=False 면 주기를 그대로 쓴다 — 컵 세척 동작은 vel_scale 예외(결정 E17).
     """
     if len(amp) != 6 or len(period) != 6:
         raise ValueError('move_periodic: amp · period 는 [x, y, z, rx, ry, rz] 6개로 준다')
@@ -335,7 +336,7 @@ def move_periodic(amp, period, repeat, ref='TOOL', atime=None):
     if repeat < 1:
         raise ValueError(f'move_periodic: repeat={repeat} — 1 이상')
     d = dsr()
-    slow = 1.0 / _vel_scale()
+    slow = 1.0 / _vel_scale() if scale else 1.0
     d.mwait()
     _ok(d.amove_periodic(amp=[float(v) for v in amp], period=[float(v) * slow for v in period],
                          atime=0.0 if atime is None else float(atime),
