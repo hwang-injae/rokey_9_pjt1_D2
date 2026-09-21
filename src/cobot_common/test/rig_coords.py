@@ -232,6 +232,16 @@ def main() -> int:
                 log.info(f'[{n}/{len(ROUTE)}] 다음 이동: {label} · {"들고" if carrying else "빈손"}')
                 if input('    Enter = 이동 / q = 그만(여기 번호를 --from 에 적어 이어서) > ').strip().lower() == 'q':
                     raise KeyboardInterrupt
+            if station.startswith('RACK_C'):                             # 팔레트 컵 칸: HOME 에서 **먼저 곧게 올라간 뒤** 간다 (cell.rack.via · A안)
+                via = (((cc.cfg().get('cell') or {}).get('rack') or {}).get('via') or {}).get('posx')
+                here = posx()
+                if via and math.hypot(here[0] - via[0], here[1] - via[1]) <= 5.0 and via[2] > here[2]:
+                    rise = via[2] - here[2]
+                    if opt.step and input(f'    경유 자세: HOME 에서 {rise:.1f} mm 곧게 올라간다(z {via[2]:g}) — Enter = 이동 / s = 건너뛰기 > ').strip().lower() != 's':
+                        cc.move_rel(0.0, 0.0, rise, 'BASE')
+                        log.info(f'  ↳ 경유 자세 z {via[2]:g} — 여기서부터 손목(J4)이 돌아도 아래가 허공이다')
+                elif via:
+                    log.warn(f'⚠  경유 자세를 못 쓴다 — 지금 자리가 HOME 위가 아니다(수평 {math.hypot(here[0] - via[0], here[1] - via[1]):.0f} mm). HOME 에서 출발해야 한다')
             try:
                 up = cc.move_to(station, carrying, kind, point)
             except Exception as e:                                      # noqa: BLE001
