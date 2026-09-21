@@ -5,6 +5,7 @@
     soc && python3 src/f3_wipe/test/rig_v10.py --real --stage lift     # ② 띄우기까지 (문지르지 않는다)
     soc && python3 src/f3_wipe/test/rig_v10.py --real                  # ③ 전체 (기본 stage=scrub)
     soc && python3 src/f3_wipe/test/rig_v10.py --real --cycles 1 --stroke 5 --twist 10   # 값 바꿔 가며
+    soc && python3 src/f3_wipe/test/rig_v10.py --real --speed 1.5                        # 세척 속도만 배수로
     PREWASH_CONFIG_DIR=<임시 설정> python3 src/f3_wipe/test/rig_v10.py                 # Virtual(sodvir) — 흐름만
 
 준비(손으로): 컵을 스펀지 홈에 넣고, **솔을 그리퍼에 쥐여 준다**(그리퍼 끝을 세척부 윗면에 닿게 — 세척부 95 mm).
@@ -115,7 +116,8 @@ def main() -> int:
     ap.add_argument('--cycles', type=int, default=None, help='왕복 횟수 (기본 params.yaml)')
     ap.add_argument('--stroke', type=float, default=None, help='위아래 편진폭 mm')
     ap.add_argument('--twist', type=float, default=None, help='좌우 비틀기 편진폭 deg')
-    ap.add_argument('--vel', type=float, default=None, help='위아래 속도 mm/s (× vel_scale)')
+    ap.add_argument('--speed', type=float, default=None,
+                    help='세척 동작 속도 배수 — 위아래·비틀기 속도 × 배수, 가속도 × 배수² (예 1.5 · 2)')
     a = ap.parse_args()
 
     cc.init('rig_v10')                                                   # ① 맨 앞에서 한 번
@@ -124,10 +126,19 @@ def main() -> int:
     try:
         p = dict(cc.cfg()['f3']['wipe_cup'])                             # 값의 정본은 params.yaml — 인자는 덮어쓰기만
         for key, val in (('cycles', a.cycles), ('stroke_mm', a.stroke),
-                         ('twist_deg', a.twist), ('lin_vel_mm_s', a.vel)):
+                         ('twist_deg', a.twist)):
             if val is not None:
                 p[key] = val
                 log.warning(f'덮어씀: {key} = {val}  (확정되면 params.yaml 에 넣는다)')
+        if a.speed is not None:                                          # 한 획이 짧아 가속도도 같이 올려야 시간이 준다
+            if not 0.2 <= a.speed <= 3.0:
+                log.error(f'--speed {a.speed:g} — 0.2 ~ 3 사이로')
+                return 2
+            for key, k in (('lin_vel_mm_s', a.speed), ('rot_vel_deg_s', a.speed),
+                           ('lin_acc_mm_s2', a.speed ** 2), ('rot_acc_deg_s2', a.speed ** 2)):
+                p[key] = round(float(p[key]) * k, 1)
+            log.warning(f'덮어씀: 세척 속도 × {a.speed:g} → 위아래 {p["lin_vel_mm_s"]:g} mm/s · 비틀기 {p["rot_vel_deg_s"]:g} °/s '
+                        f'· 가속 {p["lin_acc_mm_s2"]:g} · {p["rot_acc_deg_s2"]:g}  (확정되면 params.yaml 에 넣는다)')
         virtual = guards(a, log)
         if virtual is None:
             return 2
