@@ -332,6 +332,20 @@ def test_halt_stops_and_blocks_until_cleared(robot):
     assert len(robot.calls) == sent + 1
 
 
+def test_stop_sends_stop_now_without_raising_the_halt_flag(robot):
+    """cc.stop() = 지금 바로 정지 명령(박진용 force.stop_now 용). halt() 와 달리 깃발은 안 세운다 → 다음 이동은 그대로 나간다."""
+    motion.stop()
+    assert robot.services == ['stop'] and not motion.is_halted()
+    sent = len(robot.calls)
+    motion.move_rel(0, 0, 10, 'BASE')
+    assert len(robot.calls) == sent + 1
+
+
+def test_stop_is_public_as_cc_stop():
+    import cobot_common as cc
+    assert cc.stop is motion.stop and 'stop' in motion.__all__
+
+
 def test_move_timeout_sends_stop(robot):
     robot.busy_polls = 10 ** 9
     robot.cfg['cell']['motion']['move_timeout_s'] = 0.02

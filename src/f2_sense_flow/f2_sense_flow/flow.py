@@ -19,6 +19,8 @@ import time
 
 from cobot_api import OK, ROBOT_ERROR, Result
 
+from .logger import Consumables, Records, now_iso
+
 # ── 실패 정책 (params.yaml flow.policy 의 값 문자열) ─────────────────────
 NEXT_ZONE = 'next_zone'          # 구역 종료 → 다음 구역 (기록 SKIPPED)
 ISOLATE = 'isolate'              # 격리함에 넣고 다음 용기
@@ -33,6 +35,9 @@ _POLL_S = 0.05                   # 깃발을 들여다보는 간격
 GO_ON = 'go_on'                  # 이 구역의 다음 용기로
 SKIP_ZONE = 'skip_zone'          # 이 구역은 그만, 다음 구역으로 (EMPTY_ZONE)
 HALT = 'halt'                    # 전부 중단 (Ctrl+C 등)
+# wait_resume 이 돌려주는 값 — 사람이 PAUSED 에서 무엇을 눌렀나
+RESUMED = 'resumed'              # 재개 (이어서)
+ABORTED = 'aborted'              # 중단 (이 용기를 접고 다음 용기)
 # handle_failure 만 돌려주는 값 — run_plan 까지 올라가지 않고 process_one 이 그 자리에서 쓴다
 RETRY_STEP = 'retry_step'        # 재개 — **실패한 그 단계부터 다시** (IRD §8 · 9/20 PM 결정)
 
@@ -80,6 +85,7 @@ class Signals:
         self.start = False
         self.stop = False
         self.resume = False
+        self.abort = False               # 🆕 중단 — PAUSED 에서만 (IRD §6 · 결정 E11)
 
     def raise_(self, name):
         with self._lock:
@@ -105,7 +111,8 @@ class Flow:
     """상태 + 구역 계획 + 실패 정책."""
 
     def __init__(self, cfg, log, publish_event=None, safe_retreat=None, features=None,
-                 force_off=None, no_retreat_errors=()):
+                 force_off=None, no_retreat_errors=(),
+                 is_paused=None, halt=None, clear_halt=None, halt_errors=()):
         self.cfg = (cfg or {}).get('flow', {})
         self.f = features or {}                  # {'f1': 모듈, 'f2': 모듈, 'f3': 모듈}
         self.log = log
@@ -117,6 +124,17 @@ class Flow:
         #    (9/21 08:40 케이블 꼬임과 같은 길). 힘·순응만 끄고 그 자리에서 사람을 기다린다.
         self._force_off = force_off or (lambda: None)
         self._no_retreat_errors = tuple(no_retreat_errors or ())
+        # 🆕 FLOW-03 — 정지·재개·중단 (IRD §6). flow 는 로봇을 모르므로 flow_node 가 넣어 준다.
+        #    cc.is_paused : 이동 **도중** 멈춰 있는가 (메인 스레드는 그때 기능 함수 안에 갇혀 있다)
+        #    cc.halt      : 그 자세 그대로 강제 정지 — 중단할 때 하던 이동을 끊는다
+        self._is_paused = is_paused or (lambda: False)
+        self._halt = halt or (lambda: None)
+        self._clear_halt = clear_halt or (lambda: None)
+        self.holding_tool = None         # 쥐고 있는 툴 이름 — 중단 정리에서 반납한다
+        # 🚨 cc.MotionHalted — 중단을 누르면 하던 이동이 이걸로 끊긴다. 평범한 실패가 아니라
+        #    **중단 흐름**으로 보낸다(PM 9/21). ROBOT_ERROR 로 처리하면 사람이 또 확인해야 한다.
+        self._halt_errors = tuple(halt_errors or ())
+        self._halted = False
 
         # 🚨 설정은 **여기서 한 번에** 읽고 검증한다.
         #    YAML 에 키만 있고 값이 비면 None 이 들어온다(`or` 로 받아야 한다).
@@ -149,6 +167,14 @@ class Flow:
         self.soap_dips = 0
         self.rinse_dips = 0
         self._prev_step = 'IDLE'
+
+        # 🆕 FLOW-02 — 용기 1개마다 records.csv 한 줄 (SR-16 · TC-12)
+        #    🚨 기록이 실패해도 공정은 멈추지 않는다 — 부르는 것도 _guard 를 거친다.
+        #    (self.cfg 는 이미 cfg['flow'] 다 — 위 116 줄)
+        self.records = Records(self.cfg.get('records_path') or 'records.csv', log)
+        self.consumables = Consumables(self.cfg.get('consumables'), log)
+        self._tally = {}                         # 이번 용기의 단계별 값 (_collect 가 채운다)
+        self._t0 = None                          # 이번 용기를 시작한 시각
 
         self.target_bowl = sum(e['count'] for e in self.plan if e['kind'] == 'BOWL')
         self.target_cup = sum(e['count'] for e in self.plan if e['kind'] == 'CUP')
@@ -207,8 +233,11 @@ class Flow:
            0.5 초 안에 맞춰진다. 표시용이라 그대로 둔다(락을 잡으면 통신 스레드가
            메인 스레드의 로봇 동작을 기다리게 되어 더 나쁘다).
         """
+        # 🚨 이동 **도중** 멈추면 메인 스레드가 기능 함수 안에 갇혀 있어 step 을 못 바꾼다.
+        #    그대로 두면 HMI 가 'WEIGH' 를 계속 보여 준다 → 깃발을 보고 PAUSED 로 알린다(IRD §6).
+        step = 'PAUSED' if self._is_paused() else self.step
         return dict(
-            step=self.step, kind=self.kind, zone_id=self.zone_id,
+            step=step, kind=self.kind, zone_id=self.zone_id,
             done_bowl=self.done_bowl, done_cup=self.done_cup, isolated=self.isolated,
             target_bowl=self.target_bowl, target_cup=self.target_cup,
             sponge_uses=self.sponge_uses, soap_dips=self.soap_dips, rinse_dips=self.rinse_dips,
@@ -272,7 +301,13 @@ class Flow:
             #    ① 이동이 도중에 선 예외(cc.MoveIncomplete) → **후퇴하지 않는다.**
             #       로봇이 어디 있는지 모르는데 Z 를 올리면 더 꼬인다 → 힘·순응만 끄고 사람이 확인.
             #    ② 그 밖(힘 상한 ForceLimitError 등) → 설계대로 후퇴한다. 접촉에서 벗어나야 한다.
-            if self._no_retreat_errors and isinstance(e, self._no_retreat_errors):
+            if self._halt_errors and isinstance(e, self._halt_errors):
+                # 🆕 중단(/flow/abort)이 하던 이동을 끊었다 — 실패가 아니라 사람이 시킨 것이다.
+                #    후퇴하지 않는다(곧 HOME 으로 간다). process_one 이 중단 정리로 넘긴다.
+                self.log.warn(f'{name} — 중단 요청으로 끊겼다')
+                self.message = '중단 요청으로 멈췄습니다'
+                self._halted = True
+            elif self._no_retreat_errors and isinstance(e, self._no_retreat_errors):
                 self.log.error(f'{name} — 로봇 위치를 알 수 없다. 후퇴하지 않고 힘·순응만 끈다')
                 self.message = f'{name}: 이동이 도중에 멈췄습니다 — 로봇 위치를 확인하세요'
                 self._guard(self._force_off, what='force_off')
@@ -361,12 +396,52 @@ class Flow:
         # 🚨 여기서 resume 을 지우지 않는다 — 지우는 것은 to_paused 가 'PAUSED' 로
         #    바꾸기 **전**에 한다(이유는 to_paused 주석). 여기서 지우면 to_paused 와
         #    이 줄 사이에 들어온 **정당한** resume 이 조용히 사라진다.
-        while not sig.take('resume'):
+        while True:
+            if sig.take('abort'):                     # 🆕 사람이 "이 용기는 접자" 고 판단했다
+                sig.clear('stop')
+                self.log.warn('abort — 이 용기를 접고 다음 용기로 간다')
+                return ABORTED
+            if sig.take('resume'):
+                sig.clear('stop')
+                self.step = self._prev_step
+                self.log.info('resume — 이어서 진행한다')
+                return RESUMED
             time.sleep(_POLL_S)
+
+    def abort_container(self, sig):
+        """🆕 중단(/flow/abort) — 이 용기를 접고 **다음 용기**로 간다 (IRD §6 · 결정 E11).
+
+        순서: 강제정지 풀기 → **HOME 먼저** → 툴 반납 → 용기를 격리 구역에 → HOME
+        🚨 HOME 이 먼저인 이유: 결정 E7 로 이동에서 안전 높이 경유가 없어져 **지금 자리에서
+           다음 자리로 곧장** 간다. 중단은 아무 때나 눌리므로 티칭 경로의 출발점에서 시작한다.
+        🚨 한 단계가 실패해도 **멈추지 않는다** — 치우는 중이라 더 나아가는 편이 낫다.
+           다만 그 결과는 로그에 남긴다. 마지막에 이벤트는 ISOLATED 다.
+        """
+        # 🚨 깃발을 **여기서** 내린다 — 이동 **도중** 중단(halt_errors 경로)은 wait_resume() 을
+        #    거치지 않아 지워 줄 사람이 없다. 안 지우면 정리가 끝나도 stop·abort 가 남아,
+        #    마지막 용기였으면 **다음 실행의 첫 PAUSE(GRIP_FAIL 등)를 사람이 아무것도 안 눌렀는데
+        #    중단 정리로 풀어 버린다** — 로봇이 혼자 HOME → 격리 → HOME 으로 움직인다(PM 검토 PR #50).
+        sig.clear('abort')
         sig.clear('stop')
-        self.step = self._prev_step
-        self.log.info('resume — 이어서 진행한다')
-        return True
+        self.step = 'ISOLATE'
+        self._clear_halt()                            # 중단 때 세운 강제정지를 푼다(안 풀면 새 이동도 거부된다)
+
+        def step(what, mod, fname, *args):
+            r = self.call_fn(mod, fname, *args)
+            if not r.ok:
+                self.log.error(f'중단 정리 — {what} 실패({r.code}). 그래도 계속 치운다')
+            return r
+
+        step('HOME 복귀', 'f1', 'move_to', 'HOME', True)
+        if self.holding_tool:
+            step('툴 반납', 'f1', 'tool', self.holding_tool, 'RETURN')
+            self.holding_tool = None
+        step('격리 구역에 놓기', 'f1', 'place', 'ISOLATE', self.kind)
+        step('HOME 복귀', 'f1', 'move_to', 'HOME', False)
+
+        self.isolated += 1
+        self.emit_event('ISOLATED')
+        return GO_ON
 
     # ────────────────────────────────── 메인 루프 (메인 스레드에서만)
     def run(self, sig):
@@ -380,14 +455,20 @@ class Flow:
     def run_plan(self, sig):
         """plan 대로 구역을 돈다."""
         sig.clear('stop')
+        # 🚨 지난 실행에서 남은 중단 깃발이 새 실행으로 넘어오지 않게 (to_paused 가 resume 을
+        #    지우는 것과 같은 이유). ①이 제 자리에서 지우지만, 두 번째 방어선을 둔다.
+        sig.clear('abort')
         for entry in self.plan:
             self.zone_id, self.kind = entry['zone'], entry['kind']
             for _ in range(entry['count']):
                 # 용기와 용기 사이. 단계 사이의 정지는 process_one 안에 따로 있다 (SDD §5.1)
-                if sig.peek('stop'):
+                if sig.peek('stop') or self._is_paused():
                     self.log.info('stop 요청 — 용기 사이에서 정지')
                     self.to_paused('stop 버튼', sig)
-                    self.wait_resume(sig)
+                    if self.wait_resume(sig) == ABORTED:
+                        # 🚨 용기 **사이**라 접을 용기가 없다 → 정리 없이 다음 용기로 간다.
+                        #    전에는 반환값을 버려서 **우연히** 이렇게 됐다 — 코드로 분명히 한다.
+                        self.log.info('abort — 아직 집지 않았으므로 치울 것이 없다. 다음 용기로')
                 outcome = self.process_one(sig)
                 if outcome == HALT:
                     return
@@ -412,6 +493,8 @@ class Flow:
         rounds = self.rounds
         n = self.counts
         self.rack_slot = self._next_slot()
+        self._tally = {}                         # 🆕 FLOW-02 — 이번 용기의 값을 여기 모은다
+        self._t0 = time.monotonic()
 
         # (단계, 모듈, 함수이름, 인자) — 🚨 함수 객체를 미리 꺼내지 않는다.
         #    꺼내는 것까지 call_fn 안에서 해야 "함수가 없다"가 크래시가 아니라 Result 가 된다.
@@ -442,17 +525,27 @@ class Flow:
             #    (기능 함수가 끝날 때 HOLD → NORMAL 로 되돌리므로 단계 사이는 이미 NORMAL 이다.
             #     여기서 힘을 바꾸면 드라이버가 다시 파지하면서 놓칠 수 있다 — 황인재 9/20)
             #    resume 하면 이 단계부터 이어 간다.
-            if sig.peek('stop'):
+            if sig.peek('stop') or self._is_paused():
                 self.log.info(f'stop 요청 — {step} 앞에서 정지')
                 self.to_paused('stop 버튼', sig)
-                self.wait_resume(sig)
+                if self.wait_resume(sig) == ABORTED:  # 🆕 재개 대신 중단을 눌렀다
+                    return self.abort_container(sig)
             self.step = step
             r = self.call_fn(mod, fname, *args)
+            self._collect(step, fname, r)             # 🆕 FLOW-02 — 기록에 쓸 값을 줍는다
+            if self._halted:                          # 🆕 중단으로 끊긴 것 — 정책을 타지 않는다
+                self._halted = False
+                return self.abort_container(sig)
+            if r.ok and fname == 'tool':               # 쥐고 있는 툴을 기억한다(중단 정리에서 반납)
+                self.holding_tool = args[0] if args[1] == 'PICK' else None
             if not r.ok:
                 action, retries = self.policy_for(r.code)
                 # retry:N->isolate — 후퇴한 뒤 같은 동작을 N 번까지 다시 해 본다
-                for i in range(retries):
-                    self.log.info(f'{step} 재시도 {i + 1}/{retries} (코드 {r.code})')
+                # 🚨 세는 변수를 i 로 쓰지 않는다 — 바깥의 **단계 인덱스** i 를 덮어써서,
+                #    재시도가 성공하면 아래 `i += 1` 이 엉뚱한 자리로 뛴다(9/21 발견).
+                #    실기에서는 이미 팔레트에 넣은 용기로 공정을 통째로 한 번 더 돈다.
+                for attempt in range(retries):
+                    self.log.info(f'{step} 재시도 {attempt + 1}/{retries} (코드 {r.code})')
                     if not self._retreat():   # 🚨 후퇴 실패 → 더 움직이지 않는다
                         action = PAUSE
                         break
@@ -486,6 +579,11 @@ class Flow:
         self.sponge_uses += 1
         self.soap_dips += n['soap_dips']
         self.rinse_dips += n['rinse_dips']
+        # 🆕 FLOW-02 — 임계에 닿으면 알리기만 한다(멈추지 않는다: 용기를 든 채 서게 된다)
+        self._guard(self.consumables.check,
+                    dict(sponge_uses=self.sponge_uses, soap_dips=self.soap_dips,
+                         rinse_dips=self.rinse_dips),
+                    what='consumables.check')
         self.emit_event('DONE')
         return GO_ON
 
@@ -505,8 +603,9 @@ class Flow:
 
         if action == PAUSE:
             self.to_paused(f'코드 {self.last_code}', sig)
-            if not self.wait_resume(sig):
-                return HALT
+            answer = self.wait_resume(sig)
+            if answer == ABORTED:                     # 🆕 사람이 이 용기를 접기로 했다
+                return self.abort_container(sig)
             # 🚨 ROBOT_ERROR 만 예외 — 로봇이 어디 있는지 모르는 채 같은 단계를 다시 하면 위험하다.
             #    사람이 복구한 뒤 resume 하면 **다음 용기부터**이고 그 용기는 ERROR 로 기록한다
             #    (IRD §8 · SDD §7 · 9/20 PM 결정). 후퇴가 실패해 강제된 PAUSE 도 여기로 온다 —
@@ -517,7 +616,8 @@ class Flow:
             # 그 밖(GRIP_FAIL·RACK_FULL)은 사람이 확인·조치한 뒤 **실패한 그 단계부터** 이어 간다.
             #    끝까지 가면 DONE 으로 기록되므로 여기서는 이벤트를 내지 않는다(9/20 PM 결정).
             #    다시 실패하면 또 PAUSED 가 된다 — 풀려면 사람이 resume 을 눌러야 하므로 혼자 돌지 않는다.
-            #    사람이 "이 용기는 접자" 고 판단하면 /flow/abort 다(IRD §6 — 아직 구현 전).
+            #    사람이 "이 용기는 접자" 고 판단하면 /flow/abort 다(IRD §6 · PR #50 으로 구현됨
+            #    — flow_node 가 PAUSED 에서만 받고, abort_container 가 HOME → 툴 반납 → 격리 → HOME).
             self.log.info(f'재개 — {self.step} 단계부터 다시 (코드 {self.last_code})')
             return RETRY_STEP
 
@@ -535,14 +635,51 @@ class Flow:
         if self.step_delay_s:
             time.sleep(self.step_delay_s)
 
-    def emit_event(self, result):
-        """용기 1개가 끝날 때마다 1건 (IRD §7 FlowEvent).
+    # 🆕 FLOW-02 — 어느 단계의 어떤 값을 기록 열로 옮길지 (SDD §4.2)
+    #    (단계, 함수이름) → {Result 속성: 기록 열}
+    #    🚨 PICK 의 attempts 만 센다. RINSE 의 pick 은 스펀지 홈에서 **다시 쥐는 것**이라
+    #       탐색 시도 횟수가 아니다(같은 함수라 단계로 갈라야 한다).
+    _COLLECT = {
+        ('PICK', 'pick'): {'attempts': 'attempts'},
+        ('WEIGH', 'leftover_loop'): {'weight_before_g': 'weight_before_g',
+                                     'weight_after_g': 'weight_after_g',
+                                     'rounds': 'leftover_rounds'},
+        ('SEAT', 'place'): {'offset_mm': 'seat_offset_mm'},
+        ('WIPE', 'wipe_bowl'): {'duration_s': 'wipe_duration_s',
+                                'force_log_path': 'force_log_path'},
+        ('WIPE', 'wipe_cup'): {'duration_s': 'wipe_duration_s',
+                               'force_log_path': 'force_log_path'},
+    }
 
-        🚧 attempts·weight_*_g·duration_s·force_log_path 는 FLOW-02(기록)에서 채운다 —
-           각 단계의 Result 를 모아야 해서 여기 구조가 좀 더 필요하다.
+    def _collect(self, step, fname, r):
+        """단계 하나의 Result 에서 기록에 쓸 값을 줍는다.
+
+        🚨 실패한 Result 에서도 줍는다 — 격리된 용기의 기록에도 "어디까지 갔나" 가 남아야
+           나중에 무엇이 문제였는지 본다(TC-12 의 "필드 누락 0" 은 성공 행만이 아니다).
+        🚨 재시도로 같은 단계를 다시 불렀으면 **나중 값이 이긴다**(마지막 시도가 실제로 한 일).
         """
-        self._guard(self._publish_event,
-                    dict(kind=self.kind, zone_id=self.zone_id,
-                         rack_slot=self.rack_slot if result == 'DONE' else '',
-                         result=result, code=self.last_code),
+        for attr, col in (self._COLLECT.get((step, fname)) or {}).items():
+            v = getattr(r, attr, None)
+            if v is not None:
+                self._tally[col] = v
+
+    def emit_event(self, result):
+        """용기 1개가 끝날 때마다 1건 (IRD §7 FlowEvent) + records.csv 한 줄 (SR-16)."""
+        took = round(time.monotonic() - self._t0, 2) if self._t0 else 0.0
+        ev = dict(kind=self.kind, zone_id=self.zone_id,
+                  rack_slot=self.rack_slot if result == 'DONE' else '',
+                  result=result, code=self.last_code,
+                  attempts=int(self._tally.get('attempts') or 0),
+                  weight_before_g=float(self._tally.get('weight_before_g') or 0.0),
+                  weight_after_g=float(self._tally.get('weight_after_g') or 0.0),
+                  duration_s=took,
+                  force_log_path=str(self._tally.get('force_log_path') or ''))
+        self._guard(self._publish_event, ev,
                     what='publish_event')      # 발행이 터져도 공정은 계속된다
+        # 🚨 기록은 발행 **뒤**에 한다 — HMI 알림이 파일 쓰기를 기다리지 않게.
+        #    둘 다 _guard 를 거치므로 하나가 터져도 다른 하나와 공정은 계속된다.
+        row = dict(ev, ts=now_iso(),
+                   leftover_rounds=self._tally.get('leftover_rounds', ''),
+                   seat_offset_mm=self._tally.get('seat_offset_mm', ''),
+                   wipe_duration_s=self._tally.get('wipe_duration_s', ''))
+        self._guard(self.records.write, row, what='records.write')

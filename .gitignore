@@ -97,3 +97,7 @@ docs/test_logs/*.mp4
 
 # 드라이브 업로드용 임시 파일 (저장소에 넣지 않음)
 _upload/
+
+# 실행하면서 생기는 기록 (FLOW-02 · SDD §4.2) — 저장소에 넣지 않는다
+records.csv
+force_*.csv

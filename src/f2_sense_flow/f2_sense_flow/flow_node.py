@@ -30,6 +30,8 @@ import traceback
 
 import rclpy.logging
 
+from cobot_api import ROBOT_ERROR
+
 import cobot_common as cc
 from cobot_common import config as cc_config
 from cobot_msgs.msg import FlowEvent, FlowState
@@ -64,7 +66,7 @@ def safe_cb(what):
 
 
 class Io:
-    """통신 배선 — /flow/* 서비스 3개, /flow/state 타이머, /flow/event 발행기.
+    """통신 배선 — /flow/* 서비스 4개, /flow/state 타이머, /flow/event 발행기.
 
     🚨 콜백에서 하는 일은 **깃발 세우기와 값 읽기뿐**이다. 로봇 함수를 부르지 않는다.
        콜백에서 로봇을 움직이면 TS-01 의 교착이 그대로 되살아난다.
@@ -77,6 +79,7 @@ class Io:
         node.create_service(Trigger, '/flow/start', self._on_start)
         node.create_service(Trigger, '/flow/stop', self._on_stop)
         node.create_service(Trigger, '/flow/resume', self._on_resume)
+        node.create_service(Trigger, '/flow/abort', self._on_abort)      # 🆕 FLOW-03 (IRD §6)
         self.state_pub = node.create_publisher(FlowState, '/flow/state', 10)
         self.event_pub = node.create_publisher(FlowEvent, '/flow/event', 10)
 
@@ -95,8 +98,15 @@ class Io:
 
     @safe_cb('/flow/stop')
     def _on_stop(self, req, res):
+        """일시 정지 — **즉시** 멈춘다 (IRD §6 · V-24).
+
+        🚨 cc.pause() 는 깃발만 세운다(motion.py 머리말) — 콜백에서 불러도 된다.
+           이동 중이면 폴링 루프가 그 자리에서 세우고, 이동이 없으면 다음 이동이 출발하지 않는다.
+           깃발(stop)도 같이 세운다 — 단계 **사이**에서 멈추는 길이 따로 있다(SDD §5.1).
+        """
         self.sig.raise_('stop')
-        res.success, res.message = True, '현재 동작이 끝나면 정지합니다'
+        cc.pause()
+        res.success, res.message = True, '즉시 멈춥니다 (재개하면 하던 동작을 이어서)'
         return res
 
     @safe_cb('/flow/resume')
@@ -106,12 +116,38 @@ class Io:
         #    사람이 확인해야 하는 정지(ROBOT_ERROR·RACK_FULL — SDD §7)에서 그것을
         #    바로 소비해 0 초 만에 재개해 버린다. HMI 가 버튼을 잠가도 REST /api/resume
         #    이나 ros2 service call 로 직접 들어올 수 있으므로 서버에서도 막는다.
-        if self.flow.step == 'PAUSED':
+        #    🚨 이동 **도중** 멈추면 메인 스레드가 기능 함수 안에 갇혀 있어 step 이 아직
+        #       'PAUSED' 가 아니다 → cc.is_paused() 도 같이 본다(PM 9/21). 이게 없으면
+        #       "멈췄는데 재개가 거부되는" 막다른 길이 된다.
+        if self.flow.step == 'PAUSED' or cc.is_paused():
+            cc.resume()                              # 멈춰 있던 이동을 이어서 끝낸다
             self.sig.raise_('resume')
             res.success, res.message = True, '재개합니다'
         else:
             res.success, res.message = False, f'PAUSED 가 아닙니다 (현재 {self.flow.step})'
         return res                                   # 거절 이유는 HMI 가 그대로 보여 준다
+
+    @safe_cb('/flow/abort')
+    def _on_abort(self, req, res):
+        """🆕 중단 — 지금 용기를 접고 **다음 용기**로 간다 (IRD §6 · 결정 E11).
+
+        🚨 PAUSED 일 때만 받는다. 운전 중에 받으면 사람이 상태를 보지 않은 채 용기를 버린다.
+        🚨 ROBOT_ERROR 로 멈춘 것은 **거부**한다 — 로봇이 어디 있는지 모르는데 격리함까지
+           이송하면 더 위험하다. 사람이 복구한 뒤 재개한다(SDD §7).
+        cc.halt() 로 하던 이동을 끊는다(깃발만 세운다 — 콜백에서 불러도 된다).
+        정리 순서는 메인 스레드의 flow.abort_container 가 한다.
+        """
+        if not (self.flow.step == 'PAUSED' or cc.is_paused()):
+            res.success, res.message = False, f'PAUSED 가 아닙니다 (현재 {self.flow.step})'
+            return res
+        if self.flow.last_code == ROBOT_ERROR:
+            res.success, res.message = False, (
+                '로봇 위치를 알 수 없어 중단할 수 없습니다 — 복구한 뒤 재개를 눌러 주세요')
+            return res
+        cc.halt()                                    # 하던 이동을 그 자세로 끊는다
+        self.sig.raise_('abort')
+        res.success, res.message = True, '이 용기를 접고 다음 용기로 갑니다'
+        return res
 
     # ────────────────────────────────── 상태 발행 (메시지만 만든다)
     @safe_cb('/flow/state 타이머')
@@ -160,7 +196,12 @@ def main():
                     # 🚨 이동이 도중에 서면(MoveIncomplete) 로봇 위치를 모른다 → 후퇴 금지,
                     #    힘·순응만 끄고 사람이 확인한다 (9/21 결정 · SDD §7)
                     force_off=cc.force_off if robot else None,
-                    no_retreat_errors=(cc.MoveIncomplete,) if robot else ())
+                    no_retreat_errors=(cc.MoveIncomplete,) if robot else (),
+                    # 🆕 FLOW-03 — 정지·재개·중단 (IRD §6). flow 는 로봇을 모른다.
+                    is_paused=cc.is_paused if robot else None,
+                    halt=cc.halt if robot else None,
+                    clear_halt=cc.clear_halt if robot else None,
+                    halt_errors=(cc.MotionHalted,) if robot else ())
         io = Io(node, flow, sig)
         flow._publish_event = io.publish_event       # 두뇌 → 배선 (두뇌는 ROS 를 모른다)
 

@@ -7,6 +7,8 @@ soap 은 접촉 동작이 아니다(수조가 비어 있다) → 순응·힘제�
 wipe_cup 은 **삽입만** 힘으로 찾고(contact_down), 문지르기는 순응을 끈 위치 제어다(관절 이동, 2.1903).
 실제 깊이·회전각은 V-10(실기)에서 확정한다 — 여기서는 순서·상한 처리만 본다.
 """
+import math
+
 import pytest
 
 from cobot_api import FORCE_LIMIT, OK, ROBOT_ERROR, TIMEOUT
@@ -14,15 +16,17 @@ from f3_wipe import wipe
 
 CFG = {
     'run': {'vel_scale': 0.3},
-    'cell': {'limits': {'insert_limit_n': 5.0, 'timeout_s': 30.0}},
+    'cell': {'limits': {'insert_limit_n': 15.0, 'timeout_s': 30.0}},     # main 값 — 컵은 이것을 쓰지 않는다
     'f3': {
         'soap': {'depth_mm': 40.0, 'hold_s': 0.0, 'vel_mm_s': 80.0, 'log_dir': 'logs/f3'},
         'wipe_cup': {
             'tool': {'clean_h_mm': 95, 'd_mm': 55},
-            'fast_gap_mm': 10.0, 'find_max_mm': 40.0, 'insert_min_mm': 85.0,
-            'lift_mm': 2.0, 'lift_vel_mm_s': 40.0,
-            'stroke_mm': 15.0, 'twist_deg': 45.0, 'period_s': 1.0, 'twist_period_ratio': 1.0,
-            'cycles': 5, 'keep_in_mm': 10.0,
+            'over_cup_up_mm': 40.0, 'over_cup_dy_mm': 140.0, 'find_limit_n': 5.0,
+            'fast_down_mm': 80.0, 'find_max_mm': 40.0,
+            'lift_mm': 3.0, 'lift_vel_mm_s': 40.0,
+            'stroke_mm': 20.0,
+            'spin_deg': 360.0, 'period_s': 6.3, 'rot_vel_limit_deg_s': 225.0, 'ramp_s': 1.5, 'joint_guard_deg': 1.0, 'j6_limit_deg': 360.0, 'j6_margin_deg': 10.0,
+            'cycles': 3, 'keep_in_mm': 10.0,
             'limit_n': 10.0, 'lateral_max_n': 25.0, 'sample_s': 0.0,
             'duration_s': 120, 'log_dir': 'logs/f3',
         },
@@ -52,7 +56,11 @@ class FakeCell:
         self.pose = list(POSE0)
         self.inserted = False
         self.halted = False
-        self.periodic = 0                        # 남은 왕복 조각 수
+        self.j6 = self.j6_min = self.j6_max = 21.0      # 컵 위 자세의 6번 축 (9/21 Virtual 기록)
+        self.j4 = 0.0                                    # 4번 조인트 — 움직이면 안 된다
+        self.j4_during = 0.0                             # 세척 도는 동안 4번 조인트 (시험에서 바꾼다)
+        self.periodic = 0
+        self.j6_sign = 1                                 # 자세 c + → 6번 축 + (Virtual 기록). −1 이면 반대로 도는 로봇
         self.logger = _Logger()
 
     def cfg(self):
@@ -64,18 +72,27 @@ class FakeCell:
         return self.up
 
     def move_rel(self, dx, dy, dz, frame, **kw):
-        self.calls.append(('move_rel', round(dz, 1), round(kw.get('vel_mm_s') or 0.0, 1)))
+        self.calls.append(('move_rel', round(dz, 1), round(kw.get('vel_mm_s') or 0.0, 1), round(dy, 1)))
         self.pose = [self.pose[0] + dx, self.pose[1] + dy, self.pose[2] + dz] + self.pose[3:]
 
-    def move_periodic(self, amp, period, repeat, ref='TOOL', atime=None):
-        self.calls.append(('periodic', list(amp), list(period), repeat, ref))
-        self.periodic = 5
+    def move_periodic(self, amp, period, repeat, ref='TOOL', atime=None, scale=True):
+        self.calls.append(('periodic', list(amp), list(period), repeat, ref, scale))
+        self.periodic = 3
+        self.j6_min, self.j6_max = min(self.j6_min, self.j6 - amp[5]), max(self.j6_max, self.j6 + amp[5])
+        self.j4 = self.j4_during
 
     def motion_done(self):
         if self.periodic > 0:
             self.periodic -= 1
             return False
         return True
+
+    def stop_now(self):
+        self.calls.append(('stop_now',))
+        self.periodic = 0
+
+    def joints(self):
+        return [0.0, 0.0, 90.0, self.j4, 90.0, self.j6]
 
     def contact_down(self, max_depth, limit):
         self.calls.append(('contact_down', max_depth, limit))
@@ -111,8 +128,8 @@ class FakeCell:
 def cell(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     c = FakeCell()
-    for name in ('cfg', 'move_to', 'move_rel', 'move_periodic', 'motion_done', 'contact_down',
-                 'read_force', 'force_off', 'safe_retreat', 'io_node', 'is_halted', 'where'):
+    for name in ('cfg', 'move_to', 'move_rel', 'move_periodic', 'motion_done', 'stop_now', 'contact_down',
+                 'read_force', 'force_off', 'safe_retreat', 'io_node', 'is_halted', 'where', 'joints'):
         monkeypatch.setattr(wipe.cc, name, getattr(c, name), raising=False)
     return c
 
@@ -173,77 +190,133 @@ def test_soap_halt_does_not_auto_move(cell):
 
 
 # ------------------------------------------------------------------ wipe_cup
-# 삽입 깊이 = 솔 길이 95 − (fast_gap 10 − 실제로 찾은 거리). 가짜는 8 mm 에서 바닥을 만나니 95 − 2 = 93 mm.
-DEPTH = 95.0 - (10.0 - 8.0)
+# 돌려주는 insert_depth_mm = 컵 위에서 바닥까지 내려간 거리 = 빠른 하강 80 + 찾기 8 (가짜는 8 mm 에서 바닥).
+DEPTH = 80.0 + 8.0
+TO_CUP = [(40.0, 0.0), (0.0, 140.0), (-40.0, 0.0)]                         # HOME → 컵 위 (dz, dy)
+
+
+def _rels(calls):
+    return [(c[1], c[3]) for c in calls if c[0] == 'move_rel']
+
+
+def _split(cell):
+    """(닦기까지의 호출, 마지막 force_off 부터의 정리 호출)."""
+    i = max(k for k, c in enumerate(cell.calls) if c[0] == 'force_off')
+    return cell.calls[:i], cell.calls[i:]
+
+
+def test_cup_starts_at_home_and_goes_up_over_down(cell):
+    """⓪ 초기자세 HOME → z +40 → y +140 → z −40 — 솔이 컵에 걸리지 않게(박진용 9/21)."""
+    wipe.wipe_cup()
+    assert cell.calls[0][:2] == ('move_to', 'HOME')
+    assert _rels(cell.calls)[:3] == TO_CUP
+
+
+def test_cup_returns_up_then_reverse_to_home(cell):
+    """⑦ 솔을 곧게 뽑아 컵 위 높이 → z +40 → y −140 → z −40 → HOME. 컵 위 높이에서 옆으로 바로 가지 않는다."""
+    wipe.wipe_cup()
+    _work, back = _split(cell)
+    rels = _rels(back)
+    assert rels[0][1] == 0.0 and rels[0][0] > 0                            # 먼저 곧게 뽑는다
+    assert rels[1:] == [(40.0, 0.0), (0.0, -140.0), (-40.0, 0.0)]
+    assert back[-1][:2] == ('move_to', 'HOME')
+    assert cell.pose[2] == pytest.approx(POSE0[2] + 0.0)                   # 가짜 HOME 높이로 돌아왔다
 
 
 def test_cup_fast_then_finds_bottom_by_force(cell):
-    """① 바닥 fast_gap 위까지 빠르게 → ② 나머지는 힘으로 찾는다(시나리오 1·2)."""
+    """① 컵 위에서 fast_down_mm 만큼 빠르게 → ② 나머지는 힘으로 찾는다(시나리오 1·2)."""
     r = wipe.wipe_cup()
     assert r.ok and r.code == OK
     names = [c[0] for c in cell.calls]
-    fast = [c for c in cell.calls if c[0] == 'move_rel' and c[1] < 0][0]
-    assert fast[1] == pytest.approx(-(80.0 - 10.0))                        # up − fast_gap_mm
-    assert ('contact_down', 40.0, 5.0) in cell.calls                       # find_max_mm · insert_limit_n
+    fast = [c for c in cell.calls if c[0] == 'move_rel' and c[1] < 0][1]   # [0] 은 컵 위로 내려오는 −40
+    assert fast[1] == pytest.approx(-80.0)                                 # fast_down_mm — 티칭 끝점(up)과 무관
+    assert ('contact_down', 40.0, 5.0) in cell.calls                       # find_max_mm · find_limit_n (insert_limit_n 15 아님)
     assert names.index('contact_down') < names.index('periodic')
-    assert r.insert_depth_mm == pytest.approx(DEPTH)                       # 솔이 컵에 들어간 길이 (내려온 거리가 아니다)
-    assert names[-2:] == ['force_off', 'safe_retreat']
+    assert r.insert_depth_mm == pytest.approx(DEPTH)                       # 잰 값 — 바닥 위치를 미리 정하지 않는다
+    assert cell.calls[-1][:2] == ('move_to', 'HOME')
 
 
-def test_cup_lifts_to_middle_then_ends_at_bottom(cell):
-    """③ 왕복 가운데로 띄우고 → ⑥ 위 말고 **아래**에서 끝낸다(시나리오 3·6)."""
+def _periodic(cell):
+    return [c for c in cell.calls if c[0] == 'periodic']
+
+
+def _work_rels(cell):
+    i = max(k for k, c in enumerate(cell.calls) if c[0] == 'force_off')
+    return [c[1] for c in cell.calls[:i] if c[0] == 'move_rel']
+
+
+def test_cup_scrub_is_one_periodic_on_tool_z_and_rz(cell):
+    """④⑤ Move Periodic 한 명령 · **TOOL** 기준 · z ±20 mm + rz(그리퍼 축 = 6번 조인트) ±180° · 같은 주기 6.3 s · 3 회.
+    🚨 rx 칸은 실기에서 4번 조인트를 돌렸다(9/21) — rx·ry 칸은 0 이어야 한다."""
     wipe.wipe_cup()
-    ups = [c for c in cell.calls if c[0] == 'move_rel' and c[1] > 0]
-    assert ups[-1][1] == pytest.approx(2.0 + 15.0)                         # lift_mm + stroke
-    last_rel = max(i for i, c in enumerate(cell.calls) if c[0] == 'move_rel')
-    assert cell.calls[last_rel][1] == pytest.approx(-15.0)                 # 마지막 이동은 내려가며 끝난다
-    assert [c[0] for c in cell.calls].index('periodic') < last_rel         # 왕복이 끝난 **뒤**에 내려간다
+    per = _periodic(cell)
+    assert len(per) == 1
+    _n, amp, period, repeat, ref, scale = per[0]
+    assert amp == [0.0, 0.0, 20.0, 0.0, 0.0, 180.0] and period == [0.0, 0.0, 6.3, 0.0, 0.0, 6.3]
+    assert repeat == 3 and ref == 'TOOL' and scale is False
+    assert all((a != 0) == (t != 0) for a, t in zip(amp, period))          # 진폭 준 축은 주기도(오류 2.1218)
 
 
-def test_cup_stroke_and_twist_are_one_periodic_command(cell):
-    """④⑤ 위아래와 좌우 비틀기를 **한 명령**으로 (중급1 p.71 왕복 이동/회전)."""
+def test_cup_lowest_point_is_bottom_plus_lift(cell):
+    """③ 가장 낮은 곳 = 바닥 + lift_mm(3). Periodic 은 가운데 기준 ±stroke 라 바닥 + 3 + stroke 에서 시작하고
+    ⑥ 끝나면 stroke 만큼 내려서 가장 낮은 곳(바닥 + 3)에서 끝낸다."""
     wipe.wipe_cup()
-    periodics = [c for c in cell.calls if c[0] == 'periodic']
-    assert len(periodics) == 1                                             # 한 번만 부른다
-    _n, amp, period, repeat, ref = periodics[0]
-    assert amp == [0.0, 0.0, 15.0, 0.0, 0.0, 45.0]                         # z 진폭 · rz 비틀기
-    assert period == [0.0, 0.0, 1.0, 0.0, 0.0, 1.0]
-    assert repeat == 5 and ref == 'TOOL'
+    lift, stroke = CFG['f3']['wipe_cup']['lift_mm'], 20.0
+    rels = _work_rels(cell)
+    assert rels[-2] == pytest.approx(lift + stroke) and rels[-1] == pytest.approx(-stroke)
+    assert rels[-2] + rels[-1] == pytest.approx(lift)                     # 끝 = 바닥 + 3
 
 
-def test_cup_amp_and_period_paired_on_every_axis(cell):
-    """🚨 진폭을 준 축은 주기도 줘야 한다 — 빠지면 두산 오류 2.1218 (중급1 p.71~72)."""
+def test_cup_j6_stays_inside_limit(cell):
     wipe.wipe_cup()
-    _n, amp, period, _r, _ref = [c for c in cell.calls if c[0] == 'periodic'][0]
-    assert all((a != 0) == (t != 0) for a, t in zip(amp, period))
+    assert cell.j6_min == pytest.approx(21.0 - 180.0) and cell.j6_max == pytest.approx(21.0 + 180.0)
+
+
+def test_spin_speed_over_robot_limit_stops_before_moving(cell):
+    """🚨 회전 최고 속도가 로봇 한계(225 °/s)를 넘는 주기면 **움직이기 전에** ROBOT_ERROR — 9/21 주기 3 s 는 251 °/s 로 거절됐다."""
+    CFG['f3']['wipe_cup']['period_s'] = 3.0 * 360.0 / 240.0                # ±180° 설정에서 251 °/s 가 되는 주기
+    try:
+        r = wipe.wipe_cup()
+    finally:
+        CFG['f3']['wipe_cup']['period_s'] = 6.3
+    assert not r.ok and r.code == ROBOT_ERROR
+    assert [c[0] for c in cell.calls if c[0] in ('move_to', 'move_rel', 'periodic')] == []
+
+
+def test_spin_room():
+    p = CFG['f3']['wipe_cup']
+    wipe.spin_room(21.0, p)
+    with pytest.raises(ValueError):
+        wipe.spin_room(171.0, p)                                           # 171 + 180 = 351 > 350
+
+
+def test_cup_no_room_to_spin_is_error_and_retreats(cell):
+    cell.j6 = cell.j6_min = cell.j6_max = 200.0
+    r = wipe.wipe_cup()
+    assert not r.ok and r.code == ROBOT_ERROR
+    assert _periodic(cell) == [] and cell.calls[-1][:2] == ('move_to', 'HOME')
+
+
+def test_cup_stops_now_if_j4_moves_and_does_not_auto_move(cell):
+    """🚨 세척 도는 중 4번 조인트가 1° 넘게 움직이면 **즉시 정지** → ROBOT_ERROR → **힘만 끄고 움직이지 않는다**
+    (손목이 꺾였을 수 있어 곧게 뽑으면 컵을 끌고 올라온다 — PR #56 리뷰)."""
+    cell.j4_during = 5.0
+    r = wipe.wipe_cup()
+    assert not r.ok and r.code == ROBOT_ERROR
+    names = [c[0] for c in cell.calls]
+    i = names.index('stop_now')
+    assert names.index('periodic') < i
+    assert names[i + 1:] == ['force_off']                                  # 정지 뒤에는 힘만 끈다 — 이동 없음
 
 
 def test_cup_stroke_shrinks_so_brush_stays_in(cell):
-    """얕게 들어갔으면 솔이 컵 밖으로 나오지 않게 진폭을 줄인다."""
-    cell.depth = 2.0                                                       # 8 mm 일찍 막힘 → 95 − 8 = 87... 을 더 줄여 본다
-    CFG['f3']['wipe_cup']['tool']['clean_h_mm'] = 40.0                     # 짧은 솔이라 치고
-    CFG['f3']['wipe_cup']['insert_min_mm'] = 10.0
+    CFG['f3']['wipe_cup']['tool']['clean_h_mm'] = 40.0
     try:
         wipe.wipe_cup()
     finally:
         CFG['f3']['wipe_cup']['tool']['clean_h_mm'] = 95
-        CFG['f3']['wipe_cup']['insert_min_mm'] = 85.0
-    _n, amp, _p, _r, _ref = [c for c in cell.calls if c[0] == 'periodic'][0]
-    inserted = 40.0 - (10.0 - 2.0)                                         # 32 mm 들어감
-    assert amp[2] == pytest.approx((inserted - 2.0 - 10.0) / 2)            # (들어간 길이 − lift − keep_in)/2 = 10
-
-
-def test_cup_blocked_before_bottom_is_force_limit(cell):
-    """바닥에 닿기 전에 막히면 — 솔이 덜 들어갔다는 뜻이다(내려온 거리와 무관)."""
-    cell.depth = 1.0                                                       # gap 10 중 1 mm 만에 막힘 → 95 − 9 = 86... 아래 참조
-    CFG['f3']['wipe_cup']['insert_min_mm'] = 90.0                          # 90 mm 는 들어가야 한다고 두면
-    try:
-        r = wipe.wipe_cup()
-    finally:
-        CFG['f3']['wipe_cup']['insert_min_mm'] = 85.0
-    assert not r.ok and r.code == FORCE_LIMIT
-    assert 'periodic' not in [c[0] for c in cell.calls]                    # 문지르지 않는다
-    assert r.insert_depth_mm == pytest.approx(95.0 - 9.0)                  # 어디까지 들어갔는지는 돌려준다
+    lift = CFG['f3']['wipe_cup']['lift_mm']
+    assert _periodic(cell)[0][1][2] == pytest.approx((40.0 - lift - 10.0) / 2)
 
 
 def test_cup_no_bottom_found_is_error(cell):
@@ -279,7 +352,7 @@ def test_cup_halt_does_not_auto_move(cell):
     cell.halted = True
     with pytest.raises(wipe.cc.MotionHalted):
         wipe.wipe_cup()
-    assert 'safe_retreat' not in [c[0] for c in cell.calls]
+    assert [c[0] for c in cell.calls] == ['force_off']                     # 끄기만 하고 움직이지 않는다
 
 
 def test_cup_logs_depth_and_saves_force_log(cell):
