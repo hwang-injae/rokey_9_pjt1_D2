@@ -180,8 +180,10 @@ def main() -> int:
                 warn.append('🚨 손목 크게 돎')
             if abs(j[5]) > 180:
                 warn.append('⚠ 손목 한 바퀴 넘게 감김')
+            if abs(j[3]) > 90:
+                warn.append('⚠ 팔뚝이 크게 비틀림 — 다음 자세로 갈 때 100° 넘게 풀린다')
             last_j6[0] = j[5]
-            return f' │ J3 {j[2]:.1f}° · J6 {j[5]:+.1f}°{d}' + ('  ' + ' '.join(warn) if warn else '')
+            return f' │ J3 {j[2]:.1f}° · J4 {j[3]:+.1f}° · J6 {j[5]:+.1f}°{d}' + ('  ' + ' '.join(warn) if warn else '')
 
         def _rel(key):
             """이 팔레트 칸의 상대 이동 목록(BASE) — entry_rel_mm(밀어 넣기) · exit_rel_mm(빠져나오기)."""
