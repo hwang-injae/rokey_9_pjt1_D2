@@ -110,7 +110,8 @@ def test_repo_params_sections():
 
 def test_unfilled_lists_empty_cell_values():
     empty = config.unfilled(config.load(SRC_CONFIG))
-    assert 'cell.presets.BOWL.grip_width_mm' in empty             # 아직 안 잰 값(V-01 에서 잰다)
+    assert 'cell.presets.SPONGE.grip_width_mm' in empty           # 아직 안 잰 값(툴 파지 — 박진용 실기)
+    assert not [e for e in empty if e.startswith('cell.presets.BOWL.') and not e.endswith('approach_z_mm')]   # 9/21 V-01·V-23 로 그릇은 확정
     assert 'cell.limits.safe_z_mm' not in empty                   # 9/21: limits·motion·seat 는 설계 문서 값으로 채웠다
     poses = [e for e in empty if not e.startswith('cell.presets.')]
     assert poses == [], f'빈 자세가 남아 있다: {poses}'           # 9/21: 자세는 전부 찼다(E14 · 격리까지). 남은 빈 값은 그리퍼 프리셋뿐(V-01·V-05)
