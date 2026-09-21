@@ -33,7 +33,7 @@ import time
 
 import cobot_common as cc
 from cobot_common.bootstrap import dsr
-from f3_wipe.wipe import _scrub_cup, _Trip, cup_hops, cup_stroke
+from f3_wipe.wipe import JointGuardStop, _scrub_cup, _Trip, cup_hops, cup_stroke
 
 STAGES = ('find', 'scrub')
 EXPECTED_TOOL, EXPECTED_TCP = 'Tool Weight', 'GripperDA_v1'
@@ -201,6 +201,9 @@ def main() -> int:
         code = 130
     except (cc.MoveIncomplete, cc.MotionHalted) as e:                    # 🚨 로봇이 어디 있는지 모른다
         log.error(f'중단: {type(e).__name__}: {e}')
+        can_move = False
+    except JointGuardStop as e:                                          # 🚨 1·4번 조인트가 움직여 멈췄다 — 손목이 꺾였을 수 있다
+        log.error(f'🚨 {e}\n   → 힘만 끄고 **로봇을 움직이지 않는다**. 티치펜던트로 자세를 확인하고 사람이 컵에서 빼낸다')
         can_move = False
     except (RuntimeError, ValueError) as e:                              # 우리 코드의 검사(회전 방향·한계 등) — 위치는 안다 → 후퇴
         log.error(f'🚨 중단: {e} → 후퇴한다')                              #   🚨 MoveIncomplete·MotionHalted 도 RuntimeError 라 **반드시 그 뒤에** 둔다
