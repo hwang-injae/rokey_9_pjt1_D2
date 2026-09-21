@@ -110,8 +110,10 @@ def test_repo_params_sections():
 
 def test_unfilled_lists_empty_cell_values():
     empty = config.unfilled(config.load(SRC_CONFIG))
-    assert 'cell.limits.safe_z_mm' in empty                       # INF-04 시점: cell 값은 한석형이 채우기 전
-    assert 'cell.stations.SOAP.BOWL.posx' in empty                # 9/20 CELL-04: 한석형이 찍은 자세는 찼고, 안 찍은 자세는 비어 있다(WEIGH 는 9/20 저녁에 참)
+    assert 'cell.presets.BOWL.grip_width_mm' in empty             # 아직 안 잰 값(V-01 에서 잰다)
+    assert 'cell.limits.safe_z_mm' not in empty                   # 9/21: limits·motion·seat 는 설계 문서 값으로 채웠다
+    poses = [e for e in empty if not e.startswith('cell.presets.')]
+    assert poses == [], f'빈 자세가 남아 있다: {poses}'           # 9/21: 자세는 전부 찼다(E14 · 격리까지). 남은 빈 값은 그리퍼 프리셋뿐(V-01·V-05)
     assert 'cell.stations.HOME.posj' not in empty and 'cell.zones.RET_B.slots[1].posj' not in empty   # 슬롯 목록도 센다(번호는 1 부터)
     assert not [p for p in empty if not p.startswith('cell.')]
 
@@ -167,3 +169,44 @@ def test_vel_scale_range(tmp_path, monkeypatch, text, ok):
     else:
         with pytest.raises(config.ConfigError, match='vel_scale'):
             config.load(tmp_path)
+
+
+def test_repo_rack_exit_paths_are_relative_vectors():
+    """팔레트 칸의 exit_rel_mm = 꽂고 놓은 뒤 빠져나오는 상대 이동 목록(BASE).
+
+    9/21 실기: 그릇 칸은 꽂은 자리에서 HOME 으로 곧장 가면 **그리퍼가 팔레트에 걸린다** → 먼저 칸 밖으로 빼야 한다.
+    컵 칸은 접근점이 있어 수직으로 되올라가므로 필요 없다.
+    """
+    slots = config.load(SRC_CONFIG)['cell']['rack']['slots']
+    have = {name for name, s in slots.items() if s.get('exit_rel_mm')}
+    assert have == set(slots)                                           # 9/21 황인재: 컵 칸도 그릇 칸과 같은 방식으로 빠져나온다
+    # 🚨 들어가는 길에는 상대 이동이 **없다** — 내려온 뒤 y 로 밀어 넣으면 팔레트 **칸막이 벽에 걸린다**(9/21 실기, 황인재).
+    #    적재는 '칸 바로 위 → z 만 하강 → 놓기'. 빼는 것만 exit_rel_mm 이다.
+    assert not any(s.get('entry_rel_mm') for s in slots.values())
+    for name in have:
+        for step in slots[name]['exit_rel_mm']:
+            assert len(step) == 3 and all(isinstance(v, (int, float)) for v in step), (name, step)
+
+
+def test_rig_coords_never_targets_a_filled_pose(tmp_path):
+    """rig_coords ③(빈 자세는 KeyError · 안 움직임)의 목록은 **지금 비어 있는 자세**에서만 나와야 한다.
+
+    9/21 PR #51 검토(PM): 고정 목록(SOAP·ISOLATE)이 이 PR 로 전부 채워지자, ③ 이 **Enter 확인 없이**
+    실기 로봇을 SOAP → ISOLATE(실기 미확인 경로)로 움직이게 되어 있었다. 목록을 설정에서 뽑도록 고쳤고,
+    채워진 자세가 들어오면 이 시험이 실패한다.
+    """
+    import importlib.util
+    import shutil
+    import yaml
+    spec = importlib.util.spec_from_file_location('rig_coords', Path(__file__).resolve().parent / 'rig_coords.py')
+    rig = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rig)                                    # 모듈 맨 위는 ROS 를 부르지 않는다(cobot_common 은 main 안에서)
+
+    real = config.load(SRC_CONFIG)
+    assert rig._untaught(real) == []                                # 9/21: 빈 자세 0개 → ③ 은 아무 데도 가지 않는다
+
+    shutil.copy(SRC_CONFIG / 'params.yaml', tmp_path / 'params.yaml')
+    doc = yaml.safe_load((SRC_CONFIG / 'cell.yaml').read_text(encoding='utf-8'))
+    doc['cell']['stations']['SOAP']['BOWL']['posx'] = None          # 하나만 비운다
+    (tmp_path / 'cell.yaml').write_text(yaml.safe_dump(doc, allow_unicode=True), encoding='utf-8')
+    assert rig._untaught(config.load(tmp_path)) == [('SOAP', 'BOWL', None)]   # 비운 것만 — 채워진 SOAP.CUP·ISOLATE 는 안 들어온다

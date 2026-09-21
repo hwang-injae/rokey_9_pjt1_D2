@@ -264,9 +264,37 @@ def _move_timeout():
     return float(_cell_key('motion', 'move_timeout_s'))
 
 
+# 컨트롤러가 명령을 **받지도 않고** 거부할 때(반환 -1) 로봇이 어떤 상태였는지 — 오류 문구에 붙인다.
+#   9/21 실기: 서보가 꺼져 있어(SAFE_OFF) amovej 가 1 초 만에 -1 로 거부됐는데 문구에는 '반환 -1' 뿐이라
+#   원인을 찾는 데 시간이 걸렸다. 상태를 같이 알려 주면 무엇을 해야 하는지가 바로 보인다.
+_STATE = {
+    0: 'INITIALIZING 초기화 중',
+    1: 'STANDBY 대기 — 명령을 받을 수 있는 정상 상태',
+    2: 'MOVING 이동 중',
+    3: 'SAFE_OFF 서보 꺼짐 — 티치펜던트에서 서보를 켜거나 set_robot_control 3 으로 푼다',
+    4: 'TEACHING 직접 교시 중 — 티치펜던트에서 빠져나온다',
+    5: 'SAFE_STOP 안전 정지 — set_robot_control 2 로 푼다',
+    6: 'EMERGENCY_STOP 비상 정지 — 하드웨어 E-Stop 을 풀고 복구한다',
+    7: 'HOMMING 원점 복귀 중',
+    8: 'RECOVERY 복구 중 — set_robot_control 7 로 푼다',
+    9: 'SAFE_STOP2 안전 정지2',
+    10: 'SAFE_OFF2 서보 꺼짐2 — 복구 필요',
+    15: 'NOT_READY 준비 안 됨',
+}
+
+
+def _why():
+    """로봇이 명령을 거부한 까닭(상태)을 짧게. 읽기만 하므로 로봇을 움직이지 않는다."""
+    try:
+        s = int(dsr().get_robot_state())
+    except Exception:                                   # noqa: BLE001  상태조차 못 읽으면 원래 오류를 가리지 않는다
+        return ''
+    return f' · 로봇 상태 {s} = {_STATE.get(s, "알 수 없음")}'
+
+
 def _ok(ret, what):
     if ret != 0:
-        raise RuntimeError(f'{what} 실패 (반환 {ret!r})')
+        raise RuntimeError(f'{what} 실패 (반환 {ret!r}){_why() if ret == -1 else ""}')
 
 
 def _warn(text):
