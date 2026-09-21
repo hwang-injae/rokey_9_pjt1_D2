@@ -30,15 +30,15 @@ class FakeCC:
         self.calls = []
         self.up = {('SPONGE_BED_B', 'place'): 147.7, ('SPONGE_BED_C', 'place'): 188.2}      # 접근점 → 끝점 높이(cell.yaml 값)
         self.fail_on = None                                                                 # 이 이름의 호출에서 예외
-        self.grip_result = 30.0                                                             # grip() 이 돌려줄 실제 폭
+        self.grip_result = 40.5                                                             # grip() 이 돌려줄 실제 폭(드라이버 값 — 영점 10.5 + 툴 30)
         self.contact = (3.0, 8.0)                                                           # contact_down 이 돌려줄 (깊이, 힘)
         self.contact_raises = None
         self.retreat_raises = None
         self.conf = {'f1': {'place_clear_mm': 100, 'tool_clear_mm': 100,
                             'tool_return_depth_mm': 20, 'tool_return_contact_n': 8},
                      'cell': {'beds': {'SPONGE_BED_B': {}, 'SPONGE_BED_C': {}},
-                              'presets': {'SPONGE': {'grip_width_mm': 30, 'grip_force_n': 30, 'width_tol_mm': 3},
-                                          'BRUSH': {'grip_width_mm': 30, 'grip_force_n': 30, 'width_tol_mm': 3}}}}
+                              'presets': {'SPONGE': {'grip_width_mm': 30, 'grip_zero_mm': 10.5, 'grip_force_n': 30, 'width_tol_mm': 3},
+                                          'BRUSH': {'grip_width_mm': 30, 'grip_zero_mm': 10.5, 'grip_force_n': 30, 'width_tol_mm': 3}}}}
 
     def cfg(self):
         return self.conf
@@ -141,9 +141,9 @@ def test_place_works_three_times_in_a_row(cc):
 # ------------------------------------------------------------------ F1-03 tool
 def test_tool_pick_grips_at_the_holder_and_lifts_out(cc):
     r = handling.tool('SPONGE', 'PICK')
-    assert isinstance(r, ToolResult) and r.ok and r.width_mm == 30.0
+    assert isinstance(r, ToolResult) and r.ok and r.width_mm == 40.5      # 돌려주는 폭은 드라이버 값 그대로(E16 — 판정만 영점을 뺀다)
     assert cc.calls == [('move_to', 'TOOL_SPONGE', False, None, 'pick'),   # 빈손으로 집는 자세까지 (관절 자세 → 남은 높이 0)
-                        ('grip', 30, 30),                                  # 프리셋 폭·힘
+                        ('grip', 34.5, 30.0),                              # 영점 10.5 + (기대 30 − 2 × 허용오차 3) · 프리셋 힘 (E16)
                         ('move_rel', 0.0, 0.0, 100.0, 'BASE')]             # 홀더에서 빼낸다 (tool_clear_mm)
 
 
@@ -155,9 +155,9 @@ def test_tool_pick_descends_and_returns_when_the_holder_has_an_approach_point(cc
 
 
 def test_tool_pick_that_missed_leaves_the_tool_in_the_holder(cc):
-    cc.grip_result = 1.0                                                   # 빈손으로 닫혔다 (프리셋 30 ± 3 밖)
+    cc.grip_result = 34.5                                                  # 빈손 — 명령한 폭에서 그대로 멈췄다(영점 뺀 24 ≠ 30 ± 3)
     r = handling.tool('SPONGE', 'PICK')
-    assert not r.ok and r.code == 'TOOL_FAIL' and r.width_mm == 1.0
+    assert not r.ok and r.code == 'TOOL_FAIL' and r.width_mm == 34.5
     assert [c[0] for c in cc.calls] == ['move_to', 'grip', 'release', 'safe_retreat']   # 놓고 물러난다 — 빼내지 않는다
 
 
@@ -232,16 +232,34 @@ def test_tool_pick_and_return_three_times_in_a_row(cc):
 
 def test_tool_keeps_its_failure_code_even_if_the_retreat_fails(cc):
     """후퇴가 실패해도 TOOL_FAIL 을 잃지 않는다 — 로그만 남기고 코드를 돌려준다(f2 sense.py 와 같은 방식)."""
-    cc.grip_result = 1.0
+    cc.grip_result = 34.5
     cc.retreat_raises = KeyError
     r = handling.tool('SPONGE', 'PICK')
-    assert not r.ok and r.code == 'TOOL_FAIL' and r.width_mm == 1.0
+    assert not r.ok and r.code == 'TOOL_FAIL' and r.width_mm == 34.5
 
 
-@pytest.mark.parametrize('key', ['grip_width_mm', 'grip_force_n', 'width_tol_mm'])
+@pytest.mark.parametrize('key', ['grip_width_mm', 'grip_zero_mm', 'grip_force_n', 'width_tol_mm'])
 def test_tool_pick_with_an_unfilled_preset_does_not_move(cc, key):
     """골격 cell.yaml 은 값이 None 이다 — TypeError 가 아니라 어느 키인지 알려 주는 KeyError 여야 한다."""
     cc.conf['cell']['presets']['SPONGE'][key] = None
     with pytest.raises(KeyError, match=key):
         handling.tool('SPONGE', 'PICK')
     assert cc.calls == []
+
+
+def test_tool_pick_reads_the_width_without_the_zero_offset(cc):
+    """결정 E16 D-A — 드라이버는 빈손으로 꽉 닫아도 10.5 를 읽는다. 영점을 빼고 판정한다."""
+    cc.grip_result = 10.5 + 31.0                                           # 영점 뺀 31 — 30 ± 3 안
+    assert handling.tool('SPONGE', 'PICK').ok
+    cc.calls.clear()
+    cc.grip_result = 31.0                                                  # 영점을 안 뺐다면 통과했을 값 — 영점 뺀 20.5 는 밖
+    assert handling.tool('SPONGE', 'PICK').code == 'TOOL_FAIL'
+
+
+def test_tool_pick_with_a_fixed_width_closes_only_that_far_and_skips_the_check(cc):
+    """툴이 물러서 고정 폭(E19 방식)으로 정하면 그 폭까지만 닫고 폭 판정을 하지 않는다 — V-08 에서 정한다."""
+    cc.conf['cell']['presets']['SPONGE'] = {'grip_target_mm': 36.0, 'grip_force_n': 5}
+    cc.grip_result = 36.0                                                  # 빈손과 구분이 안 되는 값이어도
+    r = handling.tool('SPONGE', 'PICK')
+    assert r.ok and r.width_mm == 36.0
+    assert cc.calls[1] == ('grip', 36.0, 5.0)

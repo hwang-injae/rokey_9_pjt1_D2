@@ -104,8 +104,12 @@ def move_to(station: str, carrying: bool, kind: str = None) -> Result:
 def tool(tool: str, action: str) -> ToolResult:
     """툴 픽업/반납. tool = SPONGE/BRUSH, action = PICK/RETURN. 코드 OK / TOOL_FAIL / FORCE_LIMIT / TIMEOUT. — F1-03
 
-    PICK  : 홀더의 집는 자세(cell.stations.TOOL_*.pick)로 → 접근점이 있으면 끝점까지 하강 → grip(프리셋 폭·힘)
-            → 폭이 프리셋 ± width_tol_mm 이면 OK 로 홀더에서 빼낸다. 범위 밖이면 release(툴을 홀더에 두고) → 후퇴 → TOOL_FAIL.
+    PICK  : 홀더의 집는 자세(cell.stations.TOOL_*.pick)로 → 접근점이 있으면 끝점까지 하강 → grip(프리셋 힘)
+            → 폭 판정이 맞으면 OK 로 홀더에서 빼낸다. 어긋나면 release(툴을 홀더에 두고) → 후퇴 → TOOL_FAIL.
+            폭은 결정 E16 D-A 대로 **영점(grip_zero_mm)을 빼고** 본다: 명령 = 영점 + (기대 폭 − 2 × 허용오차)(SDD §5.2 "기대보다 작게"),
+            판정 = |읽은 폭 − 영점 − 기대 폭| ≤ 허용오차.
+            프리셋에 `grip_target_mm` 이 있으면 컵(결정 E19)처럼 **그 폭까지만 닫고 폭 판정을 하지 않는다** —
+            툴이 물러서 끝까지 닫으면 눌리는 경우(민범진 9/21 주의). 어느 쪽인지는 V-08 에서 재 보고 정한다(E23 · 황인재).
     RETURN: 홀더의 반납 자세(cell.stations.TOOL_*.return)로 **툴을 들고** → cc.contact_down 으로 홀더 바닥을 찾는다
             (접촉 힘 f1.tool_return_contact_n · 최대 깊이 = 접근점까지의 높이 또는 f1.tool_return_depth_mm ·
              힘 상한과 타임아웃은 contact_down 이 본다 — AGENTS 규칙 2) → release → 되올라오기.
@@ -134,14 +138,20 @@ def tool(tool: str, action: str) -> ToolResult:
 
 def _tool_pick(station, tool, preset, clear) -> ToolResult:
     where = f'cell.presets.{tool}'
-    want = float(_need(preset, 'grip_width_mm', where))
-    tol = float(_need(preset, 'width_tol_mm', where))
     force = float(_need(preset, 'grip_force_n', where))
+    fixed = preset.get('grip_target_mm')
+    if fixed is not None:                                           # 고정 폭(E19 방식) — 폭으로 판정하지 않는다
+        target, check = float(fixed), None
+    else:                                                           # 폭 판정(E16 D-A) — 값을 **전부 읽은 뒤에** 로봇에 손댄다
+        want = float(_need(preset, 'grip_width_mm', where))
+        tol = float(_need(preset, 'width_tol_mm', where))
+        zero = float(_need(preset, 'grip_zero_mm', where))
+        target, check = zero + max(0.0, want - 2 * tol), (want, tol, zero)
     up = float(cc.move_to(station, False, point='pick') or 0.0)     # 빈손으로 간다
     if up > 0.0:
         cc.move_rel(0.0, 0.0, -up, 'BASE')
-    width = float(cc.grip(want, force))
-    if abs(width - want) > tol:                                     # 헛잡음 — 툴을 홀더에 두고 물러난다
+    width = float(cc.grip(target, force))
+    if check and abs(width - check[2] - check[0]) > check[1]:       # 헛잡음 — 툴을 홀더에 두고 물러난다
         cc.release()
         _retreat()
         return ToolResult.fail(TOOL_FAIL, width_mm=width)
