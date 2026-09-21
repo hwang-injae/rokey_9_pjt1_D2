@@ -19,6 +19,8 @@ import time
 
 from cobot_api import OK, ROBOT_ERROR, Result
 
+from .logger import Consumables, Records, now_iso
+
 # ── 실패 정책 (params.yaml flow.policy 의 값 문자열) ─────────────────────
 NEXT_ZONE = 'next_zone'          # 구역 종료 → 다음 구역 (기록 SKIPPED)
 ISOLATE = 'isolate'              # 격리함에 넣고 다음 용기
@@ -165,6 +167,14 @@ class Flow:
         self.soap_dips = 0
         self.rinse_dips = 0
         self._prev_step = 'IDLE'
+
+        # 🆕 FLOW-02 — 용기 1개마다 records.csv 한 줄 (SR-16 · TC-12)
+        #    🚨 기록이 실패해도 공정은 멈추지 않는다 — 부르는 것도 _guard 를 거친다.
+        #    (self.cfg 는 이미 cfg['flow'] 다 — 위 116 줄)
+        self.records = Records(self.cfg.get('records_path') or 'records.csv', log)
+        self.consumables = Consumables(self.cfg.get('consumables'), log)
+        self._tally = {}                         # 이번 용기의 단계별 값 (_collect 가 채운다)
+        self._t0 = None                          # 이번 용기를 시작한 시각
 
         self.target_bowl = sum(e['count'] for e in self.plan if e['kind'] == 'BOWL')
         self.target_cup = sum(e['count'] for e in self.plan if e['kind'] == 'CUP')
@@ -483,6 +493,8 @@ class Flow:
         rounds = self.rounds
         n = self.counts
         self.rack_slot = self._next_slot()
+        self._tally = {}                         # 🆕 FLOW-02 — 이번 용기의 값을 여기 모은다
+        self._t0 = time.monotonic()
 
         # (단계, 모듈, 함수이름, 인자) — 🚨 함수 객체를 미리 꺼내지 않는다.
         #    꺼내는 것까지 call_fn 안에서 해야 "함수가 없다"가 크래시가 아니라 Result 가 된다.
@@ -520,6 +532,7 @@ class Flow:
                     return self.abort_container(sig)
             self.step = step
             r = self.call_fn(mod, fname, *args)
+            self._collect(step, fname, r)             # 🆕 FLOW-02 — 기록에 쓸 값을 줍는다
             if self._halted:                          # 🆕 중단으로 끊긴 것 — 정책을 타지 않는다
                 self._halted = False
                 return self.abort_container(sig)
@@ -566,6 +579,11 @@ class Flow:
         self.sponge_uses += 1
         self.soap_dips += n['soap_dips']
         self.rinse_dips += n['rinse_dips']
+        # 🆕 FLOW-02 — 임계에 닿으면 알리기만 한다(멈추지 않는다: 용기를 든 채 서게 된다)
+        self._guard(self.consumables.check,
+                    dict(sponge_uses=self.sponge_uses, soap_dips=self.soap_dips,
+                         rinse_dips=self.rinse_dips),
+                    what='consumables.check')
         self.emit_event('DONE')
         return GO_ON
 
@@ -617,14 +635,51 @@ class Flow:
         if self.step_delay_s:
             time.sleep(self.step_delay_s)
 
-    def emit_event(self, result):
-        """용기 1개가 끝날 때마다 1건 (IRD §7 FlowEvent).
+    # 🆕 FLOW-02 — 어느 단계의 어떤 값을 기록 열로 옮길지 (SDD §4.2)
+    #    (단계, 함수이름) → {Result 속성: 기록 열}
+    #    🚨 PICK 의 attempts 만 센다. RINSE 의 pick 은 스펀지 홈에서 **다시 쥐는 것**이라
+    #       탐색 시도 횟수가 아니다(같은 함수라 단계로 갈라야 한다).
+    _COLLECT = {
+        ('PICK', 'pick'): {'attempts': 'attempts'},
+        ('WEIGH', 'leftover_loop'): {'weight_before_g': 'weight_before_g',
+                                     'weight_after_g': 'weight_after_g',
+                                     'rounds': 'leftover_rounds'},
+        ('SEAT', 'place'): {'offset_mm': 'seat_offset_mm'},
+        ('WIPE', 'wipe_bowl'): {'duration_s': 'wipe_duration_s',
+                                'force_log_path': 'force_log_path'},
+        ('WIPE', 'wipe_cup'): {'duration_s': 'wipe_duration_s',
+                               'force_log_path': 'force_log_path'},
+    }
 
-        🚧 attempts·weight_*_g·duration_s·force_log_path 는 FLOW-02(기록)에서 채운다 —
-           각 단계의 Result 를 모아야 해서 여기 구조가 좀 더 필요하다.
+    def _collect(self, step, fname, r):
+        """단계 하나의 Result 에서 기록에 쓸 값을 줍는다.
+
+        🚨 실패한 Result 에서도 줍는다 — 격리된 용기의 기록에도 "어디까지 갔나" 가 남아야
+           나중에 무엇이 문제였는지 본다(TC-12 의 "필드 누락 0" 은 성공 행만이 아니다).
+        🚨 재시도로 같은 단계를 다시 불렀으면 **나중 값이 이긴다**(마지막 시도가 실제로 한 일).
         """
-        self._guard(self._publish_event,
-                    dict(kind=self.kind, zone_id=self.zone_id,
-                         rack_slot=self.rack_slot if result == 'DONE' else '',
-                         result=result, code=self.last_code),
+        for attr, col in (self._COLLECT.get((step, fname)) or {}).items():
+            v = getattr(r, attr, None)
+            if v is not None:
+                self._tally[col] = v
+
+    def emit_event(self, result):
+        """용기 1개가 끝날 때마다 1건 (IRD §7 FlowEvent) + records.csv 한 줄 (SR-16)."""
+        took = round(time.monotonic() - self._t0, 2) if self._t0 else 0.0
+        ev = dict(kind=self.kind, zone_id=self.zone_id,
+                  rack_slot=self.rack_slot if result == 'DONE' else '',
+                  result=result, code=self.last_code,
+                  attempts=int(self._tally.get('attempts') or 0),
+                  weight_before_g=float(self._tally.get('weight_before_g') or 0.0),
+                  weight_after_g=float(self._tally.get('weight_after_g') or 0.0),
+                  duration_s=took,
+                  force_log_path=str(self._tally.get('force_log_path') or ''))
+        self._guard(self._publish_event, ev,
                     what='publish_event')      # 발행이 터져도 공정은 계속된다
+        # 🚨 기록은 발행 **뒤**에 한다 — HMI 알림이 파일 쓰기를 기다리지 않게.
+        #    둘 다 _guard 를 거치므로 하나가 터져도 다른 하나와 공정은 계속된다.
+        row = dict(ev, ts=now_iso(),
+                   leftover_rounds=self._tally.get('leftover_rounds', ''),
+                   seat_offset_mm=self._tally.get('seat_offset_mm', ''),
+                   wipe_duration_s=self._tally.get('wipe_duration_s', ''))
+        self._guard(self.records.write, row, what='records.write')
