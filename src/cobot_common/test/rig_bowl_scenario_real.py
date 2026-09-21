@@ -342,105 +342,52 @@ def main():
             pose()
             return got
 
-        def home_pos_only(label):
-            """HOME의 TCP X/Y/Z만 맞춘다. 현재 orientation/J6는 유지."""
-            ask(label)
+                def home_keep_j6(carrying, label, fast=False):
+            """
+            기존 HOME 이동 경로는 그대로 사용한다.
 
-            now_x = [
+            HOME_J:
+                J1~J5 = 기존 HOME 값
+                J6    = 현재 값 유지
+
+            즉 HOME XYZ 직선이동으로 바꾸지 않는다.
+            """
+            j_now = [
                 float(v)
-                for v in d.get_current_posx(ref=d.DR_BASE)[0]
+                for v in d.get_current_posj()
             ]
 
-            cc.move_rel(
-                float(home_x[0]) - now_x[0],
-                float(home_x[1]) - now_x[1],
-                float(home_x[2]) - now_x[2],
-                "BASE",
-            )
-            pose()
-
-        def tool_return_staged(pick_x, tool_name):
-            """최종 시연 방식: XY 먼저 → 방향 → Z↓ → RELEASE → Z↑."""
-
-            # 실제 PICK 위치 기준 반납 위치.
-            # 기존 시연과 동일하게 PICK posx + Z 10 mm.
-            return_x = [float(v) for v in pick_x]
-            return_x[2] += 10.0
-
-            # 1) 높은 위치에서 X/Y만 먼저 홀더 쪽으로 이동
-            now_x = [
+            home_j = [
                 float(v)
-                for v in d.get_current_posx(ref=d.DR_BASE)[0]
+                for v in HOME_J
             ]
 
-            rel(
-                return_x[0] - now_x[0],
-                return_x[1] - now_x[1],
-                0.0,
-                f"{tool_name} RETURN: X/Y 먼저 이동",
-            )
+            # J6만 현재 자세 유지
+            home_j[5] = j_now[5]
 
-            # 2) 아직 높은 Z에서 반납 orientation만 맞춤
-            now_x = [
-                float(v)
-                for v in d.get_current_posx(ref=d.DR_BASE)[0]
-            ]
-
-            return_high = [
-                now_x[0],
-                now_x[1],
-                now_x[2],
-                return_x[3],
-                return_x[4],
-                return_x[5],
-            ]
-
-            station_name = f"{tool_name}_RETURN_HIGH_TEST"
-            stations[station_name] = {
-                "posx": return_high
+            stations["HOME_KEEP_J6_TEST"] = {
+                "posj": home_j
             }
 
-            move(
-                station_name,
-                True,
-                label=f"{tool_name} RETURN: 높은 위치에서 방향 맞춤",
+            print(
+                f"[HOME] J1~J5 HOME / "
+                f"J6 유지 = {j_now[5]:.2f}°"
             )
 
-            # 3) X/Y는 그대로 두고 Z만 홀더까지 하강
-            now_x = [
-                float(v)
-                for v in d.get_current_posx(ref=d.DR_BASE)[0]
-            ]
+            if fast:
+                return move_fast(
+                    "HOME_KEEP_J6_TEST",
+                    carrying,
+                    label=label,
+                )
 
-            dz = return_x[2] - now_x[2]
-
-            rel(
-                0.0,
-                0.0,
-                dz,
-                f"{tool_name} RETURN: Z {dz:+.1f}",
+            return move(
+                "HOME_KEEP_J6_TEST",
+                carrying,
+                label=label,
             )
 
-            # 4) 홀더에서 놓기
-            release(
-                f"{tool_name} RETURN RELEASE"
-            )
-
-            # 5) 그대로 Z만 상승
-            rel(
-                0.0,
-                0.0,
-                -dz,
-                f"{tool_name} RETURN: Z {-dz:+.1f} 퇴피",
-            )
-
-            # J6=0 HOME 관절자세로 만들지 않는다.
-            # HOME의 X/Y/Z 위치만 맞춘다.
-            home_pos_only(
-                f"{tool_name} RETURN → HOME 위치 경유"
-            )
-
-        move("HOME", False, label="시작 HOME")
+ move("HOME", False, label="시작 HOME")
         _, home_x = pose()
 
         release("초기 빈손 RELEASE")
@@ -469,7 +416,7 @@ def main():
 
             # F1: HOME 에서 반납 순서
             # XY 이동 → orientation 맞춤 → Z 하강 → release → Z 상승 → HOME orientation → HOME XY
-            tool_return_staged(brush_pick_x, "BRUSH")
+            f1_tool_return(brush_pick_x, "BRUSH")
 
             print("\n" + "=" * 74)
             print("CUP TOOL_BRUSH 동선 시험 완료")
@@ -511,8 +458,9 @@ def main():
             f"(target z={float(weigh_x[2]):.1f})",
         )
 
-        home_pos_only(
-            "WEIGH → HOME 위치 경유"
+        home_keep_j6(
+            True,
+            label="WEIGH → HOME",
         )
 
         move_fast(
@@ -524,8 +472,10 @@ def main():
 
         print("[F2 SHAKE 구간 생략]")
 
-        home_pos_only(
-            "WASTE → HOME 위치 경유"
+        home_keep_j6(
+            True,
+            label="WASTE → HOME [FAST]",
+            fast=True,
         )
 
         bed_up = move(
@@ -577,7 +527,7 @@ def main():
         # F1: HOME에서 SPONGE 반납
         # XY → 방향 → Z↓ → RELEASE → Z↑ → 방향 → HOME XY
         # ==================================================
-        tool_return_staged(
+        f1_tool_return(
             sponge_pick_x,
             "SPONGE",
         )
@@ -605,8 +555,10 @@ def main():
             f"BOWL REGRIP 후 Z +{bed_up:.1f}",
         )
 
-        home_pos_only(
-            "BED → HOME 위치 경유"
+        home_keep_j6(
+            True,
+            label="BED → HOME [FAST]",
+            fast=True,
         )
 
         _, home_x = pose()
@@ -683,8 +635,9 @@ def main():
             "RINSE EXIT: HOME X/Y로 복귀",
         )
 
-        home_pos_only(
-            "RINSE → HOME 위치 경유"
+        home_keep_j6(
+            True,
+            label="RINSE → HOME",
         )
 
         move(
@@ -706,7 +659,7 @@ def main():
         # +180 / -180은 최종 자세가 동일하므로
         # 손목이 0°에 더 가까워지는 방향을 자동 선택한다.
         # --------------------------------------------------
-        if slot in ("RACK_B1", "RACK_B2"):
+        if slot == "RACK_B1":
             j_now = [
                 float(v)
                 for v in d.get_current_posj()
@@ -723,7 +676,7 @@ def main():
                 flip_delta = -180.0
 
             print(
-                f"{slot} 접근 J6 = {j6_before:.2f}°"
+                f"RACK_B1 접근 J6 = {j6_before:.2f}°"
             )
             print(
                 f"BOWL 뒤집기: J6 {flip_delta:+.0f}° "
@@ -742,7 +695,7 @@ def main():
             ]
 
             print(
-                f"{slot} FLIP 완료 J6 = "
+                f"RACK_B1 FLIP 완료 J6 = "
                 f"{j_after[5]:.2f}°"
             )
 
