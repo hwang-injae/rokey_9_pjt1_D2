@@ -69,10 +69,22 @@ f3:                                   # ── f3 절 (박진용) ── 값의 
     fast_down_mm: 135.0               # 초기자세 HOME(그릇 바로 위)에서 **이 길이만큼 빠르게** 내려가고, 그 아래는 힘으로 찾는다
                                       #   9/21 실측: HOME 에서 수세미 ~ 그릇 바닥 145 mm → 10 mm 남기고 135.
                                       #   🔸 바닥 위치는 미리 정하지 않는다 — 바닥은 contact_down 이 찾는다(박진용 9/21)
-    fast_vel_mm_s: 180.0              # 빠른 하강 · 곧게 올라오기 속도 (× vel_scale → 0.3 에서 54 mm/s) — **그릇·컵 같은 값**
-    fast_acc_mm_s2: 360.0             #   가속도 (× vel_scale → 108 mm/s²) · 공용 기본(36 mm/s · 72)의 1.5 배 (박진용 9/21)
-    find_max_mm: 40.0                 # 바닥을 찾으며 더 내려갈 수 있는 최대. 다 내려가도 못 찾으면 ROBOT_ERROR
-                                      #   걸음·속도는 cell.force(contact_step_mm 3 · contact_vel_mm_s 20), 접촉 판정은 cell.limits.contact_limit_n(2 N)
+    # 🔸 9/21 박진용: 그릇 닦기는 **9/20 실기에서 나선까지 돈 rig_v03(src/cobot_common/test/rig_v03.yaml) 값 그대로**다.
+    #    9/21 실기에서 다른 값으로 옮긴 판은 나선이 4 번 모두 시작하지 않았다(바닥 6~7 N) → 전부 되돌렸다. 컵과 같게 맞추지 않는다.
+    home_vel_deg_s: 40.0              # HOME 관절 이동 속도 (× vel_scale → 12 °/s) — rig_v03 home_vel_deg_s (공용 이동 속도를 쓰지 않는다)
+    home_acc_deg_s2: 40.0             #   가속도 (그대로) — rig_v03 home_acc_deg_s2
+    fast_vel_mm_s: 200.0              # 빠른 하강 속도 (× vel_scale → 60 mm/s) — rig_v03 approach_vel_mm_s
+    fast_acc_mm_s2: 200.0             #   가속도 — 🚨 **vel_scale 을 곱하지 않는다**(rig_v03 approach_acc_mm_s2 그대로)
+    air_force_max_n: 3.0              # 빠른 하강 뒤 공중 |Fz| 가 이보다 크면 중단(툴 무게·접촉 확인) — rig_v03 air_force_max_n
+    find_max_mm: 30.0                 # 바닥을 찾으며 더 내려갈 수 있는 최대 — rig_v03 contact_max_depth_mm
+    find_limit_n: 3.0                 # 🔸 바닥 판정 힘(공중 기준 대비) — **내려가는 도중에 계속 보다가 넘는 순간 멈춘다**(박진용 9/21)
+                                      #   3 mm 걸음 끝에서만 보던 방식은 수세미가 한 걸음에 몇 N 씩 뛰어 6~7 N 까지 눌렸고 나선이 안 돌았다
+    find_vel_mm_s: 20.0               # 바닥 찾는 하강 속도 (× vel_scale → 6 mm/s) — cell.force.contact_vel_mm_s 와 같은 값
+    find_acc_mm_s2: 30.0              #   가속도 (그대로) — cell.force.contact_acc_mm_s2 와 같은 값
+    contact_timeout_s: 40.0           # 바닥 찾기 시간 상한 — rig_v03 설정(cell.limits.timeout_s 10 대신)
+    press_vel_mm_s: 20.0              # 순응을 켠 뒤 찾은 높이로 되돌리는 속도 (× vel_scale) — rig_v03
+    press_acc_mm_s2: 50.0             #   가속도 (그대로)
+    # 곧게 올라오기는 cell.force.retreat_vel_mm_s 200 (× vel_scale) · retreat_acc_mm_s2 200 — rig_v03 의 safe_retreat 그대로
     # ── 누르는 힘 (벽면 구간에서만 힘제어로 유지한다 — 바닥 나선 중에는 켜지 않는다) ──
     target_force_n: 1.5               # 벽면을 닦는 동안 유지할 누르는 힘 (V-03 9/20 실기 확정).
                                       #   공중 기준값(센서 치우침·툴 무게)은 코드가 더해서 명령한다
@@ -84,7 +96,7 @@ f3:                                   # ── f3 절 (박진용) ── 값의 
                                       #   🚨 수세미가 로봇 순응보다 훨씬 물러 벽에 눌려도 힘이 잡히지 않는다 → 힘이 아니라 **크기로** 계산(결정 E6)
     wall_press_mm: 4.0                # 벽을 이만큼 밀면서 돈다 — 그릇이 조금 틀어져도 한 바퀴 내내 닿게
     spiral_pitch_mm: 5.0              # 나선이 한 바퀴에 넓어지는 반지름 → 반지름 14 mm 면 약 2.8바퀴
-    spiral_time_s: 3.0                # 나선에 걸리는 시간 — 🚨 나선은 속도가 아니라 **시간**으로 지정(중급1 p.69).
+    spiral_time_s: 3.0                # 나선에 걸리는 시간 — 🚨 나선은 속도가 아니라 **시간**으로 지정(중급1 p.69). **vel_scale 을 곱하지 않는다**(9/21 — ÷0.3 = 10 s 는 실기에서 안 움직였다)
                                       #   반경 대비 회전 수가 과하면(14 mm 에 7바퀴·1.5 s) 시작조차 하지 않는다
     # ── 벽면 회전 (반대 방향 + 좌우 비틀기) ──
     turns: 3                          # 벽면을 도는 바퀴 수
@@ -92,8 +104,11 @@ f3:                                   # ── f3 절 (박진용) ── 값의 
     wall_approach_vel_mm_s: 60.0      # 벽으로 밀어 붙일 때 속도 — 한 번에 튀어나가면 벽을 세게 박는다
     twist_deg: 18.0                   # 손목 좌우 비틀기 각(±, 6번 축). 키우면 문지르는 거리가 늘고 시간도 비례한다
     blend_radius_mm: 3.0              # 원호를 이어 붙이는 거리 — 0 이면 원호마다 멈춰 작업대가 울린다(9/20)
-    lin_vel_mm_s: 180.0               # 벽면 이동 속도 (× vel_scale)
-    rot_vel_deg_s: 400.0              # 손목 회전 속도 (× vel_scale) — 더 올리면 경고음(9/20)
+    lin_vel_mm_s: 600.0               # 벽면·중심 복귀 이동 속도 (× vel_scale → 180 mm/s) — rig_v03 scrub_lin_vel_mm_s
+                                      #   🚨 vel_scale 1.0 이면 cell.motion.vel_tcp_max_mm_s(400)에서 잘린다
+    rot_vel_deg_s: 400.0              # 손목 회전 속도 (× vel_scale) — 더 올리면 경고음(9/20) — rig_v03 scrub_rot_vel_deg_s
+    lin_acc_mm_s2: 3000.0             # 벽면·중심 복귀 가속도 (그대로) — rig_v03 scrub_lin_acc_mm_s2
+    rot_acc_deg_s2: 1000.0            # 손목 회전 가속도 (그대로) — rig_v03 scrub_rot_acc_deg_s2 (4000 은 경고음)
     # ── 감시·기록 ──
     force_every: 4                    # 원호 몇 개마다 힘을 확인할지 — 매번 읽으면 로봇이 서서 작업대가 울린다(9/20)
     sample_s: 0.05                    # 나선 도는 동안 힘 기록 주기
