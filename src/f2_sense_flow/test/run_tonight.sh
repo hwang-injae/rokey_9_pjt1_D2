@@ -51,10 +51,10 @@ PYEOF
 
   bowl-weigh) # ① V-02 그릇
     say '① V-02 — 빈 그릇 기준값'
-    python3 "$R" release || exit 1
-    ask '빈 그릇을 그리퍼 사이에 대 주세요 (벽을 세로로)'
+    echo '🚨 그리퍼를 비워 두고 시작합니다 (열면서 힘 기준을 잡습니다)'
     python3 "$R" grip --kind BOWL || exit 1
     ask '폭이 2.15 ± 0.6 mm 인가? 경고가 떴으면 Ctrl+C'
+    ask 'HOME 을 거쳐 저울 자세로 갑니다. 주변을 비우세요'
     python3 "$R" weigh --kind BOWL -n 3 || exit 1
     ask '쥔 그릇이 뒤 용기·공급 구조에 닿지 않는지 보세요'
     python3 "$R" empty --kind BOWL -n 10
@@ -63,22 +63,21 @@ PYEOF
 
   cup-lift)   # ② 🔴 E19 숙제 — 78 mm 로 들리는가
     say '② 컵 78 mm — 실제로 들리는지 (E19 가 남긴 숙제)'
-    python3 "$R" release || exit 1
-    ask '컵을 바닥에 세워 두고 그리퍼 사이에 오게 하세요 (손으로 들지 않는다)'
+    echo '🚨 그리퍼를 비워 두고 시작합니다'
     python3 "$R" grip --kind CUP || exit 1
     echo '→ 손으로 살짝 당겨 보세요: 딸려 오나? 눌렸나? 놓으면 모양이 돌아오나?'
     ;;
 
   cup-weigh)  # ② 컵 무게 (E19 ③)
     say '② 컵 무게 — 30 g 보다 무거운가'
+    ask '컵을 쥔 채로 시작합니다. HOME 을 거쳐 컵 저울 자세로 갑니다 — 주변을 비우세요'
     python3 "$R" empty --kind CUP -n 10
     echo '→ 30 g 보다 가벼우면 털다 놓쳐도 모른다(E19 ③). 그대로 적고 PM 에 보고'
     ;;
 
   bowl-shake) # ③ V-07 그릇
     say '③ V-07 — 털기 (그릇)'
-    python3 "$R" release || exit 1
-    ask '빈 그릇을 대 주세요'
+    echo '🚨 그리퍼를 비워 두고 시작합니다'
     python3 "$R" grip --kind BOWL || exit 1
     ask '잔반통 위로 갑니다 (HOME 을 거쳐서 — E15). 주변을 비우세요'
     python3 "$R" shake --mode WASTE --kind BOWL -n 10
@@ -87,12 +86,19 @@ PYEOF
 
   cup-shake)  # ③ V-07 컵 — 🔴 오늘의 핵심
     say '③ V-07 — 털기 (컵) · 5 N 으로 버티는가 (E19 ②)'
-    python3 "$R" release || exit 1
-    ask '컵을 대 주세요'
+    echo '🚨 그리퍼를 비워 두고 시작합니다'
     python3 "$R" grip --kind CUP || exit 1
     ask '🚨 컵이 날아갈 수 있습니다. 주변을 비우고 한 발 물러서세요'
+    echo '🚨 낙하는 **눈으로** 세세요 — 컵은 떨어져도 로그가 OK 로 나옵니다(E19 ①)'
     python3 "$R" shake --mode WASTE --kind CUP -n 10
     echo '→ 낙하가 1 이라도 나면 멈추고 PM 에 보고 (컵 파지 방식을 다시 정해야 한다)'
+    ;;
+
+  home)       # 언제든 — HOME 으로만 간다 (털기 뒤 저울로 가기 전 · 세션 끝)
+    say 'HOME 으로 (팔만 움직인다 · 그리퍼는 그대로)'
+    ask '주변을 비우세요'
+    python3 "$R" shake --mode WASTE --kind BOWL --count 0 -n 1
+    echo '→ count 0 이라 HOME 까지만 가고 흔들지 않는다'
     ;;
 
   open)       # 언제든 — 그리퍼 열기
@@ -114,6 +120,7 @@ PYEOF
   bowl-shake   ③ V-07   털기 (그릇)           10회
   cup-shake    ③ 🔴     털기 (컵)             10회 · 오늘의 핵심
   ─────────────────────────────────────────────
+  home         HOME 으로만 (털기 뒤 · 세션 끝)
   open         그리퍼 열기 (언제든)
 
   bash src/f2_sense_flow/test/run_tonight.sh bowl-weigh
