@@ -59,6 +59,7 @@ class FakeCell:
         self.inserted = False
         self.halted = False
         self.j6 = self.j6_min = self.j6_max = 21.0      # 컵 위 자세의 6번 축 (9/21 Virtual 기록)
+        self.j4 = 0.0                                    # 4번 축 — 움직이면 안 된다
         self.j6_sign = 1                                 # 자세 c + → 6번 축 + (Virtual 기록). −1 이면 반대로 도는 로봇
         self.logger = _Logger()
 
@@ -82,7 +83,7 @@ class FakeCell:
         self.pose = list(pose)
 
     def joints(self):
-        return [0.0, 0.0, 90.0, 0.0, 90.0, self.j6]
+        return [0.0, 0.0, 90.0, self.j4, 90.0, self.j6]
 
     def contact_down(self, max_depth, limit):
         self.calls.append(('contact_down', max_depth, limit))
@@ -298,6 +299,21 @@ def test_cup_no_room_to_spin_is_error_and_retreats(cell):
         CFG['f3']['wipe_cup']['j6_margin_deg'] = 10.0
     assert not r.ok and r.code == ROBOT_ERROR
     assert _lines(cell) == [] and cell.calls[-1][:2] == ('move_to', 'HOME')
+
+
+def test_cup_stops_if_j4_moves(cell):
+    """🚨 첫 조각 뒤 4번 축이 1° 넘게 움직였으면 멈춘다 — 6번 축만 돌아야 한다(9/21 실기에서 4번 축이 돌아 부딪힐 뻔)."""
+    real = cell.move_line
+
+    def tilt(*a, **kw):
+        real(*a, **kw)
+        cell.j4 = 5.0
+
+    cell.move_line = tilt
+    wipe.cc.move_line = tilt
+    r = wipe.wipe_cup()
+    assert not r.ok and r.code == ROBOT_ERROR
+    assert len(_lines(cell)) == 1 and cell.calls[-1][:2] == ('move_to', 'HOME')
 
 
 def test_cup_wrong_spin_direction_stops_after_first_segment(cell):

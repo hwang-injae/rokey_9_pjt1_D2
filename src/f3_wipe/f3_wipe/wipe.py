@@ -30,6 +30,7 @@ from cobot_api import FORCE_LIMIT, OK, ROBOT_ERROR, TIMEOUT, Result, WipeBowlRes
 
 START = 'HOME'                       # 닦기의 시작·끝 = 초기자세 (cell.stations.HOME, 관절 0·0·90·0·90·0)
 
+J4_MAX_DEG = 1.0                     # 컵 세척 첫 조각 뒤 4번·1번 축이 이만큼 넘게 움직였으면 멈춘다 — 6번 축만 돌아야 한다(9/21)
 _R_MIN_MM = 2.0                      # 나선 방향을 재기 시작하는 반지름 — 중심 근처에서는 각도가 튄다
 
 FORCE_LOG_HEADER = ('t', 'fx', 'fy', 'fz', 'target')   # SDD §4.2 힘 로그 열
@@ -499,7 +500,8 @@ def _scrub_cup(p, log):
     cc.move_rel(0.0, 0.0, float(p['lift_mm']), 'BASE',                    # ③ 왕복의 아래쪽 끝으로
                 vel_mm_s=float(p['lift_vel_mm_s']) * _scale())
     log.watch('cup-lift')
-    j6 = cc.joints()[5]
+    q0 = cc.joints()
+    j6 = q0[5]
     direction = spin_direction(j6, p)
     pts = cup_strokes(cc.where(), stroke, p['spin_deg'], p['spin_seg_deg'], direction,
                       int(p['cycles']), p['blend_radius_mm'])
@@ -510,8 +512,12 @@ def _scrub_cup(p, log):
         if log.over_time():
             raise cc.MotionTimeout('wipe_cup: 문지르기 시간 초과')
         cc.move_line(pose, p['lin_vel_mm_s'], p['rot_vel_deg_s'], p['lin_acc_mm_s2'], p['rot_acc_deg_s2'], blend)
-        if k == 0:                                                       # 첫 조각에서 선다 → 도는 방향 확인
-            moved = cc.joints()[5] - j6
+        if k == 0:                                                       # 첫 조각에서 선다 → 4번 축 · 도는 방향 확인
+            q = cc.joints()
+            if abs(q[3] - q0[3]) > J4_MAX_DEG or abs(q[0] - q0[0]) > J4_MAX_DEG:   # 🚨 6번 축만 돌아야 한다(박진용 9/21)
+                raise RuntimeError(f'wipe_cup: 4번 축 {q[3] - q0[3]:+.1f}° · 1번 축 {q[0] - q0[0]:+.1f}° 가 움직였다 — '
+                                   '6번 축만 돌아야 한다. 멈춘다')
+            moved = q[5] - j6
             if moved * direction < seg * 0.5:
                 raise RuntimeError(f'wipe_cup: 6번 축이 {moved:+.1f}° 돌았다 — 예상 {direction * seg:+g}° 와 다르다. '
                                    '한계를 넘을 수 있어 멈춘다')
