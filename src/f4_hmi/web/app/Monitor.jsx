@@ -185,9 +185,16 @@ const RACK_SHAPES = {
 
 function Pallet({ d }) {
   const cells = pallet(d);
+  const filled = cells.filter((c) => c.filled).length;
+  const full = cells.length > 0 && filled >= cells.length;       // 이번 회차가 칸을 다 채웠다 → 사람이 팔레트를 바꾼다
+  const t = d.totals || {};
   return (
     <section className="card">
       <h2>팔레트 <span className="dim tiny">넣는 순서 — 그릇 1 → 그릇 2 → 컵 1 → 컵 2</span></h2>
+      <div className="rack-head">
+        <b className={full ? 'ok' : ''}>이번 팔레트 {filled} / {cells.length}칸</b>
+        {full && <span className="rack-full">✔ 가득 참 — 식기세척기로 옮기고 새 팔레트를 놓는다</span>}
+      </div>
       <svg viewBox={`0 0 ${RACK_VIEW.w} ${RACK_VIEW.h}`} className="rack" role="img" aria-label="팔레트 배치 상태">
         <rect x="2" y="2" width={RACK_VIEW.w - 4} height={RACK_VIEW.h - 4} className="rack-frame" />
         {RACK_VIEW.walls.map((x) => <line key={x} x1={x} y1="2" x2={x} y2={RACK_VIEW.h - 2} className="rack-frame" />)}
@@ -205,6 +212,11 @@ function Pallet({ d }) {
           );
         })}
       </svg>
+      <div className="rack-totals">
+        <div><span className="dim">처리한 팔레트</span><b>{t.pallets ?? 0}장</b></div>
+        <div><span className="dim">누적</span><b>그릇 {t.bowls ?? 0} · 컵 {t.cups ?? 0} · 격리 {t.isolated ?? 0}</b></div>
+      </div>
+      <div className="dim tiny">누적은 HMI 를 켠 뒤부터 · 끝난 회차 {t.runs ?? 0}번 · 팔레트는 칸을 다 채우고 끝난 회차만 센다</div>
     </section>
   );
 }

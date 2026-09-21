@@ -40,7 +40,8 @@ def main():
     from .ros_link import RosLink
     from .state_store import StateStore
 
-    store = StateStore(hmi['disconnect_after_s'])
+    rack_slots = sum(len(v or []) for v in ((cfg.get('flow') or {}).get('rack_order') or {}).values())   # 팔레트 한 장의 칸 수
+    store = StateStore(hmi['disconnect_after_s'], rack_slots=rack_slots)
     link = RosLink(store, hmi.get('service_timeout_s', 1.0))
     link.start()
     log = link.node.get_logger()

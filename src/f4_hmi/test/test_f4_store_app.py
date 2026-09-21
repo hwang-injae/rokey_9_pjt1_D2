@@ -208,3 +208,22 @@ def test_hub_drops_oldest_when_a_browser_is_slow():
         assert h.clients == 0
         h.from_ros('state', {})                                             # 붙은 브라우저가 없으면 아무 일도 없다
     asyncio.run(scenario())
+
+
+def test_store_counts_runs_and_full_pallets_when_flow_reaches_done():
+    """flow 가 계획을 마치고 DONE 으로 넘어가는 순간 = 한 회차. 칸을 다 채우고 끝났으면 팔레트 1장 완료(9/21 황인재)."""
+    store = StateStore(2.0, Clock(), rack_slots=4)
+    run = lambda b, c, iso=0: [{'step': 'RACK', 'done_bowl': b, 'done_cup': c, 'isolated': iso},
+                               {'step': 'DONE', 'done_bowl': b, 'done_cup': c, 'isolated': iso},
+                               {'step': 'DONE', 'done_bowl': b, 'done_cup': c, 'isolated': iso},   # DONE 이 1초 동안 여러 번 와도 한 번만
+                               {'step': 'IDLE', 'done_bowl': b, 'done_cup': c, 'isolated': iso}]
+    for s in run(2, 2) + run(1, 2, 1) + run(2, 2):
+        store.put_state(s)
+    assert store.snapshot()['totals'] == {'runs': 3, 'pallets': 2, 'bowls': 5, 'cups': 6, 'isolated': 1, 'rack_slots': 4}
+
+
+def test_store_does_not_count_a_run_it_did_not_see_start():
+    store = StateStore(2.0, Clock(), rack_slots=4)
+    store.put_state({'step': 'DONE', 'done_bowl': 2, 'done_cup': 2})       # HMI 를 켰더니 이미 DONE — 이 회차는 못 봤다
+    store.put_state({'step': 'IDLE', 'done_bowl': 2, 'done_cup': 2})
+    assert store.snapshot()['totals']['runs'] == 0

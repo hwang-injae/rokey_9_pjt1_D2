@@ -95,6 +95,11 @@ code { font-size: .9em; padding: 0 4px; border-radius: 4px; background: var(--li
 .rack-slot.filled .rack-label, .rack-slot.filled .rack-status { fill: var(--ok); }
 .rack-slot.loading .rack-label, .rack-slot.loading .rack-status { fill: var(--accent); }
 @keyframes rack-pulse { 50% { opacity: .5; } }
+.rack-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; font-size: 18px; }
+.rack-full { padding: 4px 10px; border-radius: 8px; background: var(--ok-bg); color: var(--ok); font-weight: 700; font-size: 15px; }
+.rack-totals { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 10px; font-size: 16px; }
+.rack-totals div { display: flex; gap: 8px; align-items: baseline; }
+.rack-totals b { font-size: 20px; font-variant-numeric: tabular-nums; }
 
 .count-row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px; }
 .count-row b { font-size: 20px; font-variant-numeric: tabular-nums; }
