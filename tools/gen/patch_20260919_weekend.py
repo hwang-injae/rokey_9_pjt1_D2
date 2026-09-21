@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v11.8'
+VERSION = 'v11.9'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -966,6 +966,19 @@ P57 = {
 for _tid, _e in P57.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 17:10 GitHub 기준 최신화 — PR #58 merge · 브랜치 진척
+UPD_1710 = {
+ 'V-07':    dict(note_add='🔁 9/21 17:10(PR #58 · 민범진 제안 → PM 동의): **CELL-03 없이 해도 된다** — V-07 완료 기준은 "털기 진폭·속도에서 충돌 감지 오작동 10회 정지 0" 이라 흔드는 동작만 본다. 잔반 대용품은 F2-01("진짜로 털려 나가나")의 전제로 옮긴다. 저녁 순서: V-02 → **컵 78 mm 들리는지** → V-07(그릇·컵) → V-16(그릇만) — 절차서 docs/test_logs/20260921_저녁_F2실기_절차와기록_민범진.md · run_tonight.sh'),
+ 'F2-01':   dict(note_add='🔁 9/21 17:10: **잔반 대용품(구슬·쌀 등 ≥ 100 g)은 여기의 전제** — "진짜로 털려 나가는가" 는 F2-01 에서 본다(V-07 은 대용품 없이)'),
+ 'CELL-03': dict(note_add='🔁 9/21 17:10: 잔반 대용품은 **F2-01 전까지**면 된다(V-07 은 대용품 없이 가능 — PR #58)'),
+ 'V-02':    dict(note_add='📋 9/21 17:10 PR #58: 저녁 실기 절차 준비 끝(run_tonight.sh bowl-weigh · cup-weigh) — 오후 티칭으로 WEIGH 가 바뀌어 빈 용기 기준값을 다시 잰다. 합격 = 같은 추 10회 (최대−최소) ≤ 20 g(E16 D-D)'),
+ 'F4-03':   dict(prog='0.7', note_add='📈 9/21 17:10(브랜치 injae/20260921-F4-03-hmi-screen · PR 전): STEP 4 닦는 힘 그래프 · STEP 5 이력 표(전체/문제만) · 팔레트를 실제 배치 모양(위에서 본 그림)으로 · 팔레트 처리 개수(가짜 flow 가 적재 완료를 한 박자 먼저 세던 것 수정)'),
+ 'INF-02d': dict(note_add='📈 9/21 17:10(브랜치 beomjin/20260921-INF-02d-grip-safety-reset · PR 전): **그리퍼 안전 스위치 읽기·풀기** `cc.grip_safety` · `cc.grip_reset`(TS-06) — 오늘 20 N 사고 때 그리퍼를 수동 분리해야 했던 것의 후속'),
+ 'V-24':    dict(note_add='📈 9/21 17:10(브랜치 injae/20260921-INF-02-public-stop · PR 전): 공개 정지 함수 `cc.stop()`(지금 바로 move_stop DR_QSTOP) — 박진용 stop_now() 가 motion 내부 함수를 쓰던 것을 대신한다(PR #56·#57 요청)'),
+}
+for _tid, _e in UPD_1710.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -1133,6 +1146,10 @@ SLOT['9/22 화']['B'] = SLOT['9/22 화']['B'].replace(_o, '**soap 실기(P, 90�
 _o = '**18:30 ① V-10 컵 실기 + wipe_cup(P, 60분)**'
 if _o in SLOT['9/21 월']['D']:
     SLOT['9/21 월']['D'] = SLOT['9/21 월']['D'].replace(_o, '**18:30 ① V-10 컵 마무리(P — 오후에 실기 대부분 진행 · 15:33 Move Periodic 시도는 되돌림)**')
+# 9/21 17:10 — 민범진 저녁 순서(PR #58) · V-07 은 CELL-03 없이
+_o = '**20:55 ④ 민범진 두 번째: V-02 무게 → V-07 털기 → V-16 HOLD**(오후 티칭에서 WEIGH·WASTE 를 다시 찍은 뒤 · CELL-03 이 끝나 있어야 V-07 가능)'
+if _o in SLOT['9/21 월']['D']:
+    SLOT['9/21 월']['D'] = SLOT['9/21 월']['D'].replace(_o, '**20:55 ④ 민범진 두 번째: V-02 무게 → 🔴 컵 78 mm 들리는지(E19) → V-07 털기(그릇·컵 · 대용품 없이) → V-16(그릇만)** — run_tonight.sh')
 _b, _c = LECTURE['9/24 목~9/28 월']
 LECTURE['9/24 목~9/28 월'] = (_b, _c + ' · 🆕 **F4 웹 HMI**(F4-03 화면 다듬기·F4-04 기록/이력·UT-F4 전체)도 집에서 mock·fake_state_pub 로 이어 간다(황인재 9/20 — ROS 인터페이스·로봇 쪽 코드는 9/23 동결 그대로)')
 RULES = {       # (A 열, B 열 글자) → (새 B, 새 C)
@@ -1321,6 +1338,9 @@ HISTORY68 = ['v11.7', '진척', 'V-10, F3-03, F3-02, SAFE-01, F1-05', 'PR #56 me
 HISTORY69 = ['v11.8', '진척', 'V-18, F3-03', 'PR #57 merge(박진용): 컵 세척 중 관절 감시 정지 뒤 자동 이동 금지(PM #56 리뷰 반영) · move_line 삭제. V-18 완료(지난 실기로 갈음). SDD §4.3 f3 설정 예시 · §5.4 wipe_bowl·wipe_cup 절차를 #56·#57 동작으로 갱신',
              '황인재 9/21 17:10', 'P']
 
+HISTORY70 = ['v11.9', '최신화', 'V-07, F2-01, CELL-03, V-02, F4-03, INF-02d, V-24', 'GitHub 기준 최신화(9/21 17:10): PR #58 merge(민범진 저녁 F2 실기 절차서) — V-07 은 CELL-03 없이 가능(완료 기준이 충돌 감지 오작동뿐 · 잔반 대용품은 F2-01 전제로). 저녁 순서 V-02 → 컵 78 mm 들리는지 → V-07 → V-16. 브랜치 진척: F4-03 STEP 4·5(0.7) · 민범진 그리퍼 안전 스위치 읽기·풀기(TS-06) · 황인재 공개 정지 함수 cc.stop(). 한석형 — 오늘 push 없음(진척 미확인) · 박진용 — 그릇 재검증 기록 대기',
+             '황인재 9/21 17:15', 'M,H']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1415,7 +1435,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
