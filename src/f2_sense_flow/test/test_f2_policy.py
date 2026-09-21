@@ -449,3 +449,172 @@ def test_other_errors_still_retreat():
 
     assert retreats, '후퇴했어야 한다'
     assert f.last_code == 'ROBOT_ERROR'
+
+
+# ────────────────────────────────── FLOW-03 중단(/flow/abort) · 결정 E11
+class AutoAbort(Signals):
+    """시험용 — PAUSED 가 되면 재개 대신 **중단**을 누른다."""
+
+    def take(self, name):
+        if name == 'abort':
+            return True
+        return super().take(name)
+
+
+def _flow_for_abort(calls, fail_on=('leftover_loop:LEFTOVER_REMAIN',)):
+    """LEFTOVER_REMAIN(정책 isolate)을 pause 로 바꿔 PAUSED 를 만들고, 거기서 중단을 누른다."""
+    mock.configure(list(fail_on))
+    mods = load_features(['f1', 'f2', 'f3'])
+
+    def spy(name, fn):
+        def wrapped(*a):
+            calls.append((name, a))
+            return fn(*a)
+        return wrapped
+
+    f1 = types.SimpleNamespace(**{n: spy(n, getattr(mods['f1'], n))
+                                  for n in dir(F1Api) if not n.startswith('_')})
+    cfg = {'flow': dict(CFG['flow'])}
+    cfg['flow']['policy'] = dict(CFG['flow']['policy'], LEFTOVER_REMAIN='pause')
+    events = []
+    f = Flow(cfg, Quiet(), publish_event=events.append)
+    f.f = {'f1': f1, 'f2': mods['f2'], 'f3': mods['f3']}
+    f.plan = [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 1}]
+    return f, events
+
+
+def test_abort_cleans_up_in_the_decided_order():
+    """🚨 중단 정리 순서 = **HOME 먼저** → 툴 반납 → 격리 → HOME (IRD §6 · 결정 E11).
+
+    HOME 이 먼저인 이유: E7 로 이동에서 안전 높이 경유가 없어져 **지금 자리에서 다음 자리로
+    곧장** 간다. 중단은 아무 때나 눌리므로 티칭 경로의 출발점에서 시작해야 한다.
+    """
+    calls = []
+    f, events = _flow_for_abort(calls)
+    f.run_plan(AutoAbort())
+
+    order = [(n, a) for n, a in calls if n in ('move_to', 'place', 'tool')]
+    tail = order[-3:]
+    assert tail[0] == ('move_to', ('HOME', True)), f'HOME 이 맨 먼저여야 한다 — {tail}'
+    assert tail[1] == ('place', ('ISOLATE', 'BOWL')), f'격리 구역에 놓아야 한다 — {tail}'
+    assert tail[2] == ('move_to', ('HOME', False)), f'HOME 으로 끝나야 한다 — {tail}'
+    assert f.isolated == 1
+    assert [e['result'] for e in events] == ['ISOLATED'], '중단한 용기는 ISOLATED 로 남는다'
+
+
+def test_abort_returns_the_tool_it_was_holding():
+    """🚨 툴을 쥔 채 중단하면 **반납**하고 간다 — 홀더에 안 돌려놓으면 다음 용기가 못 쓴다."""
+    calls = []
+    f, events = _flow_for_abort(calls, fail_on=['wipe_bowl:FORCE_LIMIT'])
+    f.policy['FORCE_LIMIT'] = 'pause'                # 툴을 쥔 단계에서 멈추게
+    f.run_plan(AutoAbort())
+
+    tools = [a for n, a in calls if n == 'tool']
+    assert ('SPONGE', 'RETURN') in tools, f'쥔 툴을 반납하지 않았다 — {tools}'
+    assert f.holding_tool is None
+
+
+def test_abort_keeps_going_when_a_cleanup_step_fails():
+    """🚨 치우는 중에 한 단계가 실패해도 **멈추지 않는다** — 더 나아가 치우는 편이 낫다."""
+    calls = []
+    f, events = _flow_for_abort(calls)
+    mods = f.f
+    f1 = mods['f1']
+    orig = f1.place
+
+    def place(station, kind=None):
+        calls.append(('place', (station, kind)))
+        return Result.fail('SEAT_FAIL')               # 격리 구역에 놓기가 실패한다
+
+    f1.place = place
+    f.run_plan(AutoAbort())
+
+    assert ('move_to', ('HOME', False)) in calls, '놓기가 실패해도 HOME 으로는 가야 한다'
+    assert [e['result'] for e in events] == ['ISOLATED']
+    assert orig is not None
+
+
+# ── 🚨 이동 **도중** 중단 (halt_errors 경로) — wait_resume 을 거치지 않는다 (PM 검토 PR #50)
+class _Halted(RuntimeError):
+    """cc.MotionHalted 대역 — 중단이 하던 이동을 끊었을 때 올라오는 예외."""
+
+
+def _flow_halted_midmove(sig, n_containers=1):
+    """leftover_loop 안에서 사람이 stop·abort 를 누르고 이동이 끊긴 상황을 만든다."""
+    mock.configure([])
+    mods = load_features(['f1', 'f2', 'f3'])
+    fired = []
+
+    def leftover_loop(kind, max_rounds):
+        if not fired:                                # 첫 용기에서만 한 번
+            fired.append(True)
+            sig.raise_('stop')                       # /flow/stop → cc.pause()
+            sig.raise_('abort')                      # /flow/abort → cc.halt()
+            raise _Halted('중단으로 이동이 끊겼다')
+        return mods['f2'].leftover_loop(kind, max_rounds)
+
+    f2 = types.SimpleNamespace(**{n: getattr(mods['f2'], n)
+                                  for n in dir(F2Api) if not n.startswith('_')})
+    f2.leftover_loop = leftover_loop
+
+    events = []
+    f = Flow(CFG, Quiet(), publish_event=events.append, halt_errors=(_Halted,))
+    f.f = {'f1': mods['f1'], 'f2': f2, 'f3': mods['f3']}
+    f.plan = [{'zone': 'RET_B', 'kind': 'BOWL', 'count': n_containers}]
+    return f, events
+
+
+def test_abort_midmove_clears_the_flags():
+    """🚨 이동 도중 중단은 wait_resume 을 **안 거친다** → abort_container 가 깃발을 내려야 한다.
+
+    안 내리면 stop·abort 가 남아 다음 용기·다음 실행까지 따라간다(PM 검토 PR #50).
+    """
+    sig = AutoResume()
+    f, events = _flow_halted_midmove(sig, n_containers=2)
+    f.run_plan(sig)
+
+    assert [e['result'] for e in events] == ['ISOLATED', 'DONE'], \
+        '첫 용기는 중단으로 격리, 둘째 용기는 정상이어야 한다'
+    assert (sig.peek('stop'), sig.peek('abort')) == (False, False), \
+        f"깃발이 남았다 — stop={sig.peek('stop')} abort={sig.peek('abort')}"
+
+
+def test_leftover_abort_flag_does_not_fire_next_run():
+    """🚨 마지막 용기에서 중단하면 소비해 줄 다음 용기가 없다 → 깃발이 **다음 실행**까지 남는다.
+
+    그러면 다음 실행에서 GRIP_FAIL(정책 pause — E12 "멈추고 사람이 확인")이 나는 순간
+    **사람이 아무것도 안 눌렀는데** 중단 정리가 돌아 로봇이 HOME → 격리 → HOME 으로 움직인다.
+    """
+    sig = AutoResume()
+    f1st, _ = _flow_halted_midmove(sig, n_containers=1)   # 마지막 용기에서 중단
+    f1st.run_plan(sig)
+    assert (sig.peek('stop'), sig.peek('abort')) == (False, False), '실행이 끝났는데 깃발이 남았다'
+
+    # 2회차 — GRIP_FAIL 로 멈추면 **사람을 기다려야** 한다(중단 정리가 돌면 안 된다)
+    #    🚨 GRIP_FAIL 은 pause → 재개하면 **그 단계부터 다시** 다(E12·IRD §8).
+    #       그래서 계속 실패하게 두면 시험이 무한히 돈다 → **첫 번째만** 실패시킨다.
+    mock.configure([])
+    mods = load_features(['f1', 'f2', 'f3'])
+    once = []
+
+    def shake(mode, count, kind):
+        if not once:
+            once.append(True)
+            return Result.fail(GRIP_FAIL)
+        return mods['f2'].shake(mode, count, kind)
+
+    f2fake = types.SimpleNamespace(**{n: getattr(mods['f2'], n)
+                                      for n in dir(F2Api) if not n.startswith('_')})
+    f2fake.shake = shake
+
+    events = []
+    cfg = {'flow': dict(CFG['flow'])}
+    cfg['flow']['policy'] = dict(CFG['flow']['policy'], GRIP_FAIL='pause')
+    f2nd = Flow(cfg, Quiet(), publish_event=events.append)
+    f2nd.f = {'f1': mods['f1'], 'f2': f2fake, 'f3': mods['f3']}
+    f2nd.plan = [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 1}]
+
+    watcher = PauseWatcher()
+    f2nd.run_plan(watcher)
+    assert watcher.resumes >= 1, 'GRIP_FAIL 인데 PAUSED 를 거치지 않았다 — 중단 깃발이 살아 있었다'
+    assert f2nd.isolated == 0, '사람이 안 눌렀는데 중단 정리가 돌았다'
