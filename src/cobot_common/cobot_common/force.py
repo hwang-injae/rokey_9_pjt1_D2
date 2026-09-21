@@ -6,7 +6,7 @@
     cc.force_on('z', target=4.0, limit=10.0) → (닦기) → cc.force_off() → cc.safe_retreat()
     cc.move_spiral(rev=2.8, rmax_mm=14, time_s=3) → while not cc.motion_done(): (힘 확인)   # 바닥 나선 (비동기)
     cc.move_arc(mid, end, vel_mm_s=180, vel_deg_s=400, radius_mm=3)                        # 벽면 원호 (이어 붙임)
-    cc.move_periodic([0,0,15,0,0,45], [0,0,1,0,0,1], repeat=5)                             # 위아래 + 비틀기 동시 (비동기)
+    cc.move_periodic([0,0,20,0,0,180], [0,0,6.3,0,0,6.3], repeat=3, ref='TOOL', scale=False)   # 컵: 위아래 + 6번 조인트 (TOOL rz)
 
 약속
 - 좌표계는 BASE. axis 는 'x'·'y'·'z'. target·limit·min·max 는 **양수 크기(N)** 이고, 누르는 방향(−axis)은 여기서 붙인다.
@@ -14,7 +14,7 @@
     cell.limits : safe_z_mm · timeout_s
     cell.force  : compliance_stx · contact_step_mm · contact_vel_mm_s · contact_acc_mm_s2 ·
                   retreat_vel_mm_s · retreat_acc_mm_s2 · force_max_n · search_y_period_ratio   (이슈 #7 ①, 키 골격 황인재)
-    cell.motion : 이동 속도 상한 — move_rel · move_arc 가 읽는다
+    cell.motion : 이동 속도 상한 — move_rel · move_arc · move_line 이 읽는다
 - 실행 인자 cfg()['run']['vel_scale'](0 초과 1 이하, 첫 실기 0.3)를 이동 속도에 곱한다 — 하강·후퇴 속도, 탐색은 주기를 나눠 느리게.
 - 실패는 예외다: ForceLimitError(힘 상한) · MotionTimeout(시간 초과) · RuntimeError(두산 함수가 -1).
   기능 함수(f1·f3)가 받아서 FORCE_LIMIT · TIMEOUT · ROBOT_ERROR 코드로 바꾸고, 후퇴는 safe_retreat().
@@ -31,11 +31,12 @@
 import time
 
 from .bootstrap import cfg, dsr
+from . import motion as _motion
 from .motion import is_paused, move_rel
 
 __all__ = ['force_on', 'force_off', 'force_release', 'force_reached', 'force_check', 'compliance_on', 'compliance_off',
            'contact_down', 'periodic_search', 'safe_retreat', 'read_force',
-           'where', 'motion_done', 'move_spiral', 'move_arc', 'move_periodic',
+           'where', 'joints', 'stop_now', 'motion_done', 'move_spiral', 'move_arc', 'move_line', 'move_periodic',
            'ForceLimitError', 'MotionTimeout']
 
 _AXES = ('x', 'y', 'z')
@@ -282,6 +283,20 @@ def where():
     return [float(v) for v in pos]
 
 
+def joints():
+    """지금 관절 각도 [j1 … j6] (deg). 컵 닦기가 6번 축 360° 회전 전에 한계(±360°)를 확인하는 데 쓴다."""
+    return [float(v) for v in dsr().get_current_posj()]
+
+
+def stop_now():
+    """지금 하던 동작을 **즉시 정지**(QSTOP · Stop Category 2 — 서보 전원 유지, 위치를 안다). 기다리지 않는다.
+    비동기 모션(Periodic 등)이 도는 중에 감시하다 이상을 보면 부른다. 정지는 통신 노드가 보낸다(motion._call)."""
+    _motion._call('stop')
+    t0 = time.monotonic()
+    while not motion_done() and time.monotonic() - t0 < 3.0:
+        time.sleep(0.01)
+
+
 def motion_done():
     """비동기 이동이 끝났나 (check_motion() == 0). move_spiral 이 도는 동안 힘을 보려고 쓴다."""
     return dsr().check_motion() == 0
@@ -307,15 +322,20 @@ def move_spiral(rev, rmax_mm, time_s, axis='z', ref='TOOL'):
                        time=float(time_s) / _vel_scale(), axis=axis_c, ref=ref_c), 'amove_spiral')
 
 
-def move_periodic(amp, period, repeat, ref='TOOL', atime=None):
+def move_periodic(amp, period, repeat, ref='TOOL', atime=None, scale=True):
     """Move Periodic 을 **비동기로 시작**한다 — 끝을 기다리지 않는다(부르는 쪽이 motion_done() 으로 본다).
 
     amp · period 는 **[x, y, z, rx, ry, rz]** 6개. 길이 mm · 회전 deg · 주기 s.
     한 명령으로 **이동과 회전을 같이** 왕복한다(중급교육1 p.71 "일정한 진폭과 주기로 왕복 이동/회전 모션",
-    p.73~75 실습 50 mm/2 s · 15°/2 s · 축마다 다른 주기). 컵 닦기의 "위아래 + 좌우 비틀기 동시"가 이것이다.
+    p.73~75 실습 50 mm/2 s · 15°/2 s · 축마다 다른 주기).
+    🚨 9/21: ref=TOOL 의 회전 칸은 TCP 설정에 따라 도는 조인트가 달라진다 — 실기(TCP GripperDA_v1)에서 TOOL rx 가
+       **4번 조인트**를 돌렸다 — 두산 정의대로다(rx 는 옆으로 누운 축). **그리퍼 축 회전 = TOOL rz = 6번 조인트.**
+       🚨 Virtual 은 rx ↔ rz 를 뒤바꿔 움직이고, BASE rz 는 1·4번 조인트를 돌렸다 → Periodic 회전은 Virtual 결과를 믿지 않는다.
+       부르는 쪽이 도는 동안 조인트를 감시한다(wipe_cup).
     🚨 어떤 축에 진폭을 주면 **같은 축의 주기도 줘야 한다**(반대도 마찬가지) — 빠지면 두산 오류 2.1218 (p.71~72).
     repeat = 왕복 횟수. 한 번 왕복하면 출발한 자리로 돌아온다(진폭은 편진폭 — 총 이동거리는 2배, p.71 그림).
     vel_scale < 1 이면 주기를 그만큼 늘려 느리게 한다(진폭은 그대로 — periodic_search 와 같은 방식).
+    scale=False 면 주기를 그대로 쓴다 — 컵 세척은 vel_scale 예외(결정 E17).
     """
     if len(amp) != 6 or len(period) != 6:
         raise ValueError('move_periodic: amp · period 는 [x, y, z, rx, ry, rz] 6개로 준다')
@@ -326,11 +346,28 @@ def move_periodic(amp, period, repeat, ref='TOOL', atime=None):
     if repeat < 1:
         raise ValueError(f'move_periodic: repeat={repeat} — 1 이상')
     d = dsr()
-    slow = 1.0 / _vel_scale()
+    slow = 1.0 / _vel_scale() if scale else 1.0
     d.mwait()
     _ok(d.amove_periodic(amp=[float(v) for v in amp], period=[float(v) * slow for v in period],
                          atime=0.0 if atime is None else float(atime),
                          repeat=int(repeat), ref={'BASE': d.DR_BASE, 'TOOL': d.DR_TOOL}[ref]), 'amove_periodic')
+
+
+def move_line(pose, vel_mm_s, vel_deg_s, acc_mm_s2, acc_deg_s2, radius_mm=0.0):
+    """직선(Move L) — BASE 절대 자세 하나로. 회전(a·b·c)도 같이 간다. move_arc 의 직선판.
+
+    컵 닦기의 "위아래 + 좌우 비틀기"가 이것이다 — 자세의 z 와 c 만 바꾼 점을 이어 붙이면 솔이 오르내리며
+    **툴 축으로만** 비틀린다(그릇 벽면 원호의 c ±twist 와 같은 방식, 9/20 실기로 확인된 방식).
+    radius_mm > 0 이면 다음 모션으로 **이어 붙는다**(중급교육1 p.79 — Move L 은 중첩 가능). 0 이면 그 자리에 선다.
+    🔸 속도·가속도는 **부르는 쪽 값 그대로** 쓴다 — cell.motion 공용 상한도, 실행 인자 vel_scale 도 곱하지 않는다.
+       세척 동작 자체는 빠른 속도가 필요하고 실제로 잘 닦이는 것이 목표라, 팀 속도 규정과 따로 F3 가 값을 관리한다
+       (박진용 9/21 결정 — params.yaml f3.wipe_cup 의 lin/rot_vel · lin/rot_acc).
+    """
+    d = dsr()
+    vel = [_positive('vel_mm_s', vel_mm_s), _positive('vel_deg_s', vel_deg_s)]
+    acc = [_positive('acc_mm_s2', acc_mm_s2), _positive('acc_deg_s2', acc_deg_s2)]
+    _ok(d.movel([float(v) for v in pose], vel=vel, acc=acc,
+                radius=float(radius_mm), ref=d.DR_BASE, mod=d.DR_MV_MOD_ABS), 'movel')
 
 
 def move_arc(mid, end, vel_mm_s, vel_deg_s, radius_mm=0.0):
