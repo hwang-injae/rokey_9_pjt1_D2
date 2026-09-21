@@ -2,9 +2,8 @@
 """V-10 컵 안쪽 솔 삽입·문지르기 실기 시험 (F3-03 첫 단계) — 박진용.
 
     soc && python3 src/f3_wipe/test/rig_v10.py --real --stage find     # ① 바닥 찾기까지만 (맨 처음 이것부터)
-    soc && python3 src/f3_wipe/test/rig_v10.py --real --stage lift     # ② 띄우기까지 (문지르지 않는다)
     soc && python3 src/f3_wipe/test/rig_v10.py --real                  # ③ 전체 (기본 stage=scrub)
-    soc && python3 src/f3_wipe/test/rig_v10.py --real --cycles 1 --stroke 5 --twist 10   # 값 바꿔 가며
+    soc && python3 src/f3_wipe/test/rig_v10.py --real --cycles 1 --stroke 5              # 값 바꿔 가며
     soc && python3 src/f3_wipe/test/rig_v10.py --real --speed 1.5                        # 세척 속도만 배수로
     PREWASH_CONFIG_DIR=<임시 설정> python3 src/f3_wipe/test/rig_v10.py                 # Virtual(sodvir) — 흐름만
 
@@ -33,9 +32,9 @@ import time
 
 import cobot_common as cc
 from cobot_common.bootstrap import dsr
-from f3_wipe.wipe import _Trip, cup_hops, cup_stroke, cup_strokes
+from f3_wipe.wipe import _scrub_cup, _Trip, cup_hops, cup_stroke
 
-STAGES = ('find', 'lift', 'scrub')
+STAGES = ('find', 'scrub')
 EXPECTED_TOOL, EXPECTED_TCP = 'Tool Weight', 'GripperDA_v1'
 AIR_FORCE_MAX_N = 5.0           # 멈춰 있는데 이보다 크면 툴 무게 설정이 틀린 것 (V-03 과 같은 검사)
 
@@ -53,6 +52,9 @@ class Log:
         self.base = [statistics.mean(v) for v in zip(*(cc.read_force() for _ in range(5)))]
         self.log.info(f'공중 기준값 Fz {self.base[2]:+.2f} N · 옆 {math.hypot(self.base[0], self.base[1]):.2f} N')
         return self.base
+
+    def over_time(self):
+        return time.monotonic() - self.t0 > float(self.p['duration_s'])
 
     def watch(self, phase):
         f = cc.read_force()
@@ -115,7 +117,6 @@ def main() -> int:
     ap.add_argument('--stage', choices=STAGES, default='scrub', help='어디까지 할지 (기본 scrub = 전체)')
     ap.add_argument('--cycles', type=int, default=None, help='왕복 횟수 (기본 params.yaml)')
     ap.add_argument('--stroke', type=float, default=None, help='위아래 편진폭 mm')
-    ap.add_argument('--twist', type=float, default=None, help='좌우 비틀기 편진폭 deg')
     ap.add_argument('--speed', type=float, default=None,
                     help='세척 동작 속도 배수 — 위아래·비틀기 속도 × 배수, 가속도 × 배수² (예 1.5 · 2)')
     a = ap.parse_args()
@@ -126,7 +127,7 @@ def main() -> int:
     try:
         p = dict(cc.cfg()['f3']['wipe_cup'])                             # 값의 정본은 params.yaml — 인자는 덮어쓰기만
         for key, val in (('cycles', a.cycles), ('stroke_mm', a.stroke),
-                         ('twist_deg', a.twist)):
+                         ):
             if val is not None:
                 p[key] = val
                 log.warning(f'덮어씀: {key} = {val}  (확정되면 params.yaml 에 넣는다)')
@@ -170,36 +171,15 @@ def main() -> int:
             code = 0
             return code
 
-        # ── ② 힘 풀고 왕복의 아래쪽 끝으로 띄우기 ─────────────────────────────
-        lift = float(p['lift_mm'])
-        stroke = cup_stroke(p)
-        if stroke <= 0:
-            log.error('솔 길이로는 왕복할 자리가 없다 — 설정 확인')
-            return 1
-        cc.move_rel(0.0, 0.0, lift, 'BASE', vel_mm_s=float(p['lift_vel_mm_s']) * scale)
-        rec.watch('lift')
-        log.info(f'띄움: 바닥 + {lift:g} mm = 왕복의 아래쪽 끝 · 꼭대기는 바닥 + {lift + 2 * stroke:.1f} mm')
-        if a.stage == 'lift':
-            code = 0
-            return code
-
-        # ── ③ 위아래 바운스 + 좌우 비틀기 (z·c 만 바꾼 직선을 이어 붙인다) ───────
-        low = cc.where()
-        pts = cup_strokes(low, stroke, float(p['twist_deg']), int(p['cycles']), p['blend_radius_mm'])
-        log.info(f'문지르기: 위아래 {2 * stroke:.1f} mm · 비틀기 ±{p["twist_deg"]:g}° · {p["cycles"]} 회 '
-                 f'· 직선 {len(pts)} 개 (속도 {p["lin_vel_mm_s"]:g} mm/s · {p["rot_vel_deg_s"]:g} °/s — vel_scale 무관)')
+        # ── ② ~ ⑥ 띄우기 → 올라가며 6번 축 360° / 내려오며 반대로 → 아래쪽 끝 (제품 코드 wipe._scrub_cup 그대로) ──
+        log.info(f'문지르기: 위아래 {2 * cup_stroke(p):.0f} mm · 6번 축 {p["spin_deg"]:g}° 올라가며 / 반대로 내려오며 · '
+                 f'{p["cycles"]} 회 (속도 {p["rot_vel_deg_s"]:g} °/s — vel_scale 무관)')
         n0 = len(rec.rows)
         t_scrub = time.monotonic()
-        for pose, blend in pts:
-            if time.monotonic() - t_scrub > float(p['duration_s']):
-                raise cc.MotionTimeout('문지르기 시간 초과')
-            cc.move_line(pose, p['lin_vel_mm_s'], p['rot_vel_deg_s'], p['lin_acc_mm_s2'], p['rot_acc_deg_s2'], blend)
-            rec.watch('scrub')
+        _scrub_cup(p, rec)
         dsr().mwait()
-        rec.summarize('scrub', n0)
-        end = cc.where()
-        log.info(f'끝: 아래쪽 끝 · 시작 대비 z {end[2] - low[2]:+.1f} mm · c {end[5] - low[5]:+.1f}° '
-                 f'· 문지르기 {time.monotonic() - t_scrub:.1f} s → 솔을 곧게 뽑는다')
+        rec.summarize('cup-scrub', n0)
+        log.info(f'끝: 아래쪽 끝 · 6번 축 {cc.joints()[5]:.1f}° · 문지르기 {time.monotonic() - t_scrub:.1f} s → 솔을 곧게 뽑는다')
         code = 0
     except cc.ForceLimitError as e:                                      # 로봇은 정상 — 설계된 후퇴를 한다(AGENTS 규칙 2)
         log.error(f'🚨 힘 상한: {e} → 중단하고 후퇴한다')
@@ -209,6 +189,8 @@ def main() -> int:
     except (cc.MoveIncomplete, cc.MotionHalted) as e:                    # 🚨 로봇이 어디 있는지 모른다
         log.error(f'중단: {type(e).__name__}: {e}')
         can_move = False
+    except (RuntimeError, ValueError) as e:                              # 우리 코드의 검사(회전 방향·한계 등) — 위치는 안다 → 후퇴
+        log.error(f'🚨 중단: {e} → 후퇴한다')                              #   🚨 MoveIncomplete·MotionHalted 도 RuntimeError 라 **반드시 그 뒤에** 둔다
     except Exception as e:                                               # 두산 DR_Error 포함 — 상태를 믿을 수 없다
         log.error(f'중단: {type(e).__name__}: {e}')
         can_move = False

@@ -7,6 +7,8 @@ soap 은 접촉 동작이 아니다(수조가 비어 있다) → 순응·힘제�
 wipe_cup 은 **삽입만** 힘으로 찾고(contact_down), 문지르기는 순응을 끈 위치 제어다(관절 이동, 2.1903).
 실제 깊이·회전각은 V-10(실기)에서 확정한다 — 여기서는 순서·상한 처리만 본다.
 """
+import math
+
 import pytest
 
 from cobot_api import FORCE_LIMIT, OK, ROBOT_ERROR, TIMEOUT
@@ -22,10 +24,11 @@ CFG = {
             'over_cup_up_mm': 40.0, 'over_cup_dy_mm': 140.0,
             'fast_down_mm': 80.0, 'find_max_mm': 40.0,
             'lift_mm': 2.0, 'lift_vel_mm_s': 40.0,
-            'stroke_mm': 20.0, 'twist_deg': 18.0,
-            'lin_vel_mm_s': 96.0, 'rot_vel_deg_s': 86.4, 'lin_acc_mm_s2': 900.0, 'rot_acc_deg_s2': 810.0,
+            'stroke_mm': 20.0,
+            'spin_deg': 360.0, 'spin_seg_deg': 90.0, 'spin_first': -1, 'j6_limit_deg': 360.0, 'j6_margin_deg': 10.0,
+            'lin_vel_mm_s': 96.0, 'rot_vel_deg_s': 180.0, 'lin_acc_mm_s2': 900.0, 'rot_acc_deg_s2': 810.0,
             'blend_radius_mm': 5.0,
-            'cycles': 5, 'keep_in_mm': 10.0,
+            'cycles': 3, 'keep_in_mm': 10.0,
             'limit_n': 10.0, 'lateral_max_n': 25.0, 'sample_s': 0.0,
             'duration_s': 120, 'log_dir': 'logs/f3',
         },
@@ -55,6 +58,8 @@ class FakeCell:
         self.pose = list(POSE0)
         self.inserted = False
         self.halted = False
+        self.j6 = self.j6_min = self.j6_max = 21.0      # 컵 위 자세의 6번 축 (9/21 Virtual 기록)
+        self.j6_sign = 1                                 # 자세 c + → 6번 축 + (Virtual 기록). −1 이면 반대로 도는 로봇
         self.logger = _Logger()
 
     def cfg(self):
@@ -71,7 +76,13 @@ class FakeCell:
 
     def move_line(self, pose, vel_mm_s, vel_deg_s, acc_mm_s2, acc_deg_s2, radius_mm=0.0):
         self.calls.append(('line', list(pose), radius_mm))
+        d = math.atan2(math.sin(math.radians(pose[5] - self.pose[5])), math.cos(math.radians(pose[5] - self.pose[5])))
+        self.j6 += self.j6_sign * math.degrees(d)                        # 자세 c 가 짧은 쪽으로 돈 만큼 6번 축이 돈다
+        self.j6_min, self.j6_max = min(self.j6_min, self.j6), max(self.j6_max, self.j6)
         self.pose = list(pose)
+
+    def joints(self):
+        return [0.0, 0.0, 90.0, 0.0, 90.0, self.j6]
 
     def contact_down(self, max_depth, limit):
         self.calls.append(('contact_down', max_depth, limit))
@@ -108,7 +119,7 @@ def cell(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     c = FakeCell()
     for name in ('cfg', 'move_to', 'move_rel', 'move_line', 'contact_down',
-                 'read_force', 'force_off', 'safe_retreat', 'io_node', 'is_halted', 'where'):
+                 'read_force', 'force_off', 'safe_retreat', 'io_node', 'is_halted', 'where', 'joints'):
         monkeypatch.setattr(wipe.cc, name, getattr(c, name), raising=False)
     return c
 
@@ -231,33 +242,80 @@ def test_cup_lifts_only_lift_mm_then_bounces(cell):
     assert max(zs) == pytest.approx(bottom + 2.0 + 40.0)                   # 위아래 40 mm (stroke 20 × 2)
 
 
-def test_cup_only_z_and_twist_change(cell):
-    """④⑤ 위아래와 좌우 비틀기만 — x·y·기울기(a·b)는 그대로다(9/21 사용자: 손목이 기울면 안 된다)."""
+def _unwrap(cs):
+    out = [cs[0]]
+    for c in cs[1:]:
+        out.append(out[-1] + (c - out[-1] + 180.0) % 360.0 - 180.0)
+    return out
+
+
+def test_cup_only_z_and_spin_change(cell):
+    """④⑤ 위아래와 6번 축 회전만 — x·y·기울기(a·b)는 그대로다(손목이 기울면 안 된다)."""
     wipe.wipe_cup()
     lines = _lines(cell)
-    assert len(lines) == 2 * 5                                             # cycles 5 번 오르내림
+    assert len(lines) == 3 * 2 * 4                                         # 3 회 × (올라가며 4 조각 + 내려오며 4 조각)
     for _n, pose, _r in lines:
-        assert pose[0:2] == [POSE0[0], POSE0[1] + 140.0] and pose[3:5] == POSE0[3:5]   # 컵 위 x·y 그대로
-    twists = [round(pose[5] - POSE0[5], 6) for _n, pose, _r in lines]
-    assert twists[:4] == [18.0, -18.0, 18.0, -18.0]                        # 올라가며 오른쪽 · 내려오며 왼쪽
-    assert max(abs(t) for t in twists) == pytest.approx(18.0)              # 45° 같은 큰 각은 나오지 않는다
+        assert pose[0:2] == [POSE0[0], POSE0[1] + 140.0] and pose[3:5] == POSE0[3:5]
+
+
+def test_cup_spins_360_ccw_up_and_back_down(cell):
+    """올라가며 −360°(반시계, 9/21 실물 확인), 내려오며 +360° — 조각마다 z 도 같이 오른다."""
+    wipe.wipe_cup()
+    lines = _lines(cell)
+    c = _unwrap([POSE0[5]] + [p[5] for _n, p, _r in lines])
+    z = [p[2] for _n, p, _r in lines]
+    assert c[4] - c[0] == pytest.approx(-360.0) and c[8] - c[4] == pytest.approx(360.0)
+    assert all(b > a for a, b in zip(z[:4], z[1:4])) and z[3] - z[0] == pytest.approx(30.0)   # 올라가는 4 조각
+    assert cell.j6_min == pytest.approx(21.0 - 360.0) and cell.j6_max == pytest.approx(21.0)  # 한계(±350) 안
 
 
 def test_cup_ends_at_bottom_with_wrist_home(cell):
-    """⑥ 아래쪽 끝에서, 손목을 제자리로 돌려놓고, 이어 붙이지 않고 선다(시나리오 6)."""
+    """⑥ 아래쪽 끝 · 6번 축 제자리에서 선다. 첫 조각(방향 확인)과 꼭대기·아래쪽 끝(방향이 바뀌는 점)은 이어 붙이지 않는다."""
     wipe.wipe_cup()
     lines = _lines(cell)
     _n, last, radius = lines[-1]
     assert last[2] == pytest.approx(min(c[1][2] for c in lines))
-    assert last[5] == pytest.approx(POSE0[5]) and radius == 0.0
-    assert all(r > 0 for _n, _p, r in lines[:-1])                          # 나머지는 이어 붙인다
+    assert cell.j6 == pytest.approx(21.0) and radius == 0.0
+    stops = [k for k, (_n, _p, r) in enumerate(lines) if r == 0.0]
+    assert stops == [0, 3, 7, 11, 15, 19, 23]                              # 첫 조각 + 꼭대기 3 번 + 아래쪽 끝 3 번
 
 
-def test_cup_strokes_blend_capped_and_c_wraps():
-    """이어 붙이는 거리는 한 획의 45 % 이하 · c 는 −180~180 으로 감는다."""
-    pts = wipe.cup_strokes([0, 0, 100, 0, 180, 170.0], 2.0, 18.0, 2, 5.0)
-    assert pts[0][1] == pytest.approx(2 * 2.0 * 0.45)
-    assert pts[0][0][5] == pytest.approx(-172.0)                           # 170 + 18 = 188 → −172
+def test_spin_direction_avoids_joint_limit():
+    p = CFG['f3']['wipe_cup']
+    assert wipe.spin_direction(21.0, p) == -1                              # 반시계 먼저 (−339° 까지)
+    assert wipe.spin_direction(-20.0, p) == 1                              # −380° 는 한계 밖 → 반대로
+    with pytest.raises(ValueError):
+        wipe.spin_direction(0.0, dict(p, j6_margin_deg=10.0, spin_deg=355.0))
+
+
+def test_cup_no_room_to_spin_is_error_and_retreats(cell):
+    """6번 축이 어느 쪽으로도 360° 돌 수 없으면 돌지 않고 ROBOT_ERROR — 위치는 아니까 HOME 으로 돌아온다."""
+    cell.j6 = cell.j6_min = cell.j6_max = 0.0
+    CFG['f3']['wipe_cup']['j6_margin_deg'] = 360.0
+    try:
+        r = wipe.wipe_cup()
+    finally:
+        CFG['f3']['wipe_cup']['j6_margin_deg'] = 10.0
+    assert not r.ok and r.code == ROBOT_ERROR
+    assert _lines(cell) == [] and cell.calls[-1][:2] == ('move_to', 'HOME')
+
+
+def test_cup_wrong_spin_direction_stops_after_first_segment(cell):
+    """🚨 자세 c 와 6번 축 부호가 반대인 로봇이면 첫 조각 뒤에 멈춘다 — 그대로 돌면 한계를 넘는다."""
+    cell.j6_sign = -1
+    r = wipe.wipe_cup()
+    assert not r.ok and r.code == ROBOT_ERROR
+    assert len(_lines(cell)) == 1 and cell.calls[-1][:2] == ('move_to', 'HOME')
+
+
+def test_cup_strokes_segments_under_180_and_c_wraps():
+    """조각은 180° 미만 · 이어 붙이는 거리는 한 조각의 45 % 이하 · c 는 −180~180 으로 감는다."""
+    pts = wipe.cup_strokes([0, 0, 100, 0, 180, 170.0], 20.0, 360.0, 90.0, -1, 1, 5.0)
+    assert len(pts) == 8 and pts[1][1] == pytest.approx(min(5.0, 10.0 * 0.45))
+    assert pts[3][1] == 0.0 and pts[7][1] == 0.0                           # 꼭대기·아래쪽 끝은 이어 붙이지 않는다
+    assert pts[3][0][5] == pytest.approx(170.0)                            # 360° 돌면 제자리 (감긴 값)
+    with pytest.raises(ValueError):
+        wipe.cup_strokes([0, 0, 100, 0, 180, 0.0], 20.0, 360.0, 180.0, -1, 1, 5.0)
 
 
 def test_cup_stroke_shrinks_so_brush_stays_in(cell):

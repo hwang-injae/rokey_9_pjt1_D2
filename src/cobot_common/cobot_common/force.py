@@ -36,7 +36,7 @@ from .motion import is_paused, move_rel
 
 __all__ = ['force_on', 'force_off', 'force_release', 'force_reached', 'force_check', 'compliance_on', 'compliance_off',
            'contact_down', 'periodic_search', 'safe_retreat', 'read_force',
-           'where', 'motion_done', 'move_spiral', 'move_arc', 'move_line', 'move_periodic',
+           'where', 'joints', 'motion_done', 'move_spiral', 'move_arc', 'move_line', 'move_periodic',
            'ForceLimitError', 'MotionTimeout']
 
 _AXES = ('x', 'y', 'z')
@@ -281,6 +281,11 @@ def where():
     d = dsr()
     pos, _ = d.get_current_posx(ref=d.DR_BASE)
     return [float(v) for v in pos]
+
+
+def joints():
+    """지금 관절 각도 [j1 … j6] (deg). 컵 닦기가 6번 축 360° 회전 전에 한계(±360°)를 확인하는 데 쓴다."""
+    return [float(v) for v in dsr().get_current_posj()]
 
 
 def motion_done():
