@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v10.7'
+VERSION = 'v10.8'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -853,6 +853,22 @@ F4PM = {
 for _tid, _e in F4PM.items():
     EDIT.setdefault(_tid, {}).update(_e)
 
+# ---------------------------------------------------------------- 9/21 오후 PR #51 merge — 좌표 마감(임시 좌표)
+Y51 = '🟡 9/21 PR #51(좌표 마감 · 임시 좌표) — **실기 미확인**'
+PR51 = {
+ 'CELL-04':  dict(status='완료', prog='1.0',
+                  note_add='✅ 9/21 PR #51 merge(main `8643b82`) — **빈 자세 0개**, 남은 빈 값은 그리퍼 프리셋뿐(V-01·V-05). 🔔 **임시 좌표**(황인재): 기능을 구현하다 수정이 필요하거나 필요 없는 동작이 보이면 **직접 수정·삭제한 뒤 보고**(① 설정 키 ② 무엇이 어떻게 ③ 무엇으로 바꿨는지 · 실기 근거). 좌표 등급표(✅ 실기 확인 / 🟡 티칭 미확인 / 🟡 계산값 / ⚪ 안 씀)는 PR #51 본문'),
+ 'CELL-04b': dict(status='완료', prog='1.0',
+                  note_add='✅ 9/21 PR #51 merge — limits·motion·beds.seat 값 · rig 안전 수정(실기에서 이동 실패 시 자동으로 안 움직임 · STANDBY 아니면 멈춤 — 연결 끊긴 브링업의 [0,0,0,0,0,0] 을 좌표로 적는 것 방지) · motion.py 가 거부(-1) 때 로봇 상태를 오류 문구에. PM 검토에서 rig ③ 구간이 채워진 자세로 확인 없이 움직이던 것을 고치고 merge(회귀 시험 추가)'),
+ 'V-22':     dict(note_add='✅ 9/21 PR #51: 그릇 쪽 · 팔레트 그릇 칸(0.16~0.24 mm) · 격리 자리 실기 확인. ' + Y51 + ': 컵 한 바퀴(반납 구역 컵 ~ 헹굼 컵) · 팔레트 컵 칸 2개 · 툴 홀더'),
+ 'F1-04':    dict(note_add=Y51 + ': **팔레트 컵 칸의 `exit_rel_mm`**(그릇 칸과 같게 y −25 → z +100 — 전에는 접근점으로 수직 복귀) · `rack.via` 계산값 — 처음 돌릴 때 눈으로. 그릇 칸은 "칸 바로 위 → z 만 하강 → 빼기" 실기 확인(내려온 뒤 y 로 밀기는 칸막이 벽에 걸려 철회)'),
+ 'F2-02':    dict(note_add=Y51 + ': **`RINSE.CUP` 끝점 144.33 → −13.6**(158 mm 내림 — 같은 수조인데 그릇보다 158 mm 높아 수조에 안 닿았다) · RINSE 접근점 2개(z 150) 계산값 → 🚨 처음 내려갈 때 반드시 눈으로 보며 Enter'),
+ 'F3-03':    dict(note_add=Y51 + ': SOAP 2개는 툴 홀더 + 40 계산값(E18) — 내일 오전 soap 실기 때 처음 확인'),
+ 'FLOW-03':  dict(note_add=Y51 + ': **격리 자리(ISOLATE)는 "HOME → 허리만 −264° → 팔 뻗기" 경로만 확인됐다.** posj 로 곧장 관절 이동하면 허리를 돌리며 팔을 뻗어 툴 홀더·수조 위를 멀리 지난다(미확인) → abort 첫 실기 때 E-Stop 에 손을 두고'),
+}
+for _tid, _e in PR51.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+
 # 황인재가 시트에서 직접 바꾼 상태는 그대로 둔다(덮어쓰지 않게 여기서 마지막에 맞춘다)
 USER_SET = {'CELL-01': dict(status='완료', note_add='✅ 9/20 황인재가 시트에서 완료 처리')}
 for _tid, _e in USER_SET.items():
@@ -1171,6 +1187,9 @@ HISTORY57 = ['v10.6', '결정 E17·재배치', 'V-10, F3-02, F3-03, V-18, CELL-0
 HISTORY58 = ['v10.7', '결정 E15④·E18·PR #50', 'CELL-04, F1-04, FLOW-01, F3-03, CELL-03, FLOW-03', 'F4 회신(9/21 오후): 남은 티칭은 ISOLATE 1곳(공용)뿐. **팔레트 그릇 칸 → 컵 반납 구역을 곧장 가다가 로봇이 팔레트에 부딪힌 사고** → 결정 E15 ④ "팔레트에서 다른 구역으로 갈 때는 HOME 을 거친다"(황인재 — 기본 규칙이되 구현하며 불필요하다고 판단되면 실기 근거와 함께 뺄 수 있다). 결정 E18(황인재): 세제 수조를 따로 두지 않고 툴 홀더의 비눗물 컵에서 담근다 → SOAP 자세는 계산값, depth_mm 과 연동 · CELL-03 수조는 헹굼 1개. PR #50(FLOW-03) 변경 요청: 이동 도중 중단 뒤 깃발이 남아 다음 실행의 GRIP_FAIL 이 사람 확인 없이 자동 중단 정리됨(mock 재현)',
              '황인재 9/21 14:00', 'S,M,P,H']
 
+HISTORY59 = ['v10.8', '완료', 'CELL-04, CELL-04b, V-22, F1-04, F2-02, F3-03, FLOW-03', 'PR #51 merge(9/21 오후 · main 8643b82): 좌표 마감 — 빈 자세 0개(남은 빈 값은 그리퍼 프리셋뿐). **임시 좌표**(황인재) — 구현하다 수정·삭제가 필요하면 직접 하고 보고. CELL-04·04b 완료. 🟡 실기 미확인 자세를 각 기능의 첫 실기 항목에 옮김(컵 한 바퀴 → V-22 · 컵 칸 빠져나오기·rack.via → F1-04 · RINSE.CUP 끝점 −13.6 → F2-02 · SOAP 계산값 → F3-03 · 격리 자리 가는 길 → FLOW-03). PM 검토에서 rig_coords ③ 이 채워진 자세로 확인 없이 움직이던 결함을 찾아 고친 뒤 merge. 브랜치 2개 정리',
+             '황인재 9/21 15:00', 'H,S,M,P']
+
 HISTORY = ['v5.0', '재계획', '주말 저녁 칸 전체, V-01·05·23, INF-02·02d(신규)·02b·02c, PKG-01, DSN-03·04, F1-01~05, F2-01·02, F3-03, F4-00~03, UT-*, INT-*, 게이트·로봇 슬롯·규칙',
            '① 주말(9/19·20)은 교육장 18시 마감 → 주말 저녁 칸을 전부 비움(DSN-03 은 9/19 17:15 교육장) ② 한석형은 9/19 티칭까지만 ③ 분담 변경: 그리퍼 검증 V-01·05·23 + gripper.py(신규 INF-02d) = 민범진, '
            '이동 함수 motion.py(INF-02)·cell.force 골격·F1 패키지 골격 = 황인재, 한석형 = 티칭·cell.yaml 값·실기·F1 기능 함수 ④ 게이트: G1 9/20 오후 · L1 9/22 오후 · L2 9/23 오전 · L3 9/23 오후 · 동결 9/23 저녁 그대로(밀리면 범위 방어) ⑤ V-24 보류',
@@ -1265,7 +1284,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
