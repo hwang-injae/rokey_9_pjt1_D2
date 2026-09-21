@@ -41,6 +41,13 @@ import cobot_common as cc
 # 스테이션 이름 = shake 의 mode 이름과 같다(WASTE·RINSE). WEIGH 는 contracts 에 상수가 없어 여기 하나만 둔다.
 _WEIGH_STATION = 'WEIGH'
 
+# 🚨 이 예외들은 Result 로 바꾸지 **않고** 위로 그대로 올린다 (9/21 PM 요청 · SDD §7)
+#    MoveIncomplete : 이동이 도중에 섰다 → **로봇이 어디 있는지 모른다.** 여기서 코드로 바꾸면
+#                     flow 가 평범한 실패로 보고 재시도하거나 이어서 내려간다 — 그러면 안 된다.
+#    MotionHalted   : 강제정지(중단) — flow 의 중단 흐름이 받아야 한다(FLOW-03).
+#    flow.call() 이 받아서 ROBOT_ERROR(그 자리 정지 → PAUSED)로 마무리한다.
+_PASS_THROUGH = (cc.MoveIncomplete, cc.MotionHalted)
+
 
 # ────────────────────────────────────────────────────────── 설정 읽기
 def _log():
@@ -131,6 +138,8 @@ def _as_result(result_cls):
         def wrapper(*args, **kwargs):
             try:
                 return fn(*args, **kwargs)
+            except _PASS_THROUGH:                    # 🚨 삼키지 않는다 — 위 _PASS_THROUGH 주석
+                raise
             except Exception as e:                   # noqa: BLE001 — 코드로 바꿔 보고한다
                 try:
                     # 🚨 traceback 까지 남긴다 — finally 에서 난 예외가 원래 원인을 덮을 수 있고,
@@ -172,6 +181,16 @@ def _goto(station, carrying=True, kind=None):
         _log().info(f'{station} 상공에서 {up:.1f} mm 더 내려간다 (티칭 자세까지)')
         cc.move_rel(0.0, 0.0, -up, 'BASE')
     return up
+
+
+def _via_home():
+    """🚨 잔반통(로봇 **뒤**) ↔ 저울·스펀지 홈·반납 구역(**앞**) 사이는 HOME 을 거친다 (9/21 결정 E15).
+
+    잔반통 그릇 자세를 뒤쪽으로 옮기면서 생긴 제약이다 — 앞쪽 자세가 팔이 쭉 펴진 특이점이라
+    9/21 08:40 실기에서 6번 관절이 163° 돌아 그리퍼 케이블이 꼬였다.
+    앞뒤로 곧장 가면 로봇 몸통을 가로지른다. E7 로 안전 높이 경유가 없어져 더 그렇다.
+    """
+    _goto('HOME', carrying=True)
 
 
 def _hold(kind, level):
@@ -284,10 +303,12 @@ def leftover_loop(kind: str, max_rounds: int) -> LeftoverResult:
     done = 0                                          # 🚨 **끝난** 회차 수 (실패한 회차는 안 센다)
     for r in range(1, rounds_max + 1):
         _log().info(f'leftover_loop({kind}) — 잔반 {after:.1f} g · 털기 {r}/{rounds_max}')
+        _via_home()                                   # 🚨 E15: 저울(앞) → 잔반통(뒤)
         shaken = shake('WASTE', cycles, kind)
         if not shaken.ok:
             return LeftoverResult.fail(shaken.code, weight_before_g=before,
                                        weight_after_g=after, rounds=done)
+        _via_home()                                   # 🚨 E15: 잔반통(뒤) → 저울(앞)
         again = weigh(kind)
         if not again.ok:
             return LeftoverResult.fail(again.code, weight_before_g=before,

@@ -403,3 +403,49 @@ def test_resume_after_robot_error_goes_to_next_container():
     assert len(tries) == 1, 'ROBOT_ERROR 인데 같은 단계를 다시 했다 — 위험하다'
     assert [e['result'] for e in events] == ['ERROR']
     assert f.isolated == 0, 'ROBOT_ERROR 를 격리로 옮기면 안 된다'
+
+
+# ────────────────────────────────── 후퇴하면 안 되는 실패 (9/21 PM 요청 · SDD §7)
+def _flow_with(retreats, force_offs, no_retreat, fail_with):
+    """f2.leftover_loop 이 주어진 예외를 던지는 Flow 를 만든다."""
+    mods = load_features(['f1', 'f2', 'f3'])
+
+    def leftover_loop(kind, max_rounds):
+        raise fail_with('이동이 도중에 섰다')
+
+    f2 = types.SimpleNamespace(**{n: getattr(mods['f2'], n)
+                                  for n in dir(F2Api) if not n.startswith('_')})
+    f2.leftover_loop = leftover_loop
+    f = Flow(CFG, Quiet(),
+             safe_retreat=lambda: retreats.append(1),
+             force_off=lambda: force_offs.append(1),
+             no_retreat_errors=no_retreat)
+    f.f = {'f1': mods['f1'], 'f2': f2, 'f3': mods['f3']}
+    f.plan = [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 1}]
+    return f
+
+
+def test_move_incomplete_does_not_retreat():
+    """🚨 이동이 도중에 서면(MoveIncomplete) **후퇴하지 않는다.**
+
+    로봇이 어디 있는지 모르는데 Z 를 올리는 후퇴를 하면 더 꼬인다
+    (9/21 08:40 케이블 꼬임과 같은 길) → 힘·순응만 끄고 사람이 확인한다.
+    """
+    from cobot_common.motion import MoveIncomplete
+    retreats, force_offs = [], []
+    f = _flow_with(retreats, force_offs, (MoveIncomplete,), MoveIncomplete)
+    f.run_plan(PauseWatcher())
+
+    assert retreats == [], '위치를 모르는데 후퇴했다'
+    assert force_offs, '힘·순응은 꺼야 한다'
+    assert f.last_code == 'ROBOT_ERROR'
+
+
+def test_other_errors_still_retreat():
+    """🚨 반대쪽 — 힘 상한처럼 **접촉에서 벗어나야 하는** 실패는 설계대로 후퇴한다."""
+    retreats, force_offs = [], []
+    f = _flow_with(retreats, force_offs, (), RuntimeError)
+    f.run_plan(PauseWatcher())
+
+    assert retreats, '후퇴했어야 한다'
+    assert f.last_code == 'ROBOT_ERROR'

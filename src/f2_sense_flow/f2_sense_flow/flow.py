@@ -104,12 +104,19 @@ class Signals:
 class Flow:
     """상태 + 구역 계획 + 실패 정책."""
 
-    def __init__(self, cfg, log, publish_event=None, safe_retreat=None, features=None):
+    def __init__(self, cfg, log, publish_event=None, safe_retreat=None, features=None,
+                 force_off=None, no_retreat_errors=()):
         self.cfg = (cfg or {}).get('flow', {})
         self.f = features or {}                  # {'f1': 모듈, 'f2': 모듈, 'f3': 모듈}
         self.log = log
         self._publish_event = publish_event or (lambda ev: None)
         self._safe_retreat = safe_retreat or (lambda: None)
+        # 🚨 후퇴를 **하면 안 되는** 예외들 (9/21 결정 · SDD §7). flow 는 로봇을 모르므로
+        #    클래스와 함수를 flow_node 가 넣어 준다 — cc.MoveIncomplete · cc.force_off.
+        #    이동이 도중에 서면 로봇이 어디 있는지 모른다 → Z 를 올리는 후퇴가 더 위험하다
+        #    (9/21 08:40 케이블 꼬임과 같은 길). 힘·순응만 끄고 그 자리에서 사람을 기다린다.
+        self._force_off = force_off or (lambda: None)
+        self._no_retreat_errors = tuple(no_retreat_errors or ())
 
         # 🚨 설정은 **여기서 한 번에** 읽고 검증한다.
         #    YAML 에 키만 있고 값이 비면 None 이 들어온다(`or` 로 받아야 한다).
@@ -261,7 +268,16 @@ class Flow:
                 self.message = f'{name}: {e}'
             except Exception:                     # noqa: BLE001 — 로그가 터져도 여기서 끝낸다
                 self.message = f'{name}: (메시지를 만들 수 없음)'
-            self._retreat()                       # 후퇴가 또 터져도 _guard 가 삼킨다
+            # 🚨 두 갈래다 (9/21 결정 · SDD §7)
+            #    ① 이동이 도중에 선 예외(cc.MoveIncomplete) → **후퇴하지 않는다.**
+            #       로봇이 어디 있는지 모르는데 Z 를 올리면 더 꼬인다 → 힘·순응만 끄고 사람이 확인.
+            #    ② 그 밖(힘 상한 ForceLimitError 등) → 설계대로 후퇴한다. 접촉에서 벗어나야 한다.
+            if self._no_retreat_errors and isinstance(e, self._no_retreat_errors):
+                self.log.error(f'{name} — 로봇 위치를 알 수 없다. 후퇴하지 않고 힘·순응만 끈다')
+                self.message = f'{name}: 이동이 도중에 멈췄습니다 — 로봇 위치를 확인하세요'
+                self._guard(self._force_off, what='force_off')
+            else:
+                self._retreat()                   # 후퇴가 또 터져도 _guard 가 삼킨다
             r = Result.fail(ROBOT_ERROR)
             code, ok = r.code, r.ok
         self.last_code = code

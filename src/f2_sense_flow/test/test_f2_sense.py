@@ -107,6 +107,10 @@ def _install(monkeypatch, r):
     for name in ('cfg', 'io_node', 'move_to', 'move_rel', 'move_joint_rel',
                  'force_off', 'safe_retreat', 'grip_level', 'grip_width', 'weigh'):
         setattr(fake, name, getattr(r, name))
+    # 🚨 sense 가 "삼키지 않고 위로 올릴" 예외 클래스 — **진짜 클래스**를 그대로 넣는다.
+    #    가짜로 만들면 sense 가 잡는 클래스와 시험이 던지는 클래스가 달라져 시험이 거짓으로 통과한다.
+    from cobot_common.motion import MotionHalted, MoveIncomplete
+    fake.MoveIncomplete, fake.MotionHalted = MoveIncomplete, MotionHalted
     monkeypatch.setitem(sys.modules, 'cobot_common', fake)
     # 🚨 시험 사이에 가짜에 묶인 모듈이 남지 않게 되돌린다(L6)
     monkeypatch.delitem(sys.modules, 'f2_sense_flow.sense', raising=False)
@@ -595,3 +599,41 @@ def test_rounds_counts_only_finished_rounds(monkeypatch):
     out = s.leftover_loop('BOWL', 2)
     assert out.code == GRIP_FAIL
     assert out.rounds == 0, '한 번도 못 털었으면 0 이어야 한다'
+
+
+# ── 🚨 이동이 도중에 선 예외는 삼키지 않는다 (9/21 PM 요청 · SDD §7)
+def test_move_incomplete_is_not_swallowed(monkeypatch):
+    """MoveIncomplete = 이동이 도중에 섰다 → **로봇이 어디 있는지 모른다.**
+
+    여기서 Result 로 바꾸면 flow 가 평범한 실패로 보고 **재시도하거나 이어서 내려간다.**
+    그러면 안 되므로 위로 그대로 올린다 — flow.call() 이 받아 ROBOT_ERROR(그 자리 정지)로 맺는다.
+    """
+    from cobot_common.motion import MoveIncomplete
+
+    class Boom(Rec):
+        def move_to(self, station, carrying, kind=None):
+            self._note('move_to', station, carrying, kind)
+            raise MoveIncomplete('목표 6 mm 앞에서 섰다')
+
+    for call in (lambda s: s.weigh('BOWL'),
+                 lambda s: s.shake('WASTE', 1, 'BOWL'),
+                 lambda s: s.dip('RINSE', 1, 'BOWL')):
+        r = Boom(weights=[180.0])
+        s = _sense(monkeypatch, r)
+        with pytest.raises(MoveIncomplete):
+            call(s)
+        assert not r.of('safe_retreat'), '위치를 모르는데 후퇴하면 안 된다'
+
+
+# ── 🚨 잔반통(뒤) ↔ 앞쪽 사이는 HOME 을 거친다 (9/21 결정 E15)
+def test_leftover_goes_via_home_between_scale_and_waste_bin(monkeypatch):
+    """잔반통 그릇 자세가 로봇 **뒤쪽**으로 옮겨졌다(앞쪽은 팔이 펴진 특이점이라 9/21 케이블이 꼬였다).
+
+    저울·스펀지 홈·반납 구역은 **앞**이라, 앞뒤를 곧장 오가면 로봇 몸통을 가로지른다.
+    E7 로 안전 높이 경유까지 없어져 더 그렇다 → 사이마다 HOME 을 거친다.
+    """
+    r = Rec(weights=[280.0, 190.0])            # 잔반 100 g → 털고 → 10 g
+    s = _sense(monkeypatch, r)
+    s.leftover_loop('BOWL', 2)
+    stations = [c[1][0] for c in r.of('move_to')]
+    assert stations == ['WEIGH', 'HOME', 'WASTE', 'HOME', 'WEIGH'], stations
