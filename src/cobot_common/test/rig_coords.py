@@ -183,10 +183,20 @@ def main() -> int:
             last_j6[0] = j[5]
             return f' │ J3 {j[2]:.1f}° · J6 {j[5]:+.1f}°{d}' + ('  ' + ' '.join(warn) if warn else '')
 
-        def _exits():
-            """이 칸에서 꽂고 놓은 뒤 빠져나오는 상대 이동 목록(BASE). 접근점이 있는 칸은 수직 복귀라 비어 있다."""
+        def _rel(key):
+            """이 팔레트 칸의 상대 이동 목록(BASE) — entry_rel_mm(밀어 넣기) · exit_rel_mm(빠져나오기)."""
             slots = ((cc.cfg().get('cell') or {}).get('rack') or {}).get('slots') or {}
-            return (slots.get(station) or {}).get('exit_rel_mm') or []
+            return (slots.get(station) or {}).get(key) or []
+
+        def _walk(steps, what):
+            """상대 이동 목록을 순서대로 실행한다. --step 이면 단계마다 Enter(s 로 건너뛰기)."""
+            for k, step_mm in enumerate(steps, start=1):
+                dx, dy, dz = (float(v) for v in step_mm)
+                if opt.step and input(f'    {what} {k}: \u0394({dx:g}, {dy:g}, {dz:g}) mm — Enter = 이동 / s = 건너뛰기 > ').strip().lower() == 's':
+                    return False
+                cc.move_rel(dx, dy, dz, 'BASE')
+                log.info(f'  \u21b3 {what} {k}: \u0394({dx:g}, {dy:g}, {dz:g}) mm')
+            return True
 
         def record(label, ok, detail):
             rows.append((label, ok, detail))
@@ -248,20 +258,22 @@ def main() -> int:
                     continue
                 cc.move_rel(0.0, 0.0, -up, 'BASE')
                 time.sleep(p['settle_s'])
+                # ③ 접근점이 칸 옆으로 비켜 있는 자리(그릇 칸)는 내려온 뒤 **칸 쪽으로 밀어 넣어야** 끝점이다.
+                #    9/21 실기: 꽂는 자리로 대각선으로 곧장 가면 그릇 아래가 팔레트에 걸린다(황인재) → 들어가는 길 = 빠져나오는 길의 거울상.
+                entered = _walk(_rel('entry_rel_mm'), '밀어 넣기')
+                time.sleep(p['settle_s'])
                 dpos, drot = off(posx(), end)
+                if not entered:
+                    log.warn('⚠    └ 밀어 넣기를 건너뛰었다 — 아래 끝점 오차는 밀어 넣을 거리만큼 크게 나온다')
                 hit = dpos <= tol['pos_mm'] and drot <= tol['rot_deg']
                 if not hit and station in p['known_tilted']:             # 이미 아는 어긋남 — 재서 보여 주기만 한다
                     log.warn(f"⚠    └ {station}: 곧게 내려간 자리가 찍은 끝점과 {dpos:.2f} mm · {drot:.2f}° 어긋난다 (접근점을 끝점 위로 다시 찍는다)")
                 else:
                     record(f'  └ {up:.1f} mm 하강 → 끝점', hit, f'끝점 z {end[2]:g} · 오차 {dpos:.2f} mm {drot:.2f}°')
-                cc.move_rel(0.0, 0.0, up, 'BASE')
+                if not _rel('exit_rel_mm'):                              # 빠져나오는 길이 따로 있으면 그것으로 나간다(곧게 되올라가지 않는다)
+                    cc.move_rel(0.0, 0.0, up, 'BASE')
 
-            for k, step_mm in enumerate(_exits(), start=1):              # ④ 팔레트 칸에서 빠져나오기 (cell.yaml 의 exit_rel_mm)
-                dx, dy, dz = (float(v) for v in step_mm)
-                if opt.step and input(f'    빠져나오기 {k}: Δ({dx:g}, {dy:g}, {dz:g}) mm — Enter = 이동 / s = 건너뛰기 > ').strip().lower() == 's':
-                    break
-                cc.move_rel(dx, dy, dz, 'BASE')
-                log.info(f'  ↳ 빠져나오기 {k}: Δ({dx:g}, {dy:g}, {dz:g}) mm — 여기서 팔레트에 안 걸리는지 본다')
+            _walk(_rel('exit_rel_mm'), '빠져나오기')                      # ④ 팔레트 칸에서 빠져나오기 (cell.yaml 의 exit_rel_mm)
 
         log.info('──── ③ 아직 안 찍은 자세 — 움직이지 않고 KeyError ────')
         for station, kind, point in ([] if stopped else UNTAUGHT):
