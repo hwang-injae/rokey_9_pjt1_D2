@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v14.0'
+VERSION = 'v14.1'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1729,6 +1729,22 @@ HISTORY90 = ['v14.0', '결정 E24·신규·완료', 'F2-01, F2-02, V-07, FLOW-04
              '황인재 9/22 12:00', 'M,S,H']
 
 
+# ---------------------------------------------------------------- 9/22 12:00 GitHub 기준 최신화 — F4 브랜치 3개 · 1.33 kg 가설
+G12 = '📈 9/22 12:00 GitHub(브랜치 · PR 전)'
+P1205 = {
+ 'NOTE-01': dict(prog='0.6', status='진행', note_add=G12 + ': `injae/20260922-NOTE-01-ros2-docs`(3b2a700) — 노션 제출용 ROS 2 노드 구조 · 인터페이스 정의서 · 발표 설명 메모 + 노드 구조도 SVG(`tools/gen/draw_ros2_nodes.py` 로 생성). 남은 것: 황인재 확인 → PR → 노션 업로드(1차 산출물 9/22~23)'),
+ 'V-08':    dict(note_add=G12 + ': `injae/20260920-F1-03-tool` 에 V-08 도구 `rig_f1 tool --action CYCLE`(집기 → 반납 한 쌍 × n · 1회차만 Enter · 성공 횟수·폭 요약) 추가 · 🟡 실기 전(오후 · 툴 프리셋 측정부터 — E23)'),
+ 'V-02':    dict(note_add=G12 + ': F4 도구 `rig_weigh_poses.py`(`injae/20260922-V-02-weigh-baseline` · 두 높이 비교 · −Fz 부호 그대로 + 하중 API 나란히 · 도착 뒤 5 s) 준비 · 🟡 실기 미실행. '
+                          '한석형 동선은 반납 구역 바로 위 WEIGH z 158 에서 잰다 → 좌표는 그대로 두고 R2 결과를 본다. '
+                          '🔴 1.33 kg 고정 — F4 가설: 툴 무게 보정이 통째로 빠지면 약 1.33~1.35 kg 로 읽힌다(값이 맞음) → **로봇 안 움직이는 확인부터**(현재 툴 이름 · probe · 펜던트 값) · 원인 질문은 13시 묶음(민범진 · 박진용)'),
+}
+for _tid, _e in P1205.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY91 = ['v14.1', '최신화', 'NOTE-01, V-08, V-02',
+             'GitHub 기준(9/22 12:00): F4 브랜치 3개 — NOTE-01 노션 제출 문서(0.6) · V-08 도구(rig_f1 tool CYCLE) · V-02 두 높이 비교 도구(Fz 부호). 1.33 kg 고정은 "툴 보정이 빠진 값" 가설 → 로봇 안 움직이는 확인부터. 팀원 push 는 오늘 한석형 10:05 뒤 없음(민범진 무게 수정 d4d44bc 는 로컬)',
+             '황인재 9/22 12:05', 'H,M']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -1817,7 +1833,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
