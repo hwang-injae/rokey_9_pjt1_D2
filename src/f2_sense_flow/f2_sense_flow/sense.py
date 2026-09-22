@@ -250,6 +250,34 @@ def _slipped(label, w_before, w_after, tol):
     return False
 
 
+def _held_by_width(kind):
+    """폭으로 **지금 용기를 쥐고 있나** 를 본다 → True / False / None(판정 불가).
+
+    🚨 왜 무게가 아니라 폭인가 (9/22 20:0x 실기): 무게는 **영점이 통째로 밀린다** —
+       툴 무게 등록·TCP·브링업·케이블이 바뀌면 같은 자세에서 100 g 넘게 달라진다
+       (그날 빈 그릇 기준값 −12 g 로 잰 자리에서 −117.5 g 이 읽혔다 · 그릇 자체는 47 g).
+       그래서 "무게가 너무 가볍다 = 놓쳤다" 는 **기준값이 낡으면 거짓으로 뜬다**(그날 통합이 여기서 막혔다).
+       그리퍼 폭은 영점(grip_zero_mm)이 기계의 성질이라 그 흔들림을 타지 않는다 —
+       쥐었으면 벽 두께(2.15 mm)만큼 벌어져 있고, 놓쳤으면 빈손 영점까지 닫힌다.
+    🚨 컵은 판정하지 않는다(결정 E19 ①) — 고정 폭 76 mm 까지만 닫아서 빈손과 구분이 안 된다 → None.
+    """
+    preset = ((cc.cfg().get('cell') or {}).get('presets') or {}).get(kind) or {}
+    if preset.get('grip_target_mm') is not None:      # 컵 — E19
+        return None
+    zero, expect, tol = preset.get('grip_zero_mm'), preset.get('grip_width_mm'), preset.get('width_tol_mm')
+    if None in (zero, expect, tol):
+        return None
+    try:
+        got = float(cc.grip_width()) - float(zero)
+    except Exception as e:                            # noqa: BLE001 — 못 읽으면 판정하지 않는다
+        _log().warn(f'폭을 못 읽었다({e!r}) — 파지 판정을 건너뛴다')
+        return None
+    held = abs(got - float(expect)) <= float(tol)
+    _log().info(f'폭으로 본 파지 — {got:.2f} mm (기대 {float(expect):.2f} ± {float(tol):.2f}) → '
+                + ('쥐고 있다' if held else '빈손'))
+    return held
+
+
 # ────────────────────────────────────────────────────────── 공개 함수
 @_as_result(WeighResult)
 def weigh(kind: str) -> WeighResult:
@@ -282,10 +310,25 @@ def weigh(kind: str) -> WeighResult:
     _log().info(f'weigh({kind}) — 읽음 {raw:.1f} g − 빈 용기 {empty:.1f} g = 잔반 {net:.1f} g')
 
     if net < min_net:
-        # 🚨 빈손이면 하중이 옵셋만 남아 net 이 크게 음수가 된다. 여기가 F2 가 "용기를 놓쳤다" 를
-        #    잡을 수 있는 유일한 자리다 — 그냥 통과시키면 빈 그리퍼로 세제·닦기까지 전 공정을 돈다.
+        # 🔄 9/22 저녁 변경: 여기서 **바로** GRIP_FAIL 하지 않는다. 무게는 영점이 밀리면 통째로 틀어지고
+        #    (그날 −12 g 자리에서 −117.5 g), 그러면 멀쩡히 쥔 그릇을 "놓쳤다" 고 막는다 → 통합이 멈췄다.
+        #    놓쳤는지는 **폭**이 곧바로 답한다(_held_by_width 머리말) → 폭에게 먼저 묻는다.
+        held = _held_by_width(kind)
+        if held is False:
+            _log().warn(f'weigh({kind}) — 잔반 {net:.1f} g 이 하한 {min_net:.1f} g 보다 작고 '
+                        '폭도 빈손이다 · 용기를 놓쳤다')
+            return _fail(WeighResult, GRIP_FAIL, weight_g=net)
+        if held is True:
+            # 쥐고 있는데 무게만 이상하다 = **빈 용기 기준값이 낡았다**(툴 무게 등록·브링업·자세가 바뀌었다).
+            _log().warn(
+                f'weigh({kind}) — 잔반 {net:.1f} g 이 하한 {min_net:.1f} g 보다 작지만 **폭으로는 쥐고 있다** → '
+                f'용기를 놓친 게 아니라 **빈 용기 기준값(f2.empty_weight_g.{kind} = {empty:.0f} g)이 틀어졌다.** '
+                f'다시 잰다: rig_f2.py empty --kind {kind} · '
+                '🚨 이번 잔반 판정은 믿을 수 없다 — 잔반 없음으로 지나간다')
+            return WeighResult(weight_g=net)
+        # 판정 불가(컵 E19 · 폭을 못 읽음) → 예전대로 무게만 보고 막는다
         _log().warn(f'weigh({kind}) — 잔반 {net:.1f} g 이 하한 {min_net:.1f} g 보다 작다 · '
-                    '용기를 놓친 것으로 본다')
+                    '폭으로 확인할 수 없어(E19) 용기를 놓친 것으로 본다')
         return _fail(WeighResult, GRIP_FAIL, weight_g=net)
     return WeighResult(weight_g=net)
 
