@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v13.8'
+VERSION = 'v13.9'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1679,6 +1679,23 @@ EDIT.setdefault('V-26', {}).update(dict(status='완료', prog='1.0', note_add='�
 HISTORY88 = ['v13.8', '완료', 'V-26', 'PR #67 merge(9/22): V-26 Ctrl+C 정지 실기 완료 — 5/5 즉시 정지 · 0.47~0.50 s · 브링업 유지(황인재 9/22 09:05~09:10)', '황인재 9/22 10:45', 'H,P']
 
 
+# ---------------------------------------------------------------- 9/22 11:45 황인재 결정 — 무게 측정(R2 · V-02)은 황인재가 이어받는다
+P1145 = {
+ 'V-02': dict(owner='H(M)', note_add='🔄 9/22 11:40 황인재 결정: **무게 측정(R2 두 자세 재측정 · V-02 빈 용기 기준값)은 황인재가 이어받는다** — 민범진은 flow_node 등 다른 작업에 집중(메시지 보냄). '
+                                     '도구는 민범진이 만든 그대로(`rig_weigh_probe.py -n 10` · `rig_f2.py empty --kind BOWL/CUP` · 절차 `docs/test_logs/20260921_저녁_F2실기_결과_민범진.md` §3·§4). params.yaml `f2.empty_weight_g` 반영은 민범진 절이라 PR 에 멘션. '
+                                     'V-07 · V-16 · INT-12a·12b 는 그대로 민범진'),
+ 'F2-01': dict(note_add='🔄 9/22: 무게 기준값(V-02)은 황인재가 잰다 — 값이 들어오면 판정(잔반 50 g · 하한) 확인은 INT-12a'),
+}
+for _tid, _e in P1145.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+_o = '**② 민범진 R2 자세별 재측정 + V-02 빈 용기 기준값(35분 — 저녁 INT-12a 전제)**'
+assert _o in SLOT['9/22 화']['B']
+SLOT['9/22 화']['B'] = SLOT['9/22 화']['B'].replace(_o, '**② 황인재 R2 자세별 재측정 + V-02 빈 용기 기준값(35분 — 저녁 INT-12a 전제 · 🔄 11:40 민범진 → 황인재)**')
+HISTORY89 = ['v13.9', '분담', 'V-02, F2-01, 9/22 오전 로봇 슬롯',
+             '황인재 9/22 11:40: 무게 측정(R2 두 자세 재측정 · V-02 빈 용기 기준값)은 황인재가 민범진이 만든 도구로 이어받는다 — 민범진은 flow_node 등 다른 작업에 집중. V-07 · V-16 · INT-12a·12b 는 민범진 그대로',
+             '황인재 9/22 11:45', 'H,M']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -1767,7 +1784,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
