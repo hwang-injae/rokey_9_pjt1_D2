@@ -154,11 +154,11 @@ def move_joint_rel(joint, delta_deg, *, time_s=None, carrying=True, scale=True):
     if time_s is not None:
         k = _vel_scale() if scale else 1.0                  # 🆕 scale=False: vel_scale 예외(E36)
         move_time = _positive('time_s', time_s) / k
-        top_v = _joint_speed(100)[0] / _vel_scale() * k     # 100 % 기준 속도 × (vel_scale 또는 1)
+        top_v = _joint_speed(100)[0] if scale else _joint_fast_cap()[0]   # 100 % 기준 × vel_scale · 예외면 물 털기 전용 상한
         shortest = abs(float(delta_deg)) / top_v            # 상한 속도로 갈 때 걸리는 시간
         if move_time < shortest:
             _warn(f'move_joint_rel J{joint} {delta_deg:+g}° 를 {move_time:.2f} s 에 가면 평균 {abs(delta_deg) / move_time:.0f} deg/s — '
-                  f'상한 {top_v:g} deg/s(cell.motion.vel_joint_max_deg_s{" × vel_scale" if scale else " · vel_scale 예외"})를 넘어 {shortest:.2f} s 로 늘린다')
+                  f'상한 {top_v:g} deg/s({"cell.motion.vel_joint_max_deg_s × vel_scale" if scale else "cell.motion.vel_joint_fast_max_deg_s · vel_scale 예외"})를 넘어 {shortest:.2f} s 로 늘린다')
             move_time = shortest
         kwargs = {'time': move_time}
     else:
@@ -175,7 +175,7 @@ def move_joints_via(q_list, *, vel_deg_s=None, acc_deg_s2=None, scale=True):
     🆕 9/23 E36(황인재): 물 털기가 "구간 3개(정지 포함)" 로 보여서 — 가장 큰 각도에서 가장 작은 각도까지 **한 번에** 움직이게.
     q_list  : [[j1..j6], ...] 절대 관절 각도(deg). 마지막 점에서 끝난다(가운데로 돌아오려면 마지막에 시작 자세를 넣는다).
     vel/acc : 관절 속도(deg/s)·가속도(deg/s²) — 안 주면 cell.limits.vel_carry_pct(들고 이동) × vel_scale.
-              주면 그 값 × vel_scale (scale=False 면 vel_scale 예외 · E17 취지). 어느 쪽이든 100 % 기준(cell.motion.*_joint_max)을 넘지 못한다.
+              주면 그 값 × vel_scale (scale=False 면 vel_scale 예외 · E17 취지 · 상한은 cell.motion.*_joint_fast_max — 물 털기 전용). 기본은 100 % 기준(cell.motion.*_joint_max)을 넘지 못한다.
     🚨 순응·힘제어가 켜져 있으면 관절 이동이 안 된다(2.1903) → force_off() 뒤에. 일시정지·강제정지는 _run 이 본다.
     """
     d = dsr()
@@ -188,8 +188,7 @@ def move_joints_via(q_list, *, vel_deg_s=None, acc_deg_s2=None, scale=True):
     if len(pts) < 2:
         raise ValueError('move_joints_via: 점이 2개 이상이어야 곡선이 된다')
     k = _vel_scale() if scale else 1.0
-    top_v, top_a = _joint_speed(100)                                 # 100 % 기준 × vel_scale
-    top_v, top_a = top_v / _vel_scale() * k, top_a / _vel_scale() * k
+    top_v, top_a = _joint_speed(100) if scale else _joint_fast_cap()    # 100 % 기준 × vel_scale · 예외면 물 털기 전용 상한(E36)
     if vel_deg_s is None:
         vel, acc = _joint_speed(_limit('vel_carry_pct'))
     else:
@@ -372,6 +371,15 @@ def _tcp_speed(pct):
     """직선 이동 (속도 mm/s, 가속도 mm/s²) = 100 % 기준 × pct × vel_scale."""
     k = float(pct) / 100.0 * _vel_scale()
     return float(_cell_key('motion', 'vel_tcp_max_mm_s')) * k, float(_cell_key('motion', 'acc_tcp_max_mm_s2')) * k
+
+
+def _joint_fast_cap():
+    """vel_scale 예외 이동(scale=False · E36 물 털기)의 상한 — cell.motion.vel_joint_fast_max_deg_s / acc_joint_fast_max_deg_s2.
+    없으면 100 % 기준(vel_joint_max · acc_joint_max)과 같다(예외를 줘도 더 빨라지지 않는다)."""
+    m = cfg().get('cell', {}).get('motion', {}) or {}
+    v = m.get('vel_joint_fast_max_deg_s'); a = m.get('acc_joint_fast_max_deg_s2')
+    base_v, base_a = float(_cell_key('motion', 'vel_joint_max_deg_s')), float(_cell_key('motion', 'acc_joint_max_deg_s2'))
+    return (float(v) if v is not None else base_v), (float(a) if a is not None else base_a)
 
 
 def _joint_speed(pct):

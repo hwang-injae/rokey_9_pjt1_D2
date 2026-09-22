@@ -35,6 +35,7 @@ def test_repo_cell_skeleton_uses_ird_ids():
     cell = config.load(SRC_CONFIG)['cell']
     assert set(cell) == {'limits', 'motion', 'force', 'presets', 'stations', 'zones', 'beds', 'rack'}
     assert set(cell['motion']) == {'vel_tcp_max_mm_s', 'acc_tcp_max_mm_s2', 'vel_joint_max_deg_s', 'acc_joint_max_deg_s2',
+                                   'vel_joint_fast_max_deg_s', 'acc_joint_fast_max_deg_s2',   # 🆕 9/23 E36 물 털기 전용 상한
                                    'move_timeout_s'}
     assert set(cell['force']) == {'compliance_stx', 'contact_step_mm', 'contact_vel_mm_s', 'contact_acc_mm_s2',
                                   'retreat_vel_mm_s', 'retreat_acc_mm_s2', 'force_max_n', 'search_y_period_ratio'}   # 이슈 #7 ①

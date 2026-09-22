@@ -38,6 +38,9 @@ cell:
     acc_tcp_max_mm_s2: 800        # 직선 이동 100 % 기준 가속도 (SDD §4.3)
     vel_joint_max_deg_s: 100      # 관절 이동(movej) 100 % 기준 속도 (SDD §4.3)
     acc_joint_max_deg_s2: 200     # 관절 이동 100 % 기준 가속도 (SDD §4.3)        (Virtual 시험 값: src/cobot_common/test/config_virtual/cell.yaml)
+    vel_joint_fast_max_deg_s: 180 # 🆕 9/23 E36 **물 털기 전용 상한**(황인재: "사람이 물기 털 듯 빠르게") — vel_scale 예외 이동(scale=False)만 이 상한을 쓴다.
+                                  #   두산 M0609 손목(J4~J6) 관절 한계 225 °/s 아래 · 다른 모든 이동은 위 100 % 기준(100)을 그대로 쓴다
+    acc_joint_fast_max_deg_s2: 600 # 🆕 물 털기 전용 가속도 상한 — 짧은 왕복은 가속도가 빠르기를 정한다(200 이면 ±25° 3회에 8 s · 9/23 08:2x 실기)
     move_timeout_s: 30            # 이동 1번의 상한 시간(일시정지한 시간은 빼고). 넘으면 정지 명령을 보내고 오류 — V-24 에서 추가
 
   force:                          # 힘 함수(force.py) 공용 값 — 이슈 #7 ①. 값은 박진용(V-03 9/20 실기로 확정, 시험 기록 docs/test_logs/20260919_V-03_*)

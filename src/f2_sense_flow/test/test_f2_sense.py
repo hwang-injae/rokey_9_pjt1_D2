@@ -26,7 +26,7 @@ CFG = {'f2': {
     'limits': {'max_amp_deg': 45.0, 'max_depth_mm': 150.0, 'max_hold_s': 5.0,
                'max_settle_s': 5.0, 'min_net_g': -30.0},
     'shake': {'WASTE': {'joint': 5, 'amp_deg': 15.0, 'cycles': 4, 'period_s': 0.6},
-              'RINSE': {'joint': 4, 'amp_deg': 30.0, 'period_s': 1.2, 'at': 'RINSE_SHAKE', 'fast': True, 'smooth': True}},   # 🔄 9/23 E36
+              'RINSE': {'joint': 4, 'amp_deg': 30.0, 'period_s': 0.7, 'acc_deg_s2': 600.0, 'at': 'RINSE_SHAKE', 'fast': True, 'smooth': True}},   # 🔄 9/23 E36
     'dip': {'RINSE': {'depth_mm': 60.0, 'hold_s': 0.2}},
 }, 'cell': {'stations': {'RINSE': {}, 'RINSE_SHAKE': {}, 'WASTE': {}, 'WEIGH': {}, 'HOME': {}},
             'motion': {'vel_joint_max_deg_s': 100.0, 'acc_joint_max_deg_s2': 200.0}, 'limits': {'vel_carry_pct': 30}}}   # 🆕 shake at=<스테이션> · smooth 복구 검사용
@@ -447,7 +447,7 @@ def test_shake_rinse_uses_its_own_preset(monkeypatch):
     s = _sense(monkeypatch, r)
     s.shake('RINSE', 1, 'CUP')
     spl = r.of('move_joints_via')[0]           # 🔄 E36 RINSE: 스플라인 한 번 · J4 ±30 · 100 deg/s(4·30/1.2) · vel_scale 예외
-    assert [q[3] for q in spl[1][0]] == [30.0, -30.0, 0.0] and spl[2] == {'vel_deg_s': 100.0, 'acc_deg_s2': None, 'scale': False}
+    assert [q[3] for q in spl[1][0]] == [30.0, -30.0, 0.0] and spl[2] == {'vel_deg_s': pytest.approx(4 * 30 / 0.7), 'acc_deg_s2': 600.0, 'scale': False}
     assert not r.of('move_joint_rel')
 
 
@@ -492,7 +492,7 @@ def test_shake_rinse_joint4_fast_three_cycles(monkeypatch):
     pts = spl[0][1][0]
     assert [q[3] for q in pts] == [30.0, -30.0, 30.0, -30.0, 30.0, -30.0, 0.0]
     assert all(q[:3] == [0.0, 0.0, 90.0] and q[4:] == [90.0, 0.0] for q in pts), '다른 관절은 시작 자세 그대로'
-    assert spl[0][2]['scale'] is False and spl[0][2]['vel_deg_s'] == pytest.approx(100.0)
+    assert spl[0][2]['scale'] is False and spl[0][2]['vel_deg_s'] == pytest.approx(4 * 30 / 0.7) and spl[0][2]['acc_deg_s2'] == 600.0
     assert not r.of('move_joints'), '성공했으면 되돌리기 없음'
 
 
