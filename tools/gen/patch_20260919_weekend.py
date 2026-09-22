@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v13.5'
+VERSION = 'v13.6'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1646,6 +1646,21 @@ HISTORY85 = ['v13.5', '완료·진척', 'F4-03, V-13, V-26, V-24, NOTE-02, INT-4
              '황인재 9/22 09:50', 'H']
 
 
+# ---------------------------------------------------------------- 9/22 10:10 박진용 · 한석형 아침 답 반영
+P1010 = {
+ 'F3-03':   dict(note_add='📥 9/22 박진용: soap 실기는 **아직 안 했다**(구현만 · 실기 기록 없음) → 오늘 오후 F1-05 슬롯에 20분'),
+ 'F1-05':   dict(note_add='📥 9/22 박진용: 오후 가능 — 저녁 INT-13 전에'),
+ 'F3-02':   dict(note_add='📥 9/22 박진용: 120 s 상한 **PR 에서 삭제 뺐다(남김)** · 오전 재검증 3회에서 공중 기준 Fz 를 9/19(1.9~2.3 N)와 비교해 보고. wipe_bowl 은 9/20 확정본(rig_v03) 명령·순서 그대로(두산 호출은 force.py 안에서만) + 바꾼 것 3가지: 빠른 하강 135 → 140 mm · 바닥 판정 힘 2 → 3 N(그릇) · 올라오는 속도 = 빠른 하강 속도(200 mm/s · 스케일 미적용 — 컵 1.5 배와 다름). '
+                          '실패 시 "곧게 올라와 HOME" 은 지금 main 과 같은 규칙(위치를 아는 실패만 · 강제정지·MoveIncomplete 는 안 움직임) — PR 에서 그 갈래가 남았는지 본다'),
+ 'F1-02':   dict(note_add='📥 9/22 한석형: ① 들여쓰기 오류 → 10:05 고침(`1644620` · 실행 가능 PM 확인) ② 잔반통 → HOME 은 관절 이동(J6 유지) — 오전 재검증에서 그 구간 충돌부터 본다 ③ 수세미 폭은 V-08 값 ④ pick() PR + 좌표 cell.yaml 은 오후'),
+}
+for _tid, _e in P1010.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY86 = ['v13.6', '답 반영', 'F3-03, F1-05, F3-02, F1-02',
+             '9/22 아침 묶음 답: 박진용 — 안착 놓기(F1-05·V-04) 오후 가능 · soap 실기 안 했음 → 오후 20분 · 120 s 상한은 PR 에서 삭제 뺌(남김) · wipe_bowl 은 9/20 rig_v03 그대로 + 3가지 변경. 한석형 — 들여쓰기 오류 고침(10:05 · 실행 가능) · 잔반통 → HOME 구간을 오전 재검증에서 먼저 확인 · 수세미 폭은 V-08 값 · pick() PR 오후',
+             '황인재 9/22 10:10', 'P,S']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -1734,7 +1749,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
