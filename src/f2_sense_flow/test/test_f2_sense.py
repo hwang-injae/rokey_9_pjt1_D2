@@ -236,6 +236,43 @@ def test_shake_splits_period_into_segments(monkeypatch):
     assert moves == [(5, +15.0, 0.15), (5, -30.0, 0.30), (5, +15.0, 0.15)]
 
 
+def test_shake_tilts_first_then_returns(monkeypatch):
+    """🆕 tilt_deg — 기울이기(+tilt) → 왕복 → 되돌리기(−tilt). 합은 0, 흔들기는 기울인 자세를 가운데로."""
+    import copy
+    cfg = copy.deepcopy(CFG)
+    cfg['f2']['shake']['WASTE']['tilt_deg'] = 60.0
+    cfg['f2']['limits']['max_tilt_deg'] = 100.0
+
+    class R2(Rec):
+        def cfg(self):
+            return cfg
+    r = R2()
+    s = _sense(monkeypatch, r)
+    assert s.shake('WASTE', 1, 'BOWL').ok
+    moves = [(c[1][1], c[1][2]) for c in r.of('move_joint_rel')]
+    assert moves == [(60.0, None), (15.0, 0.15), (-30.0, 0.30), (15.0, 0.15), (-60.0, None)]
+    names = r.names()
+    assert names.index('grip_level') < names.index('move_joint_rel'), '기울이기 전에 꽉 쥔다'
+    assert [c for c in r.calls if c[0] == 'grip_level'][-1][1][1] == 'NORMAL'
+    assert names.index('move_joint_rel') < len(names) - 1 - names[::-1].index('grip_level'), '되돌린 뒤에 힘을 푼다'
+
+
+def test_shake_tilt_over_limit_is_refused(monkeypatch):
+    import copy
+    cfg = copy.deepcopy(CFG)
+    cfg['f2']['shake']['WASTE']['tilt_deg'] = 120.0
+    cfg['f2']['limits']['max_tilt_deg'] = 100.0
+
+    class R2(Rec):
+        def cfg(self):
+            return cfg
+    r = R2()
+    s = _sense(monkeypatch, r)
+    out = s.shake('WASTE', 1, 'BOWL')
+    assert not out.ok and out.code == 'ROBOT_ERROR'
+    assert not r.of('move_joint_rel'), '상한을 넘는 값이면 움직이기 전에 거절'
+
+
 def test_shake_returns_to_center(monkeypatch):
     """🚨 한 주기가 끝나면 **가운데로 돌아온다** — 반복해도 자세가 밀리지 않는다."""
     r = Rec()
