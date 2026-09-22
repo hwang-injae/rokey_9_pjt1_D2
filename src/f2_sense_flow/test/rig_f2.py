@@ -132,10 +132,8 @@ def _close_target(kind, preset):
              기대 폭을 그대로 주면 **빈손으로도 그 폭에서 멈춰** 쥔 것처럼 보인다.
     """
     zero = float(preset.get('grip_zero_mm') or 0.0)          # 결정 E16 D-A — 명령에는 영점을 더한다
-    if kind == 'CUP':
-        target = preset.get('grip_target_mm')
-        if target is None:
-            raise KeyError('cell.presets.CUP.grip_target_mm 이 없다 — 결정 E19 의 고정 폭이다')
+    target = preset.get('grip_target_mm')                    # 🔄 9/22 저녁: 종류가 아니라 **키**로 고른다 — 컵도 벽을 집으면(CELL-05) 폭 판정
+    if target is not None:
         return float(target), '고정 폭(E19) — 파지 확인 안 함'
     expect = float(preset['grip_width_mm'])
     tol = float(preset['width_tol_mm'])
@@ -196,8 +194,8 @@ def _hold_container(a):
         got = cc.grip(target, force)
         log.info(f'  실제 폭 {got:.2f} mm')
 
-        if a.kind == 'CUP':                          # E19 — 폭으로 판정하지 않기로 한 자리
-            log.warn('  컵은 파지 확인을 하지 않는다(E19) — 눈으로 보고, 살짝 당겨 보세요')
+        if preset.get('grip_target_mm') is not None:  # E19 고정 폭 — 폭으로 판정하지 않는다(9/22 저녁부터 컵은 벽 집기라 여기 안 옴)
+            log.warn('  고정 폭 파지는 확인을 하지 않는다(E19) — 눈으로 보고, 살짝 당겨 보세요')
             return
         zero = float(preset.get('grip_zero_mm') or 0.0)
         net, tol = got - zero, float(preset['width_tol_mm'])

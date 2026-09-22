@@ -234,7 +234,8 @@ flow:                                 # ── flow 절 (민범진) ── 🟡 
     RACK_FULL: pause
     ROBOT_ERROR: pause
   consumables: {sponge_max_uses: 20, soap_max_dips: 60}
-  weigh_kinds: [BOWL]                 # 🆕 FLOW-05 (결정 E25 · 9/22): 무게 단계(move_to WEIGH · leftover_loop)를 **하는** 종류.
+  weigh_kinds: [BOWL, CUP]            # 🔄 9/22 저녁 황인재 결정: **E25 되돌림** — 컵도 무게 측정·잔반 버리기(그릇과 같은 흐름). WEIGH.CUP 새 자세 · 기준값 CUP 은 V-02 컵으로 다시
+                                                 # 🆕 FLOW-05 (결정 E25 · 9/22): 무게 단계(move_to WEIGH · leftover_loop)를 **하는** 종류.
                                       #   🟡 **임시 건너뛰기다 — 시나리오가 바뀐 게 아니다**(민범진 9/22): 컵 무게 측정(기준값 · WEIGH 자세 · 놓침 판정)이
                                       #   아직 미완성이라 동결 전에 컵 쪽만 잠시 뺀 것. 완성되면 [BOWL, CUP] 으로 되돌린다(코드 변경 없음).
                                       #   컵도 헹굼 담금·물 털기는 한다. 키를 지우면 전부 잰다(예전 동작)
