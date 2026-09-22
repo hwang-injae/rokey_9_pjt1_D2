@@ -17,6 +17,14 @@ python3 -m venv --system-site-packages ~/venvs/hmi
 ```
 상자(venv)를 열지 않아도 된다 — `hmi_bridge` 가 `params.yaml` 의 `hmi.venv_dir` 에서 부품을 찾아 붙인다. 다른 팀원 PC 는 설치할 필요 없다(빌드·시험은 그대로 통과).
 
+## 화면(`web/` — Next.js 정적 내보내기)
+```bash
+cd src/f4_hmi/web
+npm run build      # → out/ 을 hmi_bridge 가 / 에서 보여 준다(out/ 이 없으면 / = 시험 페이지)
+npm run illust     # 그림을 고쳤을 때만 — illust/*.py → public/illust/*.svg · app/lib/palletArt.js
+```
+그림(단계 18장 · 팔레트 조각 · 아이콘 8개)은 **코드로 그린 등각 일러스트**다(9/21 Claude 디자인 시안 승인). 만들어진 파일은 손으로 고치지 않고 `illust/*.py` 를 고친 뒤 `npm run illust` 로 다시 만든다.
+
 ## 진행
 - [x] F4-01 가짜 flow + 서버 뼈대 + 시험 페이지(`GET /api/state`)
 - [x] F4-02 버튼(start·stop·resume·abort) · WebSocket `/ws/state` · 가짜 flow 의 버튼 응답(`--wait-start`)

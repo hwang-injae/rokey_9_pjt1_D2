@@ -30,7 +30,10 @@ class FakeLog:
 
 
 class FakeDsr:
-    """get_workpiece_weight 가 미리 정한 값을 차례로 돌려준다."""
+    """get_workpiece_weight 가 미리 정한 값을 차례로 돌려준다.
+
+    🚨 값은 **g 로 적고** API 처럼 kg 으로 돌려준다(÷ 1000) — 시험이 g 로 읽히게. 음수·예외는 그대로.
+    """
 
     def __init__(self, values, reset_raises=False, reset_delay=0.0):
         self.values = list(values)
@@ -44,7 +47,7 @@ class FakeDsr:
         v = self.values.pop(0)
         if isinstance(v, Exception):
             raise v
-        return v
+        return v / 1000.0 if v >= 0 else v          # kg 으로 (실패 신호 -1 은 그대로)
 
     def reset_workpiece_weight(self):
         self.reset_calls += 1
@@ -71,6 +74,15 @@ def fake(monkeypatch):
         return log
 
     return install
+
+
+# ────────────────────────────────── 🚨 단위 — API 는 kg, 우리는 g (9/21 실기)
+def test_kg_from_api_becomes_g(fake):
+    """9/21 첫 실기: 그릇 쥔 채 0.0684 · 빈손 0.0239 (kg). g 로 안 바꾸면 '0 g' 으로 보여 GRIP_FAIL 이 난다."""
+    fake(FakeDsr([68.4]))                            # FakeDsr 이 0.0684 로 돌려준다
+    assert W.weigh(1) == pytest.approx(68.4)
+    fake(FakeDsr([23.9]))
+    assert W.weigh(1) == pytest.approx(23.9)
 
 
 # ────────────────────────────────── 중앙값
