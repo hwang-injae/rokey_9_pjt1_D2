@@ -135,12 +135,18 @@ def pick(zone_id: str, kind: str) -> PickResult:
 
 
 def _regrip(bed: str, kind: str) -> PickResult:
-    """스펀지 홈에서 다시 잡기 — pick() 의 재파지 갈래."""
-    if kind == CUP:
+    """스펀지 홈에서 다시 잡기 — pick() 의 재파지 갈래.
+
+    🔄 9/22 저녁(황인재 · E29): 종류가 아니라 **홈에 `regrip` 자세가 있는지**로 고른다 —
+      · regrip(posj) 이 있으면 그 자세에서 잡는다(옆면 파지 · 한석형 9/22 컵 방식 · 잡은 뒤 rack.cup_entry_z_mm 까지 올림)
+      · 없으면 그릇처럼 **놓은 자리(place 접근점 → 하강)에서 그대로 다시 잡는다** — 컵도 벽 집기로 바뀌어 이 갈래
+    """
+    bed_spec = ((_cell().get('beds') or {}).get(bed) or {})
+    if bed_spec.get(_REGRIP_POINT):
         cc.release()
         cc.move_to(bed, False, kind, _REGRIP_POINT)                 # posj — 접근점 없음
         ok, width = _grip_here(kind)
-        if not ok:                                                  # (컵은 판정이 없어 여기 오지 않는다 — 형식상)
+        if not ok:
             return PickResult.fail(GRIP_FAIL, attempts=1)
         entry_z = float(_need(_cell().get('rack'), 'cup_entry_z_mm', 'cell.rack'))
         dz = entry_z - float(cc.where()[2])
