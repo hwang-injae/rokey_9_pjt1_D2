@@ -346,6 +346,17 @@ def test_stop_is_public_as_cc_stop():
     assert cc.stop is motion.stop and 'stop' in motion.__all__
 
 
+def test_move_timeout_scales_with_vel_scale(robot):
+    """🔄 9/23 08:41 실기: 0.3 배속에서 손목 200° 관절 이동이 30 s 를 넘어 정상 이동이 시간 초과로 멈췄다 → 상한 = 기준 ÷ vel_scale."""
+    robot.cfg['cell']['motion']['move_timeout_s'] = 30.0
+    robot.cfg.setdefault('run', {})['vel_scale'] = 0.3
+    assert motion._move_timeout() == pytest.approx(100.0)
+    robot.cfg['run']['vel_scale'] = 1.0
+    assert motion._move_timeout() == pytest.approx(30.0)
+    robot.cfg['run']['vel_scale'] = 0.05                            # 0.1 아래로는 더 늘리지 않는다
+    assert motion._move_timeout() == pytest.approx(300.0)
+
+
 def test_move_timeout_sends_stop(robot):
     robot.busy_polls = 10 ** 9
     robot.cfg['cell']['motion']['move_timeout_s'] = 0.02
