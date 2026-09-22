@@ -67,6 +67,7 @@ class FakeCC:
 
     def release(self): self._note('release')
     def force_off(self): self._note('force_off')
+    def safe_retreat(self): self._note('safe_retreat')            # Z 만 safe_z 로 (가짜 — 높이 셈은 안 한다)
     def where(self): return [0.0, 0.0, self.z, 0.0, 0.0, 0.0]
 
     def grip(self, width, force):
