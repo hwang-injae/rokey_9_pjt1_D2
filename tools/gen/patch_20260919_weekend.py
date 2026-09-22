@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v16.0'
+VERSION = 'v16.1'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -2029,6 +2029,34 @@ for _tid, _e in P1700.items():
 HISTORY110 = ['v16.0', '인계·완료', 'V-07, F2-02, V-16, INT-F2', '민범진 인계 메시지(9/22 17:00): 헹굼 담금 컵 · 잔반 버리기 임팩트 · 물 털기 값 셋을 황인재(F4)에게 — 범위는 황인재 결정 대기(결정은 물 털기만이었음). V-16 은 35 N 낙하 0 으로 완료. 민범진은 저녁을 아직 시험대 방식으로 알고 있어 18:20 공지로 INT-F2 안내', '황인재 9/22 17:00', 'M,H']
 
 
+# ---------------------------------------------------------------- 9/22 17:20 황인재 — V-07 셋 다 민범진 · INT-ALL/NEW-01 추후 · 뼈대 함수화는 F4(SKEL-01)
+NEW.append(
+ ('SKEL-01', 'F1-01', 'F1-01', '개발', '뼈대 코드 정리 — 한석형 그릇 한 바퀴 시나리오 스크립트(rig_bowl_scenario_real.py)를 함수화·코드화해 통합 뼈대로 만든다',
+  'H(S)', '시작 전', S('9/22 저녁'), '함수화된 뼈대(브랜치 · PR) — 단계별 함수 + 한 바퀴 실행 진입점 · 실기 1회 완주 기록',
+  '한석형 스크립트가 실기로 완주한 경로·좌표를 그대로 지키면서 단계(집기 → 저울 → 잔반통 → 홈 → 툴 → 헹굼 → 팔레트)가 함수로 나뉜다 · 민범진(F2)·박진용(F3)이 자기 함수를 끼울 자리가 분명하다 · 실기 그릇 1회 완주(경로 바뀌지 않음 확인)',
+  '황인재 9/22 17:20: 뼈대 = 한석형 시나리오 스크립트가 맞는데 함수화·코드화가 안 돼 있어 **F4(황인재)가 맡는다**. INT-F2·INT-F3 의 전제. 🟡 함수화 결과를 handling.py(pick·rack_place)로 넣으면 F1-02·F1-04 제품 코드가 되는데 그 파일은 한석형 담당 — 어디에 둘지 황인재 확인'))
+EASY['SKEL-01'] = '한석형이 실기로 완주시킨 "그릇 한 바퀴" 시험 스크립트를 단계별 함수로 나눠, 민범진·박진용이 자기 기능을 끼워 넣을 수 있는 뼈대 프로그램으로 만든다'
+H1720 = '🔄 9/22 17:20 황인재'
+P1720 = {
+ 'V-07':   dict(owner='M', note_add=H1720 + ': **셋 다 민범진이 그대로 담당**(어느 정도 구현돼 있어서) — 헹굼 담금 컵 · 잔반 버리기 임팩트 · 물 털기 값. F4 인계 취소'),
+ 'INT-F2': dict(note_add=H1720 + ': 전제 = **SKEL-01**(F4 뼈대 함수화) — 뼈대가 함수로 나뉜 뒤 F2 함수를 끼운다'),
+ 'INT-F3': dict(note_add=H1720 + ': 전제 = **SKEL-01**(F4 뼈대 함수화)'),
+ 'INT-ALL': dict(note_add=H1720 + ': 담당은 **추후** 정한다'),
+ 'NEW-01': dict(note_add=H1720 + ': 내용은 **구상한 뒤** 넣는다'),
+ 'F1-02':  dict(note_add=H1720 + ': 뼈대 함수화(SKEL-01)는 F4 가 맡음 — 🟡 그 결과가 pick() 제품 코드를 대신하는지(파일은 한석형 담당) 확인 필요'),
+ 'F1-04':  dict(note_add=H1720 + ': 🟡 rack_place 도 같은 확인(SKEL-01)'),
+}
+for _tid, _e in P1720.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+_o = '🔄 16:50 통합 방식 변경(황인재): **① 민범진 INT-F2'
+assert _o in SLOT['9/22 화']['D']
+SLOT['9/22 화']['D'] = SLOT['9/22 화']['D'].replace(_o, '🔄 17:20: **⓪ 황인재 SKEL-01 — 한석형 시나리오 스크립트 함수화(로봇 불필요 · 끝나면 실기 1회 완주 15분)** → **① 민범진 INT-F2')
+SLOT['9/22 화']['D'] = SLOT['9/22 화']['D'].replace('로봇 불필요: 황인재 물 털기 값(V-07)은 로봇 빌 때 20분 · ', '민범진 V-07(헹굼 담금 컵 · 잔반 임팩트 · 물 털기 값 35분)은 INT-F2 앞뒤 로봇 빌 때 · ')
+HISTORY111 = ['v16.1', '분담', 'V-07, SKEL-01(신규), INT-F2, INT-F3, INT-ALL, NEW-01, F1-02, F1-04, 9/22 저녁 로봇 슬롯',
+              '황인재 9/22 17:20: ① 헹굼 담금 컵·잔반 임팩트·물 털기 값(V-07)은 민범진이 그대로(F4 인계 취소) ② INT-ALL 담당 추후 ③ 새 기능은 구상 뒤 ④ 뼈대 = 한석형 시나리오 스크립트, 함수화·코드화는 F4(SKEL-01 · 9/22 저녁 · INT-F2·F3 전제). 🟡 함수화 결과와 handling.py pick/rack_place(한석형 파일)의 관계 확인 필요',
+              '황인재 9/22 17:20', 'H,M,S,P']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -2117,7 +2145,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
