@@ -189,6 +189,12 @@ flow:                                 # ── flow 절 (민범진) ── 🟡 
                                       #   런치 인자 use_mock(= 환경변수 PREWASH_USE_MOCK)이 있으면 그 값이 이 줄을 덮어쓴다
   mock:
     fail_on: []                       # 실패 주입. 예: ["place:SEAT_FAIL", "rack_place:RACK_JAM"]
+  preflight:                          # 🆕 9/22 (민범진 · TS-07) — **움직이기 전에** 컨트롤러의 툴·TCP 이름을 확인한다. 다르면 시작 거부
+                                      #   9/22 11:22 다른 팀원이 펜던트에서 TCP 를 풀어 둔 채 → 같은 좌표가 208 mm 아래로 → 그릇 바닥 충돌
+                                      #   이름의 정본은 cell.yaml 머리말(ENV-05 · 황인재). 바뀌면 여기도 같이 — 비우면 그 항목은 검사 안 함
+    tool_name: "Tool Weight"
+    tcp_name: "GripperDA_v1"
+    timeout_s: 3.0                    # 조회 응답 상한(s)
 
 hmi:                                  # ── hmi 절 (황인재) ──
   host: 127.0.0.1                     # 접속을 받는 주소. 127.0.0.1 = **이 PC 에서만**(기본) / 0.0.0.0 = 같은 망의 태블릿·노트북에서도

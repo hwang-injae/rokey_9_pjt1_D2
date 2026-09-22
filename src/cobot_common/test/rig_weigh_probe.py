@@ -35,6 +35,8 @@ def main():
     a = ap.parse_args()
     cc.init('rig_weigh_probe')
     log = cc.io_node().get_logger()
+    from f2_sense_flow.preflight import require_controller     # 🆕 TS-07 — 움직이기 전 툴·TCP 확인 (f2 패키지의 문지기)
+    require_controller(cc.io_node(), cc.cfg(), log)
     vals = []
     fzs = []
     try:
