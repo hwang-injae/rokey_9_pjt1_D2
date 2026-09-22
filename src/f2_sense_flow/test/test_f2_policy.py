@@ -614,6 +614,30 @@ def test_abort_midmove_clears_the_flags():
         f"깃발이 남았다 — stop={sig.peek('stop')} abort={sig.peek('abort')}"
 
 
+def test_abort_retreats_before_going_home():
+    """🚨 중단은 **수조 안**(헹굼 구간)에서도 눌린다 → HOME 으로 가기 전에 곧게 올라와야 한다.
+
+    9/22 17:07 실기: 수조 안 자세(z −13.6)에서 HOME 으로 간 관절 이동이 테이블을 가로질러
+    그리퍼가 상판을 쓸었다 → 비상정지 · 툴 전원이 끊겨 그리퍼 드라이버까지 죽었다.
+    """
+    order = []
+    sig = AutoResume()
+    f, _ = _flow_halted_midmove(sig, n_containers=1)
+    f._safe_retreat = lambda: order.append('safe_retreat')
+    real_move_to = f.f['f1'].move_to
+
+    def move_to(station, carrying, kind=None):
+        order.append(f'move_to:{station}')
+        return real_move_to(station, carrying, kind)
+
+    f.f['f1'] = types.SimpleNamespace(**{n: getattr(f.f['f1'], n) for n in dir(F1Api) if not n.startswith('_')})
+    f.f['f1'].move_to = move_to
+    f.abort_container(sig)
+
+    assert order and order[0] == 'safe_retreat', f'HOME 보다 후퇴가 먼저여야 한다: {order}'
+    assert order[1] == 'move_to:HOME'
+
+
 def test_leftover_abort_flag_does_not_fire_next_run():
     """🚨 마지막 용기에서 중단하면 소비해 줄 다음 용기가 없다 → 깃발이 **다음 실행**까지 남는다.
 

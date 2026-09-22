@@ -178,16 +178,15 @@ def main():
     if a.no_robot:
         log.warn('--no-robot — 두산 드라이버 없이 함수 반환만 본다')
     else:
-        from f2_sense_flow.preflight import require_controller, warn_if_cable_tight
+        from f2_sense_flow.preflight import go_home_safely, require_controller, warn_if_cable_tight
         require_controller(cc.io_node(), cfg, log)             # 🆕 TS-07 — 툴·TCP 가 다르면 여기서 끝
         warn_if_cable_tight(cfg, log)                          # 🔗 케이블 장력(경고만)
 
     rows = []
     try:
         if not a.no_home and not a.no_robot:
-            log.info('E15 — 먼저 HOME 으로 간다 (앞뒤를 가로지르지 않으려고)')
-            cc.force_off()
-            cc.move_to('HOME', a.allow_stub)             # --allow-stub = 용기를 쥔 채 시작 → 저속
+            log.info('E15 — 먼저 HOME 으로 간다 (앞뒤를 가로지르지 않으려고 · 낮으면 곧게 올라온 뒤에)')
+            go_home_safely(None, log, a.allow_stub)      # --allow-stub = 용기를 쥔 채 시작 → 저속
         for i in range(1, a.n + 1):
             if virt is not None and a.which == 'a' and i == a.leftover_round:
                 virt['queue'][:] = [virt['empty'] + 100.0, virt['empty']]      # 잔반 100 g → 털면 0

@@ -12,9 +12,10 @@
       기대 이름의 정본은 cell.yaml 머리말(ENV-05 · 황인재 기록) — 여기는 그것을 확인하는 데만 쓴다.
 
 쓰는 곳: flow_node.main (robot=True 일 때) · rig_f2 · rig_int12 · rig_weigh_probe — cc.init 직후, 첫 이동 전.
+🆕 9/22 오후: **첫 이동 자체**도 여기서 한다(go_home_safely) — 낮은 자세에서 HOME 으로 가다 테이블을 쓴 충돌 때문.
 🚨 통신 노드의 실행기가 다른 스레드에서 돌고 있어야 동기 호출(call)이 돌아온다 — cc.init 뒤에만 부른다(gripper._send 와 같은 조건).
 """
-__all__ = ['PreflightError', 'check_controller', 'require_controller', 'warn_if_cable_tight']
+__all__ = ['PreflightError', 'check_controller', 'require_controller', 'warn_if_cable_tight', 'go_home_safely']
 
 _SRV_PREFIX = '/dsr01/dsr_controller2/'          # 두산 드라이버 서비스 이름 (motion.py 와 같다)
 
@@ -138,3 +139,36 @@ def warn_if_cable_tight(cfg, log=None):
         else:
             log.info(f'케이블 확인 — 정지 흔들림 {spread:.0f} g ({n}회) ✅')
     return spread, vals
+
+
+# ────────────────────────────────── 🚨 첫 이동 — 낮은 자세에서 HOME 으로 (9/22 테이블 충돌)
+def _cc():
+    """cobot_common 모듈 — 시험에서 바꿔 끼운다(늦게 import 해서 드라이버 없이도 이 파일을 읽을 수 있게)."""
+    import cobot_common
+    return cobot_common
+
+
+def go_home_safely(kind=None, log=None, carrying=True):
+    """HOME 으로 간다 — 낮은 자세면 **곧게 위로 빠져나온 뒤에** 간다 (cc.safe_retreat → cc.move_to('HOME')).
+
+    🚨 왜 (9/22 17:07 실기 충돌): f2.dip · f2.shake 는 **수조 안 자세**에서 끝난다
+       (cell.stations.RINSE 끝점 z = −13.6 mm — 받침면보다 아래). 그 자리에서 cc.move_to('HOME') 을
+       부르면 **관절 이동**이라 팔이 테이블 높이를 가로지르며 그리퍼가 상판을 쓸었다
+       → 충돌 → 비상정지 → **툴 전원이 끊겨 그리퍼 드라이버(OnRobotRGControllerServer)까지 죽었다**
+       (`/onrobot/sendCommand 가 안 보인다` 로 드러난다).
+       흐름(flow)에서는 헹굼 다음이 f1.rack_place 라 그 함수가 먼저 곧게 올라오지만,
+       **시험대는 직전에 어디 있었는지 모른다**(dip 을 돌리고 이어서 다른 시험대를 띄운다) → 시작할 때마다 여기서 올라온다.
+
+    어떻게: cc.safe_retreat() — 힘·순응을 끄고 **XY 는 그대로 Z 만** cell.limits.safe_z_mm(235)까지 올린다.
+            이미 그 위면 움직이지 않는다. 새 설정을 만들지 않고 팀이 정한 후퇴 높이를 그대로 쓴다(AGENTS §3 규칙 6).
+    """
+    cc = _cc()
+    z0 = None
+    try:
+        z0 = float(cc.where()[2])
+    except Exception:                                 # noqa: BLE001 — 못 읽어도 후퇴는 시도한다
+        pass
+    if log is not None and z0 is not None:
+        log.info(f'지금 z {z0:.0f} mm → 안전 높이까지 곧게 올라온 뒤 HOME (9/22 테이블 충돌 이후)')
+    cc.safe_retreat()                                 # 힘 끄기 + Z 만 위로 (이미 위면 안 움직인다)
+    cc.move_to('HOME', carrying, kind)

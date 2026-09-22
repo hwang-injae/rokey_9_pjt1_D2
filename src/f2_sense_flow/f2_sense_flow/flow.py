@@ -429,7 +429,7 @@ class Flow:
     def abort_container(self, sig):
         """🆕 중단(/flow/abort) — 이 용기를 접고 **다음 용기**로 간다 (IRD §6 · 결정 E11).
 
-        순서: 강제정지 풀기 → **HOME 먼저** → 툴 반납 → 용기를 격리 구역에 → HOME
+        순서: 강제정지 풀기 → **곧게 위로(safe_retreat)** → HOME → 툴 반납 → 용기를 격리 구역에 → HOME
         🚨 HOME 이 먼저인 이유: 결정 E7 로 이동에서 안전 높이 경유가 없어져 **지금 자리에서
            다음 자리로 곧장** 간다. 중단은 아무 때나 눌리므로 티칭 경로의 출발점에서 시작한다.
         🚨 한 단계가 실패해도 **멈추지 않는다** — 치우는 중이라 더 나아가는 편이 낫다.
@@ -450,6 +450,10 @@ class Flow:
                 self.log.error(f'중단 정리 — {what} 실패({r.code}). 그래도 계속 치운다')
             return r
 
+        # 🚨 HOME 으로 가기 **전에** 곧게 올라온다 (9/22 17:07 실기 충돌): 중단은 아무 때나 눌리고,
+        #    헹굼·담금 구간은 **수조 안 자세**(z −13.6)라 거기서 HOME 으로 가면 관절 이동이
+        #    테이블을 가로질러 그리퍼가 상판을 쓴다. safe_retreat 은 XY 를 그대로 두고 Z 만 올린다(이미 위면 안 움직임).
+        self._retreat()
         step('HOME 복귀', 'f1', 'move_to', 'HOME', True)
         if self.holding_tool:
             step('툴 반납', 'f1', 'tool', self.holding_tool, 'RETURN')

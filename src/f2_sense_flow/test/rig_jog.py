@@ -25,7 +25,7 @@ import termios
 import tty
 
 import cobot_common as cc
-from f2_sense_flow.preflight import require_controller
+from f2_sense_flow.preflight import go_home_safely, require_controller
 
 STEP_MIN, STEP_MAX, STEP_CAP = 0.5, 10.0, 10.0          # 관절(°)
 MM_MIN, MM_MAX, MM_CAP, MM_TOTAL = 1.0, 20.0, 20.0, 150.0  # 직선(mm) — 한 번 20 mm · 누적 ±150 mm
@@ -72,7 +72,7 @@ def main():
         cc.force_off()
         if a.goto:
             log.info(f'E15 — HOME 을 거쳐 {a.goto}.{a.kind} 로 간다')
-            cc.move_to('HOME', a.carrying, a.kind)
+            go_home_safely(a.kind, log, a.carrying)
             up = float(cc.move_to(a.goto, a.carrying, a.kind) or 0.0)
             if up > 0.0:                                   # 접근점이 있는 자리(RINSE 등) — 티칭 자세까지 마저 내려간다 (sense._goto 와 같게)
                 log.info(f'{a.goto} 상공에서 {up:.1f} mm 더 내려간다 (티칭 자세까지)')
