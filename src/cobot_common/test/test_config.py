@@ -110,10 +110,17 @@ def test_repo_params_sections():
 
 def test_unfilled_lists_empty_cell_values():
     empty = config.unfilled(config.load(SRC_CONFIG))
-    assert 'cell.presets.BOWL.grip_width_mm' in empty             # 아직 안 잰 값(V-01 에서 잰다)
+    # 9/21 저녁: V-01·V-05·V-23 실기로 **그릇·컵 프리셋을 채웠다**(민범진) → 이제 비어 있으면 안 된다
+    for kind in ('BOWL', 'CUP'):
+        for key in ('grip_width_mm', 'grip_zero_mm', 'grip_force_n', 'hold_force_n', 'width_tol_mm'):
+            assert f'cell.presets.{kind}.{key}' not in empty, f'{kind}.{key} 가 다시 비었다'
+    assert 'cell.presets.CUP.grip_target_mm' not in empty         # 🆕 결정 E19 — 컵의 고정 폭
     assert 'cell.limits.safe_z_mm' not in empty                   # 9/21: limits·motion·seat 는 설계 문서 값으로 채웠다
     poses = [e for e in empty if not e.startswith('cell.presets.')]
-    assert poses == [], f'빈 자세가 남아 있다: {poses}'           # 9/21: 자세는 전부 찼다(E14 · 격리까지). 남은 빈 값은 그리퍼 프리셋뿐(V-01·V-05)
+    assert poses == [], f'빈 자세가 남아 있다: {poses}'           # 9/21: 자세는 전부 찼다(E14 · 격리까지)
+    # 남은 빈 값: 툴 프리셋(SPONGE·BRUSH — 9/22 오전) + approach_z_mm(좌표 담당)
+    assert {e.split('.')[2] for e in empty} == {'SPONGE', 'BRUSH', 'BOWL', 'CUP'}, empty
+    assert {e.split('.')[3] for e in empty if e.split('.')[2] in ('BOWL', 'CUP')} == {'approach_z_mm'}
     assert 'cell.stations.HOME.posj' not in empty and 'cell.zones.RET_B.slots[1].posj' not in empty   # 슬롯 목록도 센다(번호는 1 부터)
     assert not [p for p in empty if not p.startswith('cell.')]
 

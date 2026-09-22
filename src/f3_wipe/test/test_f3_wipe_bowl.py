@@ -22,7 +22,7 @@ CFG = {
     'cell': {'limits': {'safe_z_mm': 235.0, 'contact_limit_n': 2.0}},
     'f3': {'wipe_bowl': {
         'tool': {'clean_h_mm': 35, 'd_mm': 90},
-        'find_gap_mm': 10.0, 'find_max_mm': 40.0,
+        'fast_down_mm': 135.0, 'find_max_mm': 40.0,
         'target_force_n': 1.5, 'limit_n': 10.0, 'lateral_max_n': 25.0,
         'bowl_inner_d_mm': 110.0, 'wall_press_mm': 4.0,
         'spiral_pitch_mm': 5.0, 'spiral_time_s': 3.0,
@@ -32,7 +32,7 @@ CFG = {
     }},
 }
 POSE0 = [400.0, 0.0, 235.0, 45.0, 180.0, 45.0]      # 접근점 (닦는 자리 상공)
-FAST = UP - 10.0                                    # 빠른 접근 = 바닥 find_gap_mm 위까지
+FAST = 135.0                                        # 빠른 하강 = fast_down_mm (티칭 끝점과 무관)
 FIND = 14.0                                         # 가짜 바닥: 빠른 접근 뒤 이만큼 더 내려가면 닿는다
 CENTER = [POSE0[0], POSE0[1], POSE0[2] - FAST - FIND]   # 바닥에 닿은 자리 = 나선의 중심
 
@@ -63,6 +63,7 @@ class FakeCell:
         self.moving = False
         self.touched = False                             # 닦는 높이까지 내려온 뒤부터 힘이 걸린 것으로 본다
         self.halted = False
+        self.off = None
         self.logger = _Logger()
 
     # ---- cobot_common 대역
@@ -103,6 +104,7 @@ class FakeCell:
 
     def force_off(self):
         self.calls.append(('force_off',))
+        self.off = len(self.poses)                       # 여기까지가 닦기 — 뒤는 HOME 복귀
 
     def safe_retreat(self):
         self.calls.append(('safe_retreat',))
@@ -162,6 +164,18 @@ def _center(c):
     return [POSE0[0], POSE0[1], POSE0[2] - FAST - c.find]
 
 
+def _wiped(c):
+    """HOME 복귀 이동을 뺀 닦기 자세들."""
+    return c.poses[:c.off]
+
+
+def _ended_home(c):
+    """힘을 끄고 → 곧게 올려 → HOME(관절)으로 끝났나."""
+    names = [x[0] for x in c.calls]
+    tail = names[len(names) - 1 - names[::-1].index('force_off'):]
+    return c.calls[-1][:2] == ('move_to', 'HOME') and tail[0] == 'force_off' and 'move_rel' in tail
+
+
 def _radii(poses, center):
     return [math.hypot(p[0] - center[0], p[1] - center[1]) for p in poses]
 
@@ -173,7 +187,8 @@ def test_confirmed_order(cell):
     names = [c[0] for c in cell.calls]
     assert (names.index('contact_down') < names.index('compliance_on') < names.index('spiral')
             < names.index('force_on') < names.index('arc') < names.index('force_release'))
-    assert names[-2:] == ['force_off', 'safe_retreat']                     # 어떤 경우에도 끄고 안전 높이
+    assert names[0] == 'move_to' and cell.calls[0][1] == 'HOME'            # 초기자세에서 시작
+    assert _ended_home(cell)                                               # 어떤 경우에도 끄고 곧게 올려 HOME
 
 
 def test_spiral_runs_without_force_control(cell):
@@ -191,10 +206,10 @@ def test_force_target_compensates_air_baseline(cell):
 
 
 def test_fast_approach_then_find_bottom(cell):
-    """티칭 끝점(= 9/20 실기로 잰 바닥) find_gap_mm 위까지 빠르게, 나머지는 힘으로."""
+    """초기자세 HOME 에서 fast_down_mm(135, 9/21 실측) 만큼 빠르게, 나머지는 힘으로 — 바닥 위치를 미리 정하지 않는다."""
     wipe.wipe_bowl()
     fast = [c for c in cell.calls if c[0] == 'move_rel' and c[1] < 0][0]
-    assert fast[1] == pytest.approx(-(UP - 10.0))
+    assert fast[1] == pytest.approx(-135.0)                                # 티칭 끝점(up)과 무관
     assert ('contact_down', 40.0, 2.0) in cell.calls                       # find_max_mm · cell.limits.contact_limit_n
 
 
@@ -204,7 +219,7 @@ def test_bottom_not_found_stops_before_compliance(cell):
     r = wipe.wipe_bowl()
     assert not r.ok and r.code == ROBOT_ERROR
     assert 'compliance_on' not in [c[0] for c in cell.calls]
-    assert 'safe_retreat' in [c[0] for c in cell.calls]
+    assert _ended_home(cell)
 
 
 def test_actual_z_is_logged(cell):
@@ -225,7 +240,7 @@ def test_wall_laps_reverse_and_twist(cell):
     arcs = [c for c in cell.calls if c[0] == 'arc']
     assert len(arcs) == 12                                                 # 3바퀴 × 90° 원호 4개
     assert arcs[-1][1] == 0.0 and arcs[0][1] > 0                           # 마지막만 이어 붙이지 않는다
-    lap = cell.poses[-13:-1]                                               # 마지막 하나는 중심 복귀
+    lap = _wiped(cell)[-13:-1]                                             # 마지막 하나는 중심 복귀
     rr = _radii(lap, _center(cell))
     assert max(rr) - min(rr) < 0.01                                        # 반지름 고정 (벽을 찾지 않는다)
     assert max(rr) == pytest.approx(WALL_R)
@@ -236,7 +251,7 @@ def test_wall_laps_reverse_and_twist(cell):
 
 def _arc_dir(cell):
     """벽면 원호가 도는 방향 부호 (BASE 기준, + 반시계)."""
-    lap = cell.poses[-13:-1]
+    lap = _wiped(cell)[-13:-1]
     ang = [math.atan2(p[1] - _center(cell)[1], p[0] - _center(cell)[0]) for p in lap]
     step = [math.atan2(math.sin(b - a), math.cos(b - a)) for a, b in zip(ang, ang[1:])]
     assert all(t * step[0] > 0 for t in step), '한 바퀴 안에서 방향이 바뀐다'
@@ -256,9 +271,9 @@ def test_wall_turns_opposite_to_measured_spiral(cell, spiral_dir):
 
 
 def test_ends_at_center_same_height(cell):
-    """올리지 않고 그 높이에서 중심으로 — 들어 올리는 것은 safe_retreat 몫."""
+    """올리지 않고 그 높이에서 중심으로 — 들어 올리는 것은 HOME 복귀 몫."""
     wipe.wipe_bowl()
-    last = cell.poses[-1]
+    last = _wiped(cell)[-1]
     assert _radii([last], _center(cell))[0] < 0.01
     assert last[2] == pytest.approx(_center(cell)[2])
 
@@ -275,7 +290,7 @@ def test_lateral_over_limit_is_force_limit(cell):
     cell.lateral = 99.0
     r = wipe.wipe_bowl()
     assert not r.ok and r.code == FORCE_LIMIT
-    assert [c[0] for c in cell.calls][-2:] == ['force_off', 'safe_retreat']
+    assert _ended_home(cell)
 
 
 def test_press_over_limit_is_force_limit(cell):
@@ -283,7 +298,7 @@ def test_press_over_limit_is_force_limit(cell):
     cell.press = 99.0
     r = wipe.wipe_bowl()
     assert not r.ok and r.code == FORCE_LIMIT
-    assert [c[0] for c in cell.calls][-2:] == ['force_off', 'safe_retreat']
+    assert _ended_home(cell)
 
 
 def test_over_time_is_timeout(cell):
@@ -304,8 +319,7 @@ def test_halt_between_steps_is_raised(cell):
     cell.halted = True
     with pytest.raises(wipe.cc.MotionHalted):
         wipe.wipe_bowl()
-    assert [c[0] for c in cell.calls][-1] == 'force_off'
-    assert 'safe_retreat' not in [c[0] for c in cell.calls]
+    assert [c[0] for c in cell.calls][-1] == 'force_off'                   # 끄기만 하고 움직이지 않는다
 
 
 def test_move_incomplete_does_not_auto_move(cell, monkeypatch):
@@ -319,7 +333,7 @@ def test_move_incomplete_does_not_auto_move(cell, monkeypatch):
     monkeypatch.setattr(wipe.cc, 'move_to', stop_midway)
     with pytest.raises(wipe.cc.MoveIncomplete):
         wipe.wipe_bowl()
-    assert 'safe_retreat' not in [c[0] for c in cell.calls]
+    assert [c[0] for c in cell.calls] == ['force_off']                     # 끄기만 하고 움직이지 않는다
 
 
 def test_force_limit_still_retreats(cell):
@@ -327,7 +341,7 @@ def test_force_limit_still_retreats(cell):
     cell.press = 99.0
     r = wipe.wipe_bowl()
     assert r.code == FORCE_LIMIT
-    assert [c[0] for c in cell.calls][-2:] == ['force_off', 'safe_retreat']
+    assert _ended_home(cell)
 
 
 def test_force_log_saved(cell):
@@ -337,3 +351,10 @@ def test_force_log_saved(cell):
         head = f.readline().strip().split(',')
     assert head == list(wipe.FORCE_LOG_HEADER)
     assert r.force_mean_n > 0                                              # 누르는 힘 평균 (마감 기준 TC-06)
+
+
+def test_returns_straight_up_to_home_height(cell):
+    """닦은 뒤 수세미를 곧게 올려 HOME 높이로 → HOME(관절). 옆으로 먼저 움직이지 않는다."""
+    wipe.wipe_bowl()
+    rise = cell.poses[cell.off]
+    assert rise[:2] == pytest.approx(_center(cell)[:2]) and rise[2] == pytest.approx(POSE0[2])

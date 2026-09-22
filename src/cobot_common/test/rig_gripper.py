@@ -15,12 +15,17 @@
     V-05   폭 경로 확인 — 빈손으로 목표 폭을 반복 명령해 읽은 폭의 **흔들림**. 사람 개입 없음
            🔑 닫힌 쪽(0~5 mm)이 핵심이다 — 그릇 벽 파지가 ≈ 2 mm 라 거기서 흔들리면 못 가린다
     V-23   파지 힘 전환 — 쥔 채 NORMAL ↔ HOLD 를 n 회. 완료 기준 "전환 10회 낙하 0"
-    V-01   폭 3상태 구분 — 빈손 · 그릇 · 컵을 n 회씩. 완료 기준 "세 범위가 겹치지 않고,
+    V-01   폭 3상태 구분 — 빈손 · 그릇 · 컵을 n 회씩.
+           🔻 닫는 힘은 **종류별**이다(9/21): 빈손·그릇 = BOWL 힘 / 컵 = CUP 힘.
+              컵이 15 N 에서 변형돼 낮췄고, 빈손·그릇은 간격이 2.7 mm 뿐이라 같은 조건으로 재야 한다.
+              --force-n 을 주면 그 값이 전부를 덮는다.
+           완료 기준 "세 범위가 겹치지 않고,
            그릇 ↔ 빈손 간격이 흔들림(최대 − 최소)의 2배 이상" → 결과가 cell.yaml 의 width_tol_mm 가 된다
 
 🚨 이 시험대가 지키는 것
     ① 모든 명령을 **release() 로 시작** 한다 — 힘 기준 맞추기(0 N 까지 내리기)가 **빈손** 에서 일어나야
-       한다. 용기를 쥔 채 맞추면 놓친다(PM 9/20 · gripper.py _anchor_force 주석).
+       한다. 🔄 9/21: gripper.py 가 힘을 **읽어서** 맞추게 바뀌어(기준 잡기 삭제) 쥔 채 놓칠 일은 없어졌다.
+       다만 release() 로 시작하는 약속은 그대로다 — 힘은 움직이거나 닫혀 있을 때만 읽히기 때문이다.
     ② **로봇 팔을 움직이지 않는다** (`init(robot=False)`) — 그리퍼만 쓴다. 두산 드라이버도,
        아직 비어 있는 팀 cell.yaml 의 limits·motion 도 필요 없다.
     ③ Ctrl+C 로 끊으면 **그리퍼에 아무 명령도 보내지 않는다** — 쥔 채면 놓는 쪽이 더 위험하다.
@@ -47,6 +52,20 @@ _STATE_NAME = {'EMPTY': '빈손', 'BOWL': '그릇', 'CUP': '컵'}
 
 
 # ────────────────────────────────────────────────────────────── 재는 도구
+def _zero(preset, kind, log):
+    """🆕 빈손 영점(mm) — 결정 E16 D-A. 없으면 None (그때는 옛 방식으로 로그만 남긴다).
+
+    🚨 드라이버가 재는 폭은 **알루미늄 손가락 사이**라 고무 핑거팁 두께가 안 빠진다
+       → 빈손으로 꽉 닫아도 0 이 아니라 10.5 mm 쯤이 읽힌다(9/21 실측).
+       그래서 판정은 `읽은 폭 − 영점`, 명령은 `영점 + 목표` 다(방향이 반대다).
+    """
+    z = preset.get('grip_zero_mm')
+    if z is None:
+        log.warn(f'presets.{kind}.grip_zero_mm 이 비어 있다 — 영점 없이 판정한다(V-01 에서 잰다)')
+        return None
+    return float(z)
+
+
 def _stats(vals):
     """평균·최소·최대·흔들림(최대 − 최소). 흔들림이 V-01·V-05 판정의 기준이다."""
     lo, hi = min(vals), max(vals)
@@ -111,7 +130,8 @@ def cmd_check(a, p, log):
 def cmd_v05(a, p, log):
     """폭 경로 확인 — 빈손으로 목표 폭을 n 회씩 반복 명령하고 읽은 폭의 흔들림을 본다."""
     conf = p['v05']
-    log.info(f'V-05  폭 경로 확인 — 빈손, 목표 {conf["targets_mm"]} mm 를 {a.n} 회씩')
+    force = a.force_n if a.force_n is not None else float(p['force_n'])   # 빈손이라 종류가 없다
+    log.info(f'V-05  폭 경로 확인 — 빈손, 목표 {conf["targets_mm"]} mm 를 {a.n} 회씩 · {force:.1f} N')
     log.info('🚨 그리퍼에 **아무것도 없어야** 한다')
     cc.release()                                    # ① 열기 + (첫 호출이면) 힘 기준 맞추기
     if _wait_width(log, p['width_wait_s']) is None:
@@ -119,7 +139,7 @@ def cmd_v05(a, p, log):
 
     rows, worst, bad = [], 0.0, []
     for target in conf['targets_mm']:
-        vals = [_close_once(float(target), a.force_n) for _ in range(a.n)]
+        vals = [_close_once(float(target), force) for _ in range(a.n)]
         s = _stats(vals)
         rows.append((f'{target:.1f}', s))
         worst = max(worst, s['spread'])
@@ -165,14 +185,36 @@ def cmd_v23(a, p, log):
     #    (같은 파일 cmd_v01 은 close_mm: 0.0 으로 이 규칙을 지키는데 여기만 빠져 있었다)
     expect = float(preset['grip_width_mm'])
     tol = float(preset['width_tol_mm'])
-    target = max(0.0, expect - 2 * tol)
+    zero = _zero(preset, a.kind, log)
+    # 🆕 결정 E16 D-A — 명령에는 영점을 **더하고**(드라이버 값이라서), 판정에서는 **뺀다**.
+    #    영점이 없으면 옛 방식 그대로(드라이버 값끼리 비교).
+    base = zero if zero is not None else 0.0
+    target = base + max(0.0, expect - 2 * tol)
+    if a.target_mm is not None:
+        # 🔻 끝까지 닫지 않고 정해진 폭에서 멈춘다 — 무른 용기(컵)가 눌리는 것을 줄이려는 것.
+        #    🚨 대가가 있다: **빈손도 그 폭에서 멈춘다.** 아래에서 "목표에 그대로 도달" 을 경고한다.
+        log.warn(f'  🔻 닫는 목표를 {a.target_mm:.1f} mm 로 직접 준다(기본 계산값 {target:.2f} 대신) '
+                 f'— 끝까지 닫지 않는다')
+        target = float(a.target_mm)
     w0 = cc.grip(target, float(preset['grip_force_n']))
-    log.info(f'  최초 파지(NORMAL) — 목표 {target:.2f} mm'
-             f'(기대 {expect:.1f} − 2 × 허용오차 {tol:.1f}) → 실제 {w0:.2f} mm')
-    if abs(w0 - expect) > tol:
+    net0 = w0 - base
+    log.info(f'  최초 파지(NORMAL) — 목표 {target:.2f} mm(영점 {base:.2f} + 기대 {expect:.1f} '
+             f'− 2 × 허용오차 {tol:.1f}) → 실제 {w0:.2f} mm · **영점 뺀 폭 {net0:.2f} mm**')
+    if abs(w0 - target) < 0.3:
+        # 🚨 9/21 결함 수정 — 전에는 경고만 하고 **통과**시켰다. 빈손으로 돌려 보니 그대로 OK 가 났다
+        #    (컵 77.90 vs 빈손 77.80 — 차이 0.10 mm, 흔들림 0.20 보다 작다).
+        #    9/20 에 고친 "빈손으로 통과하면 안 된다" 보호가 --target-mm 을 넣으며 다시 뚫린 것이다.
+        #    힘 전환 시험은 **쥐고 있어야** 뜻이 있으므로 여기서 멈춘다.
+        log.error(f'  🚨 목표 {target:.1f} mm 에 **그대로 도달**했다 (실제 {w0:.2f}) — '
+                  f'막는 것이 없었다는 뜻이다. **빈손도 이렇게 보인다.**')
+        log.error('  → 이 조건에서는 "잡았는지" 를 폭으로 가를 수 없다. 힘 전환 시험을 하지 않는다')
+        log.error('  → 끝까지 닫는 방식(--target-mm 없이)으로 돌리거나, 파지 확인을 다른 방법으로 한다')
+        return 1
+    if abs(net0 - expect) > tol:
         # 용기가 없으면 목표(≈ 0)까지 닫힌다 → 여기서 걸린다. 이 시험은 빈손으로 통과하면 안 된다.
         log.error(f'  {_STATE_NAME[a.kind]} 이(가) 안 잡혔다 — '
-                  f'폭 {w0:.2f} mm 가 기대 {expect:.1f} ± {tol:.1f} mm 밖이다')
+                  f'영점 뺀 폭 {net0:.2f} mm 가 기대 {expect:.1f} ± {tol:.1f} mm 밖이다 '
+                  f'(읽은 값 {w0:.2f} − 영점 {base:.2f})')
         log.error('  용기를 제대로 대 주고 다시 실행한다 (힘 전환 시험은 쥐고 있어야 뜻이 있다)')
         return 1
     # 놓치면 그리퍼가 닫혀 버려 폭이 0 근처로 간다. 절대값(drop_mm)만 쓰면 컵(≈ 70 mm)에서
@@ -228,13 +270,35 @@ def cmd_v01(a, p, log):
     if _wait_width(log, p['width_wait_s']) is None:
         return 1
 
+    # 🔻 9/21 — 종류마다 **다른 힘**으로 닫는다. 컵은 15 N 에서 눈으로 보이게 변형됐다(민범진 관찰).
+    #    · 빈손·그릇 : 그릇 힘 (둘을 **같은 조건**으로 재야 비교가 된다 — 간격이 2.7 mm 뿐이라 촘촘하다)
+    #    · 컵        : 컵 힘   (빈손과 60 mm 넘게 떨어져 있어 조건이 달라도 구분에 지장이 없다)
+    #    --force-n 을 주면 그 값이 **전부**를 덮는다(예전 방식).
+    presets = cc.cfg()['cell']['presets']
+    # 🔎 9/21 — 컵을 5 N 으로 낮췄는데 실행에서 20 N 이 찍힌 적이 있어(원인 미상) 근거를 남긴다.
+    log.info('  닫는 힘(설정에서 읽음): '
+             + ' · '.join(f'{k} {(presets.get(k) or {}).get("grip_force_n")} N' for k in ('BOWL', 'CUP'))
+             + (f" · --force-n {a.force_n} 로 **전부 덮음**" if a.force_n is not None else ''))
+    log.info(f'  설정 폴더: {os.environ.get("PREWASH_CONFIG_DIR")}')
+
+    def _force_for(st):
+        if a.force_n is not None:
+            return a.force_n
+        kind = 'BOWL' if st in ('EMPTY', 'BOWL') else st
+        f = (presets.get(kind) or {}).get('grip_force_n')
+        if f is None:
+            raise KeyError(f'presets.{kind}.grip_force_n 이 비어 있다 — rig_gripper_config 를 채운다')
+        return float(f)
+
     out = {}
     for st in conf['states']:
         if st == 'EMPTY':
             _ask(log, '그리퍼를 **비워** 주세요')
         else:
             _ask(log, f'{_STATE_NAME[st]} 을(를) 그리퍼 사이에 대 주세요')
-        vals = [_close_once(close, a.force_n) for _ in range(a.n)]
+        force = _force_for(st)
+        log.info(f'  {_STATE_NAME[st]:<4} — {force:.1f} N 으로 {a.n} 회 닫는다')
+        vals = [_close_once(close, force) for _ in range(a.n)]
         out[st] = _stats(vals)
         log.info(f'  {_STATE_NAME[st]:<4} : ' + ' '.join(f'{v:.2f}' for v in vals))
     cc.release()
@@ -262,9 +326,16 @@ def cmd_v01(a, p, log):
     log.info(f'    그릇 ↔ 빈손 간격 {gap:.2f} ≥ 2 × 흔들림 {wob:.2f} ({2 * wob:.2f})'
              f'{"":>3}{"OK" if gap_ok else "FAIL"}')
 
-    # ── 산출물: 한석형에게 넘길 width_tol_mm
+    # ── 산출물: cell.yaml 에 넣을 값 (결정 E16 D-A — 영점을 빼서 실측 치수와 같은 뜻으로)
     log.info('')
-    log.info('  → 한석형에게 드릴 값 (cell.yaml presets)')
+    log.info('  → cell.yaml presets 에 넣을 값 (한석형·PM)')
+    zero = out['EMPTY']['avg']                       # 🆕 빈손 평균 = grip_zero_mm
+    log.info(f'       presets.<kind>.grip_zero_mm : {zero:.2f}'
+             f'   (빈손 평균 — 판정은 `읽은 폭 − 영점`, 명령은 `영점 + 목표`)')
+    for kind in ('BOWL', 'CUP'):
+        net = out[kind]['avg'] - zero
+        log.info(f'       presets.{kind}.grip_width_mm : {net:.2f}'
+                 f'   (읽은 {out[kind]["avg"]:.2f} − 영점 {zero:.2f} · 실측 치수와 맞는지 보세요)')
     for kind, nb in (('BOWL', 'EMPTY'), ('CUP', 'BOWL')):
         g = out[kind]['min'] - out[nb]['max']
         w = max(out[kind]['spread'], out[nb]['spread'])
@@ -293,12 +364,17 @@ def main() -> int:
     ap.add_argument('-n', type=int, default=10, help='반복 횟수 (완료 기준은 10)')
     ap.add_argument('--kind', default='BOWL', choices=['BOWL', 'CUP'], help='v23 의 용기 종류 (IRD §2)')
     ap.add_argument('--force-n', type=float, default=None, help='v05·v01 에서 닫을 때 쓰는 힘 (N)')
+    ap.add_argument('--target-mm', type=float, default=None,
+                    help='v23 에서 닫는 목표 폭을 직접 준다 (드라이버 값 · 영점 포함). '
+                         '끝까지 닫지 않아 용기가 눌리는 것을 줄인다 — 🚨 아래 경고를 함께 본다')
     a = ap.parse_args()
 
     with open(HERE / 'rig_gripper.yaml', encoding='utf-8') as f:
         p = yaml.safe_load(f)
-    if a.force_n is None:
-        a.force_n = float(p['force_n'])
+    # 🚨 9/21 — 여기서 yaml 기본값(20 N)으로 **채우면 안 된다**. 채우면 v01 의
+    #    "--force-n 을 줬을 때만 덮는다" 검사가 항상 참이 되어 **컵도 20 N 으로** 닫힌다
+    #    (9/21 V-01 에서 실제로 그렇게 났고, 컵이 눌리며 안전 스위치가 걸렸다).
+    #    a.force_n 은 **사람이 준 값일 때만** 값이 있다. 기본값은 쓰는 쪽(v05)에서 고른다.
     if a.n < 1:
         return 2
 
