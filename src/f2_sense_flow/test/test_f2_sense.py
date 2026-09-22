@@ -771,3 +771,47 @@ def test_leftover_goes_via_home_between_scale_and_waste_bin(monkeypatch):
     s.leftover_loop('BOWL', 2)
     stations = [c[1][0] for c in r.of('move_to')]
     assert stations == ['WEIGH', 'HOME', 'WASTE', 'HOME', 'WEIGH'], stations
+
+
+# ────────────────────────────────── 🔑 놓쳤는지는 **폭**이 답한다 (9/22 저녁 · 영점 이동)
+_CELL_PRESETS = {'cell': {'presets': {
+    'BOWL': {'grip_zero_mm': 10.58, 'grip_width_mm': 2.15, 'width_tol_mm': 0.6},
+    'CUP': {'grip_zero_mm': 10.58, 'grip_target_mm': 76.0, 'grip_width_mm': 65.42, 'width_tol_mm': 10.0},
+}}}
+
+
+class RecCell(Rec):
+    """cell.presets 까지 들고 있는 가짜 — 폭 판정을 켠다."""
+
+    def cfg(self):
+        return dict(CFG, **_CELL_PRESETS)
+
+
+def test_weigh_low_but_width_says_held_is_not_a_drop(monkeypatch):
+    """🚨 무게만 이상하고 **폭으로는 쥐고 있으면** 놓친 게 아니다 — 빈 용기 기준값이 낡은 것이다.
+
+    9/22 18:11 실기: 빈 그릇 기준값 −12 g 를 잰 그 자세에서 −117.5 g 이 읽혔다(그릇 자체는 47 g).
+    영점이 통째로 밀린 것인데 옛 코드는 GRIP_FAIL 로 막아 통합이 멈췄다.
+    """
+    r = RecCell(weights=[-100.0], widths=[12.90])        # 12.90 − 10.58 = 2.32 ≈ 2.15 ± 0.6 → 쥐고 있다
+    s = _sense(monkeypatch, r)
+    out = s.weigh('BOWL')
+    assert out.ok and out.code == OK, '쥐고 있으면 막지 않는다'
+    assert out.weight_g == pytest.approx(-280.0)         # −100 − 180(기준값) — 값은 그대로 돌려준다
+
+
+def test_weigh_low_and_width_says_empty_is_a_drop(monkeypatch):
+    """폭이 빈손이면 진짜로 놓친 것 — GRIP_FAIL 로 막는다."""
+    r = RecCell(weights=[-100.0], widths=[10.58])        # 영점까지 닫혔다 → 빈손
+    s = _sense(monkeypatch, r)
+    out = s.weigh('BOWL')
+    assert not out.ok and out.code == GRIP_FAIL
+
+
+def test_weigh_low_falls_back_to_weight_when_width_cannot_judge(monkeypatch):
+    """컵은 고정 폭(E19)이라 빈손과 구분이 안 된다 → 예전대로 무게만 보고 막는다."""
+    r = RecCell(weights=[-100.0], widths=[76.0])
+    s = _sense(monkeypatch, r)
+    out = s.weigh('CUP')
+    assert not out.ok and out.code == GRIP_FAIL
+

@@ -53,29 +53,32 @@ def _grip_close(kind):
 
     BOWL(SDD §5.2 · E16): 목표 = 영점 + max(0, 기대 − 2 × 허용오차) — 기대 폭을 그대로 주면 **빈손으로도 그 폭에서 멈춘다**.
         판정 = |(실제 폭 − 영점) − 기대| ≤ 허용오차.
-    CUP(E19): grip_target_mm 까지만 닫고 **판정하지 않는다** — 빈손과 구분이 안 되고(컵 77.9 vs 빈손 77.8) 눌러도 안 된다.
+    고정 폭(E19 · 프리셋에 `grip_target_mm` 이 있을 때): 그 폭까지만 닫고 **판정하지 않는다** — 9/21 컵 옆면 파지(빈손과 구분 불가 · 눌림).
+        🔄 9/22 저녁(황인재 · CELL-05): 컵도 **그릇처럼 테두리 벽을 위에서 집는다** → presets.CUP 에서 grip_target_mm 을 빼고 폭 판정으로.
+        종류가 아니라 **프리셋 키**로 방식을 고른다 — 나중에 다시 옆면 파지로 돌리려면 grip_target_mm 만 넣으면 된다.
+    돌려주는 마지막 값 fixed: 고정 폭이면 True(보고 폭 = 드라이버 값) · 아니면 False(보고 폭 = 영점 뺀 값).
     """
     preset = _need(_cell().get('presets'), kind, 'cell.presets')
     where = f'cell.presets.{kind}'
     force = float(_need(preset, 'grip_force_n', where))
     zero = float(_need(preset, 'grip_zero_mm', where))
-    if kind == CUP:
-        target = float(_need(preset, 'grip_target_mm', where))
-        return target, force, (lambda got: True), zero
+    fixed = preset.get('grip_target_mm')
+    if fixed is not None:
+        return float(fixed), force, (lambda got: True), zero, True
     expect = float(_need(preset, 'grip_width_mm', where))
     tol = float(_need(preset, 'width_tol_mm', where))
     target = zero + max(0.0, expect - 2.0 * tol)
-    return target, force, (lambda got: abs((got - zero) - expect) <= tol), zero
+    return target, force, (lambda got: abs((got - zero) - expect) <= tol), zero, False
 
 
 def _grip_here(kind):
-    """지금 자리에서 쥔다 → (성공 여부, 보고할 폭). BOWL 은 영점 뺀 폭, CUP 은 드라이버 폭."""
-    target, force, judge, zero = _grip_close(kind)
+    """지금 자리에서 쥔다 → (성공 여부, 보고할 폭). 폭 판정이면 영점 뺀 폭, 고정 폭(E19)이면 드라이버 폭."""
+    target, force, judge, zero, fixed = _grip_close(kind)
     got = float(cc.grip(target, force))
     ok = judge(got)
-    width = got if kind == CUP else got - zero
+    width = got if fixed else got - zero
     _log().info(f'grip({kind}) 목표 {target:.2f} mm · {force:.0f} N → 실제 {got:.2f} mm'
-                + ('' if kind == CUP else f' · 영점 뺀 폭 {width:.2f} mm') + (' ✅' if ok else ' ✗ (빈손·헛잡음)'))
+                + ('' if fixed else f' · 영점 뺀 폭 {width:.2f} mm') + (' ✅' if ok else ' ✗ (빈손·헛잡음)'))
     return ok, width
 
 

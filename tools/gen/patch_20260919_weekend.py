@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v18.1'
+VERSION = 'v18.5'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -2292,6 +2292,51 @@ EDIT.setdefault('V-02', {}).update(dict(note_add='🚨 20:03: 18:11 실기(민�
 HISTORY131 = ['v18.1', '🔴 정정', 'INT-F2, ENV-05, V-02', '민범진 PR #78 9/22 20:03: 충돌 17:07→17:27 정정(황인재 리셋과 무관) · 풀린 창은 충돌 10분 뒤(복구 절차·재시작 의심) · 18:11 영점 105 g 이동 → 폭으로 파지 재확인·흐름/떨림 분리 · PR 은 충돌 4파일로 재푸시 요청 · 🟡 자동 영점 결정', '황인재 9/22 20:03', 'H']
 
 
+
+# ---------------------------------------------------------------- 9/22 20:13 황인재 — 펜던트 Tool Weight·무게 값 그대로
+EDIT.setdefault('V-02', {}).update(dict(note_add='✅ 20:13 황인재: 펜던트 재선택 뒤에도 Tool Weight 와 등록 무게 값(1.440 kg) 그대로 → 18:11 의 105 g 영점 이동은 **툴 등록 탓이 아님** → 힘센서 영점 자체의 흐름(시간·자세·케이블·비상정지 복구) 쪽. 자동 영점 결정 ④ 근거 강화'))
+HISTORY132 = ['v18.2', '확인', 'V-02', '황인재 9/22 20:13: Tool Weight·무게 값 그대로 확인 — 105 g 영점 이동은 툴 등록 탓 아님(힘센서 영점 흐름)', '황인재 9/22 20:13', 'H']
+
+
+
+# ---------------------------------------------------------------- 9/22 20:19 황인재 결정 E29·E30 — PR #79 merge(컵 벽 집기 · 컵도 무게 · 새 좌표 · rig_f1 문지기)
+NEW.append(
+ ('CELL-05', 'CELL-04', 'CELL-04', '티칭', '컵 좌표 재티칭 + 컵 벽 집기(그릇 방식 · E29) + E25 되돌림(컵도 무게·잔반 · E30) + rig_f1 문지기',
+  'H', '진행', S('9/22 저녁'), 'cell.yaml(RET_C 파지점 · 홈 C 삽입점 · WEIGH.CUP · presets.CUP) · params flow.weigh_kinds [BOWL, CUP] · handling._grip_close 키 방식 · rig_f1 E26 문지기 — ✅ PR #79 merge 20:19',
+  '새 컵 좌표로 pick → 홈 C place 실기 OK · presets.CUP 폭을 첫 pick 실측으로 교정 · WEIGH.CUP·WASTE.CUP·재파지·헹굼·팔레트 C 실기(INT-12b / V-24)',
+  '황인재 9/22 19:0x 결정: ① 컵 옆면 고정 폭(E19)을 끄고 그릇처럼 테두리 벽을 위에서 집기(폭 판정 · 20 N) ② E25 되돌림 — 컵도 무게 측정·잔반 버리기. 🟡 실기: 9/22 저녁 첫 pick(0.3) 결과는 PR #79 코멘트 → 후속은 main 에서 새 브랜치로 PR. 남의 파일(handling.py 한석형 · flow 절 민범진) PR 멘션으로 알림'))
+EASY['CELL-05'] = '컵을 옆에서 정해진 폭으로 잡던 방식을 버리고, 그릇처럼 컵 테두리 벽을 위에서 집어 "잡았는지" 를 폭으로 확인한다. 그래서 컵 집는 자리·홈에 넣는 자리를 새로 찍었고, 컵도 무게를 재고 잔반을 버리는 흐름으로 돌아간다'
+H2018 = '황인재 9/22 20:19'
+EDIT.setdefault('FLOW-05', {}).update(dict(note_add=H2018 + ': 🔄 **E30(E25 되돌림)** — flow.weigh_kinds [BOWL, CUP](PR #79 · 황인재가 민범진 절 수정 · 멘션). 컵 기준값은 V-02 컵 재측정 뒤 유효'))
+EDIT.setdefault('V-02', {}).update(dict(note_add=H2018 + ': 🔄 E30 으로 **컵 기준값 재측정 필요**(WEIGH.CUP 새 자세 = 파지점 +100 · f2.empty_weight_g.CUP 🟡 120 임시) → 9/23 아침'))
+EDIT.setdefault('V-07', {}).update(dict(note_add=H2018 + ': 🔄 E30 — 컵도 잔반 버리기(WASTE.CUP = 그릇 잔반통 자리 · J6 0 · 한쪽에 매달리면 180) 실기 확인 필요'))
+EDIT.setdefault('INT-12b', {}).update(dict(note_add=H2018 + ': 🔄 E29·E30 — 컵 통합은 PR #79(main a037abb) 뒤 새 방식으로(벽 집기 · 무게 포함). 오늘 밤 민범진 컵 통합 전에 황인재 첫 pick 실기 결과 확인'))
+EDIT.setdefault('CELL-04', {}).update(dict(note_add=H2018 + ': 홈 C 놓기 어긋남(17:33~17:38 관찰)은 CELL-05 새 삽입점 티칭으로 대체 — 🟡 실기 확인 중'))
+EDIT.setdefault('F1-02', {}).update(dict(note_add=H2018 + ': handling._grip_close 가 종류가 아니라 프리셋 키(grip_target_mm)로 고정 폭/폭 판정을 고른다(PR #79 · 황인재 수정 · 한석형 확인 요청)'))
+HISTORY133 = ['v18.3', '🔄 결정', 'CELL-05, FLOW-05, V-02, V-07, INT-12b, CELL-04, F1-02', '황인재 9/22 19:0x E29(컵 벽 집기 · E19 끔) · E30(E25 되돌림 · 컵도 무게) → PR #79 merge 20:19(444 passed · 실기 🟡 첫 pick 진행 중) · 결정기록·IRD·SDD·BR-SR·리마인드·AGENTS 반영', '황인재 9/22 20:19', 'H']
+
+
+
+# ---------------------------------------------------------------- 9/22 20:23 PR #78 merge(재푸시 · 충돌 해소)
+EDIT.setdefault('INT-F2', {}).update(dict(note_add='✅ 20:23 PR #78 merge(민범진 · 충돌 해소 뒤): sense.weigh — 잔반 하한 미달이면 **그리퍼 폭으로 파지 재확인**(빈손만 GRIP_FAIL · 쥐고 있으면 "기준값 낡음" 경고+통과 · 컵은 E19 키 없으면 폭 판정) · weigh 흐름/떨림 분리(🔗 케이블 = 떨림 · 📉 흐름 > max_weigh_drift_g 20 경고) · TS-08 17:27 정정. 448 passed · 실기 🟡 INT-12b. 🟡 남음: preflight 케이블 확인도 떨림 기준으로 · + 방향 영점 · 세 시각'))
+HISTORY134 = ['v18.4', 'PR', 'INT-F2', 'PR #78(민범진) 승인·merge 20:23: 폭으로 파지 재확인 · 무게 흐름/떨림 분리 · TS-08 17:27 정정 — 448 passed · 실기 🟡 INT-12b', '황인재 9/22 20:23', 'H']
+
+
+
+# ---------------------------------------------------------------- 9/22 20:26 PR #81 merge · 황인재 결정(F4 창 20:3x): 자동 영점 채택(E31) · 규칙 ①~④ 미채택(E32)
+NEW.append(
+ ('ZERO-01', 'F2-01', 'F2-01', '개발', '자동 영점 — 실행 시작 때 빈손으로 WEIGH 자세 1회 → 그날의 힘센서 0 (E31)',
+  'M', '시작 전', S('9/23'), 'f2(sense/flow) 시작 단계 + 단위 시험 · PR', '시작 때 빈손 영점 1회(약 40 s) · 그 뒤 잔반 판정이 그날 영점 기준 · 단위 시험 통과 · 🟡 실기 1회(9/23)',
+  '황인재 9/22 20:3x 채택(F4 창 · PR #78 결정 대기 항목). 근거: 18:11 빈 그릇 자리 −117.5 g(기준값 −12 → 105 g 이동) · Tool Weight 그대로 → 영점 흐름. 동결 9/23 저녁 안에'))
+EASY['ZERO-01'] = '주방 저울의 0 맞춤처럼, 한 바퀴를 시작할 때마다 로봇이 빈손으로 저울 자세에 한 번 들러 그날의 0 을 스스로 잡는다 — 오후에 맞춘 0 이 저녁에 밀려 잔반 판정이 틀리는 것을 막는다'
+H2030 = '황인재 9/22 20:26'
+EDIT.setdefault('CELL-05', {}).update(dict(prog='0.8', note_add=H2030 + ': ✅ 첫 벽 집기 실기 20:18 — 집기(벽 1.82 mm)·홈 C 삽입 정확히 맞음 → PR #81 merge(폭 1.8 · WASTE.CUP J6 180). 진행 중: rig_f2 empty CUP(새 WEIGH.CUP 기준값) → 96 g 넣고 loop CUP · V-25 기록 PR 은 그 뒤'))
+EDIT.setdefault('V-02', {}).update(dict(note_add=H2030 + ': 컵 기준값 재측정 **진행 중**(황인재 · WEIGH.CUP 새 자세)'))
+EDIT.setdefault('V-07', {}).update(dict(note_add=H2030 + ': 컵 잔반 버리기 loop(96 g) 실기 진행 중(황인재) · WASTE.CUP J6 180 첫 확인'))
+EDIT.setdefault('ENV-05', {}).update(dict(note_add=H2030 + ': 규칙 제안 ①~④ **채택 안 함**(황인재 · F4 창 · E32) — 기존 🚨 실기 시작 두 이름 확인(E26) · 🔌 실기 끝 그대로. 🟡 PM 창에서 재확인'))
+HISTORY135 = ['v18.5', '결정·PR', 'ZERO-01, CELL-05, V-02, V-07, ENV-05', '황인재 9/22 20:3x: 자동 영점 채택(E31 · 민범진 · 9/23) · 규칙 ①~④ 미채택(E32) · PR #81 merge 20:26(컵 벽 폭 1.8 · WASTE.CUP 180 · 실기 정확히 맞음)', '황인재 9/22 20:26', 'H']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -2380,7 +2425,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113, HISTORY114, HISTORY115, HISTORY116, HISTORY117, HISTORY118, HISTORY119, HISTORY120, HISTORY121, HISTORY122, HISTORY123, HISTORY124, HISTORY125, HISTORY126, HISTORY127, HISTORY128, HISTORY129, HISTORY130, HISTORY131):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113, HISTORY114, HISTORY115, HISTORY116, HISTORY117, HISTORY118, HISTORY119, HISTORY120, HISTORY121, HISTORY122, HISTORY123, HISTORY124, HISTORY125, HISTORY126, HISTORY127, HISTORY128, HISTORY129, HISTORY130, HISTORY131, HISTORY132, HISTORY133, HISTORY134, HISTORY135):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)

@@ -129,7 +129,7 @@ f1.pick('RET_B', 'BOWL') → f1.move_to('WEIGH', True, 'BOWL') → f2.leftover_l
 → f1.pick('SPONGE_BED_B', 'BOWL')               # 홈에 놓인 그릇 재파지(고정 위치, 탐색점 1개)
 → f2.dip('RINSE', 2, 'BOWL') → f2.shake('RINSE', 3, 'BOWL')   # 🔄 9/22 담금 1 → 2 (PR #68)
 → f1.rack_place('RACK_Bn', 'BOWL') → f1.move_to('HOME', False)
-# CUP: 🔄 E25(9/22) — **WEIGH 단계 없음**(move_to WEIGH · leftover_loop 를 부르지 않는다: 컵은 액체만 있다고 가정) · 나머지 동일, SPONGE_BED_C · tool('BRUSH') · wipe_cup() · dip·shake('RINSE') 는 한다 · RACK_Cn
+# CUP: 🔄 E30(9/22 19:0x · E25 되돌림) — **그릇과 같은 흐름**(move_to WEIGH · leftover_loop 도 한다 · `flow.weigh_kinds [BOWL, CUP]` PR #79) · 파지는 E29 벽 집기(폭 판정) · 나머지 동일, SPONGE_BED_C · tool('BRUSH') · wipe_cup() · dip·shake('RINSE') 는 한다 · RACK_Cn
 ```
 
 **실패 정책 (`params.yaml` flow 절 `policy`)**

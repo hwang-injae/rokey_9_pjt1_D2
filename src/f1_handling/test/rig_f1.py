@@ -124,6 +124,16 @@ def main():
     cc.init('rig_f1', robot=not a.no_robot)                 # ① 맨 앞에서 한 번
     log = cc.io_node().get_logger()
     try:
+        if not a.no_robot:                                  # 🚨 E26 문지기 — 움직이기 전에 컨트롤러의 툴·TCP 이름 확인(9/22 두 번 풀림: 11:1x · 16:5x)
+            from cobot_common.bootstrap import dsr          # rig 의 안전 확인용 — 기능 코드에서는 쓰지 않는다
+            want = ((cc.cfg().get('flow') or {}).get('preflight') or {})          # 기대 이름은 params flow.preflight (정본은 cell.yaml 머리말)
+            got_tool, got_tcp = str(dsr().get_tool()), str(dsr().get_tcp())
+            bad = [f'{k} {g!r} ≠ {w!r}' for k, g, w in (('tool', got_tool, want.get('tool_name')), ('tcp', got_tcp, want.get('tcp_name'))) if w and g != w]
+            if bad:
+                log.error('🚨 컨트롤러 툴·TCP 이름이 다르다 — ' + ' · '.join(bad)
+                          + ' → 움직이지 않는다. 펜던트에서 다시 선택(ROS set 금지 · E26): 브링업 끄고 → 선택 → Dart 닫고 → 브링업')
+                return
+            log.info(f'문지기 통과 — tool {got_tool!r} · tcp {got_tcp!r}')
         if a.fill_virtual:
             from cobot_common.bootstrap import dsr          # rig 의 안전 확인용 — 기능 코드에서는 쓰지 않는다
             if dsr().get_robot_system() != dsr().ROBOT_SYSTEM_VIRTUAL:
