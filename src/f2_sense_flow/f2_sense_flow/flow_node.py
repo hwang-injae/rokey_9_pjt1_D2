@@ -38,7 +38,7 @@ from cobot_msgs.msg import FlowEvent, FlowState
 from std_srvs.srv import Trigger
 
 from f2_sense_flow.flow import Flow, Signals, load_features
-from f2_sense_flow.preflight import PreflightError, require_controller
+from f2_sense_flow.preflight import PreflightError, require_controller, warn_if_cable_tight
 
 FEATURES = ('f1', 'f2', 'f3')
 
@@ -192,6 +192,7 @@ def main():
             # 🚨 첫 이동 전 문지기(TS-07) — 남이 펜던트에서 툴·TCP 를 바꿔 뒀으면 좌표 전체가 틀어진다.
             #    다르면 여기서 끝낸다(PreflightError → 아래 except 가 traceback 없이 종료 코드 2).
             require_controller(node, cc.cfg(), log)
+            warn_if_cable_tight(cc.cfg(), log)          # 🔗 시작 전 케이블 장력(경고만 · 약 5 s)
         sig = Signals()
         log.info('기능 모듈:')
         features = load_features(use_mock, log)      # 진짜/가짜 선택 (IRD §10)

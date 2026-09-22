@@ -201,3 +201,28 @@ def test_individual_values_are_logged(fake):
     W.weigh(3)
     info = [m for lv, m in log.lines if lv == 'info']
     assert any('220.0' in m and '221.0' in m and '222.0' in m for m in info)
+
+
+# ────────────────────────────────── 🔗 케이블 장력 경고 — 표본 퍼짐 (9/22)
+def test_spread_warns_when_over_limit(fake):
+    """퍼짐(10~90 % 폭)이 f2.limits.max_weigh_spread_g 를 넘으면 경고 · 값은 그대로 중앙값."""
+    wide = [0, 5, 10, 15, 20, 60, 65, 70, 75, 80]                 # 폭 ≈ 70
+    log = fake(FakeDsr(wide), {'f2': {'limits': {'max_weigh_spread_g': 50}}})
+    g = W.weigh(10)
+    assert g == pytest.approx(40.0)
+    assert any('케이블' in m for lv, m in log.lines if lv == 'warn')
+    assert W.weigh_last()['spread_g'] > 50 and W.weigh_last()['n'] == 10
+
+
+def test_spread_quiet_when_within_limit(fake):
+    log = fake(FakeDsr([40, 42, 44, 41, 43, 45, 42, 44, 43, 42]), {'f2': {'limits': {'max_weigh_spread_g': 50}}})
+    W.weigh(10)
+    assert not any('케이블' in m for lv, m in log.lines if lv == 'warn')
+    assert W.weigh_last()['spread_g'] < 10
+
+
+def test_spread_no_limit_no_warning(fake):
+    log = fake(FakeDsr([0, 100, 0, 100, 0, 100]))
+    W.weigh(6)
+    assert not any('케이블' in m for lv, m in log.lines if lv == 'warn')
+

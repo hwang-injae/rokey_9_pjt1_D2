@@ -178,8 +178,9 @@ def main():
     if a.no_robot:
         log.warn('--no-robot — 두산 드라이버 없이 함수 반환만 본다')
     else:
-        from f2_sense_flow.preflight import require_controller
+        from f2_sense_flow.preflight import require_controller, warn_if_cable_tight
         require_controller(cc.io_node(), cfg, log)             # 🆕 TS-07 — 툴·TCP 가 다르면 여기서 끝
+        warn_if_cable_tight(cfg, log)                          # 🔗 케이블 장력(경고만)
 
     rows = []
     try:

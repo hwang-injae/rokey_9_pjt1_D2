@@ -21,7 +21,7 @@ import time
 import cobot_common as cc
 from cobot_common.config import parse_use_mock
 from f2_sense_flow.flow import Flow, Signals, load_features
-from f2_sense_flow.preflight import require_controller
+from f2_sense_flow.preflight import require_controller, warn_if_cable_tight
 
 FEATURES = ('f1', 'f2', 'f3')
 
@@ -87,6 +87,7 @@ def main():
     try:
         if robot:
             require_controller(cc.io_node(), cc.cfg(), log)          # TS-07
+            warn_if_cable_tight(cc.cfg(), log)                        # 🔗 케이블 장력(경고만)
         features = load_features(use_mock, log)
         cfg = cc.cfg()
         f, events = _make_flow(cfg, log, features, robot)

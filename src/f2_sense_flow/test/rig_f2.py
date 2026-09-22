@@ -29,7 +29,7 @@ import cobot_common as cc
 from cobot_api import F2Api, check_api
 
 from f2_sense_flow import sense
-from f2_sense_flow.preflight import require_controller   # 🆕 TS-07 — 움직이기 전 툴·TCP 확인
+from f2_sense_flow.preflight import require_controller, warn_if_cable_tight   # 🆕 TS-07 — 움직이기 전 툴·TCP 확인 · 🔗 케이블
 
 
 def main():
@@ -82,6 +82,7 @@ def main():
         log.warn('--no-robot — 두산 드라이버 없이 함수 반환만 확인한다')
     else:
         require_controller(cc.io_node(), cc.cfg(), log)   # 🆕 TS-07 — 다르면 PreflightError 로 여기서 끝
+        warn_if_cable_tight(cc.cfg(), log)                # 🔗 케이블 장력(경고만)
     if a.which == 'shake':
         _override_shake(a, log)                          # 🆕 --amp/--period/--acc/--tilt (이번 실행만)
     try:
