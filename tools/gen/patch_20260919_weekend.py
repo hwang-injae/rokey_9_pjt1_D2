@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v15.6'
+VERSION = 'v15.7'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1946,6 +1946,19 @@ for _tid, _e in P1545.items():
 HISTORY106 = ['v15.6', '원인·분석', 'V-02, INT-12a, F3-02, ENV-05', '황인재 9/22 15:45(F4 전달): 무게 흔들림 원인 = 그리퍼 케이블 장력(늘리니 ±10 g) → INT-12a 전제로 케이블 상태 고정 · 리마인드 §6. 툴·TCP 풀림 시점은 11:10 실행 뒤~11:17(11:10 은 정상) → 브링업 재시작 여부를 박진용에게. 시험 도구의 ROS set·모드 전환을 "확인만" 으로 바꿀지는 황인재 결정', '황인재 9/22 15:45', 'H,P,M']
 
 
+# ---------------------------------------------------------------- 9/22 15:55 결정 E26 — 툴·TCP 는 확인만(ROS set · 모드 전환 금지) · 케이블 여유 길이로 해결
+NEW_RULES.append(('🚨 실기 시작', '툴·TCP 이름 확인', '로봇을 움직이기 전에 get_current_tcp → GripperDA_v1 · get_current_tool → Tool Weight 를 확인한다. 비어 있거나 다르면 움직이지 말고 브링업을 끈 뒤 펜던트에서 다시 고른다. 🚨 E26(9/22): 프로그램·시험 도구도 **확인만** — ROS 로 set_tool/set_tcp 하거나 MANUAL↔AUTONOMOUS 를 오가지 않는다(다르면 종료 + 펜던트 안내). 9/22 오전 선택이 풀려 posx 이동이 손끝 208 mm 아래로 갔다'))
+NEW_RULES.append(('🔗 케이블', '그리퍼 전선 느슨하게', '그리퍼 케이블이 팽팽하면 힘·무게 값이 ±25 g 이상 흔들린다(9/22 황인재 — 여유 길이를 늘려 해결 · ±10 g 안팎). 실기 전 케이블을 느슨하게 두고 자세마다(잔반통 J6 180° 회전 · HOME) 당기지 않는지 본다. 무게·힘 실기는 케이블 상태부터'))
+P1555 = {
+ 'F3-02':  dict(note_add='🔴 9/22 결정 E26(황인재): rig_v03 · rig_v10 의 **set_tool/set_tcp · MANUAL↔AUTONOMOUS 전환 줄을 뺀다** — 확인만 하고 다르면 종료 + 펜던트 안내(민범진 preflight 와 같은 방식). 박진용에게 요청(오후 묶음 ③-3) · 작은 PR'),
+ 'ENV-05': dict(note_add='✅ 9/22 15:55 결정 E26: 툴·TCP 는 확인만(ROS set · 모드 전환 금지) — 규칙 시트 · 리마인드 §6. F4 init 이름 확인 PR 도 같은 원칙'),
+ 'V-02':   dict(note_add='🔗 9/22 15:55 황인재: 케이블은 **여유 길이를 늘려서 해결**. 그릇 쥔 채 결정 시험(--revisit · 물건 100 g) 진행 중 → 결과로 V-02 기록·PR'),
+}
+for _tid, _e in P1555.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY107 = ['v15.7', '결정 E26·규칙', 'F3-02, ENV-05, V-02, 규칙 시트', '황인재 9/22 15:45~55(F4 전달): E26 — 툴·TCP 는 확인만, 다르면 거부 + 펜던트(ROS set·모드 전환 금지) → 박진용 rig_v03·rig_v10 set 줄 제거 요청 · F4 init PR 같은 원칙 · 규칙 시트 갱신. 케이블은 여유 길이로 해결(규칙 🔗) · 그릇 결정 시험 진행 중', '황인재 9/22 15:55', 'P,H,M']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -2034,7 +2047,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
