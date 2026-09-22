@@ -26,9 +26,10 @@ CFG = {'f2': {
     'limits': {'max_amp_deg': 45.0, 'max_depth_mm': 150.0, 'max_hold_s': 5.0,
                'max_settle_s': 5.0, 'min_net_g': -30.0},
     'shake': {'WASTE': {'joint': 5, 'amp_deg': 15.0, 'cycles': 4, 'period_s': 0.6},
-              'RINSE': {'joint': 4, 'amp_deg': 30.0, 'period_s': 1.2, 'at': 'RINSE_SHAKE', 'fast': True}},   # 🔄 9/23 E36
+              'RINSE': {'joint': 4, 'amp_deg': 30.0, 'period_s': 1.2, 'at': 'RINSE_SHAKE', 'fast': True, 'smooth': True}},   # 🔄 9/23 E36
     'dip': {'RINSE': {'depth_mm': 60.0, 'hold_s': 0.2}},
-}, 'cell': {'stations': {'RINSE': {}, 'RINSE_SHAKE': {}, 'WASTE': {}, 'WEIGH': {}, 'HOME': {}}}}   # 🆕 shake at=<스테이션> 검사용
+}, 'cell': {'stations': {'RINSE': {}, 'RINSE_SHAKE': {}, 'WASTE': {}, 'WEIGH': {}, 'HOME': {}},
+            'motion': {'vel_joint_max_deg_s': 100.0, 'acc_joint_max_deg_s2': 200.0}, 'limits': {'vel_carry_pct': 30}}}   # 🆕 shake at=<스테이션> · smooth 복구 검사용
 
 
 class Rec:
@@ -72,6 +73,16 @@ class Rec:
     def move_joint_rel(self, joint, delta_deg, *, time_s=None, carrying=True, **kw):
         self._note('move_joint_rel', joint, delta_deg, time_s, **kw)          # 🆕 scale=False(E36 fast) 도 기록
 
+    def joints(self):
+        self._note('joints')
+        return [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
+
+    def move_joints_via(self, q_list, **kw):
+        self._note('move_joints_via', [list(q) for q in q_list], **kw)
+
+    def move_joints(self, q, vel, acc):
+        self._note('move_joints', list(q), vel, acc)
+
     def force_off(self):
         self._note('force_off')
 
@@ -104,7 +115,7 @@ def rec(monkeypatch):
 def _install(monkeypatch, r):
     """가짜 cobot_common 을 끼우고 sense 를 다시 읽어 들인다."""
     fake = types.ModuleType('cobot_common')
-    for name in ('cfg', 'io_node', 'move_to', 'move_rel', 'move_joint_rel',
+    for name in ('cfg', 'io_node', 'move_to', 'move_rel', 'move_joint_rel', 'joints', 'move_joints_via', 'move_joints',
                  'force_off', 'safe_retreat', 'grip_level', 'grip_width', 'weigh'):
         setattr(fake, name, getattr(r, name))
     # 🚨 sense 가 "삼키지 않고 위로 올릴" 예외 클래스 — **진짜 클래스**를 그대로 넣는다.
@@ -435,9 +446,9 @@ def test_shake_rinse_uses_its_own_preset(monkeypatch):
     r = Rec()
     s = _sense(monkeypatch, r)
     s.shake('RINSE', 1, 'CUP')
-    first = r.of('move_joint_rel')[0]
-    assert first[1] == (4, +30.0, 0.3)         # 🔄 E36 RINSE: J4 · amp 30 · period 1.2 → 0.3
-    assert first[2] == {'scale': False}        # fast → vel_scale 예외
+    spl = r.of('move_joints_via')[0]           # 🔄 E36 RINSE: 스플라인 한 번 · J4 ±30 · 100 deg/s(4·30/1.2) · vel_scale 예외
+    assert [q[3] for q in spl[1][0]] == [30.0, -30.0, 0.0] and spl[2] == {'vel_deg_s': 100.0, 'acc_deg_s2': None, 'scale': False}
+    assert not r.of('move_joint_rel')
 
 
 # ────────────────────────────────── 🆕 9/23 E36 물 털기 재설계 — 접근 높이에서 J4 좌우 · 빠르게
@@ -451,7 +462,7 @@ def test_shake_rinse_rises_then_goes_to_shake_station(monkeypatch):
     tos = [c[1] for c in r.of('move_to')]
     assert tos == [('RINSE', True, 'BOWL'), ('RINSE_SHAKE', True, 'BOWL')], '접근점 먼저 · 그다음 털기 자세'
     assert not r.of('move_rel'), '티칭 자세로 내려가지 않는다'
-    assert names.index('force_off') < names.index('move_to') < names.index('move_joint_rel')
+    assert names.index('force_off') < names.index('move_to') < names.index('move_joints_via')
     levels = [c[1][1] for c in r.of('grip_level')]
     assert levels[0] == 'HOLD' and levels[-1] == 'NORMAL'
 
@@ -472,15 +483,28 @@ def test_shake_rinse_at_approach_variant(monkeypatch):
 
 
 def test_shake_rinse_joint4_fast_three_cycles(monkeypatch):
-    """E36: 4번 관절 ±30° 를 3회 — 구간 시간 0.3/0.6/0.3(주기 1.2) · 모든 구간 scale=False(vel_scale 예외) · 합 0."""
+    """E36(smooth): 4번 관절 ±30° 3회를 **스플라인 한 번**으로 — 점 7개(+30 −30 +30 −30 +30 −30 → 가운데 0) · 다른 관절 그대로 · vel_scale 예외 · 정지 없음."""
     r = Rec()
     s = _sense(monkeypatch, r)
     assert s.shake('RINSE', 3, 'BOWL').ok
-    moves = r.of('move_joint_rel')
-    assert len(moves) == 9 and {c[1][0] for c in moves} == {4}
-    assert [(c[1][1], c[1][2]) for c in moves[:3]] == [(30.0, 0.3), (-60.0, 0.6), (30.0, 0.3)]
-    assert all(c[2] == {'scale': False} for c in moves)
-    assert sum(c[1][1] for c in moves) == pytest.approx(0.0)
+    spl = r.of('move_joints_via')
+    assert len(spl) == 1 and not r.of('move_joint_rel')
+    pts = spl[0][1][0]
+    assert [q[3] for q in pts] == [30.0, -30.0, 30.0, -30.0, 30.0, -30.0, 0.0]
+    assert all(q[:3] == [0.0, 0.0, 90.0] and q[4:] == [90.0, 0.0] for q in pts), '다른 관절은 시작 자세 그대로'
+    assert spl[0][2]['scale'] is False and spl[0][2]['vel_deg_s'] == pytest.approx(100.0)
+    assert not r.of('move_joints'), '성공했으면 되돌리기 없음'
+
+
+def test_shake_smooth_failure_returns_to_start_pose(monkeypatch):
+    """스플라인 도중 실패 → 시작 관절 자세(q0)로 되돌린다(들고 가는 속도 30 % · vel_scale 은 move_joints 가 곱함) · NORMAL 복구 · ROBOT_ERROR."""
+    r = Rec(raise_on='move_joints_via')
+    s = _sense(monkeypatch, r)
+    out = s.shake('RINSE', 3, 'BOWL')
+    assert not out.ok and out.code == ROBOT_ERROR
+    back = r.of('move_joints')
+    assert len(back) == 1 and back[0][1] == ([0.0, 0.0, 90.0, 0.0, 90.0, 0.0], 30.0, 60.0)
+    assert [c[1][1] for c in r.of('grip_level')][-1] == 'NORMAL'
 
 
 def test_shake_fast_is_joint_only_and_at_is_validated(monkeypatch):

@@ -419,6 +419,10 @@ def shake(mode: str, count: int, kind: str) -> Result:
        ② `joint: 4` — 4번 관절을 좌우로 왕복(잔반 버리기 J5 와 비슷한 모양 · 기울이기 없음).
        ③ `fast: true` — **vel_scale 예외**(cc.move_joint_rel(scale=False) · E17 취지): 배속을 낮춰도 설정한 주기대로 턴다.
           상한은 100 % 기준(cell.motion.vel_joint_max_deg_s · 100 °/s)이 그대로 걸린다. 관절 왕복에만 쓸 수 있다.
+       ④ `smooth: true` — 왕복을 구간 3개(가운데→끝, 끝→반대끝, 끝→가운데 · 구간마다 정지)가 아니라 **관절 스플라인 한 번**
+          (cc.move_joints_via · amovesj)으로: 가운데 → +amp → −amp → +amp → … → 가운데를 정지 없이 한 곡선으로 지나간다
+          (황인재 9/23: \"3단계로 보인다 · 가장 큰 각도에서 가장 작은 각도까지 한 번에\"). 속도 = 4·amp/period(deg/s) · 가속도 acc_deg_s2(없으면 100 % 기준).
+          실패하면 시작 관절 자세(q0)로 되돌린다(cc.move_joints · 들고 가는 속도).
        `at` 이 없으면 예전대로 티칭 자세까지 내려가 턴다(WASTE 는 접근점이 없어 그대로).
     """
     conf = _f2()
@@ -430,6 +434,7 @@ def shake(mode: str, count: int, kind: str) -> Result:
     elif at not in ((cc.cfg().get('cell') or {}).get('stations') or {}):
         raise ValueError(f'f2.shake.{mode}.at = {p.get("at")!r} — teach·approach 또는 cell.stations 의 이름(예: RINSE_SHAKE)')
     fast = bool(p.get('fast', False))                        # 🆕 E36: vel_scale 예외(관절 왕복만)
+    smooth = bool(p.get('smooth', False))                    # 🆕 E36(황인재 9/23): 관절 왕복을 구간 3개가 아니라 **스플라인 한 번**으로(정지 없이)
     linear = p.get('axis') is not None                       # 🆕 직선 왕복(axis·amp_mm) 인가, 관절 왕복(joint·amp_deg) 인가
     if linear:
         axis = str(p.get('axis')).lower()
@@ -439,8 +444,8 @@ def shake(mode: str, count: int, kind: str) -> Result:
                     where=f'f2.shake.{mode}')
         acc = _need(p, 'acc_mm_s2', lo=0.0, where=f'f2.shake.{mode}') if p.get('acc_mm_s2') is not None else None
         joint = None
-        if fast:
-            raise ValueError(f'f2.shake.{mode}: 직선 왕복(axis)에는 fast 를 쓸 수 없다 — 속도는 period_s·acc_mm_s2 로')
+        if fast or smooth:
+            raise ValueError(f'f2.shake.{mode}: 직선 왕복(axis)에는 fast·smooth 를 쓸 수 없다 — 속도는 period_s·acc_mm_s2 로')
     else:
         joint = _need(p, 'joint', cast=int, lo=1, hi=6, where=f'f2.shake.{mode}')
         amp = _need(p, 'amp_deg', lo=0.0, hi=_need(lim, 'max_amp_deg', where='f2.limits'),
@@ -496,13 +501,26 @@ def shake(mode: str, count: int, kind: str) -> Result:
         what = f'J{joint} ±{amp:.0f}°' + (' · 빠름(vel_scale 예외)' if fast else '') + (' · 접근 높이' if at == 'approach' else (f' · {at}' if at != 'teach' else ''))
 
     moved = 0.0                                 # 가운데에서 얼마나 벗어나 있나 (실패 복구용)
+    q0 = None                                   # 🆕 smooth: 시작 관절 자세(실패 복구용)
     _hold(kind, HOLD)                           # 흔들 때는 더 꽉 잡는다 (IRD §4)
     try:
         if tilt:                                # 🆕 기울이기 — 들고 가는 속도(시간 지정 없음), 흔들기의 새 가운데
             _log().info(f'shake({mode}) — J{joint} {tilt:+.0f}° 기울인다 (입이 잔반통 쪽으로)')
             cc.move_joint_rel(joint, tilt, carrying=True)
             moved += tilt
-        for i in range(1, n + 1):
+        if smooth:                              # 🆕 E36: 스플라인 한 번 — 가운데 → +amp → −amp → … → 가운데 (정지 없이)
+            q0 = [float(v) for v in cc.joints()]
+            pts = []
+            for _ in range(n):
+                for sign in (+1.0, -1.0):
+                    q = list(q0); q[joint - 1] = q0[joint - 1] + sign * amp; pts.append(q)
+            pts.append(list(q0))
+            vel = (4.0 * amp / period) if period > 0 else None       # 구간 평균 속도와 같은 값(deg/s)
+            acc = float(p['acc_deg_s2']) if p.get('acc_deg_s2') is not None else None
+            _log().info(f'shake({mode}) — {what} · {n}회를 스플라인 한 번으로(점 {len(pts)}개 · {vel:.0f} deg/s)')
+            cc.move_joints_via(pts, vel_deg_s=vel, acc_deg_s2=acc, scale=not fast)
+            q0 = None                           # 끝까지 갔다 = 가운데로 돌아왔다
+        for i in (range(1, n + 1) if not smooth else ()):
             if linear:
                 _step(+amp); moved += amp                                          # 가운데 → 끝
                 _step(-2 * amp); moved -= 2 * amp                                  # 끝 → 반대쪽 끝
@@ -516,6 +534,11 @@ def shake(mode: str, count: int, kind: str) -> Result:
             cc.move_joint_rel(joint, -tilt, carrying=True)
             moved -= tilt
     finally:
+        if q0 is not None:                      # 🆕 smooth 도중 실패 — 시작 관절 자세로 되돌린다(들고 가는 속도)
+            m = (cc.cfg().get('cell') or {}).get('motion') or {}
+            lim_c = (cc.cfg().get('cell') or {}).get('limits') or {}
+            k = float(lim_c.get('vel_carry_pct', 30)) / 100.0
+            _quietly('가운데 복귀(스플라인)', cc.move_joints, q0, float(m.get('vel_joint_max_deg_s', 100)) * k, float(m.get('acc_joint_max_deg_s2', 200)) * k)
         if abs(moved) > 1e-9:                   # 🚨 도중에 실패했으면 가운데로 되돌린다
             if linear:
                 _quietly('가운데 복귀', cc.move_rel, -vec[0] * moved, -vec[1] * moved, -vec[2] * moved, 'BASE')

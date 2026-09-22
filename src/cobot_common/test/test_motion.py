@@ -71,6 +71,13 @@ class FakeDsr:
             self.at_j = [float(v) for v in pos]
         return self.ret
 
+    def amovesj(self, pos_list, **kw):        # 🆕 관절 스플라인(E36 물 털기) — 마지막 점에 도착한 것으로
+        self.calls.append(('movesj', [list(p) for p in pos_list], kw))
+        self.left = self.busy_polls
+        if not self.stops_short:
+            self.at_j = [float(v) for v in pos_list[-1]]
+        return self.ret
+
     def check_motion(self):
         if self.left > 0 and not self.paused:
             self.left -= 1
@@ -381,3 +388,26 @@ def test_missing_timeout_value_means_no_motion(robot):
     with pytest.raises(KeyError, match='cell.motion.move_timeout_s'):
         motion.move_joint_rel(5, 10)
     assert robot.calls == []
+
+
+# ------------------------------------------------------------------ move_joints_via (E36 물 털기 · 관절 스플라인)
+def test_move_joints_via_sends_one_spline_and_caps_speed(robot):
+    q0 = [0, 0, 90, 0, 90, 0]
+    pts = [[0, 0, 90, 30, 90, 0], [0, 0, 90, -30, 90, 0], q0]
+    motion.move_joints_via(pts, vel_deg_s=100, acc_deg_s2=200)
+    assert robot.calls[-1][0] == 'movesj' and robot.calls[-1][1] == [[float(v) for v in p] for p in pts]
+    assert robot.calls[-1][2] == {'vel': 100.0, 'acc': 200.0, 'mod': robot.DR_MV_MOD_ABS}
+    robot.cfg['run']['vel_scale'] = 0.3
+    motion.move_joints_via(pts, vel_deg_s=100, acc_deg_s2=200)                  # 기본: × vel_scale
+    assert robot.calls[-1][2]['vel'] == pytest.approx(30.0) and robot.calls[-1][2]['acc'] == pytest.approx(60.0)
+    motion.move_joints_via(pts, vel_deg_s=300, acc_deg_s2=900, scale=False)     # 예외: vel_scale 무시 · 100 % 상한(100 · 200)
+    assert robot.calls[-1][2]['vel'] == pytest.approx(100.0) and robot.calls[-1][2]['acc'] == pytest.approx(200.0)
+    motion.move_joints_via(pts)                                                 # 안 주면 들고 가는 속도(30 %) × vel_scale
+    assert robot.calls[-1][2]['vel'] == pytest.approx(100 * 0.3 * 0.3)
+
+
+@pytest.mark.parametrize('bad', [[[0, 0, 90, 0, 90, 0]], [[0, 0, 90, 0, 90]]])
+def test_move_joints_via_bad_points(robot, bad):
+    with pytest.raises(ValueError):
+        motion.move_joints_via(bad + ([[0, 0, 90, 0, 90, 0]] if len(bad[0]) != 6 else []))
+    assert not robot.calls

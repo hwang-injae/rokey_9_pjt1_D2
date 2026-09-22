@@ -44,7 +44,7 @@ import time
 
 from .bootstrap import cfg, dsr, io_node
 
-__all__ = ['move_to', 'move_rel', 'move_joint_rel',
+__all__ = ['move_to', 'move_rel', 'move_joint_rel', 'move_joints_via',
            'pause', 'resume', 'is_paused', 'halt', 'clear_halt', 'is_halted', 'stop',
            'MotionHalted', 'MoveTimeout', 'MoveIncomplete']
 
@@ -167,6 +167,35 @@ def move_joint_rel(joint, delta_deg, *, time_s=None, carrying=True, scale=True):
     timeout = _move_timeout()
     d = dsr()
     _run(f'amovej(move_joint_rel J{joint} {delta_deg:+g}°)', timeout, lambda: d.amovej(delta, mod=d.DR_MV_MOD_REL, **kwargs))
+
+
+def move_joints_via(q_list, *, vel_deg_s=None, acc_deg_s2=None, scale=True):
+    """관절 자세 여러 개를 **한 번의 연속 곡선(스플라인 · amovesj)** 으로 지나간다 — 점마다 멈추지 않는다.
+
+    🆕 9/23 E36(황인재): 물 털기가 "구간 3개(정지 포함)" 로 보여서 — 가장 큰 각도에서 가장 작은 각도까지 **한 번에** 움직이게.
+    q_list  : [[j1..j6], ...] 절대 관절 각도(deg). 마지막 점에서 끝난다(가운데로 돌아오려면 마지막에 시작 자세를 넣는다).
+    vel/acc : 관절 속도(deg/s)·가속도(deg/s²) — 안 주면 cell.limits.vel_carry_pct(들고 이동) × vel_scale.
+              주면 그 값 × vel_scale (scale=False 면 vel_scale 예외 · E17 취지). 어느 쪽이든 100 % 기준(cell.motion.*_joint_max)을 넘지 못한다.
+    🚨 순응·힘제어가 켜져 있으면 관절 이동이 안 된다(2.1903) → force_off() 뒤에. 일시정지·강제정지는 _run 이 본다.
+    """
+    pts = []
+    for i, q in enumerate(q_list):
+        q = [float(v) for v in q]
+        if len(q) != 6:
+            raise ValueError(f'move_joints_via: {i}번째 점이 6개가 아니다 — {q}')
+        pts.append(q)
+    if len(pts) < 2:
+        raise ValueError('move_joints_via: 점이 2개 이상이어야 곡선이 된다')
+    k = _vel_scale() if scale else 1.0
+    top_v, top_a = _joint_speed(100)                                 # 100 % 기준 × vel_scale
+    top_v, top_a = top_v / _vel_scale() * k, top_a / _vel_scale() * k
+    if vel_deg_s is None:
+        vel, acc = _joint_speed(_limit('vel_carry_pct'))
+    else:
+        vel = min(_positive('vel_deg_s', vel_deg_s) * k, top_v)
+        acc = min(_positive('acc_deg_s2', acc_deg_s2) * k, top_a) if acc_deg_s2 is not None else top_a
+    d = dsr()
+    _run(f'amovesj({len(pts)}점 · {vel:.0f} deg/s)', _move_timeout(), lambda: d.amovesj(pts, vel=vel, acc=acc, mod=d.DR_MV_MOD_ABS))
 
 
 # ------------------------------------------------------------------ 일시정지 · 재개 · 강제정지 (깃발만 — 어느 스레드에서 불러도 된다)
