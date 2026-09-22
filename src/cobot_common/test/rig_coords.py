@@ -248,6 +248,10 @@ def main() -> int:
             log.info(f'HOME 으로 간다 (관절 이동) · 지금 관절 [{", ".join(f"{v:.1f}" for v in posj())}]')
             if opt.step and input('    🚨 관절 이동이라 팔 전체가 휜다 — 갈 길에 걸릴 것이 없으면 Enter / q = 그만 > ').strip().lower() == 'q':
                 return 2
+            # 🔄 9/23(황인재): 낮은 자세(수조 안 z −14 등)에서 곧장 관절 이동하면 테이블을 가로지른다(9/22 17:27 충돌)
+            #    → 먼저 힘을 끄고 **Z 만 안전 높이(cell.limits.safe_z_mm)까지** 올린 뒤 HOME. 이미 위면 안 움직인다.
+            log.info('  먼저 곧게 위로 (safe_retreat · 이미 높으면 안 움직임)')
+            cc.safe_retreat()
             cc.move_to('HOME', False)
             log.info('OK   HOME' + jinfo())
             return 0
