@@ -118,11 +118,19 @@ def grip_level(kind, level):
     with _lock:
         known = _force_n is not None
     if not known:
-        # 🚨 여기는 **이미 쥐고 있는** 자리다. 힘을 모르는 채 계단을 보내면 어디로 갈지 모른다
-        #    → 조용히 떨어뜨리지 말고 멈춘다. (쥐고 있으면 보통은 읽히므로 여기까지 오지 않는다)
-        raise RuntimeError(
-            'grip_level: 그리퍼 힘을 아직 못 읽었다 — 모르는 채로 힘을 바꾸면 용기를 놓칠 수 있다. '
-            '이 프로그램에서 cc.release() 나 cc.grip() 을 먼저 부른다')
+        # 🚨 여기는 **이미 쥐고 있는** 자리다. 힘을 모르는 채 계단을 보내면 어디로 갈지 모른다.
+        #    🔄 9/23 08:3x(PM · E36 실기): 새 프로세스가 쥔 용기로 시작하면 드라이버가 effort 를 안 보내 여기서 멈추는 일이
+        #    실기에서 났다(상태 비트가 꺼져 있으면 effort 0). 놓지 않고 읽는 방법 = **한 계단 올려(+2.5 N) 같은 폭으로 다시 잡기**
+        #    ('i' 는 직전 폭으로 재파지 → 움직이는 동안 effort 가 온다). 그 다음 _set_force 가 읽은 값에서 목표까지 맞춘다.
+        _log().warn('grip_level: 그리퍼 힘을 아직 못 읽었다 — 쥔 채로 한 계단(+2.5 N) 다시 잡아 읽는다')
+        _send('i')
+        _wait_done()
+        with _lock:
+            known = _force_n is not None
+        if not known:
+            raise RuntimeError(
+                'grip_level: 그리퍼 힘을 다시 잡아도 못 읽었다 — 모르는 채로 힘을 바꾸면 용기를 놓칠 수 있다. '
+                '드라이버(/onrobot_joint_states effort)를 확인하고, 이 프로그램에서 cc.release() 나 cc.grip() 을 먼저 부른다')
     before = grip_width()
     _set_force(float(preset[key]))                       # 'i'/'d' 안에서 _wait_done 까지 한다
     after = grip_width()

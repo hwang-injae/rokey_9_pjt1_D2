@@ -63,6 +63,10 @@ class FakeClient:
         if cur is not None and req.command in ('i', 'd'):
             step = G._FORCE_STEP_N if req.command == 'i' else -G._FORCE_STEP_N
             G._force_n = max(0.0, min(G._MAX_FORCE_N, cur + step))
+        elif cur is None and req.command == 'i':
+            # 🆕 9/23: 힘을 한 번도 못 읽은 채 'i' 를 보내면 — 실기 드라이버는 재파지하며 effort 를 보낸다.
+            #    가짜는 "실제 힘이 20 이었다" 고 치고 한 계단 위 값을 읽힌 것으로 한다.
+            G._force_n = 20.0 + G._FORCE_STEP_N
         return FakeRes(True, '')
 
 
@@ -208,6 +212,31 @@ def test_width_out_of_range_is_clamped(fake, monkeypatch):
 
 
 # ────────────────────────────────── grip_level (털기·담금이 쓴다)
+def test_grip_level_learns_force_by_one_step_regrip_when_unknown(fake, monkeypatch):
+    """🆕 9/23(PM · E36 실기): 쥔 용기로 새 프로세스를 시작하면 effort 가 안 와 힘을 모른다 → 놓지 않고 'i' 한 계단(+2.5 N)
+    다시 잡아 읽은 뒤(20 → 22.5) 목표(HOLD 35)까지 맞춘다. 실패로 멈추지 않는다."""
+    monkeypatch.setattr(G, '_force_n', None)
+    monkeypatch.setattr(G, '_joint_angle', 0.83)
+    G.grip_level('BOWL', 'HOLD')
+    sent = G._client.sent
+    assert sent[0] == 'i' and sent.count('i') == 1 + 5 and 'd' not in sent   # 탐색 1 + (35 − 22.5)/2.5 = 5
+    assert G._force_n == pytest.approx(35.0)
+
+
+def test_grip_level_still_raises_when_regrip_gives_no_reading(fake, monkeypatch):
+    """다시 잡아도 effort 가 안 오면 — 모르는 채 힘을 바꾸지 않고 멈춘다."""
+    monkeypatch.setattr(G, '_force_n', None)
+
+    class Silent(type(G._client)):
+        def call(self, req):
+            self.sent.append(req.command); self.calls += 1
+            return FakeRes(True, '')                                     # effort 를 끝내 안 준다
+    monkeypatch.setattr(G, '_client', Silent())
+    with pytest.raises(RuntimeError):
+        G.grip_level('BOWL', 'HOLD')
+    assert G._client.sent == ['i']                                       # 탐색 한 번만 · 힘 계단은 안 보냄
+
+
 def test_grip_level_uses_preset_force(fake, monkeypatch):
     """HOLD 는 프리셋의 hold_force_n 을 쓴다. 폭은 다시 명령하지 않는다."""
     monkeypatch.setattr(G, '_force_n', 20.0)
