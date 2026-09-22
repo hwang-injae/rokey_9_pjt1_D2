@@ -144,8 +144,9 @@ class Flow:
         self.rack_order = self.cfg.get('rack_order') or {}
         self.counts = self._check_counts(self.cfg.get('counts') or {})
         self.rounds = self._num('leftover_max_rounds', 2, int)
-        # 🆕 FLOW-05 (결정 E25 · 9/22): 무게 단계(move_to WEIGH · leftover_loop)를 **하는 종류**. 컵은 액체만 있고
-        #    음식물이 없다고 보아 무게 재기·잔반 버리기를 하지 않는다(헹굼·물 털기는 한다). 키가 없으면 예전대로 전부.
+        # 🆕 FLOW-05 (결정 E25 · 9/22): 무게 단계(move_to WEIGH · leftover_loop)를 **하는 종류**.
+        #    🟡 임시 건너뛰기 — 시나리오 변경이 아니다. 컵 무게 측정이 미완성이라 동결 전에 컵만 잠시 뺀 것(민범진 9/22).
+        #    완성되면 params 의 flow.weigh_kinds 를 [BOWL, CUP] 으로 되돌린다(코드 변경 없음). 키가 없으면 예전대로 전부.
         self.weigh_kinds = self._check_weigh_kinds(self.cfg.get('weigh_kinds'))
         # DONE 을 화면에 보여 주는 시간. /flow/state 주기(state_pub_hz)보다 길어야 한 번은 잡힌다
         self.done_hold_s = self._num('done_hold_s', 1.0, float)

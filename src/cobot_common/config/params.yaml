@@ -187,9 +187,10 @@ flow:                                 # ── flow 절 (민범진) ── 🟡 
     RACK_FULL: pause
     ROBOT_ERROR: pause
   consumables: {sponge_max_uses: 20, soap_max_dips: 60}
-  weigh_kinds: [BOWL]                 # 🆕 FLOW-05 (결정 E25 · 9/22 13:55 황인재): 무게 단계(move_to WEIGH · leftover_loop)를 **하는** 종류.
-                                      #   컵은 액체만 있고 음식물이 없다 → 무게 재기·잔반 버리기 안 함(헹굼 담금·물 털기는 한다).
-                                      #   되돌리려면 [BOWL, CUP]. 키를 지우면 전부 잰다(예전 동작)
+  weigh_kinds: [BOWL]                 # 🆕 FLOW-05 (결정 E25 · 9/22): 무게 단계(move_to WEIGH · leftover_loop)를 **하는** 종류.
+                                      #   🟡 **임시 건너뛰기다 — 시나리오가 바뀐 게 아니다**(민범진 9/22): 컵 무게 측정(기준값 · WEIGH 자세 · 놓침 판정)이
+                                      #   아직 미완성이라 동결 전에 컵 쪽만 잠시 뺀 것. 완성되면 [BOWL, CUP] 으로 되돌린다(코드 변경 없음).
+                                      #   컵도 헹굼 담금·물 털기는 한다. 키를 지우면 전부 잰다(예전 동작)
   leftover_max_rounds: 2              # f2.leftover_loop(kind, N) 의 N — 털고 다시 재는 최대 횟수
                                       #   flow 가 넘기는 인자라 flow 절에 둔다 (DSN-03 B8 PM 제안)
   counts:                             # 용기 1개를 처리할 때 기능 함수에 넘기는 횟수 (IRD §8 호출 순서)
