@@ -51,7 +51,7 @@ def test_repo_cell_skeleton_uses_ird_ids():
     for name in ('TOOL_SPONGE', 'TOOL_BRUSH'):
         assert set(cell['stations'][name]) == {'pick', 'return'}, name
     assert set(cell['beds']['SPONGE_BED_B']) == {'place', 'wash', 'seat'}
-    assert set(cell['beds']['SPONGE_BED_C']) == {'place', 'wash', 'seat', 'regrip', 'regrip_preset'}   # 🔄 9/23 결정 ㉡: 옆면 재파지 다시 켬(regrip + 전용 프리셋)
+    assert set(cell['beds']['SPONGE_BED_C']) == {'place', 'wash', 'seat'}      # 🔄 9/23 08:0x: 옆면 재파지(regrip·regrip_preset)는 다시 꺼 둠(07:55 실기 실패 · 컵은 벽 집기로 눕혀 적재 ㉠′) — 키가 있으면 옛 경로
     assert all(len(cell['zones'][z]['slots']) == 1 for z in (RET_B, RET_C))       # 구역마다 집는 자리 1개 — 한 자리 공급 구조(9/20 결정 E9)
 
 
