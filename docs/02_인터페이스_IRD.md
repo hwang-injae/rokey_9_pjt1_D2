@@ -49,7 +49,7 @@
 |---|---|---|---|
 | `weigh(kind)` | 종류 | `WeighResult`: `ok, code, weight_g` | WEIGH 자세 정지 후 N회 평균. 0점 재설정(`reset`)은 **선택 동작**(응답 상한 3 s, 실패해도 계속 — [TS-03](troubleshooting/TS-03_하중_reset_제어권_교착.md)). 판정은 `측정값 − 빈 용기 기준값`이라 고정 옵셋은 상쇄된다 |
 | `leftover_loop(kind, max_rounds)` | 종류, 최대 반복 | `LeftoverResult`: `ok, code, weight_before_g, weight_after_g, rounds` | 판정→털기→재측정 반복. 초과 지속 → `LEFTOVER_REMAIN`. 임계 미만은 `OK` |
-| `shake(mode, count, kind)` | `WASTE`/`RINSE`, 횟수, 종류 | `Result` | 진폭·속도는 `params.yaml`의 `f2` 절. **시작 시 강한 파지(HOLD) → 끝나면 보통 파지(NORMAL)**. 털다가 폭이 변하면(미끄러짐) `GRIP_FAIL` |
+| `shake(mode, count, kind)` | `WASTE`/`RINSE`, 횟수, 종류 | `Result` | 🔄 **E24: `WASTE` = 잔반 버리기(쏟기) · `RINSE` = 물기 털기 — 서명은 같고 동작이 다르다.** 진폭·속도는 `params.yaml`의 `f2` 절. **시작 시 강한 파지(HOLD) → 끝나면 보통 파지(NORMAL)**. 털다가 폭이 변하면(미끄러짐) `GRIP_FAIL` |
 | `dip(station, count, kind)` | `RINSE`, 횟수, 종류 | `Result` | 담금 모션. 담그는 동안 **강한 파지(HOLD)** |
 
 ### 파지 힘 2단계 (9/18 V-17 검증 결과)
@@ -58,7 +58,7 @@
 ## 5. F3 접촉 닦기 (IR-03) · 박진용 · 모듈 `f3_wipe.wipe`
 | 함수 | 인자 | 반환 | 비고 |
 |---|---|---|---|
-| `soap(count, kind=None)` | 횟수, (선택) `BOWL`/`CUP` | `Result` | 툴 든 채 세제 담금(🔄 9/21 E18: 세제 수조를 따로 두지 않고 **툴 홀더의 비눗물 컵**에서 담근다 — 서명·반환은 그대로). ✅ 9/20 추가: **`kind`** — `SOAP` 이 종류별 자리가 됐다(`BOWL` = 수세미를 쥔 자세 · `CUP` = 솔을 쥔 자세, #36) |
+| `soap(count, kind=None)` | 횟수(🔄 PR #72: 지금은 **무시** — 횟수는 `f3.soap` 설정), (선택) `BOWL`/`CUP` | `Result` | 툴 든 채 세제 담금(🔄 9/21 E18: 세제 수조를 따로 두지 않고 **툴 홀더의 비눗물 컵**에서 담근다 — 서명·반환은 그대로). ✅ 9/20 추가: **`kind`** — `SOAP` 이 종류별 자리가 됐다(`BOWL` = 수세미를 쥔 자세 · `CUP` = 솔을 쥔 자세, #36) |
 | `wipe_bowl()` | — | `WipeBowlResult`: `ok, code, force_log_path, duration_s, force_mean_n` | **그릇**: 수세미 툴로 힘제어(목표 힘 유지) 나선 닦기. 상한 초과 → `FORCE_LIMIT` |
 | `wipe_cup()` | — | `WipeCupResult`: `ok, code, force_log_path, duration_s, insert_depth_mm` | **컵**: 수세미 솔을 컵 안에 삽입(힘 감시) → J6 회전 + Z 상하 스트로크. 동작이 그릇과 달라 함수를 분리(9/18 팀 결정) |
 
@@ -127,9 +127,9 @@ f1.pick('RET_B', 'BOWL') → f1.move_to('WEIGH', True, 'BOWL') → f2.leftover_l
 → f1.place('SPONGE_BED_B')                      # 안착 놓기(순응 하강·탐색, 실패 SEAT_FAIL)
 → f1.tool('SPONGE', 'PICK') → f3.soap(3, 'BOWL') → f3.wipe_bowl() → f1.tool('SPONGE', 'RETURN')
 → f1.pick('SPONGE_BED_B', 'BOWL')               # 홈에 놓인 그릇 재파지(고정 위치, 탐색점 1개)
-→ f2.dip('RINSE', 1, 'BOWL') → f2.shake('RINSE', 3, 'BOWL')
+→ f2.dip('RINSE', 2, 'BOWL') → f2.shake('RINSE', 3, 'BOWL')   # 🔄 9/22 담금 1 → 2 (PR #68)
 → f1.rack_place('RACK_Bn', 'BOWL') → f1.move_to('HOME', False)
-# CUP: 동일, SPONGE_BED_C · tool('BRUSH') · wipe_cup() · RACK_Cn
+# CUP: 🔄 E25(9/22) — **WEIGH 단계 없음**(move_to WEIGH · leftover_loop 를 부르지 않는다: 컵은 액체만 있다고 가정) · 나머지 동일, SPONGE_BED_C · tool('BRUSH') · wipe_cup() · dip·shake('RINSE') 는 한다 · RACK_Cn
 ```
 
 **실패 정책 (`params.yaml` flow 절 `policy`)**

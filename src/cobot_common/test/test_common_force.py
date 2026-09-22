@@ -90,12 +90,18 @@ class FakeDsr:
         return self.movel(*a, **kw)                 #   가짜는 보내는 즉시 도착한 것으로 친다 → 아래 check_motion 이 바로 0
 
     def check_motion(self):
+        if self.starting:                           # 비동기 모션을 막 보낸 뒤 한 번은 '도는 중' 으로 보인다(실기처럼)
+            self.starting -= 1
+            return 2
         return self.motion                          # 0 = 끝남
 
     motion = 0
+    starting = 0
+    never_starts = False                            # True 면 명령을 받고도 안 움직인다 (9/21 실기 증상 재현용)
 
     def amove_spiral(self, rev=None, rmax=None, lmax=None, vel=None, acc=None, time=None, axis=None, ref=None):
         self.spiral = dict(rev=rev, rmax=rmax, lmax=lmax, vel=vel, acc=acc, time=time, axis=axis, ref=ref)
+        self.starting = 0 if self.never_starts else 1
         return self._r('amove_spiral')
 
     def movec(self, mid, end, vel=None, acc=None, radius=None, ref=None, mod=0):
@@ -332,12 +338,24 @@ def test_move_spiral_uses_time_not_velocity(robot):
     assert 'mwait' in d.calls                                           # 도는 중에 켜면 2.1903
 
 
-def test_move_spiral_slows_by_vel_scale(robot):
+def test_move_spiral_waits_until_it_starts(robot, monkeypatch):
+    """🚨 9/21 실기: 명령 직후엔 check_motion 이 아직 0 이라 도는 동안 보는 루프가 바로 끝났다 → 시작을 기다린다."""
+    monkeypatch.setattr(force, '_START_WAIT_S', 0.1)
+    d = robot()
+    d.never_starts = True
+    with pytest.raises(RuntimeError, match='움직이지 않았다'):
+        force.move_spiral(2.8, 14.0, 3.0)
+    d.never_starts = False
+    force.move_spiral(2.8, 14.0, 3.0)                                    # 시작하면 그대로 돌아온다
+
+
+def test_move_spiral_time_ignores_vel_scale(robot):
+    """9/21 실기: ÷ vel_scale(10 s)은 움직이지 않았다 · 9/20 V-03 에서 돈 3 s 그대로 준다."""
     cfg = copy.deepcopy(CFG)
-    cfg['run'] = {'vel_scale': 0.5}
+    cfg['run'] = {'vel_scale': 0.3}
     d = robot(cfg)
     force.move_spiral(2.8, 14.0, 3.0)
-    assert d.spiral['time'] == pytest.approx(6.0)                       # 느리게 = 같은 길을 더 오래
+    assert d.spiral['time'] == pytest.approx(3.0)
 
 
 def test_move_spiral_rejects_bad_args(robot):

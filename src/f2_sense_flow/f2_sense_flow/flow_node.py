@@ -38,6 +38,7 @@ from cobot_msgs.msg import FlowEvent, FlowState
 from std_srvs.srv import Trigger
 
 from f2_sense_flow.flow import Flow, Signals, load_features
+from f2_sense_flow.preflight import PreflightError, require_controller
 
 FEATURES = ('f1', 'f2', 'f3')
 
@@ -187,6 +188,10 @@ def main():
     try:
         node = cc.io_node()
         log = node.get_logger()
+        if robot:
+            # 🚨 첫 이동 전 문지기(TS-07) — 남이 펜던트에서 툴·TCP 를 바꿔 뒀으면 좌표 전체가 틀어진다.
+            #    다르면 여기서 끝낸다(PreflightError → 아래 except 가 traceback 없이 종료 코드 2).
+            require_controller(node, cc.cfg(), log)
         sig = Signals()
         log.info('기능 모듈:')
         features = load_features(use_mock, log)      # 진짜/가짜 선택 (IRD §10)
@@ -213,6 +218,9 @@ def main():
         flow.run(sig)                                # ② 메인 스레드에서 실행
     except KeyboardInterrupt:                        # Ctrl+C — 처리기는 cobot_common 이 건다
         pass
+    except PreflightError as e:                      # 컨트롤러 설정이 다르다 — 움직이지 않고 끝낸다 (TS-07)
+        rclpy.logging.get_logger('flow_node').error(str(e))
+        raise SystemExit(2)
     except Exception:                                # noqa: BLE001
         # 여기까지 온 예외는 flow 의 보호를 모두 지나온 것이다(설정·초기화·구조 문제).
         # 트레이스백을 그대로 남겨 원인을 알 수 있게 하고, 정리는 finally 가 한다.

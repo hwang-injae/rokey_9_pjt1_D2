@@ -91,6 +91,27 @@ def _group(conf, group, name):
     return g[name]
 
 
+def shake_params(conf, mode, kind):
+    """f2.shake.<mode> 의 값 묶음 — 🆕 9/22 **종류별**: 그 안에 BOWL/CUP 묶음이 있으면 kind 것을, 없으면 공용 묶음을 쓴다.
+
+        shake:
+          RINSE:                      # 종류별 (컵과 그릇의 까딱임이 다르다 — 민범진 9/22)
+            BOWL: {joint: 5, amp_deg: 10, period_s: 0.5}
+            CUP:  {joint: 5, amp_deg: 6, period_s: 0.6}
+          WASTE: {joint: 5, amp_deg: 15, cycles: 4, period_s: 0.6, tilt_deg: -90}   # 공용(그릇만 쓴다 · E25)
+
+    종류별 묶음이 있는데 kind 것이 없으면 KeyError — 조용히 다른 종류 값으로 돌지 않는다.
+    시험대(rig_f2 · rig_shake_tune)도 이 함수로 같은 묶음을 집어 덮어쓴다.
+    """
+    g = _group(conf, 'shake', mode)
+    per_kind = {k: v for k, v in g.items() if k in ('BOWL', 'CUP') and isinstance(v, dict)}
+    if per_kind:
+        if kind not in per_kind:
+            raise KeyError(f'params.yaml 의 f2.shake.{mode}.{kind} 가 없다 — 종류별로 나눴으면 둘 다 채운다')
+        return per_kind[kind]
+    return g
+
+
 def _limits(conf):
     lim = conf.get('limits')
     if not isinstance(lim, dict):
@@ -286,7 +307,7 @@ def leftover_loop(kind: str, max_rounds: int) -> LeftoverResult:
     """
     conf = _f2()
     threshold = _need(conf, 'leftover_threshold_g')
-    cycles = _need(_group(conf, 'shake', 'WASTE'), 'cycles', cast=int, lo=1,
+    cycles = _need(shake_params(conf, 'WASTE', kind), 'cycles', cast=int, lo=1,
                    where='f2.shake.WASTE')
     rounds_max = max(0, int(max_rounds))
 
@@ -336,15 +357,42 @@ def shake(mode: str, count: int, kind: str) -> Result:
 
     한 번 왕복 = 가운데 → +amp → −amp → 가운데. 🚨 **항상 가운데에서 끝난다** —
     도중에 실패해도 finally 가 남은 각도를 되돌린다(자세가 밀린 채 다음 용기로 가면 안 된다).
+
+    🆕 9/22 물 털기 — **직선 왕복(axis · amp_mm)**: f2.shake.<mode> 에 `joint` 대신 `axis: x|y|z` 와 `amp_mm` 를 주면
+       BASE 기준 그 축으로 ±amp_mm 왕복한다(가운데 → +amp → −amp → 가운데 · cc.move_rel). 관절 왕복과 같은 모양이고
+       단위만 mm 다. 속도는 period_s 에 맞춘다(구간 거리 ÷ 구간 시간 · 상한은 move_rel 이 건다). 상한 f2.limits.max_amp_mm.
+       `acc_mm_s2`(선택)를 주면 그 가속도로 — 짧은 왕복은 가속도가 "임팩트" 를 정한다(안 주면 move_rel 기본 = 들고 가는 30 %).
+       상한은 cell.motion.acc_tcp_max_mm_s2 × vel_scale 로 move_rel 이 자른다.
+       RINSE(물 털기) 가 이 방식 — 민범진 9/22 결정(그릇 입은 위 · 손목 회전 없이 앞뒤로).
+    🆕 9/22 V-07 실기 — **기울이기(tilt_deg)**: 똑바로 든 채 ±15° 흔들면 그릇 입이 계속 위를 봐서 고형 잔반이
+       안 쏟아진다. f2.shake.<mode>.tilt_deg 가 있으면 흔들기 **전에** 같은 관절을 그만큼 기울여(입이 잔반통 쪽으로)
+       그 자세를 가운데 삼아 흔들고, 끝나면 되돌린다. 없거나 0 이면 예전 그대로(RINSE 물 털기는 안 기울인다).
+       부호는 실기에서 정한다(어느 쪽이 잔반통 쪽인지는 자세마다 다르다). 상한 f2.limits.max_tilt_deg.
     """
     conf = _f2()
     lim = _limits(conf)
-    p = _group(conf, 'shake', mode)
-    joint = _need(p, 'joint', cast=int, lo=1, hi=6, where=f'f2.shake.{mode}')
-    amp = _need(p, 'amp_deg', lo=0.0, hi=_need(lim, 'max_amp_deg', where='f2.limits'),
-                where=f'f2.shake.{mode}')
+    p = shake_params(conf, mode, kind)                       # 🆕 종류별(BOWL/CUP) 묶음이 있으면 그것
+    linear = p.get('axis') is not None                       # 🆕 직선 왕복(axis·amp_mm) 인가, 관절 왕복(joint·amp_deg) 인가
+    if linear:
+        axis = str(p.get('axis')).lower()
+        if axis not in ('x', 'y', 'z'):
+            raise ValueError(f'f2.shake.{mode}.axis = {p.get("axis")!r} — x·y·z 중 하나')
+        amp = _need(p, 'amp_mm', lo=0.0, hi=_need(lim, 'max_amp_mm', where='f2.limits'),
+                    where=f'f2.shake.{mode}')
+        acc = _need(p, 'acc_mm_s2', lo=0.0, where=f'f2.shake.{mode}') if p.get('acc_mm_s2') is not None else None
+        joint = None
+    else:
+        joint = _need(p, 'joint', cast=int, lo=1, hi=6, where=f'f2.shake.{mode}')
+        amp = _need(p, 'amp_deg', lo=0.0, hi=_need(lim, 'max_amp_deg', where='f2.limits'),
+                    where=f'f2.shake.{mode}')
     period = _need(p, 'period_s', lo=0.0, where=f'f2.shake.{mode}')
     slip_tol = _need(conf, 'slip_tol_mm')
+    tilt = 0.0
+    if p.get('tilt_deg') is not None:                        # 🆕 선택 — 있으면 상한까지 검사 (관절 왕복에만)
+        if linear:
+            raise ValueError(f'f2.shake.{mode}: 직선 왕복(axis)에는 tilt_deg 를 쓸 수 없다 — 기울일 관절이 없다')
+        max_tilt = _need(lim, 'max_tilt_deg', where='f2.limits')
+        tilt = _need(p, 'tilt_deg', lo=-max_tilt, hi=max_tilt, where=f'f2.shake.{mode}')
     n = int(count)
 
     if n <= 0:
@@ -362,20 +410,48 @@ def shake(mode: str, count: int, kind: str) -> Result:
     t_quarter = period / 4.0
     t_half = period / 2.0
 
+    if linear:
+        # 🆕 직선 왕복 — move_rel 은 시간이 아니라 속도를 받는다 → 구간 거리 ÷ 구간 시간. 상한은 move_rel 이 건다(100 % × vel_scale).
+        vel = (amp / t_quarter) if t_quarter > 0 else None
+        vec = {'x': (1.0, 0.0, 0.0), 'y': (0.0, 1.0, 0.0), 'z': (0.0, 0.0, 1.0)}[axis]
+
+        def _step(d):                           # BASE 기준 d mm 만큼 그 축으로
+            cc.move_rel(vec[0] * d, vec[1] * d, vec[2] * d, 'BASE', vel_mm_s=vel, acc_mm_s2=acc)
+        what = f'{axis.upper()} ±{amp:.0f} mm' + (f' · 가속 {acc:.0f}' if acc else '')
+    else:
+        def _step(d, t=None):
+            cc.move_joint_rel(joint, d, time_s=t, carrying=True)
+        what = f'J{joint} ±{amp:.0f}°'
+
     moved = 0.0                                 # 가운데에서 얼마나 벗어나 있나 (실패 복구용)
     _hold(kind, HOLD)                           # 흔들 때는 더 꽉 잡는다 (IRD §4)
     try:
+        if tilt:                                # 🆕 기울이기 — 들고 가는 속도(시간 지정 없음), 흔들기의 새 가운데
+            _log().info(f'shake({mode}) — J{joint} {tilt:+.0f}° 기울인다 (입이 잔반통 쪽으로)')
+            cc.move_joint_rel(joint, tilt, carrying=True)
+            moved += tilt
         for i in range(1, n + 1):
-            cc.move_joint_rel(joint, +amp, time_s=t_quarter, carrying=True)   # 가운데 → 끝
-            moved += amp
-            cc.move_joint_rel(joint, -2 * amp, time_s=t_half, carrying=True)  # 끝 → 반대쪽 끝
-            moved -= 2 * amp
-            cc.move_joint_rel(joint, +amp, time_s=t_quarter, carrying=True)   # 끝 → 가운데
-            moved += amp
-            _log().info(f'shake({mode}) {i}/{n} — J{joint} ±{amp:.0f}° · 주기 {period:.2f} s')
+            if linear:
+                _step(+amp); moved += amp                                          # 가운데 → 끝
+                _step(-2 * amp); moved -= 2 * amp                                  # 끝 → 반대쪽 끝
+                _step(+amp); moved += amp                                          # 끝 → 가운데
+            else:
+                cc.move_joint_rel(joint, +amp, time_s=t_quarter, carrying=True)   # 가운데 → 끝
+                moved += amp
+                cc.move_joint_rel(joint, -2 * amp, time_s=t_half, carrying=True)  # 끝 → 반대쪽 끝
+                moved -= 2 * amp
+                cc.move_joint_rel(joint, +amp, time_s=t_quarter, carrying=True)   # 끝 → 가운데
+                moved += amp
+            _log().info(f'shake({mode}) {i}/{n} — {what} · 주기 {period:.2f} s')
+        if tilt:                                # 🆕 아직 꽉 쥔 채 똑바로 되돌린다 (finally 는 실패용)
+            cc.move_joint_rel(joint, -tilt, carrying=True)
+            moved -= tilt
     finally:
         if abs(moved) > 1e-9:                   # 🚨 도중에 실패했으면 가운데로 되돌린다
-            _quietly('가운데 복귀', cc.move_joint_rel, joint, -moved)
+            if linear:
+                _quietly('가운데 복귀', cc.move_rel, -vec[0] * moved, -vec[1] * moved, -vec[2] * moved, 'BASE')
+            else:
+                _quietly('가운데 복귀', cc.move_joint_rel, joint, -moved)
         _release_hold(kind)
 
     w_after = float(cc.grip_width())            # NORMAL 로 되돌린 뒤 — w_before 와 같은 힘 상태

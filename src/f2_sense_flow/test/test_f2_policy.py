@@ -682,3 +682,57 @@ def test_boom_with_count_only_throws_that_many_times():
     with pytest.raises(RuntimeError):
         mock.code_for('soap')
     assert mock.code_for('soap') is None
+
+
+# ────────────────────────────────── 🆕 FLOW-05 (결정 E25) — 컵은 무게 단계를 건너뛴다
+def _calls_by_kind(cfg_extra):
+    """가짜 기능으로 plan 한 바퀴 돌며 (종류, step, 함수) 를 모은다."""
+    import copy
+    mock.configure([])
+    cfg = copy.deepcopy(CFG)
+    cfg['flow'].update(cfg_extra)
+    f = Flow(cfg, Quiet(), publish_event=lambda ev: None)
+    f.f = load_features(['f1', 'f2', 'f3'])
+    seen = []
+    orig = f.call_fn
+
+    def spy(mod, fname, *a):
+        seen.append((f.kind, f.step, fname))
+        return orig(mod, fname, *a)
+    f.call_fn = spy
+    f.run_plan(AutoResume())
+    return seen, f
+
+
+def test_flow05_cup_skips_weigh_bowl_keeps_it():
+    """E25: 컵은 move_to('WEIGH') · leftover_loop 를 **한 번도** 부르지 않고 PICK → SEAT. 그릇은 예전 그대로."""
+    seen, f = _calls_by_kind({'weigh_kinds': ['BOWL']})
+    cup = [(st, fn) for k, st, fn in seen if k == 'CUP']
+    bowl = [(st, fn) for k, st, fn in seen if k == 'BOWL']
+    assert not [x for x in cup if x[0] == 'WEIGH'], f'컵이 WEIGH 를 거쳤다: {cup}'
+    assert ('WEIGH', 'leftover_loop') not in cup and ('WEIGH', 'move_to') not in cup
+    assert cup[:2] == [('PICK', 'pick'), ('SEAT', 'place')], cup[:3]       # PICK 다음이 곧장 SEAT
+    assert ('WEIGH', 'move_to') in bowl and ('WEIGH', 'leftover_loop') in bowl
+    assert (f.done_bowl, f.done_cup, f.isolated) == (2, 2, 0)              # 나머지 단계는 다 돈다
+    assert len(bowl) == 13 * 2 and len(cup) == 11 * 2
+
+
+def test_flow05_missing_key_keeps_old_behaviour():
+    """키가 없으면 예전처럼 둘 다 잰다 — 옛 설정 파일로도 돌아간다."""
+    seen, _ = _calls_by_kind({})
+    assert ('CUP', 'WEIGH', 'leftover_loop') in seen
+
+
+def test_flow05_unknown_kind_is_ignored_with_warning():
+    log = FakeLogLines()
+    f = Flow({'flow': {'weigh_kinds': ['BOWL', 'PLATE']}}, log)
+    assert f.weigh_kinds == ['BOWL']
+    assert any('PLATE' in m for m in log.warns)
+
+
+class FakeLogLines:
+    def __init__(self): self.warns = []
+    def info(self, m): pass
+    def warn(self, m): self.warns.append(m)
+    def error(self, m): pass
+

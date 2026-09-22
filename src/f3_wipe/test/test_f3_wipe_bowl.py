@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
-"""wipe_bowl(F3-02) 시험 — 로봇 없이 가짜 공용 함수로 순서·판정·실패 처리를 본다.
+"""wipe_bowl(F3-02) 시험 — 로봇 없이 가짜 두산 함수로 **rig_v03 과 같은 명령·순서**인지, 실패 처리가 맞는지 본다.
 
     python3 -m pytest -q src/f3_wipe/test/test_f3_wipe_bowl.py
 
-**9/20 실기(V-03)로 확정한 절차 그대로**인지 본다:
-빠른 접근 → 바닥 찾기(contact_down) → 순응 ON → 나선(힘제어 없이) → 힘제어 1.5 N → 벽면 원호 → 힘제어만 OFF → 중심 복귀.
-벽만 찾지 않는다(반지름을 그릇·툴 지름으로 계산 — 결정 E6).
-실제 힘 값·닦는 높이는 실기에서 본다 — 여기서는 "순서·반지름·비틀기·상한 처리"만 본다.
+9/21: wipe_bowl 은 9/20 실기 확정본 rig_v03(src/cobot_common/test/rig_v03.py)의 실행 순서·명령을 그대로 옮겼다(두산 명령은 같은 일을 하는 cc 함수로 — AGENTS 규칙 4).
+바꾼 것은 박진용 지시 세 가지: 빠른 하강 140 mm · 바닥 판정 3 N · 곧게 올라오기 = 빠른 하강 속도.
 """
+import copy
 import math
 
 import pytest
@@ -15,26 +14,30 @@ import pytest
 from cobot_api import FORCE_LIMIT, OK, ROBOT_ERROR, TIMEOUT
 from f3_wipe import wipe
 
-WALL_R = (110.0 - 90.0) / 2 + 4.0       # 벽 반지름 = (그릇 안지름 − 툴 지름)/2 + 벽 누름 = 14 mm
-UP = 167.0                              # 접근점(z 235) → 바닥(z 68, 9/20 실측) 까지 남은 높이
-CFG = {
+WALL_R = (110.0 - 90.0) / 2 + 4.0
+HOME_POSJ = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
+HOME = [367.5, 8.0, 215.0, 157.0, 180.0, 157.0]
+AIR = 2.0
+FIND = 11.0
+CFG0 = {
     'run': {'vel_scale': 0.3},
-    'cell': {'limits': {'safe_z_mm': 235.0, 'contact_limit_n': 2.0}},
+    'cell': {'force': {'compliance_stx': [1000, 1000, 200, 100, 100, 100]},
+             'stations': {'HOME': {'posj': HOME_POSJ}}},
     'f3': {'wipe_bowl': {
         'tool': {'clean_h_mm': 35, 'd_mm': 90},
-        'fast_down_mm': 135.0, 'find_max_mm': 40.0,
+        'fast_down_mm': 140.0, 'home_vel_deg_s': 40.0, 'home_acc_deg_s2': 40.0,
+        'fast_vel_mm_s': 220.0, 'fast_acc_mm_s2': 440.0, 'air_force_max_n': 3.0,
+        'find_max_mm': 30.0, 'find_limit_n': 3.0, 'contact_timeout_s': 40.0,
+        'press_vel_mm_s': 20.0, 'press_acc_mm_s2': 50.0,
         'target_force_n': 1.5, 'limit_n': 10.0, 'lateral_max_n': 25.0,
         'bowl_inner_d_mm': 110.0, 'wall_press_mm': 4.0,
         'spiral_pitch_mm': 5.0, 'spiral_time_s': 3.0,
         'turns': 3, 'wall_arc_deg': 90.0, 'wall_approach_vel_mm_s': 60.0,
-        'twist_deg': 18.0, 'blend_radius_mm': 3.0, 'lin_vel_mm_s': 180.0, 'rot_vel_deg_s': 400.0,
+        'twist_deg': 18.0, 'blend_radius_mm': 3.0, 'lin_vel_mm_s': 600.0, 'rot_vel_deg_s': 400.0,
+        'lin_acc_mm_s2': 3000.0, 'rot_acc_deg_s2': 1000.0,
         'force_every': 4, 'sample_s': 0.0, 'duration_s': 120, 'log_dir': 'logs/f3',
     }},
 }
-POSE0 = [400.0, 0.0, 235.0, 45.0, 180.0, 45.0]      # 접근점 (닦는 자리 상공)
-FAST = 135.0                                        # 빠른 하강 = fast_down_mm (티칭 끝점과 무관)
-FIND = 14.0                                         # 가짜 바닥: 빠른 접근 뒤 이만큼 더 내려가면 닿는다
-CENTER = [POSE0[0], POSE0[1], POSE0[2] - FAST - FIND]   # 바닥에 닿은 자리 = 나선의 중심
 
 
 class _Logger:
@@ -48,66 +51,107 @@ class _Logger:
         self.lines.append(('error', m))
 
 
-class FakeCell:
-    """가짜 셀 — 공용 함수 호출을 적어 두고, 그릇 안의 힘을 흉내 낸다."""
+class FakeRobot:
+    """가짜 cc 함수 — rig_v03 이 부른 두산 명령과 같은 이름으로 호출을 적고, 자세·힘을 흉내 낸다."""
+    REL, ABS = 'REL', 'ABS'
 
-    def __init__(self, press=1.5, lateral=1.0, spiral_moves=True, up=UP, spiral_dir=+1, find=FIND):
+    def __init__(self):
+        self.cfg_ = copy.deepcopy(CFG0)
         self.calls = []
-        self.press, self.lateral, self.up = press, lateral, up
-        self.find = find                                 # 바닥을 찾기까지 내려간 거리
-        self.spiral_moves = spiral_moves                 # False = 명령은 받지만 돌지 않는다(9/20 실기 증상)
-        self.spiral_dir = spiral_dir                     # BASE 에서 본 나선 방향 (+1 반시계 · −1 시계)
-        self.pose = list(POSE0)
-        self.poses = []
-        self.spiral = None                               # 도는 중인 나선 (남은 조각 수, 반지름, 회전 수)
-        self.moving = False
-        self.touched = False                             # 닦는 높이까지 내려온 뒤부터 힘이 걸린 것으로 본다
+        self.pose = list(HOME)
+        self.find, self.contact_f = FIND, 3.4
+        self.touched = False
+        self.press, self.lateral, self.air = 1.5, 1.0, AIR
+        self.spiral = None
+        self.spiral_moves = True
         self.halted = False
-        self.off = None
+        self.fail = None
         self.logger = _Logger()
 
-    # ---- cobot_common 대역
-    def cfg(self):
-        return CFG
+    def _chk(self, name):
+        if self.fail == name:
+            raise RuntimeError(f'{name} 실패')
 
-    def move_to(self, station, carrying, kind=None, point=None):
-        self.calls.append(('move_to', station, point))
-        self.pose = list(POSE0)
-        return self.up
+    def move_joints(self, q, vel_deg_s, acc_deg_s2):
+        self.calls.append(('movej', list(q), vel_deg_s * CFG0['run']['vel_scale'], acc_deg_s2))
+        self._chk('movej')
+        self.pose = list(HOME)
 
-    def move_rel(self, dx, dy, dz, frame, **kw):
-        self.calls.append(('move_rel', round(dz, 2), round(kw.get('vel_mm_s') or 0.0, 1)))
+    def move_line_rel(self, dx, dy, dz, vel_mm_s, acc_mm_s2):
+        self.calls.append(('movel', [dx, dy, dz, 0.0, 0.0, 0.0], vel_mm_s * CFG0['run']['vel_scale'], acc_mm_s2, self.REL))
+        self._chk('movel')
         self.pose = [self.pose[0] + dx, self.pose[1] + dy, self.pose[2] + dz] + self.pose[3:]
-        self.poses.append(list(self.pose))
 
-    def contact_down(self, max_depth, limit):
-        self.calls.append(('contact_down', max_depth, limit))
+    def move_rel(self, dx, dy, dz, frame, *, vel_mm_s=None, acc_mm_s2=None):
+        """빠른 하강·올라오기 — wipe.py 가 이미 vel_scale 을 곱해서 넘긴다(컵과 같은 방식, 박진용 9/22)."""
+        self.calls.append(('movel', [dx, dy, dz, 0.0, 0.0, 0.0], vel_mm_s, acc_mm_s2, self.REL))
+        self._chk('movel')
+        self.pose = [self.pose[0] + dx, self.pose[1] + dy, self.pose[2] + dz] + self.pose[3:]
+
+    def move_pose(self, pose, vel_mm_s, vel_deg_s, acc_mm_s2, acc_deg_s2, radius_mm=0.0):
+        s = CFG0['run']['vel_scale']
+        self.calls.append(('movel', list(pose), [vel_mm_s * s, vel_deg_s * s], [acc_mm_s2, acc_deg_s2], self.ABS))
+        self._chk('movel')
+        self.pose = list(pose)
+
+    def move_arc(self, mid, end, vel_mm_s, vel_deg_s, radius_mm=0.0, acc_mm_s2=None, acc_deg_s2=None):
+        s = CFG0['run']['vel_scale']
+        self.calls.append(('movec', list(mid), list(end), [vel_mm_s * s, vel_deg_s * s], [acc_mm_s2, acc_deg_s2], radius_mm))
+        self._chk('movec')
+        self.pose = list(end)
+
+    def where(self):
+        return list(self.pose)
+
+    def wait_done(self):
+        self.calls.append(('mwait',))
+
+    def compliance_on(self, stx=None):
+        self.calls.append(('compliance',))
+
+    def move_spiral(self, rev, rmax_mm, time_s, axis='z', ref='TOOL'):
+        self.calls.append(('spiral', rev, rmax_mm, time_s, axis, ref))
+        self._chk('amove_spiral')
+        self.spiral = [0, 40, rmax_mm, rev, list(self.pose)]
+
+    def motion_done(self):
+        if self.spiral is None or not self.spiral_moves:
+            self.spiral = None
+            return True
+        k, steps, rmax, rev, c = self.spiral
+        if k >= steps:
+            self.spiral = None
+            return True
+        self.spiral[0] = k + 1
+        f = (k + 1) / steps
+        th = rev * 2 * math.pi * f
+        self.pose[0] = c[0] + rmax * f * math.cos(th)
+        self.pose[1] = c[1] + rmax * f * math.sin(th)
+        return False
+
+    def force_release(self):
+        self.calls.append(('release_force',))
+
+    def cfg(self):
+        return self.cfg_
+
+    def contact_down(self, max_depth, limit, timeout_s=None, keep_compliance=False):
+        self.calls.append(('contact_down', max_depth, limit, timeout_s))
         found = min(self.find, max_depth)
         self.pose[2] -= found
         self.touched = found < max_depth
-        return found, limit
+        return found, (self.contact_f if self.touched else 0.0)
 
-    def compliance_on(self, stx=None):
-        self.calls.append(('compliance_on',))
+    def read_force(self):
+        if not self.touched:
+            return [0.0, 0.0, self.air, 0.0, 0.0, 0.0]
+        return [self.lateral, 0.0, self.air + self.press, 0.0, 0.0, 0.0]
 
     def force_on(self, axis, target, limit):
         self.calls.append(('force_on', axis, round(target, 2), limit))
 
-    def force_release(self):
-        self.calls.append(('force_release',))
-
-    def read_force(self):
-        """공중 치우침 2 N. 바닥에 닿은 뒤부터 누르는 힘·옆 힘이 걸린 것으로 본다."""
-        if not self.touched:
-            return [0.0, 0.0, 2.0, 0.0, 0.0, 0.0]
-        return [self.lateral, 0.0, 2.0 + self.press, 0.0, 0.0, 0.0]
-
     def force_off(self):
         self.calls.append(('force_off',))
-        self.off = len(self.poses)                       # 여기까지가 닦기 — 뒤는 HOME 복귀
-
-    def safe_retreat(self):
-        self.calls.append(('safe_retreat',))
 
     def is_halted(self):
         return self.halted
@@ -118,243 +162,141 @@ class FakeCell:
     def get_logger(self):
         return self.logger
 
-    # ---- 접촉 모션 (force.py 공용 함수) 대역
-    def where(self):
-        return list(self.pose)
 
-    def motion_done(self):
-        """나선을 조각내어 실제로 돌려 준다 — 방향(부호)까지 흉내 내야 벽면 방향 시험이 뜻이 있다."""
-        if self.spiral is None:
-            return True
-        k, steps, rmax, rev = self.spiral
-        if k >= steps:
-            self.spiral = None
-            return True
-        self.spiral = (k + 1, steps, rmax, rev)
-        if self.spiral_moves:
-            f = (k + 1) / steps                          # 반지름·각도가 같이 커진다
-            th = self.spiral_dir * rev * 2 * math.pi * f
-            self.pose[0] = CENTER[0] + rmax * f * math.cos(th)
-            self.pose[1] = CENTER[1] + rmax * f * math.sin(th)
-        return False
-
-    def move_spiral(self, rev, rmax_mm, time_s):
-        self.calls.append(('spiral', rev, rmax_mm, time_s))
-        self.spiral = (0, 40, rmax_mm, rev)              # 40 조각으로 나눠 돈다
-
-    def move_arc(self, mid, end, vel_mm_s, vel_deg_s, radius_mm):
-        self.calls.append(('arc', round(radius_mm, 1)))
-        self.pose = list(end)
-        self.poses.append(list(end))
+CC_NAMES = ('move_joints', 'move_line_rel', 'move_rel', 'move_pose', 'move_arc', 'where', 'wait_done', 'compliance_on',
+            'move_spiral', 'motion_done', 'force_release', 'cfg', 'contact_down', 'read_force', 'force_on', 'force_off',
+            'is_halted', 'io_node')
 
 
 @pytest.fixture
-def cell(monkeypatch, tmp_path):
-    monkeypatch.chdir(tmp_path)                      # 힘 로그는 실행 위치 기준 상대경로
-    c = FakeCell()
-    for name in ('cfg', 'move_to', 'move_rel', 'contact_down', 'compliance_on', 'force_on', 'force_release',
-                 'read_force', 'force_off', 'safe_retreat',
-                 'io_node', 'is_halted', 'where', 'motion_done', 'move_spiral', 'move_arc'):
-        monkeypatch.setattr(wipe.cc, name, getattr(c, name), raising=False)
-    return c
+def rb(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    r = FakeRobot()
+    for name in CC_NAMES:
+        monkeypatch.setattr(wipe.cc, name, getattr(r, name), raising=False)
+    return r
 
 
-def _center(c):
-    """바닥에 닿은 자리 = 나선의 중심."""
-    return [POSE0[0], POSE0[1], POSE0[2] - FAST - c.find]
+def _names(r):
+    return [c[0] for c in r.calls]
 
 
-def _wiped(c):
-    """HOME 복귀 이동을 뺀 닦기 자세들."""
-    return c.poses[:c.off]
+def _ended_home(r):
+    """끝은 rig_v03 finally 그대로: … → 곧게 위로(movel REL +) → HOME(movej)."""
+    moves = [c for c in r.calls if c[0] in ('movel', 'movej')]
+    return moves[-1][0] == 'movej' and moves[-2][0] == 'movel' and moves[-2][4] == r.REL and moves[-2][1][2] > 0
 
 
-def _ended_home(c):
-    """힘을 끄고 → 곧게 올려 → HOME(관절)으로 끝났나."""
-    names = [x[0] for x in c.calls]
-    tail = names[len(names) - 1 - names[::-1].index('force_off'):]
-    return c.calls[-1][:2] == ('move_to', 'HOME') and tail[0] == 'force_off' and 'move_rel' in tail
-
-
-def _radii(poses, center):
-    return [math.hypot(p[0] - center[0], p[1] - center[1]) for p in poses]
-
-
-def test_confirmed_order(cell):
-    """9/20 실기 확정 순서: 바닥 찾기 → 순응 → 나선 → 힘제어 → 벽면 → 힘제어만 OFF → 중심 복귀."""
+def test_order_is_rig_v03(rb):
     r = wipe.wipe_bowl()
     assert r.ok and r.code == OK
-    names = [c[0] for c in cell.calls]
-    assert (names.index('contact_down') < names.index('compliance_on') < names.index('spiral')
-            < names.index('force_on') < names.index('arc') < names.index('force_release'))
-    assert names[0] == 'move_to' and cell.calls[0][1] == 'HOME'            # 초기자세에서 시작
-    assert _ended_home(cell)                                               # 어떤 경우에도 끄고 곧게 올려 HOME
+    n = _names(rb)
+    assert n[0] == 'movej'
+    # 🔸 순응은 contact_down(keep_compliance=True) 안에서 켜진 채로 넘어온다(박진용 9/22) — 여기서 따로 껐다 켜지 않는다
+    assert (n.index('contact_down') < n.index('spiral') < n.index('force_on')
+            < n.index('movec') < n.index('release_force'))
+    assert 'force_off' in n and _ended_home(rb)
 
 
-def test_spiral_runs_without_force_control(cell):
-    """🚨 나선은 툴 Z 축 모션이라 Z 힘제어와 같은 축 — 켜 두면 시작조차 하지 않는다(중급2 · 9/20 실기)."""
+def test_values_same_as_rig_v03_except_four(rb):
+    """HOME 12 °/s·40 · 하강 140 mm 66 mm/s·132(컵과 같은 방식으로 vel_scale 적용, 박진용 9/22) · 바닥 30 mm·3 N·40 s · 나선 2.8바퀴·14 mm·3 s(속도 0)."""
     wipe.wipe_bowl()
-    names = [c[0] for c in cell.calls]
-    assert names.index('spiral') < names.index('force_on')
+    home = rb.calls[0]
+    assert home[1] == HOME_POSJ and home[2] == pytest.approx(12.0) and home[3] == 40.0
+    down = [c for c in rb.calls if c[0] == 'movel'][0]
+    assert down[1][2] == -140.0 and down[2] == pytest.approx(66.0) and down[3] == pytest.approx(132.0)
+    assert ('contact_down', 30.0, 3.0, 40.0) in rb.calls
+    sp = [c for c in rb.calls if c[0] == 'spiral'][0]
+    assert sp[1] == pytest.approx(2.8) and sp[2] == pytest.approx(WALL_R) and sp[3] == 3.0
+    assert sp[4] == 'z' and sp[5] == 'TOOL'
 
 
-def test_force_target_compensates_air_baseline(cell):
-    """공중 기준값(센서 치우침·툴 무게)을 더해서 명령한다."""
+def test_rise_same_speed_as_fast_down(rb):
     wipe.wipe_bowl()
-    axis, target, limit = [c[1:] for c in cell.calls if c[0] == 'force_on'][0]
-    assert axis == 'z' and target == pytest.approx(1.5 + 2.0) and limit == 10.0
+    rels = [c for c in rb.calls if c[0] == 'movel' and c[4] == rb.REL]
+    assert rels[0][2] == rels[-1][2] and rels[0][3] == rels[-1][3]
+    assert rels[-1][1][2] == pytest.approx(140.0 + FIND)                   # 바닥에서 HOME 높이까지
 
 
-def test_fast_approach_then_find_bottom(cell):
-    """초기자세 HOME 에서 fast_down_mm(135, 9/21 실측) 만큼 빠르게, 나머지는 힘으로 — 바닥 위치를 미리 정하지 않는다."""
+def test_wall_like_rig_v03(rb):
+    """+18° 로 붙기(movel 18 mm/s) → 원호 12 개, 시계, ±18° 번갈아, 마지막만 안 이어 붙임, 180 mm/s · 가속 3000/1000."""
     wipe.wipe_bowl()
-    fast = [c for c in cell.calls if c[0] == 'move_rel' and c[1] < 0][0]
-    assert fast[1] == pytest.approx(-135.0)                                # 티칭 끝점(up)과 무관
-    assert ('contact_down', 40.0, 2.0) in cell.calls                       # find_max_mm · cell.limits.contact_limit_n
+    arcs = [c for c in rb.calls if c[0] == 'movec']
+    assert len(arcs) == 12
+    assert arcs[-1][5] == 0.0 and all(a[5] == 3.0 for a in arcs[:-1])
+    assert all(a[3] == pytest.approx([180.0, 120.0]) and a[4] == [3000.0, 1000.0] for a in arcs)
+    center = [c for c in rb.calls if c[0] == 'movel' and c[4] == rb.ABS][-1][1]
+    ends = [a[2] for a in arcs]
+    assert all(math.hypot(e[0] - center[0], e[1] - center[1]) == pytest.approx(WALL_R) for e in ends)
+    ang = [math.atan2(e[1] - center[1], e[0] - center[0]) for e in ends]
+    assert all(math.sin(b - a) < 0 for a, b in zip(ang, ang[1:]))          # 시계
+    tw = [round((e[5] - center[5] + 180) % 360 - 180, 1) for e in ends]
+    assert set(tw) == {-18.0, 18.0}
 
 
-def test_bottom_not_found_stops_before_compliance(cell):
-    """바닥을 못 찾으면 순응·힘제어를 켜지 않고 중단한다."""
-    cell.find = 40.0                                                       # find_max_mm 까지 내려가도 못 찾음
+def test_force_target_adds_air_baseline(rb):
+    wipe.wipe_bowl()
+    assert ('force_on', 'z', round(1.5 + AIR, 2), 10.0) in rb.calls
+
+
+def test_spiral_not_started_is_error_and_goes_home(rb):
+    rb.spiral_moves = False
     r = wipe.wipe_bowl()
     assert not r.ok and r.code == ROBOT_ERROR
-    assert 'compliance_on' not in [c[0] for c in cell.calls]
-    assert _ended_home(cell)
+    assert 'movec' not in _names(rb) and _ended_home(rb)
+    assert any('나선이 돌지 않았다' in m for lvl, m in rb.logger.lines if lvl == 'error')
 
 
-def test_actual_z_is_logged(cell):
-    """바닥 Z·접촉 힘·공중 기준값을 로그로 남긴다(실기에서 티칭값과 비교하려고)."""
-    wipe.wipe_bowl()
-    assert any('바닥' in m for lvl, m in cell.logger.lines if lvl == 'info')
-
-
-def test_spiral_uses_time_and_wall_radius(cell):
-    wipe.wipe_bowl()
-    rev, rmax, t = [c[1:] for c in cell.calls if c[0] == 'spiral'][0]
-    assert rmax == pytest.approx(WALL_R) and t == 3.0                      # 시간으로 지정(중급1 p.69)
-    assert rev == pytest.approx(round(WALL_R / 5.0, 1))                    # 간격 5 mm → 약 2.8바퀴
-
-
-def test_wall_laps_reverse_and_twist(cell):
-    wipe.wipe_bowl()
-    arcs = [c for c in cell.calls if c[0] == 'arc']
-    assert len(arcs) == 12                                                 # 3바퀴 × 90° 원호 4개
-    assert arcs[-1][1] == 0.0 and arcs[0][1] > 0                           # 마지막만 이어 붙이지 않는다
-    lap = _wiped(cell)[-13:-1]                                             # 마지막 하나는 중심 복귀
-    rr = _radii(lap, _center(cell))
-    assert max(rr) - min(rr) < 0.01                                        # 반지름 고정 (벽을 찾지 않는다)
-    assert max(rr) == pytest.approx(WALL_R)
-    twists = sorted({round(p[5] - POSE0[5], 1) for p in lap})
-    assert twists == [-18.0, 0.0, 18.0]                                    # 좌우로만 비틀고, 마지막은 제자리
-    assert _arc_dir(cell) < 0                                              # 나선(반시계)과 반대 = 시계
-
-
-def _arc_dir(cell):
-    """벽면 원호가 도는 방향 부호 (BASE 기준, + 반시계)."""
-    lap = _wiped(cell)[-13:-1]
-    ang = [math.atan2(p[1] - _center(cell)[1], p[0] - _center(cell)[0]) for p in lap]
-    step = [math.atan2(math.sin(b - a), math.cos(b - a)) for a, b in zip(ang, ang[1:])]
-    assert all(t * step[0] > 0 for t in step), '한 바퀴 안에서 방향이 바뀐다'
-    return step[0]
-
-
-@pytest.mark.parametrize('spiral_dir', [+1, -1])
-def test_wall_turns_opposite_to_measured_spiral(cell, spiral_dir):
-    """🚨 나선 방향을 **재서** 그 반대로 돈다 — 나선은 TOOL · 원호는 BASE 기준이라 부호를 가정하면 같은 방향이 된다(9/21 실측).
-
-    두산 API 에는 나선 방향 인자가 없고(rev > 0) 강의자료에도 설명이 없다 → 어느 쪽으로 돌든 반대가 나와야 한다.
-    """
-    cell.spiral_dir = spiral_dir
+def test_bottom_not_found(rb):
+    rb.find = 30.0
     r = wipe.wipe_bowl()
-    assert r.ok
-    assert _arc_dir(cell) * spiral_dir < 0
+    assert not r.ok and 'spiral' not in _names(rb) and _ended_home(rb)
 
 
-def test_ends_at_center_same_height(cell):
-    """올리지 않고 그 높이에서 중심으로 — 들어 올리는 것은 HOME 복귀 몫."""
-    wipe.wipe_bowl()
-    last = _wiped(cell)[-1]
-    assert _radii([last], _center(cell))[0] < 0.01
-    assert last[2] == pytest.approx(_center(cell)[2])
-
-
-def test_spiral_that_does_not_move_is_error(cell):
-    """명령은 받았는데 돌지 않으면(9/20 실기 증상) 조용히 넘어가지 않는다."""
-    cell.spiral_moves = False
+def test_air_force_too_big(rb):
+    rb.air = 3.5
     r = wipe.wipe_bowl()
-    assert not r.ok and r.code == ROBOT_ERROR
-    assert 'arc' not in [c[0] for c in cell.calls]                         # 벽면으로 넘어가지 않는다
+    assert not r.ok and 'contact_down' not in _names(rb) and _ended_home(rb)
 
 
-def test_lateral_over_limit_is_force_limit(cell):
-    cell.lateral = 99.0
+def test_press_over_limit(rb):
+    rb.press = 99.0
     r = wipe.wipe_bowl()
-    assert not r.ok and r.code == FORCE_LIMIT
-    assert _ended_home(cell)
+    assert r.code == FORCE_LIMIT and _ended_home(rb)
 
 
-def test_press_over_limit_is_force_limit(cell):
-    """닦는 중 누르는 힘이 상한을 넘으면 즉시 후퇴한다(NFR-01)."""
-    cell.press = 99.0
+def test_lateral_over_limit(rb):
+    rb.lateral = 99.0
     r = wipe.wipe_bowl()
-    assert not r.ok and r.code == FORCE_LIMIT
-    assert _ended_home(cell)
+    assert r.code == FORCE_LIMIT and _ended_home(rb)
 
 
-def test_over_time_is_timeout(cell):
-    CFG['f3']['wipe_bowl']['duration_s'] = -1                              # 이미 넘은 것으로
-    try:
-        r = wipe.wipe_bowl()
-    finally:
-        CFG['f3']['wipe_bowl']['duration_s'] = 120
-    assert not r.ok and r.code == TIMEOUT
+def test_doosan_failure_is_robot_error_and_goes_home(rb):
+    rb.fail = 'movec'
+    r = wipe.wipe_bowl()
+    assert r.code == ROBOT_ERROR and _ended_home(rb)
 
 
-def test_halt_between_steps_is_raised(cell):
-    """강제정지는 코드로 바꾸지 않고 올린다 — flow 의 중단 흐름이 받는다(결정 E11).
-
-    🚨 그리고 **로봇을 자동으로 움직이지 않는다** — 어디 있는지 모르기 때문이다.
-       힘·순응 해제는 모션이 아니라서 한다.
-    """
-    cell.halted = True
+def test_halt_before_start_does_not_move(rb):
+    rb.halted = True
     with pytest.raises(wipe.cc.MotionHalted):
         wipe.wipe_bowl()
-    assert [c[0] for c in cell.calls][-1] == 'force_off'                   # 끄기만 하고 움직이지 않는다
+    assert _names(rb) == ['force_off']
 
 
-def test_move_incomplete_does_not_auto_move(cell, monkeypatch):
-    """🚨 이동이 도중에 섰으면(MoveIncomplete) 로봇 위치를 모른다 → 힘만 끄고 그 자리에 둔다.
-
-    9/21 08:40 실기: 6번 관절이 163° 돌아 케이블이 꼬인 채 멈췄는데 도구가 자동으로 HOME 으로 가려 했다.
-    """
-    def stop_midway(*a, **kw):
-        raise wipe.cc.MoveIncomplete('목표까지 122 mm 남았다')
-
-    monkeypatch.setattr(wipe.cc, 'move_to', stop_midway)
-    with pytest.raises(wipe.cc.MoveIncomplete):
-        wipe.wipe_bowl()
-    assert [c[0] for c in cell.calls] == ['force_off']                     # 끄기만 하고 움직이지 않는다
-
-
-def test_force_limit_still_retreats(cell):
-    """힘 상한은 로봇이 정상이라는 뜻 — 설계대로 후퇴한다(AGENTS 규칙 2)."""
-    cell.press = 99.0
+def test_spiral_timeout(rb, monkeypatch):
+    rb.cfg_['f3']['wipe_bowl']['spiral_time_s'] = -10.0                     # 이미 넘은 것으로
     r = wipe.wipe_bowl()
-    assert r.code == FORCE_LIMIT
-    assert _ended_home(cell)
+    assert r.code == TIMEOUT and _ended_home(rb)
 
 
-def test_force_log_saved(cell):
+def test_force_log_saved(rb):
     r = wipe.wipe_bowl()
-    assert r.force_log_path.endswith('.csv')
-    with open(r.force_log_path) as f:
-        head = f.readline().strip().split(',')
-    assert head == list(wipe.FORCE_LOG_HEADER)
-    assert r.force_mean_n > 0                                              # 누르는 힘 평균 (마감 기준 TC-06)
+    assert r.force_log_path.endswith('.csv') and r.force_mean_n > 0
 
 
-def test_returns_straight_up_to_home_height(cell):
-    """닦은 뒤 수세미를 곧게 올려 HOME 높이로 → HOME(관절). 옆으로 먼저 움직이지 않는다."""
-    wipe.wipe_bowl()
-    rise = cell.poses[cell.off]
-    assert rise[:2] == pytest.approx(_center(cell)[:2]) and rise[2] == pytest.approx(POSE0[2])
+def test_over_total_time_is_timeout_and_goes_home(rb):
+    """전체 duration_s(120 s) 상한은 남긴다(황인재 9/22) — 넘으면 TIMEOUT, 끄고 올라와 HOME."""
+    rb.cfg_['f3']['wipe_bowl']['duration_s'] = -1
+    r = wipe.wipe_bowl()
+    assert r.code == TIMEOUT and _ended_home(rb)

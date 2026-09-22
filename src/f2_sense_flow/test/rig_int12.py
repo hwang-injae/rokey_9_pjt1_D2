@@ -177,6 +177,9 @@ def main():
             sys.exit(f'{key} 가 cobot_api 약속과 다름: {problems}')
     if a.no_robot:
         log.warn('--no-robot — 두산 드라이버 없이 함수 반환만 본다')
+    else:
+        from f2_sense_flow.preflight import require_controller
+        require_controller(cc.io_node(), cfg, log)             # 🆕 TS-07 — 툴·TCP 가 다르면 여기서 끝
 
     rows = []
     try:
