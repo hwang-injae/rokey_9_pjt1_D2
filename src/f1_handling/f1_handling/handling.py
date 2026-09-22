@@ -30,6 +30,8 @@ from cobot_common.force import ForceLimitError, MotionTimeout      # 접촉 동�
 _PLACE_POINT = 'place'          # 스펀지 홈(cell.beds.*)에서 '용기를 놓는 자리'의 point 이름 (cell.yaml 의 자세 적는 법)
 _REGRIP_POINT = 'regrip'        # 컵은 놓을 때와 다른 방향에서 다시 잡는다(cell.beds.SPONGE_BED_C.regrip)
 _TOOL_STATION = {SPONGE: 'TOOL_SPONGE', BRUSH: 'TOOL_BRUSH'}    # 툴 이름 → 홀더 자리 이름 (IRD §2 · F1-03)
+_LAST_PICK = {}                 # 툴 이름 → 집은 자리 posx(BASE). 🔄 9/22 밤(황인재 · 박진용 요청 #83): RETURN 은 **집었던 자리로 역순**(별도 반납 자세·바닥 찾기 없이)
+                                #   같은 프로그램 안에서 PICK 한 툴만 기억한다 — 없으면(다른 프로그램이 집었음) 옛 방식(return 자세 + contact_down)
 
 
 def _log():
@@ -135,12 +137,18 @@ def pick(zone_id: str, kind: str) -> PickResult:
 
 
 def _regrip(bed: str, kind: str) -> PickResult:
-    """스펀지 홈에서 다시 잡기 — pick() 의 재파지 갈래."""
-    if kind == CUP:
+    """스펀지 홈에서 다시 잡기 — pick() 의 재파지 갈래.
+
+    🔄 9/22 저녁(황인재 · E29): 종류가 아니라 **홈에 `regrip` 자세가 있는지**로 고른다 —
+      · regrip(posj) 이 있으면 그 자세에서 잡는다(옆면 파지 · 한석형 9/22 컵 방식 · 잡은 뒤 rack.cup_entry_z_mm 까지 올림)
+      · 없으면 그릇처럼 **놓은 자리(place 접근점 → 하강)에서 그대로 다시 잡는다** — 컵도 벽 집기로 바뀌어 이 갈래
+    """
+    bed_spec = ((_cell().get('beds') or {}).get(bed) or {})
+    if bed_spec.get(_REGRIP_POINT):
         cc.release()
         cc.move_to(bed, False, kind, _REGRIP_POINT)                 # posj — 접근점 없음
         ok, width = _grip_here(kind)
-        if not ok:                                                  # (컵은 판정이 없어 여기 오지 않는다 — 형식상)
+        if not ok:
             return PickResult.fail(GRIP_FAIL, attempts=1)
         entry_z = float(_need(_cell().get('rack'), 'cup_entry_z_mm', 'cell.rack'))
         dz = entry_z - float(cc.where()[2])
@@ -230,7 +238,7 @@ def tool(tool: str, action: str) -> ToolResult:
         if not preset:
             raise KeyError(f'cell.presets.{tool} 가 없다 — 툴 파지 폭·힘을 cell.yaml 에 채운다(한석형)')
         return _tool_pick(station, tool, preset, clear)
-    return _tool_return(station, f1, clear)
+    return _tool_return(station, f1, clear, tool)
 
 
 def _tool_pick(station, tool, preset, clear) -> ToolResult:
@@ -252,11 +260,36 @@ def _tool_pick(station, tool, preset, clear) -> ToolResult:
         cc.release()
         _retreat()
         return ToolResult.fail(TOOL_FAIL, width_mm=width)
-    cc.move_rel(0.0, 0.0, up if up > 0.0 else clear, 'BASE')        # 홀더에서 빼낸다
+    # 🔄 9/22 밤(황인재 · 박진용 요청 #83 ①): **잡은 자리에서 끝난다** — 홀더에서 빼내지 않는다.
+    #    F3 soap 이 이 자리(세제 컵 안)에서 비틀기·왕복을 하고 스스로 올라간다(#83). 빼내던 tool_clear_mm 는 RETURN 에서만 쓴다.
+    _LAST_PICK[tool] = [float(v) for v in cc.where()]               # RETURN 이 역순으로 돌아갈 자리
     return ToolResult(width_mm=width)
 
 
-def _tool_return(station, f1, clear) -> ToolResult:
+def _tool_return(station, f1, clear, tool=None) -> ToolResult:
+    pick = _LAST_PICK.get(tool)
+    if pick:                                                        # 🔄 9/22 밤(박진용 요청 #83 ②): 집은 자리로 역순 — 위 clear 만큼에서 곧게 내려 놓는다
+        motion, limits = _cell().get('motion') or {}, _cell().get('limits') or {}
+        vel = float(_need(motion, 'vel_tcp_max_mm_s', 'cell.motion')) * float(_need(limits, 'vel_carry_pct', 'cell.limits')) / 100.0
+        acc = float(_need(motion, 'acc_tcp_max_mm_s2', 'cell.motion')) * float(_need(limits, 'vel_carry_pct', 'cell.limits')) / 100.0
+        above = list(pick)
+        above[2] = pick[2] + clear
+        cc.move_pose(above, vel, 60.0, acc, 60.0)                   # 툴을 들고 집은 자리 위로(직선 · 자세 포함)
+        watch = min(clear, float(_need(f1, 'tool_return_depth_mm', 'params.yaml 의 f1')))   # 마지막 구간은 힘 감시(AGENTS §3-2 · PM 9/22 밤)
+        limit = float(_need(f1, 'tool_return_contact_n', 'params.yaml 의 f1'))
+        cc.move_rel(0.0, 0.0, -(clear - watch), 'BASE')             # 자유 하강
+        try:
+            depth, _force = cc.contact_down(watch, limit, timeout_s=_contact_timeout())   # 집은 z 까지 감시 하강 — 툴이 미끄러졌거나 홀더가 밀렸으면 여기서 멈춘다
+        except cc.ForceLimitError:
+            _after_contact_failure(clear - watch, watch)
+            return ToolResult.fail(FORCE_LIMIT)
+        except cc.MotionTimeout:
+            _after_contact_failure(clear - watch, watch)
+            return ToolResult.fail(TIMEOUT)
+        cc.release()                                                # 집은 자리(또는 닿은 자리)에서 놓는다
+        cc.move_rel(0.0, 0.0, (clear - watch) + depth, 'BASE')
+        _LAST_PICK.pop(tool, None)
+        return ToolResult()
     limit = float(_need(f1, 'tool_return_contact_n', 'params.yaml 의 f1'))
     depth_budget = float(_need(f1, 'tool_return_depth_mm', 'params.yaml 의 f1'))   # 🚨 값을 **전부 읽은 뒤에** 로봇에 손댄다
     up = float(cc.move_to(station, True, point='return') or 0.0)    # 툴을 들고 간다
@@ -275,6 +308,36 @@ def _tool_return(station, f1, clear) -> ToolResult:
     cc.release()
     cc.move_rel(0.0, 0.0, depth + (0.0 if up > 0.0 else clear), 'BASE')   # 접근점이 있으면 접근점까지, 없으면 그 위로
     return ToolResult()
+
+
+def _contact_timeout():
+    """접촉 동작 타임아웃(cell.limits.timeout_s)을 **배속에 맞춰** 늘린다 — 0.3 배속이면 contact_down 3 mm 걸음이 3배 느려 10 s 로는
+    20 mm 도 못 내려간다(9/22 22:57 실기: 19.9/20 mm 에서 시간 초과). 최소 1배(배속 1 이상이면 그대로)."""
+    base = float(_need(_cell().get('limits'), 'timeout_s', 'cell.limits'))
+    scale = float(((cc.cfg() or {}).get('run') or {}).get('vel_scale') or 1.0)
+    return base / max(min(scale, 1.0), 0.1)
+
+
+def _after_contact_failure(free, watch):
+    """contact_down 이 예외로 끝난 뒤 — 순응을 끄고(다음 task_compliance_ctrl 이 −1 로 실패하던 것 · 22:58 실기) 접근점 위로 되올라온다.
+    내려간 깊이를 모르므로 감시 구간 전체만큼 올린다(접근점보다 최대 watch 만큼 위 — 안전)."""
+    try:
+        cc.force_off()
+    except Exception as e:                                          # noqa: BLE001 — 끄기 실패가 실패 코드를 덮으면 안 된다
+        _log().error(f'force_off 실패 — {type(e).__name__}: {e}')
+    cc.move_rel(0.0, 0.0, free + watch, 'BASE')
+
+
+def _near_slot(slot, within_mm=150.0):
+    """지금 TCP 가 칸 접근점의 x·y 반경 안이면 True — 재시도 때 수조·경유점을 다시 거치지 않기 위해."""
+    target = slot.get('approach_posx') or slot.get('posx')
+    if not target:
+        return False
+    try:
+        now = cc.where()
+    except Exception:                                               # noqa: BLE001 — 못 읽으면 정상 경로
+        return False
+    return ((float(now[0]) - float(target[0])) ** 2 + (float(now[1]) - float(target[1])) ** 2) ** 0.5 <= within_mm
 
 
 def rack_place(rack_slot: str, kind: str) -> Result:
@@ -302,15 +365,16 @@ def rack_place(rack_slot: str, kind: str) -> Result:
     limit_n = float(_need(cell.get('limits'), 'insert_limit_n', 'cell.limits'))
 
     cc.force_off()
-    cc.move_to('RINSE', True, kind)                                 # ① 수조 위로 (접근점 — 같은 x·y 라 곧게 올라온다)
-    if kind == CUP:
-        entry_z = float(_need(cell.get('rack'), 'cup_entry_z_mm', 'cell.rack'))
-        dz = entry_z - float(cc.where()[2])
-        if dz > 0.0:
-            cc.move_rel(0.0, 0.0, dz, 'BASE')
-    else:
-        cc.move_to('HOME', True)                                    # 그릇: 수조(오른쪽) → 팔레트(왼쪽) 사이 HOME 경유 (E15)
-    cc.move_to(via, True)                                           # ② 경유점 (관절 자세)
+    if not _near_slot(slot):                                        # 🔄 9/22 밤(황인재): 재시도(flow retry)는 이미 칸 위에 있다 → 수조·경유점 생략(22:57 실기: 헹굼 자리로 되돌아갔다)
+        cc.move_to('RINSE', True, kind)                             # ① 수조 위로 (접근점 — 같은 x·y 라 곧게 올라온다)
+        if kind == CUP:
+            entry_z = float(_need(cell.get('rack'), 'cup_entry_z_mm', 'cell.rack'))
+            dz = entry_z - float(cc.where()[2])
+            if dz > 0.0:
+                cc.move_rel(0.0, 0.0, dz, 'BASE')
+        else:
+            cc.move_to('HOME', True)                                # 그릇: 수조(오른쪽) → 팔레트(왼쪽) 사이 HOME 경유 (E15)
+        cc.move_to(via, True)                                       # ② 경유점 (관절 자세)
     up = float(cc.move_to(rack_slot, True) or 0.0)                  # ③ 칸 바로 위
     free = max(0.0, up - approach_mm)
     watch = min(up, approach_mm) if up > 0.0 else 0.0
@@ -319,7 +383,7 @@ def rack_place(rack_slot: str, kind: str) -> Result:
     depth = 0.0
     try:
         if watch > 0.0:
-            depth, force = cc.contact_down(watch, limit_n)          # ④-2 삽입력 감시 (순응 ON · 상한 · 타임아웃은 안에서)
+            depth, force = cc.contact_down(watch, limit_n, timeout_s=_contact_timeout())   # ④-2 삽입력 감시 (순응 ON · 상한 · 시간은 배속에 맞춰 늘림)
             seated = depth >= watch - float(_need(cell.get('rack'), 'seat_tol_mm', 'cell.rack'))
             if not seated:
                 _log().warn(f'rack_place({rack_slot}) — {depth:.1f}/{watch:.1f} mm 에서 {force:.1f} N 걸림 → RACK_JAM')
@@ -327,11 +391,11 @@ def rack_place(rack_slot: str, kind: str) -> Result:
                 return Result.fail(RACK_JAM)
     except ForceLimitError as e:
         _log().error(f'rack_place({rack_slot}) — 힘 상한: {e}')
-        cc.move_rel(0.0, 0.0, free + depth, 'BASE')
+        _after_contact_failure(free, watch)
         return Result.fail(FORCE_LIMIT)
     except MotionTimeout as e:
         _log().error(f'rack_place({rack_slot}) — 시간 초과: {e}')
-        cc.move_rel(0.0, 0.0, free + depth, 'BASE')
+        _after_contact_failure(free, watch)
         return Result.fail(TIMEOUT)
     cc.release()                                                    # ⑤ 놓고
     for dx, dy, dz in exits:
