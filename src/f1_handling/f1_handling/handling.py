@@ -30,6 +30,8 @@ from cobot_common.force import ForceLimitError, MotionTimeout      # 접촉 동�
 _PLACE_POINT = 'place'          # 스펀지 홈(cell.beds.*)에서 '용기를 놓는 자리'의 point 이름 (cell.yaml 의 자세 적는 법)
 _REGRIP_POINT = 'regrip'        # 컵은 놓을 때와 다른 방향에서 다시 잡는다(cell.beds.SPONGE_BED_C.regrip)
 _TOOL_STATION = {SPONGE: 'TOOL_SPONGE', BRUSH: 'TOOL_BRUSH'}    # 툴 이름 → 홀더 자리 이름 (IRD §2 · F1-03)
+_LAST_PICK = {}                 # 툴 이름 → 집은 자리 posx(BASE). 🔄 9/22 밤(황인재 · 박진용 요청 #83): RETURN 은 **집었던 자리로 역순**(별도 반납 자세·바닥 찾기 없이)
+                                #   같은 프로그램 안에서 PICK 한 툴만 기억한다 — 없으면(다른 프로그램이 집었음) 옛 방식(return 자세 + contact_down)
 
 
 def _log():
@@ -135,12 +137,18 @@ def pick(zone_id: str, kind: str) -> PickResult:
 
 
 def _regrip(bed: str, kind: str) -> PickResult:
-    """스펀지 홈에서 다시 잡기 — pick() 의 재파지 갈래."""
-    if kind == CUP:
+    """스펀지 홈에서 다시 잡기 — pick() 의 재파지 갈래.
+
+    🔄 9/22 저녁(황인재 · E29): 종류가 아니라 **홈에 `regrip` 자세가 있는지**로 고른다 —
+      · regrip(posj) 이 있으면 그 자세에서 잡는다(옆면 파지 · 한석형 9/22 컵 방식 · 잡은 뒤 rack.cup_entry_z_mm 까지 올림)
+      · 없으면 그릇처럼 **놓은 자리(place 접근점 → 하강)에서 그대로 다시 잡는다** — 컵도 벽 집기로 바뀌어 이 갈래
+    """
+    bed_spec = ((_cell().get('beds') or {}).get(bed) or {})
+    if bed_spec.get(_REGRIP_POINT):
         cc.release()
         cc.move_to(bed, False, kind, _REGRIP_POINT)                 # posj — 접근점 없음
         ok, width = _grip_here(kind)
-        if not ok:                                                  # (컵은 판정이 없어 여기 오지 않는다 — 형식상)
+        if not ok:
             return PickResult.fail(GRIP_FAIL, attempts=1)
         entry_z = float(_need(_cell().get('rack'), 'cup_entry_z_mm', 'cell.rack'))
         dz = entry_z - float(cc.where()[2])
@@ -230,7 +238,7 @@ def tool(tool: str, action: str) -> ToolResult:
         if not preset:
             raise KeyError(f'cell.presets.{tool} 가 없다 — 툴 파지 폭·힘을 cell.yaml 에 채운다(한석형)')
         return _tool_pick(station, tool, preset, clear)
-    return _tool_return(station, f1, clear)
+    return _tool_return(station, f1, clear, tool)
 
 
 def _tool_pick(station, tool, preset, clear) -> ToolResult:
@@ -252,11 +260,26 @@ def _tool_pick(station, tool, preset, clear) -> ToolResult:
         cc.release()
         _retreat()
         return ToolResult.fail(TOOL_FAIL, width_mm=width)
-    cc.move_rel(0.0, 0.0, up if up > 0.0 else clear, 'BASE')        # 홀더에서 빼낸다
+    # 🔄 9/22 밤(황인재 · 박진용 요청 #83 ①): **잡은 자리에서 끝난다** — 홀더에서 빼내지 않는다.
+    #    F3 soap 이 이 자리(세제 컵 안)에서 비틀기·왕복을 하고 스스로 올라간다(#83). 빼내던 tool_clear_mm 는 RETURN 에서만 쓴다.
+    _LAST_PICK[tool] = [float(v) for v in cc.where()]               # RETURN 이 역순으로 돌아갈 자리
     return ToolResult(width_mm=width)
 
 
-def _tool_return(station, f1, clear) -> ToolResult:
+def _tool_return(station, f1, clear, tool=None) -> ToolResult:
+    pick = _LAST_PICK.get(tool)
+    if pick:                                                        # 🔄 9/22 밤(박진용 요청 #83 ②): 집은 자리로 역순 — 위 clear 만큼에서 곧게 내려 놓는다
+        motion, limits = _cell().get('motion') or {}, _cell().get('limits') or {}
+        vel = float(_need(motion, 'vel_tcp_max_mm_s', 'cell.motion')) * float(_need(limits, 'vel_carry_pct', 'cell.limits')) / 100.0
+        acc = float(_need(motion, 'acc_tcp_max_mm_s2', 'cell.motion')) * float(_need(limits, 'vel_carry_pct', 'cell.limits')) / 100.0
+        above = list(pick)
+        above[2] = pick[2] + clear
+        cc.move_pose(above, vel, 60.0, acc, 60.0)                   # 툴을 들고 집은 자리 위로(직선 · 자세 포함)
+        cc.move_rel(0.0, 0.0, -clear, 'BASE')                       # 집을 때 잰 z 그대로(박진용 실기: +10 여유 불필요)
+        cc.release()
+        cc.move_rel(0.0, 0.0, clear, 'BASE')
+        _LAST_PICK.pop(tool, None)
+        return ToolResult()
     limit = float(_need(f1, 'tool_return_contact_n', 'params.yaml 의 f1'))
     depth_budget = float(_need(f1, 'tool_return_depth_mm', 'params.yaml 의 f1'))   # 🚨 값을 **전부 읽은 뒤에** 로봇에 손댄다
     up = float(cc.move_to(station, True, point='return') or 0.0)    # 툴을 들고 간다

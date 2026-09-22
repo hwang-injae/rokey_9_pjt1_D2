@@ -37,6 +37,7 @@ class FakeCC:
         self.conf = {'f1': {'place_clear_mm': 100, 'tool_clear_mm': 100,
                             'tool_return_depth_mm': 20, 'tool_return_contact_n': 8},
                      'cell': {'beds': {'SPONGE_BED_B': {}, 'SPONGE_BED_C': {}},
+                              'motion': {'vel_tcp_max_mm_s': 400, 'acc_tcp_max_mm_s2': 800}, 'limits': {'vel_carry_pct': 30},
                               'presets': {'SPONGE': {'grip_width_mm': 30, 'grip_zero_mm': 10.5, 'grip_force_n': 30, 'width_tol_mm': 3},
                                           'BRUSH': {'grip_width_mm': 30, 'grip_zero_mm': 10.5, 'grip_force_n': 30, 'width_tol_mm': 3}}}}
 
@@ -54,6 +55,13 @@ class FakeCC:
 
     def move_rel(self, dx, dy, dz, frame):
         self._note('move_rel', dx, dy, dz, frame)
+
+    def where(self):                                                 # 집은 자리(RETURN 역순용)
+        self._note('where')
+        return [273.6, -222.9, 65.2, 128.2, 180.0, -52.0]
+
+    def move_pose(self, pose, vel_mm_s, vel_deg_s, acc_mm_s2, acc_deg_s2):
+        self._note('move_pose', [round(v, 1) for v in pose])
 
     def release(self):
         self._note('release')
@@ -139,19 +147,20 @@ def test_place_works_three_times_in_a_row(cc):
 
 
 # ------------------------------------------------------------------ F1-03 tool
-def test_tool_pick_grips_at_the_holder_and_lifts_out(cc):
+def test_tool_pick_grips_at_the_holder_and_stays_there(cc):
+    """🔄 9/22 밤(박진용 요청 #83 ①): 잡은 자리에서 끝난다 — 빼내지 않는다(F3 soap 이 그 자리에서 비틀고 올라간다)."""
     r = handling.tool('SPONGE', 'PICK')
     assert isinstance(r, ToolResult) and r.ok and r.width_mm == 40.5      # 돌려주는 폭은 드라이버 값 그대로(E16 — 판정만 영점을 뺀다)
     assert cc.calls == [('move_to', 'TOOL_SPONGE', False, None, 'pick'),   # 빈손으로 집는 자세까지 (관절 자세 → 남은 높이 0)
                         ('grip', 34.5, 30.0),                              # 영점 10.5 + (기대 30 − 2 × 허용오차 3) · 프리셋 힘 (E16)
-                        ('move_rel', 0.0, 0.0, 100.0, 'BASE')]             # 홀더에서 빼낸다 (tool_clear_mm)
+                        ('where',)]                                        # 집은 자리를 기억(RETURN 역순용) · 빼내지 않는다
 
 
 def test_tool_pick_descends_and_returns_when_the_holder_has_an_approach_point(cc):
     cc.up[('TOOL_BRUSH', 'pick')] = 40.0                                   # 홀더 재티칭(CELL-04b)으로 접근점이 생기면
     assert handling.tool('BRUSH', 'PICK').ok
-    assert [c[0] for c in cc.calls] == ['move_to', 'move_rel', 'grip', 'move_rel']
-    assert cc.calls[1] == ('move_rel', 0.0, 0.0, -40.0, 'BASE') and cc.calls[3] == ('move_rel', 0.0, 0.0, 40.0, 'BASE')
+    assert [c[0] for c in cc.calls] == ['move_to', 'move_rel', 'grip', 'where']   # 접근점 → 하강 → 쥠 · 올라오지 않는다
+    assert cc.calls[1] == ('move_rel', 0.0, 0.0, -40.0, 'BASE')
 
 
 def test_tool_pick_that_missed_leaves_the_tool_in_the_holder(cc):
@@ -161,7 +170,22 @@ def test_tool_pick_that_missed_leaves_the_tool_in_the_holder(cc):
     assert [c[0] for c in cc.calls] == ['move_to', 'grip', 'release', 'safe_retreat']   # 놓고 물러난다 — 빼내지 않는다
 
 
+def test_tool_return_reverses_the_pick_when_this_program_picked(cc):
+    """🔄 9/22 밤(박진용 요청 #83 ②): 같은 프로그램이 집었으면 집은 자리 위(clear) → 곧게 내려 놓음 → 올라옴. 바닥 찾기 없음."""
+    assert handling.tool('BRUSH', 'PICK').ok
+    cc.calls.clear()
+    r = handling.tool('BRUSH', 'RETURN')
+    assert r.ok
+    assert cc.calls == [('move_pose', [273.6, -222.9, 165.2, 128.2, 180.0, -52.0]),   # 집은 자리 + clear 100
+                        ('move_rel', 0.0, 0.0, -100.0, 'BASE'),
+                        ('release',),
+                        ('move_rel', 0.0, 0.0, 100.0, 'BASE')]
+    assert 'BRUSH' not in handling._LAST_PICK                               # 한 번 쓰면 잊는다
+
+
 def test_tool_return_finds_the_bottom_then_releases(cc):
+    """이 프로그램이 집지 않은 툴(집은 자리를 모름) → 옛 방식: 티칭한 return 자세 + 바닥 찾기."""
+    handling._LAST_PICK.clear()
     r = handling.tool('BRUSH', 'RETURN')
     assert r.ok
     assert cc.calls == [('move_to', 'TOOL_BRUSH', True, None, 'return'),   # 툴을 들고 간다
@@ -227,7 +251,7 @@ def test_tool_without_preset_does_not_move(cc):
 def test_tool_pick_and_return_three_times_in_a_row(cc):
     for _ in range(3):                                                     # SDD §3.2 ⑧
         assert handling.tool('SPONGE', 'PICK').ok and handling.tool('SPONGE', 'RETURN').ok
-    assert [c[0] for c in cc.calls] == ['move_to', 'grip', 'move_rel', 'move_to', 'contact_down', 'release', 'move_rel'] * 3
+    assert [c[0] for c in cc.calls] == ['move_to', 'grip', 'where', 'move_pose', 'move_rel', 'release', 'move_rel'] * 3
 
 
 def test_tool_keeps_its_failure_code_even_if_the_retreat_fails(cc):

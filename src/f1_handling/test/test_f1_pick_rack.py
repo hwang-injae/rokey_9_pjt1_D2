@@ -153,13 +153,24 @@ def test_regrip_bowl_empty_is_grip_fail_not_empty_zone(cc):
     assert not r.ok and r.code == GRIP_FAIL and cc.names()[-2:] == ['release', 'move_rel']
 
 
-def test_regrip_cup_lifts_to_entry_z(cc):
-    """컵: regrip(posj) → 쥐기 → rack.cup_entry_z_mm(250) 까지 올린다(한석형 9/22 경로)."""
+def test_regrip_with_regrip_pose_lifts_to_entry_z(cc):
+    """홈에 regrip(posj) 이 **있으면**(옆면 파지 · 한석형 9/22 컵 경로): 그 자세 → 쥐기 → rack.cup_entry_z_mm(250) 까지 올린다.
+    🔄 9/22 저녁 E29: 종류가 아니라 키 유무로 고른다 — 이 시험은 키를 넣어 옛 경로를 지킨다."""
+    cc.conf['cell']['beds']['SPONGE_BED_C'] = {'regrip': {'posj': [0] * 6}}
     cc.z = 120.0
     r = handling.pick('SPONGE_BED_C', 'CUP')
     assert r.ok
     assert cc.of('move_to')[0] == ('move_to', 'SPONGE_BED_C', False, 'CUP', 'regrip')
     assert cc.of('move_rel')[-1][3] == pytest.approx(130.0)
+
+
+def test_regrip_cup_without_regrip_pose_uses_place_point(cc):
+    """홈에 regrip 이 **없으면**(9/22 저녁 벽 집기 · cell.yaml 기본): 컵도 그릇처럼 place 자리에서 다시 잡고 entry_z 로 올리지 않는다."""
+    cc.z = 120.0
+    r = handling.pick('SPONGE_BED_C', 'CUP')
+    assert r.ok
+    assert cc.of('move_to')[0] == ('move_to', 'SPONGE_BED_C', False, 'CUP', 'place')
+    assert not cc.of('move_rel')                                    # 접근점이 없는 가짜 홈이라 오르내림 없음
 
 
 # ────────────────────────────────── rack_place
