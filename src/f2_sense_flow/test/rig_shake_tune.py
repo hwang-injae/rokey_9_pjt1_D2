@@ -24,7 +24,7 @@ import tty
 
 import cobot_common as cc
 from f2_sense_flow import sense
-from f2_sense_flow.preflight import require_controller
+from f2_sense_flow.preflight import go_home_safely, require_controller
 
 
 def _key():
@@ -71,9 +71,8 @@ def main():
     count = a.count
     cfg.setdefault('run', {}).setdefault('vel_scale', 1.0)
     try:
-        cc.force_off()
-        log.info('E15 — 먼저 HOME 으로 간다')
-        cc.move_to('HOME', True, a.kind)
+        log.info('E15 — 먼저 HOME 으로 간다 (낮으면 곧게 올라온 뒤에 · 9/22 충돌)')
+        go_home_safely(a.kind, log)
         log.info('준비됨 — 값을 바꾸고 스페이스로 흔든다. h 도움말 · q 끝')
         _show(log, a.mode, p, count)
         while True:

@@ -152,3 +152,44 @@ def test_cable_skips_without_config_or_on_virtual(monkeypatch):
     monkeypatch.setattr(P, '_is_virtual', lambda: True)
     assert P.warn_if_cable_tight(_cable_cfg(), _Log2()) == (None, [])
 
+
+# ────────────────────────────────── 🚨 낮은 자세에서 HOME (9/22 테이블 충돌)
+class _FakeCC:
+    """cobot_common 흉내 — 부른 순서를 적는다."""
+
+    def __init__(self, z=-13.6, where_raises=False):
+        self.calls, self._z, self._raises = [], z, where_raises
+
+    def where(self):
+        if self._raises:
+            raise RuntimeError('못 읽는다')
+        self.calls.append(('where',))
+        return [0.0, 0.0, self._z, 0.0, 0.0, 0.0]
+
+    def safe_retreat(self):
+        self.calls.append(('safe_retreat',))
+
+    def move_to(self, station, carrying, kind=None):
+        self.calls.append(('move_to', station, carrying, kind))
+
+
+def test_go_home_safely_rises_before_moving_home(monkeypatch):
+    """🚨 수조 안(z −13.6)에서 곧장 HOME 으로 가면 테이블을 쓴다 → **safe_retreat 이 먼저**여야 한다."""
+    fake = _FakeCC(z=-13.6)
+    monkeypatch.setattr(P, '_cc', lambda: fake)
+    log = _Log2()
+    P.go_home_safely('BOWL', log)
+    order = [c[0] for c in fake.calls]
+    assert order.index('safe_retreat') < order.index('move_to'), f'순서가 틀렸다: {order}'
+    assert fake.calls[-1] == ('move_to', 'HOME', True, 'BOWL')
+    assert any('안전 높이' in m for m in log.i)
+
+
+def test_go_home_safely_still_retreats_when_height_unreadable(monkeypatch):
+    """높이를 못 읽어도 후퇴는 한다 — 읽기 실패로 충돌 방지를 포기하지 않는다."""
+    fake = _FakeCC(where_raises=True)
+    monkeypatch.setattr(P, '_cc', lambda: fake)
+    P.go_home_safely(None, _Log2(), carrying=False)
+    assert [c[0] for c in fake.calls] == ['safe_retreat', 'move_to']
+    assert fake.calls[-1] == ('move_to', 'HOME', False, None)
+

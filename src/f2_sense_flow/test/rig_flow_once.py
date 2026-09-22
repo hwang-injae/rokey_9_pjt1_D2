@@ -21,7 +21,7 @@ import time
 import cobot_common as cc
 from cobot_common.config import parse_use_mock
 from f2_sense_flow.flow import Flow, Signals, load_features
-from f2_sense_flow.preflight import require_controller, warn_if_cable_tight
+from f2_sense_flow.preflight import go_home_safely, require_controller, warn_if_cable_tight
 
 FEATURES = ('f1', 'f2', 'f3')
 
@@ -115,7 +115,7 @@ def main():
         if robot:
             log.info('E15 — 먼저 HOME 으로 간다')
             cc.force_off()
-            cc.move_to('HOME', False)
+            go_home_safely(None, log, False)
         sig = HumanSignals(log)
         f.zone_id, f.kind = zone, a.kind
         for i in range(1, a.n + 1):
