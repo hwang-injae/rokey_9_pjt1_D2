@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v19.3'
+VERSION = 'v19.4'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -2489,8 +2489,33 @@ EDIT.update({
 HISTORY143 = ['v19.3', 'PR', 'V-25, INT-ONE-C', 'PR #84 merge 21:18: V-25 실기 기록(컵 E29/E30 포함) — V-25 완료 · 컵 한 바퀴 전 RACK_C 재티칭·RINSE.CUP z 60 확인', '황인재 9/22 21:18', 'H']
 
 
+
+# ---------------------------------------------------------------- 9/22 21:24 황인재 — 일정표 정리: 안 해도 되는 행 삭제 · 끝난 행 완료 처리
+H2125 = '황인재 9/22 21:24(정리)'
+DELETE = ['INT-ALL', 'INT-3a', 'INT-3b', 'INT-12a', 'INT-12b', 'INT-F2', 'INT-F3', 'FLOW-04',   # E34 로 INT-ONE-B/C·INT-4a 가 대신함
+          'NEW-01',                                                                            # 자리표시 행 — NEW-01a/b·NEW-02a/b 로 구체화됨
+          'INT-13', 'V-14', 'V-06',                                                             # 한 바퀴 실기(INT-ONE)·#83 실기로 갈음
+          'V-04', 'F1-05',                                                                      # 안착 탐색(예외 처리) — E28 시연 범위 밖
+          'F4-04', 'F4-05', 'CR-01']                                                            # 시연에 불필요(기록 API · KPI 스크립트 · 코드리뷰 회의)
+EDIT.update({
+ 'F1-01': dict(status='완료', prog='1.0', note_add=H2125 + ': V-25(#84) move_to 3/3 · place 실기 OK — 완료'),
+ 'F1-02': dict(status='완료', prog='1.0', note_add=H2125 + ': pick 실기 — 그릇 2.32(#74 · V-25) · 컵 벽 집기 1.82~1.92(#79 · #81) — 완료. 이후 수정은 F4'),
+ 'F1-04': dict(status='진행', prog='0.9', owner='H(S)', note_add=H2125 + ': rack_place 실기 동작함 · ⚠ RACK_B1 TIMEOUT(28.5/30 mm · #83) 튜닝 + RACK_C 재티칭이 남음 → 9/23 INT-ONE-B/C'),
+ 'F3-02': dict(status='완료', prog='1.0', note_add=H2125 + ': #83 실기 soap→wipe_bowl(나선) 통과 — 완료'),
+ 'F3-03': dict(status='완료', prog='1.0', note_add=H2125 + ': #83 실기 soap→wipe_cup 통과 — 완료(🟡 회전 속도 검사 되살리기는 작은 PR)'),
+ 'V-19':  dict(status='완료', prog='1.0', note_add=H2125 + ': 오늘 실기에서 모든 자리(RET·WEIGH·WASTE·홈·툴·RINSE·RACK)에 티칭 경로대로 도달 — 완료'),
+ 'V-15':  dict(status='완료', prog='1.0', note_add=H2125 + ': 재파지 폭 실기 — 컵 1.42(V-25) · 그릇 재파지(#83) — 완료'),
+ 'UT-F1': dict(status='완료', prog='1.0', note_add=H2125 + ': rig_f1 실기 반복(pick·place·tool·rack_place 각 3회 이상 · V-08 10/10 · V-25)로 갈음'),
+ 'UT-F3': dict(status='완료', prog='1.0', note_add=H2125 + ': #72·#83 실기 반복으로 갈음'),
+ 'UT-F4': dict(note_add=H2125 + ': HMI 는 추석 — TC-11 도 그때'),
+ 'NOTE-02': dict(note_add=H2125 + ': HMI 화면 캡처는 지금 있는 운영 화면(#66)으로 제출 가능 · 추석에 갱신'),
+})
+HISTORY144 = ['v19.4', '🧹 정리', 'DELETE 17행 · F1-01/02, F3-02/03, V-19, V-15, UT-F1/F3 완료 · F1-04', '황인재 9/22 21:24: 안 해도 되는 행 17개 삭제(대체 8 · NEW-01 · INT-13 · V-14 · V-06 · V-04 · F1-05 · F4-04 · F4-05 · CR-01) · 실기로 끝난 행 8개 완료 처리 · F1-04 는 TIMEOUT 튜닝만 남음', '황인재 9/22 21:24', 'H']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
+    for _t in DELETE: EDIT.pop(_t, None); MOVE.pop(_t, None)
     b = Book.from_live(SID)
     tl = b.sheet('Time Line'); d = b.sheet('상세(산출물·완료기준)')
 
@@ -2524,6 +2549,16 @@ def main(out):
                 if k in e: q.set(c, e[k])
             if 'note_add' in e and e['note_add'] not in d.text(q, 'G'):     # 진척 메모는 앞에 덧붙인다(여러 번 돌려도 한 번만)
                 q.set('G', e['note_add'] + ' · ' + d.text(q, 'G'))
+    # 2-1) 행 삭제 (황인재 9/22: 안 해도 되는 작업은 지운다) — Time Line 과 상세 둘 다 · 구역 이름표(A)는 다음 행에 넘긴다
+    for tid in DELETE:
+        for sh, col in ((tl, ID), (d, 'A')):
+            try: i = sh.find(col, tid)
+            except KeyError: continue
+            row = sh.rows[i]
+            if sh is tl and sh.text(row, 'A').strip() and i + 1 < len(sh.rows) and row.cells.get('A'):
+                sh.rows[i + 1].cells['A'] = list(row.cells['A'])
+            sh.merges = [mm for mm in sh.merges if mm[1] is not row and mm[3] is not row]
+            sh.rows.pop(i)
     # 3) 완료 행은 진행 1.0 + **간트 칸을 회색으로**(황인재 9/20: G6 칸처럼 — 완료한 일은 회색). PM 이 시트에서 완료로 바꾼 행 포함
     gray = tl.rows[tl.find(ID, 'DOC-01a')].style('G')          # G6 = 회색 칸의 서식(내보낼 때마다 번호가 달라져서 매번 찾는다)
     ocols = open_gantt_cols()                                  # 닫힌 칸(주말 저녁 열 배경)은 건드리지 않는다
@@ -2577,7 +2612,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113, HISTORY114, HISTORY115, HISTORY116, HISTORY117, HISTORY118, HISTORY119, HISTORY120, HISTORY121, HISTORY122, HISTORY123, HISTORY124, HISTORY125, HISTORY126, HISTORY127, HISTORY128, HISTORY129, HISTORY130, HISTORY131, HISTORY132, HISTORY133, HISTORY134, HISTORY135, HISTORY136, HISTORY137, HISTORY138, HISTORY139, HISTORY140, HISTORY141, HISTORY142, HISTORY143):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113, HISTORY114, HISTORY115, HISTORY116, HISTORY117, HISTORY118, HISTORY119, HISTORY120, HISTORY121, HISTORY122, HISTORY123, HISTORY124, HISTORY125, HISTORY126, HISTORY127, HISTORY128, HISTORY129, HISTORY130, HISTORY131, HISTORY132, HISTORY133, HISTORY134, HISTORY135, HISTORY136, HISTORY137, HISTORY138, HISTORY139, HISTORY140, HISTORY141, HISTORY142, HISTORY143, HISTORY144):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
