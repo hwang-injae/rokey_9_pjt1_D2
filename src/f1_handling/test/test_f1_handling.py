@@ -37,7 +37,7 @@ class FakeCC:
         self.conf = {'f1': {'place_clear_mm': 100, 'tool_clear_mm': 100,
                             'tool_return_depth_mm': 20, 'tool_return_contact_n': 8},
                      'cell': {'beds': {'SPONGE_BED_B': {}, 'SPONGE_BED_C': {}},
-                              'motion': {'vel_tcp_max_mm_s': 400, 'acc_tcp_max_mm_s2': 800}, 'limits': {'vel_carry_pct': 30},
+                              'motion': {'vel_tcp_max_mm_s': 400, 'acc_tcp_max_mm_s2': 800}, 'limits': {'vel_carry_pct': 30, 'timeout_s': 10},
                               'presets': {'SPONGE': {'grip_width_mm': 30, 'grip_zero_mm': 10.5, 'grip_force_n': 30, 'width_tol_mm': 3},
                                           'BRUSH': {'grip_width_mm': 30, 'grip_zero_mm': 10.5, 'grip_force_n': 30, 'width_tol_mm': 3}}}}
 
@@ -78,7 +78,10 @@ class FakeCC:
         self._note('grip', width, force)
         return self.grip_result
 
-    def contact_down(self, max_depth, limit):
+    def force_off(self):
+        self._note('force_off')
+
+    def contact_down(self, max_depth, limit, timeout_s=None):
         self._note('contact_down', max_depth, limit)
         if self.contact_raises is not None:
             raise self.contact_raises('시험')
@@ -177,9 +180,10 @@ def test_tool_return_reverses_the_pick_when_this_program_picked(cc):
     r = handling.tool('BRUSH', 'RETURN')
     assert r.ok
     assert cc.calls == [('move_pose', [273.6, -222.9, 165.2, 128.2, 180.0, -52.0]),   # 집은 자리 + clear 100
-                        ('move_rel', 0.0, 0.0, -100.0, 'BASE'),
+                        ('move_rel', 0.0, 0.0, -80.0, 'BASE'),                        # 자유 하강 (clear − tool_return_depth_mm 20)
+                        ('contact_down', 20.0, 8.0),                                  # 마지막 20 mm 는 힘 감시(PM 9/22 밤 · AGENTS §3-2)
                         ('release',),
-                        ('move_rel', 0.0, 0.0, 100.0, 'BASE')]
+                        ('move_rel', 0.0, 0.0, 83.0, 'BASE')]                         # 80 + 닿은 깊이 3
     assert 'BRUSH' not in handling._LAST_PICK                               # 한 번 쓰면 잊는다
 
 
@@ -251,7 +255,7 @@ def test_tool_without_preset_does_not_move(cc):
 def test_tool_pick_and_return_three_times_in_a_row(cc):
     for _ in range(3):                                                     # SDD §3.2 ⑧
         assert handling.tool('SPONGE', 'PICK').ok and handling.tool('SPONGE', 'RETURN').ok
-    assert [c[0] for c in cc.calls] == ['move_to', 'grip', 'where', 'move_pose', 'move_rel', 'release', 'move_rel'] * 3
+    assert [c[0] for c in cc.calls] == ['move_to', 'grip', 'where', 'move_pose', 'move_rel', 'contact_down', 'release', 'move_rel'] * 3
 
 
 def test_tool_keeps_its_failure_code_even_if_the_retreat_fails(cc):
