@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v14.9'
+VERSION = 'v15.0'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1855,6 +1855,23 @@ HISTORY99 = ['v14.9', '결정 E25·신규·PR', 'FLOW-05(신규), INT-12a·12b, 
              '황인재 9/22 13:55', 'M,S,H']
 
 
+# ---------------------------------------------------------------- 9/22 14:15 F4 V-02 그릇 1차 — 흔들림 45 g(기준 20 초과) · 제안 4개
+V02B = ('📈 9/22 F4 V-02 그릇 1차(실기 13:54~14:01 · main #68 weigh · 도착 뒤 5 s · 10 표본 × 0.7 s · WEIGH.BOWL z 158): `rig_f2 empty -n 10` 회차 중앙값 −12.9 ~ −46.5 → **중앙값 −20.4 g · 폭 44.8 g(기준 20 g 초과)**. '
+        '원값은 −1 ~ −52 를 10~20 s 주기로 오르내린다(툴·TCP 복구 뒤에도 그대로). 이어서 weigh 2회는 같은 자세인데 −65/−62 로 45 g 낮음(그릇 안 내용물 황인재 확인 중). '
+        '→ 판정식 "읽음 − 기준값" 의 전제(옵셋이 시간·방문에 걸쳐 같다)가 지금 정밀도에서는 안 선다. F4 제안(결정 = 민범진 f2 절 · PM): ① leftover_threshold_g 50 → 100(SDD §9.9 대안) ② min_net_g −30 → −60 이하(놓침은 폭 slip_tol 로) ③ 표본 창을 주기보다 길게(30 × 0.7 = 21 s) ④ 기준값은 flow 와 같은 경로(pick → WEIGH → 5 s → 1회)로 INT-12a 에서 다시. '
+        '우선 기준값 −20(🟡 폭 45)을 F4 브랜치 params 에 넣어 PR(민범진 멘션). ⚠ 정정: min_net_g −30 되돌림의 근거였던 "복구 뒤 PM 실측 9.5 g" 은 12 s 창 값 — 65 s 로 재면 폭 45 g → 근거 약함')
+P1415 = {
+ 'V-02':    dict(prog='0.6', note_add=V02B),
+ 'F2-01':   dict(note_add='🔔 9/22 14:15 F4: 정지 중 흔들림이 복구 뒤에도 폭 45 g(10~20 s 주기) → 임계 50 g · min_net_g −30 · 기준값 뺄셈 모두 여유가 없다 — F4 제안 ①~④(V-02 비고)를 민범진이 판단(f2 절)'),
+ 'INT-12a': dict(note_add='🔔 9/22 F4 제안 ④: 그릇 빈 용기 기준값을 flow 와 같은 경로(pick → WEIGH → 5 s → 1회)로 여기서 다시 잰다'),
+}
+for _tid, _e in P1415.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY100 = ['v15.0', '실기 결과', 'V-02, F2-01, INT-12a',
+              'F4 V-02 그릇 1차(9/22 14:00): 기준값 −20.4 g · 폭 44.8 g(기준 20 초과) · 10~20 s 주기 흔들림이 복구 뒤에도 그대로 → 판정식 전제가 약함. F4 제안: 임계 50 → 100 · min_net_g −60 · 표본 창 21 s · 기준값은 INT-12a 에서 같은 경로로. 결정 = 민범진(f2 절)·PM. min_net_g −30 주석의 "9.5 g" 근거 정정',
+              '황인재 9/22 14:15', 'H,M']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -1943,7 +1960,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
