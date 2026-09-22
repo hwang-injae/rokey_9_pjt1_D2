@@ -204,21 +204,35 @@ def test_individual_values_are_logged(fake):
 
 
 # ────────────────────────────────── 🔗 케이블 장력 경고 — 표본 퍼짐 (9/22)
-def test_spread_warns_when_over_limit(fake):
-    """퍼짐(10~90 % 폭)이 f2.limits.max_weigh_spread_g 를 넘으면 경고 · 값은 그대로 중앙값."""
-    wide = [0, 5, 10, 15, 20, 60, 65, 70, 75, 80]                 # 폭 ≈ 70
-    log = fake(FakeDsr(wide), {'f2': {'limits': {'max_weigh_spread_g': 50}}})
+def test_jitter_warns_about_cable(fake):
+    """**떨림**(추세를 뺀 폭)이 크면 케이블 장력 경고 — 값은 그대로 중앙값."""
+    jumpy = [0, 70, 5, 75, 10, 65, 0, 70, 5, 75]                  # 위아래로 튄다 · 흐름은 거의 0
+    log = fake(FakeDsr(jumpy), {'f2': {'limits': {'max_weigh_spread_g': 50}}})
+    W.weigh(10)
+    assert any('케이블' in m for lv, m in log.lines if lv == 'warn')
+    assert W.weigh_last()['jitter_g'] > 50 and W.weigh_last()['n'] == 10
+
+
+def test_steady_slide_is_drift_not_cable(fake):
+    """🚨 한 방향으로 미끄러지는 것은 **영점 흐름**이지 케이블이 아니다 (9/22 20:0x 거짓 경보).
+
+    옛 코드는 퍼짐 하나만 봐서 이 경우에도 '케이블 장력' 이라고 했다.
+    """
+    slide = [0, 5, 10, 15, 20, 60, 65, 70, 75, 80]                # 계속 커진다 · 추세를 빼면 떨림은 작다
+    log = fake(FakeDsr(slide), {'f2': {'limits': {'max_weigh_spread_g': 50, 'max_weigh_drift_g': 20}}})
     g = W.weigh(10)
     assert g == pytest.approx(40.0)
-    assert any('케이블' in m for lv, m in log.lines if lv == 'warn')
-    assert W.weigh_last()['spread_g'] > 50 and W.weigh_last()['n'] == 10
+    assert not any('케이블' in m for lv, m in log.lines if lv == 'warn'), '케이블 경고는 뜨면 안 된다'
+    assert any('영점이 움직이고' in m for lv, m in log.lines if lv == 'warn'), '영점 흐름 경고가 떠야 한다'
+    assert W.weigh_last()['drift_g'] > 20
 
 
 def test_spread_quiet_when_within_limit(fake):
-    log = fake(FakeDsr([40, 42, 44, 41, 43, 45, 42, 44, 43, 42]), {'f2': {'limits': {'max_weigh_spread_g': 50}}})
+    log = fake(FakeDsr([40, 42, 44, 41, 43, 45, 42, 44, 43, 42]),
+               {'f2': {'limits': {'max_weigh_spread_g': 50, 'max_weigh_drift_g': 20}}})
     W.weigh(10)
-    assert not any('케이블' in m for lv, m in log.lines if lv == 'warn')
-    assert W.weigh_last()['spread_g'] < 10
+    assert not any('케이블' in m or '영점' in m for lv, m in log.lines if lv == 'warn')
+    assert W.weigh_last()['spread_g'] < 10 and abs(W.weigh_last()['drift_g']) < 5
 
 
 def test_spread_no_limit_no_warning(fake):
