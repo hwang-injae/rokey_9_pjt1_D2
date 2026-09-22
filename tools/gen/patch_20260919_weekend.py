@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v13.4'
+VERSION = 'v14.7'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1626,6 +1626,189 @@ HISTORY84 = ['v13.4', '완료', 'ENV-05, V-02, F3-02, MID-01·02(행 삭제 보�
              '황인재 9/22 08:45', 'M,P,H']
 
 
+# ---------------------------------------------------------------- 9/22 09:50 PR #66 merge(F4-03 운영 화면) · F4 보고 V-26 통과 · V-24 ① 끝
+P0950 = {
+ 'F4-03':   dict(status='완료', prog='1.0', note_add='✅ 9/22 PR #66 merge(황인재 직접 실행 확인·승인): 운영 화면 — `/` = Next.js 정적 화면(web/out) · `/test` = 시험 페이지 · 단계 그림 카드 · 팔레트 입체 그림 · 숫자 패널 · 이력 · 누적. '
+                          '검증: 병합본 370 통과(두 환경) · f4_hmi 29+1 · 가짜 flow 대본 5개 · 🟡 실제 flow_node 연결은 INT-4 · L3. 🔔 후속(막는 사유 아님): ① 연결 끊김이면 일시 정지 버튼이 꺼진다 → 켜 두는 쪽 권장 ② 화면 PC(PC-B)에서 `npm install && npm run build` 필요(안 하면 / 가 시험 페이지)'),
+ 'V-13':    dict(status='완료', prog='1.0', note_add='✅ 9/22 PR #66: 운영 화면에서 가짜 flow 대본 5개(정상 · 일시 정지 · 격리 · 오류 · 빈 구역)로 PAUSED·재개 반영 확인(황인재 직접). 버튼 → 실제 flow 반응은 INT-4'),
+ 'V-26':    dict(status='진행', prog='0.9', note_add='✅ 9/22 오전 F4 보고: Ctrl+C 정지 실기 **5/5 통과**(0.47~0.50 s). 기록 PR 은 황인재 확인 뒤 → merge 되면 완료'),
+ 'V-24':    dict(note_add='📈 9/22 오전 F4 보고: 실기 ① 관절 이동 일시 정지 → 재개 2회 OK. ②③④ 는 로봇이 빌 때 다시(움직이는 중 누른 q 가 다음 입력으로 들어가 시험 도구가 일찍 끝났다 — 결함 아님)'),
+ 'NOTE-02': dict(note_add='9/22: 운영 화면이 main 에 들어왔다(PR #66) → 가짜 flow 대본으로 gif 를 찍으면 된다'),
+ 'INT-4':   dict(note_add='9/22 PR #66 뒤: 화면 PC(PC-B)에서 `cd src/f4_hmi/web && npm install && npm run build` 먼저 — 안 하면 / 가 시험 페이지'),
+}
+for _tid, _e in P0950.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+_o = 'V-24·V-25·V-26(H · 30분 — 셋 다 9/21 실기 안 함 · F4 확인)'
+assert _o in SLOT['9/22 화']['C']
+SLOT['9/22 화']['C'] = SLOT['9/22 화']['C'].replace(_o, 'V-25 · V-24 ②③④(H · 25분 — V-26 은 오전에 5/5 통과 · V-24 ① 끝)')
+HISTORY85 = ['v13.5', '완료·진척', 'F4-03, V-13, V-26, V-24, NOTE-02, INT-4, 9/22 오후 로봇 슬롯',
+             'PR #66 merge(9/22 · 황인재 확인·승인): F4-03 운영 화면 완료 · V-13 완료(가짜 flow 대본 5개로 PAUSED·재개 반영). F4 보고: V-26 Ctrl+C 정지 실기 5/5 통과(0.47~0.50 s · 기록 PR 대기) · V-24 ① 관절 일시 정지→재개 OK(②③④ 남음). 오후 황인재 칸 = V-25 + V-24 ②③④',
+             '황인재 9/22 09:50', 'H']
+
+
+# ---------------------------------------------------------------- 9/22 10:10 박진용 · 한석형 아침 답 반영
+P1010 = {
+ 'F3-03':   dict(note_add='📥 9/22 박진용: soap 실기는 **아직 안 했다**(구현만 · 실기 기록 없음) → 오늘 오후 F1-05 슬롯에 20분'),
+ 'F1-05':   dict(note_add='📥 9/22 박진용: 오후 가능 — 저녁 INT-13 전에'),
+ 'F3-02':   dict(note_add='📥 9/22 박진용: 120 s 상한 **PR 에서 삭제 뺐다(남김)** · 오전 재검증 3회에서 공중 기준 Fz 를 9/19(1.9~2.3 N)와 비교해 보고. wipe_bowl 은 9/20 확정본(rig_v03) 명령·순서 그대로(두산 호출은 force.py 안에서만) + 바꾼 것 3가지: 빠른 하강 135 → 140 mm · 바닥 판정 힘 2 → 3 N(그릇) · 올라오는 속도 = 빠른 하강 속도(200 mm/s · 스케일 미적용 — 컵 1.5 배와 다름). '
+                          '실패 시 "곧게 올라와 HOME" 은 지금 main 과 같은 규칙(위치를 아는 실패만 · 강제정지·MoveIncomplete 는 안 움직임) — PR 에서 그 갈래가 남았는지 본다'),
+ 'F1-02':   dict(note_add='📥 9/22 한석형: ① 들여쓰기 오류 → 10:05 고침(`1644620` · 실행 가능 PM 확인) ② 잔반통 → HOME 은 관절 이동(J6 유지) — 오전 재검증에서 그 구간 충돌부터 본다 ③ 수세미 폭은 V-08 값 ④ pick() PR + 좌표 cell.yaml 은 오후'),
+}
+for _tid, _e in P1010.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY86 = ['v13.6', '답 반영', 'F3-03, F1-05, F3-02, F1-02',
+             '9/22 아침 묶음 답: 박진용 — 안착 놓기(F1-05·V-04) 오후 가능 · soap 실기 안 했음 → 오후 20분 · 120 s 상한은 PR 에서 삭제 뺌(남김) · wipe_bowl 은 9/20 rig_v03 그대로 + 3가지 변경. 한석형 — 들여쓰기 오류 고침(10:05 · 실행 가능) · 잔반통 → HOME 구간을 오전 재검증에서 먼저 확인 · 수세미 폭은 V-08 값 · pick() PR 오후',
+             '황인재 9/22 10:10', 'P,S']
+
+
+# ---------------------------------------------------------------- 9/22 10:30 황인재 결정 — PR #66 후속 ①·② (F4 전달)
+P1030 = {
+ 'F4-03': dict(note_add='🔒 9/22 황인재: 후속 ① "연결 끊기면 일시 정지 버튼 꺼짐" 은 **그대로 둔다**("크게 상관있는 기능은 아니다") — 제안 닫음'),
+ 'INT-4': dict(note_add='🖥 9/22 황인재: 시연 PC 2대 — **화면(hmi_bridge + web) = PC-B 황인재**(npm build 끝남 · 화면 고치면 PC-B 에서만 다시) · **flow_node = PC-A 한석형** → PC-A 는 `git pull` + `cbc` 만(npm 불필요). '
+                        '두 PC 가 통신할 때만(INT-4 · L3 · 리허설 · 시연) 두 터미널에서 `team60`, 끝나면 `solo`(AGENTS 규칙 13) — 그동안 다른 PC 는 team60 을 켜지 않는다'),
+}
+for _tid, _e in P1030.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY87 = ['v13.7', '결정', 'F4-03, INT-4',
+             '황인재 9/22(F4 전달): PR #66 후속 ① 연결 끊김 때 일시 정지 버튼이 꺼지는 것은 그대로 둔다 ② 시연 PC 2대 — 화면 = PC-B(황인재) · flow_node = PC-A(한석형, git pull + cbc 만 · npm 불필요) · 두 PC 통신 때만 team60 → 끝나면 solo',
+             '황인재 9/22 10:30', 'H,S']
+
+
+# ---------------------------------------------------------------- 9/22 10:45 PR #67 merge — V-26 기록
+EDIT.setdefault('V-26', {}).update(dict(status='완료', prog='1.0', note_add='✅ 9/22 PR #67 merge — 기록 `docs/test_logs/20260922_V-26_CtrlC정지_실기_황인재.md`: 허리 180° 회전 도중 Ctrl+C **5/5 즉시 정지** · 정지 완료까지 0.47~0.50 s · 멈춘 뒤 스스로 안 움직임 · 브링업 유지. 한계: 정지까지 움직인 각도는 계산 상한(9°)만 · 용기 든 이동·직선 이동은 V-24 에서'))
+HISTORY88 = ['v13.8', '완료', 'V-26', 'PR #67 merge(9/22): V-26 Ctrl+C 정지 실기 완료 — 5/5 즉시 정지 · 0.47~0.50 s · 브링업 유지(황인재 9/22 09:05~09:10)', '황인재 9/22 10:45', 'H,P']
+
+
+# ---------------------------------------------------------------- 9/22 11:45 황인재 결정 — 무게 측정(R2 · V-02)은 황인재가 이어받는다
+P1145 = {
+ 'V-02': dict(owner='H(M)', note_add='🔄 9/22 11:40 황인재 결정: **무게 측정(R2 두 자세 재측정 · V-02 빈 용기 기준값)은 황인재가 이어받는다** — 민범진은 flow_node 등 다른 작업에 집중(메시지 보냄). '
+                                     '도구는 민범진이 만든 그대로(`rig_weigh_probe.py -n 10` · `rig_f2.py empty --kind BOWL/CUP` · 절차 `docs/test_logs/20260921_저녁_F2실기_결과_민범진.md` §3·§4). params.yaml `f2.empty_weight_g` 반영은 민범진 절이라 PR 에 멘션. '
+                                     'V-07 · V-16 · INT-12a·12b 는 그대로 민범진'),
+ 'F2-01': dict(note_add='🔄 9/22: 무게 기준값(V-02)은 황인재가 잰다 — 값이 들어오면 판정(잔반 50 g · 하한) 확인은 INT-12a'),
+}
+for _tid, _e in P1145.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+_o = '**② 민범진 R2 자세별 재측정 + V-02 빈 용기 기준값(35분 — 저녁 INT-12a 전제)**'
+assert _o in SLOT['9/22 화']['B']
+SLOT['9/22 화']['B'] = SLOT['9/22 화']['B'].replace(_o, '**② 황인재 R2 자세별 재측정 + V-02 빈 용기 기준값(35분 — 저녁 INT-12a 전제 · 🔄 11:40 민범진 → 황인재)**')
+HISTORY89 = ['v13.9', '분담', 'V-02, F2-01, 9/22 오전 로봇 슬롯',
+             '황인재 9/22 11:40: 무게 측정(R2 두 자세 재측정 · V-02 빈 용기 기준값)은 황인재가 민범진이 만든 도구로 이어받는다 — 민범진은 flow_node 등 다른 작업에 집중. V-07 · V-16 · INT-12a·12b 는 민범진 그대로',
+             '황인재 9/22 11:45', 'H,M']
+
+
+# ---------------------------------------------------------------- 9/22 12:00 결정 E24(잔반 버리기 ≠ 물기 털기) · 민범진 답(flow_node 진척 · 무게 인수인계)
+NEW.append(
+ ('FLOW-04', 'FLOW-03', 'FLOW-03', '통합', 'flow_node 첫 실기 — 진짜 기능 모듈(use_mock=f3)로 그릇 1개 PICK → RACK',
+  'M(S,H)', '시작 전', S('9/22 저녁', '9/23 오전'), 'docs/test_logs/ 에 실행 기록(단계별 통과·멈춘 곳·코드) · records.csv 1줄',
+  '`ros2 launch prewash_bringup prewash.launch.py use_mock:=f3` 로 그릇 1개가 PICK~RACK 끝까지 돈다(또는 멈춘 단계·코드·원인을 기록) · 🚨 전제: f1 pick·rack_place(한석형) · tool(황인재 F1-03) PR 이 main 에',
+  '민범진 9/22 답: flow_node 는 지금까지 **가짜 기능 3개로만** 띄웠다(9/21 UT-FLOW) — main 의 f1 pick·tool·rack_place 가 빈 껍데기라 진짜 f1 을 넣으면 "안 움직이고 성공" 이 된다. '
+  'INT-12a·12b 는 flow_node 가 아니라 같은 순서의 시험대(rig_int12)로 한다 → flow_node 실기를 따로 둔다. 세 PR 이 오늘 오후 오면 저녁 INT-12 슬롯 끝 15분, 안 오면 9/23 오전 L2 마무리 때. L3(INT-3a · 9/23 오후) 전에 한 번은 돌아야 한다'))
+EASY['FLOW-04'] = 'flow_node(전체를 묶는 메인 프로그램)를 처음으로 진짜 기능 함수와 실제 로봇으로 돌려 본다. 그릇 1개가 집기부터 팔레트 적재까지 끝까지 가는지, 멈추면 어디서 왜 멈췄는지 기록한다'
+M12 = '📥 9/22 민범진 답'
+P1200 = {
+ 'INT-12a': dict(task='INT-12a F1+F2 — 집기→무게→잔반 버리기 5회 (주도) · 시험대 rig_int12 (flow.py 와 같은 순서 · flow_node 없이 — flow_node 실기는 FLOW-04)'),
+ 'INT-12b': dict(task='INT-12b F1+F2 — 재파지→헹굼→물털기→팔레트 적재 5회 (주도) · 시험대 rig_int12 (flow.py 와 같은 순서 · flow_node 없이 — flow_node 실기는 FLOW-04)'),
+ 'FLOW-02': dict(status='완료', prog='1.0', note_add=M12 + ': 코드 전부 main(#61) → 완료. 🟡 실제 값(무게·닦기 시간·힘 로그)은 INT-12a · FLOW-04 · L3 의 records.csv 로 확인'),
+ 'FLOW-03': dict(status='완료', prog='1.0', note_add=M12 + ': 코드 전부 main(#50 + 검토 후속 — 중단 깃발 정리) → 완료. 이동 도중 정지는 V-24·V-26 실기. 🟡 **abort 의 실기 정리 순서(HOME → 툴 반납 → 격리 → HOME)는 미확인** → INT-4b(실패 주입 + 정지·재개)에서'),
+ 'UT-FLOW': dict(status='완료', prog='1.0', note_add=M12 + ': 로봇 없는 범위 완료(9/21 · #62). 🟡 실기 항목은 V-24 · INT-4 · FLOW-04'),
+ 'F2-01':   dict(note_add='🔄 9/22 결정 E24: **잔반 버리기(shake WASTE)는 물기 털기와 다른 동작으로** — 지금은 같은 5번 관절 왕복·숫자만 다름. 서명 shake(mode, count, kind) 그대로 · 방식은 민범진 · V-07 로 확인(HMI 그림 = 기울여 쏟기) · 크게 기울일 때 손목 회전(케이블) 주의'),
+ 'F2-02':   dict(note_add='🔄 9/22 E24: 물기 털기(shake RINSE)는 잔반 버리기와 다른 동작 — RINSE 는 지금 왕복 동작 유지 가능'),
+ 'V-07':    dict(task='V-07 털기 실기 — 잔반 버리기(새 동작 · E24)와 물기 털기 각각에서 충돌 감지 오작동·놓침 여부',
+                 note_add='🔄 9/22 E24: 잔반 버리기가 새 동작으로 바뀐다 → V-07 은 **바뀐 동작으로**(저속부터 · 컵은 HOLD 없이 놓치는지). 저녁 INT-12a 가 leftover_loop 를 쓴다'),
+ 'INF-02c': dict(note_add=M12 + ': `get_workpiece_weight` 는 **Fz 의 절댓값**이었다 — 무게가 늘면 Fz 가 음수로 가다 0 을 지나며 되튄다(어제 "0 에 잘림" 의 정체) → weigh.py 를 툴 힘센서 Fz 부호 그대로(−Fz × 101.97 g/N) 읽게 고침. 🚨 **민범진 로컬 커밋만**(beomjin/20260922-V-02-weigh-r2 · d4d44bc · push 전) → 무게 기능은 F4(황인재)가 이어받음(E24 와 같은 때 황인재 결정). 0.85 유지(실기 재확인 전)'),
+ 'V-02':    dict(note_add=M12 + '(오전 z 235 · 툴 등록 뒤 · 10회): 빈손 89 g · 그릇 10 g · 그릇+43 g 13 g · 그릇+107 g 80 g(하중 API — 절댓값이라 판정 불가) · 옛 경로 rig_f2 empty 폭 70 g → 기준값으로 못 씀. '
+                          '🔴 **11:17 뒤 하중이 1.33 kg 에 고정**(10표본 전부 같은 값 · 원인 미확인 — 툴 무게 설정이 풀렸거나 센서 값이 멈춘 것으로 보임) → F4 가 Dart 툴 설정 · 브링업 재시작부터 확인. '
+                          '11:22 WEIGH.BOWL z 235 로 옮겨 본 경로에서 그릇이 바닥에 닿아 46.6 mm 앞에서 섬(MoveIncomplete) — cell.yaml 되돌림(변경 없음). 제안(민범진 f2 절): weigh_settle_s 0.5 → 5.0 · 표본 5 → 10 · min_net_g −30 → −60'),
+}
+for _tid, _e in P1200.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY90 = ['v14.0', '결정 E24·신규·완료', 'F2-01, F2-02, V-07, FLOW-04(신규), INT-12a·12b, FLOW-02, FLOW-03, UT-FLOW, INF-02c, V-02',
+             '결정 E24(황인재 9/22): 잔반 버리기와 물기 털기는 다른 동작으로 — shake 서명 그대로 · mode 마다 동작 · 방식은 민범진 · V-07 로 확인. '
+             '민범진 답: flow_node 는 가짜 기능으로만 띄웠다(main 의 f1 세 함수가 빈 껍데기) → 🆕 FLOW-04 flow_node 첫 실기(use_mock=f3 · 그릇 1개 · 오늘 저녁 또는 9/23 오전) · INT-12a·12b 는 시험대 rig_int12 로 명시 · FLOW-02·FLOW-03·UT-FLOW 완료(🟡 실기 항목은 INT-4b·FLOW-04·L3). '
+             '무게: 하중 API 는 Fz 절댓값 → Fz 부호 방식으로 고침(민범진 로컬 · push 전) · 11:17 뒤 1.33 kg 고정(원인 미확인) → F4 확인',
+             '황인재 9/22 12:00', 'M,S,H']
+
+
+# ---------------------------------------------------------------- 9/22 12:00 GitHub 기준 최신화 — F4 브랜치 3개 · 1.33 kg 가설
+G12 = '📈 9/22 12:00 GitHub(브랜치 · PR 전)'
+P1205 = {
+ 'NOTE-01': dict(prog='0.6', status='진행', note_add=G12 + ': `injae/20260922-NOTE-01-ros2-docs`(3b2a700) — 노션 제출용 ROS 2 노드 구조 · 인터페이스 정의서 · 발표 설명 메모 + 노드 구조도 SVG(`tools/gen/draw_ros2_nodes.py` 로 생성). 남은 것: 황인재 확인 → PR → 노션 업로드(1차 산출물 9/22~23)'),
+ 'V-08':    dict(note_add=G12 + ': `injae/20260920-F1-03-tool` 에 V-08 도구 `rig_f1 tool --action CYCLE`(집기 → 반납 한 쌍 × n · 1회차만 Enter · 성공 횟수·폭 요약) 추가 · 🟡 실기 전(오후 · 툴 프리셋 측정부터 — E23)'),
+ 'V-02':    dict(note_add=G12 + ': F4 도구 `rig_weigh_poses.py`(`injae/20260922-V-02-weigh-baseline` · 두 높이 비교 · −Fz 부호 그대로 + 하중 API 나란히 · 도착 뒤 5 s) 준비 · 🟡 실기 미실행. '
+                          '한석형 동선은 반납 구역 바로 위 WEIGH z 158 에서 잰다 → 좌표는 그대로 두고 R2 결과를 본다. '
+                          '🔴 1.33 kg 고정 — F4 가설: 툴 무게 보정이 통째로 빠지면 약 1.33~1.35 kg 로 읽힌다(값이 맞음) → **로봇 안 움직이는 확인부터**(현재 툴 이름 · probe · 펜던트 값) · 원인 질문은 13시 묶음(민범진 · 박진용)'),
+}
+for _tid, _e in P1205.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY91 = ['v14.1', '최신화', 'NOTE-01, V-08, V-02',
+             'GitHub 기준(9/22 12:00): F4 브랜치 3개 — NOTE-01 노션 제출 문서(0.6) · V-08 도구(rig_f1 tool CYCLE) · V-02 두 높이 비교 도구(Fz 부호). 1.33 kg 고정은 "툴 보정이 빠진 값" 가설 → 로봇 안 움직이는 확인부터. 팀원 push 는 오늘 한석형 10:05 뒤 없음(민범진 무게 수정 d4d44bc 는 로컬)',
+             '황인재 9/22 12:05', 'H,M']
+
+
+# ---------------------------------------------------------------- 9/22 12:15 F4 보고 — 컨트롤러 툴·TCP 선택이 풀려 있었다(복구 끝)
+TCPX = ('🚨 9/22 F4 보고: 컨트롤러의 **현재 툴·TCP 선택이 풀려 있었다**(get_current_tool · tcp = 빈 값 · 등록 값은 그대로) — 10:54 정상(민범진 무게) · 11:17 풀림 → 12시 무렵 황인재가 펜던트에서 다시 골라 복구'
+        '(빈손 1.316 → 0.123 kg · HOME z 214.73 · ROS set 서비스는 거절). 풀린 동안 posx 이동은 손끝 208 mm 아래로 · 무게 1.3 kg 고정 · 힘 값도 달랐다 → 그 시간(10:54~12:00) 실기 결과는 다시 확인. 원인 미확인')
+P1215 = {
+ 'ENV-05': dict(note_add=TCPX + '. 🔜 F4: cobot_common.init 이 시작할 때 두 이름을 확인하고 다르면 움직이지 않게(V-02 뒤 PR)'),
+ 'V-02':   dict(note_add='✅ 9/22 12:15: 1.33 kg 고정 원인 = 툴·TCP 선택 풀림(복구 끝 · ENV-05 비고). 10:48~10:54 민범진 값은 정상 때 · 11:17 뒤 값은 버린다 → R2 · V-02 진행 가능'),
+ 'F1-02':  dict(note_add='🔴 9/22 12:15: 10:54~12:00 사이 툴·TCP 선택이 풀려 있었다 → 그 사이 찍은 컵 C1·C2 등 posx 는 플랜지 값일 수 있다(z +208) — pick() PR 전에 다시 확인(묶음 ①)'),
+ 'F3-02':  dict(note_add='🔴 9/22 12:15: 10:54~12:00 사이 툴 선택이 풀려 힘 값이 그리퍼 무게만큼 달랐다 → 그 시간에 한 재검증은 다시(묶음 ③)'),
+}
+for _tid, _e in P1215.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY92 = ['v14.2', '사고·복구', 'ENV-05, V-02, F1-02, F3-02',
+             'F4 보고(9/22 12:15): 컨트롤러 툴·TCP 선택이 10:54~11:17 사이부터 12시 무렵까지 풀려 있었다(등록 값은 그대로) → posx 이동 손끝 208 mm 아래 · 무게 1.3 kg 고정 · 힘 값 다름. 펜던트에서 다시 골라 복구. 그 시간 실기 결과는 다시 확인 · 앞으로 로봇 움직이기 전 두 이름 확인(리마인드 §6) · 전원 공지는 13시 묶음',
+             '황인재 9/22 12:15', '전원']
+
+
+# ---------------------------------------------------------------- 9/22 12:25 황인재 — 실기 시작·끝 규칙 2개(툴·TCP 선택 풀림 방지)
+NEW_RULES.append(('🚨 실기 시작', '툴·TCP 이름 확인', '로봇을 움직이기 전에 get_current_tcp → GripperDA_v1 · get_current_tool → Tool Weight 를 확인한다. 비어 있거나 다르면 움직이지 말고 브링업을 끈 뒤 펜던트에서 다시 고른다(ROS 명령으로는 안 된다) — 9/22 오전 선택이 풀려 posx 이동이 손끝 208 mm 아래로 갔다'))
+NEW_RULES.append(('🔌 실기 끝', '연결부터 끊고 랜선', '실기가 끝나면 ① 프로그램 터미널 Ctrl+C → 브링업 터미널 Ctrl+C 로 로봇 연결부터 끊고 ② 다 꺼진 것을 확인한 뒤 랜선을 뽑는다(다음 사람에게 넘길 때도). 연결된 채로 랜선부터 뽑지 않는다 — 9/22 툴·TCP 풀림 원인은 못 찾았지만 방지(황인재 9/22)'))
+HISTORY93 = ['v14.3', '규칙', '규칙 시트',
+             '황인재 9/22 12:25: 실기 규칙 2개 — 🚨 실기 시작 전 툴·TCP 이름 확인 · 🔌 실기 끝나면 터미널 Ctrl+C 로 연결부터 끊고 그다음 랜선. 툴·TCP 선택 풀림 원인은 못 찾았지만 방지. 리마인드 §6 · 13시 전원 공지',
+             '황인재 9/22 12:25', '전원']
+
+
+# ---------------------------------------------------------------- 9/22 12:40 F4 R2 그릇 결과
+R2B = ('📈 9/22 F4 R2 그릇(실기 · 툴·TCP 복구 뒤 · vel 0.3 · 도착 뒤 5 s · 10회 · −Fz 중앙값): z 158 빈손 −34.0 · 그릇 쥠 +8.3 → **그릇 42.3 g · 흔들림 9.5 g** / z 235 빈손 +1.3 · 그릇 쥠 +50.1 → 48.8 g · 🔴 흔들림 60 g(77 → 17 로 떨어지는 추세). '
+       '9/21 민범진 값(≈ 44.5 g)과 맞다. 높이마다 오차는 더해지는 옵셋 → 같은 자세 빈 값을 빼면 지워진다 → **WEIGH 좌표는 z 158 그대로**(z 235 는 그릇을 쥐면 불안정). '
+       '9/21 "0 에 잘림" = 하중 API 절댓값 탓(옵셋 −34 + 그릇 42 ≈ +8 g). 🔴 V-02 전제: 민범진 Fz 부호 방식(d4d44bc) push — main weigh.py 는 아직 절댓값. 컵 R2 진행 중')
+P1240 = {
+ 'V-02':    dict(prog='0.3', status='진행 중', note_add=R2B),
+ 'INF-02c': dict(note_add='🔎 9/22 F4 R2: 무게는 **Fz 부호 방식이어야** 판정이 된다(절댓값이면 옵셋 −34 g 자리에서 부호가 떨어진다) → d4d44bc merge 가 V-02 전제'),
+ 'F2-01':   dict(note_add='🔔 9/22 F4 참고: 그릇 놓침 판정 min_net_g −30 g 의 여유가 얇다 — 그릇 ≈ 42 g 라 놓치면 −42 g · 문턱까지 12 g 인데 흔들림 10~15 g → V-02 반복 값을 보고 민범진 절에 제안(지금은 안 바꿈 · 민범진 브랜치는 −60 제안)'),
+}
+for _tid, _e in P1240.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY94 = ['v14.4', '실기 결과', 'V-02, INF-02c, F2-01',
+             'F4 R2 그릇(9/22 · 툴 복구 뒤): WEIGH z 158 그대로 — 그릇 42.3 g · 흔들림 9.5 g(9/21 값과 맞음) · z 235 는 쥐면 불안정. 9/21 "0 에 잘림" 은 하중 API 절댓값 탓 → Fz 부호 방식(민범진 d4d44bc · push 전)이 V-02 전제. 놓침 문턱 −30 g 여유가 얇다(참고). 컵 R2 진행 중',
+             '황인재 9/22 12:40', 'H,M']
+
+
+# ---------------------------------------------------------------- 9/22 12:45 황인재 — 단위 기능 테스트 먼저, 통합은 통합 슬롯에서
+NEW_RULES.append(('🧪 테스트 순서', '단위 먼저 · 통합은 슬롯에서', '기능 코드를 다 짰으면 단위 기능 테스트(내 함수만 · rig · UT-F1/F2/F3)부터 한다. 한 바퀴 전체 통합 테스트는 일정표의 통합 슬롯(L2 · L3)에서 같이 한다 — 혼자 통합 테스트로 로봇을 오래 잡지 않는다(로봇 1대 · 남의 단위 테스트가 밀린다 · 황인재 9/22)'))
+HISTORY95 = ['v14.5', '규칙', '규칙 시트', '황인재 9/22 12:45: 테스트는 단위 기능 먼저, 통합은 통합 슬롯(L2 · L3)에서 — 혼자 통합 테스트로 로봇을 오래 쓰지 않는다. 리마인드 §8 · 13시 전원 공지', '황인재 9/22 12:45', '전원']
+
+
+# ---------------------------------------------------------------- 9/22 12:50 F4 R2 컵 결과
+R2C = ('📈 9/22 F4 R2 컵(실기 · 5 N · 78 mm · 도착 뒤 5 s · 10회 · −Fz 중앙값): WEIGH.CUP z 147.4 빈손 −36.9 · 컵 쥠 −16.2 → **컵 20.7 g** · 흔들림 20.8/17.8 g(시간 따라 오르는 추세) / z 235 빈손 −180.9 · 컵 쥠 −164.7 → 컵 16.2 g · 흔들림 8.8/5.7 g ✅. '
+       '🔴 main 방식(하중 API 절댓값)으로 빼면 컵이 −18 g 로 부호가 뒤집히고 잔반이 늘면 값이 줄어든다 → 컵 잔반 판정이 틀린다 → d4d44bc 가 V-07 · INT-12a 전제. '
+       '🟡 컵 자체가 16~21 g < 30 g → 놓쳐도 순무게 ≈ −20 g 라 min_net_g −30 에 안 걸린다(GRIP_FAIL 이 아니라 "잔반 없음" 으로 흐른다) — E19 ③ 한계가 실제로 걸린다 → 황인재·민범진 결정 대기. '
+       '컵 WEIGH 높이(z 147 유지 / z 235)는 F4 가 도착 뒤 10 s 재측정으로 정한다(E14 · 옮기면 cell.yaml PR). 5 N · 78 mm 로 HOME → WEIGH → z 235 → HOME 떨어뜨리지 않음(털기 전 확인 · V-07 아님)')
+P1250 = {
+ 'V-02':  dict(prog='0.5', note_add=R2C),
+ 'V-07':  dict(note_add='🔴 9/22 F4 컵 R2: main weigh.py(절댓값)로는 컵 잔반 판정이 틀린다 → 민범진 d4d44bc(Fz 부호) merge 뒤에 V-07'),
+}
+for _tid, _e in P1250.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY96 = ['v14.6', '실기 결과', 'V-02, V-07', 'F4 R2 컵(9/22): 컵 16~21 g · 절댓값 방식이면 부호가 뒤집혀 컵 잔반 판정이 틀림 → d4d44bc 가 V-07 · INT-12a 전제. 컵이 30 g 보다 가벼워 놓침을 무게로 못 잡는다(E19 ③ 한계가 실제로 걸림 — 결정 대기). 컵 WEIGH 높이는 F4 가 재측정으로 정한다', '황인재 9/22 12:50', 'H,M']
+
+
+# ---------------------------------------------------------------- 9/22 12:55 황인재 — 컵 놓침 판정은 F4 가 다시 본다 · 13시 묶음 전파
+EDIT.setdefault('V-02', {}).update(dict(note_add='🔄 9/22 12:55 황인재: **컵 놓침 판정(컵 16~21 g < 30 g · min_net_g)은 F4 가 다시 본다** — 민범진은 f2 절 문턱을 지금 바꾸지 않는다'))
+HISTORY97 = ['v14.7', '분담', 'V-02', '황인재 9/22 12:55: 컵 놓침 판정(컵이 30 g 보다 가벼워 무게로 못 잡는 문제)은 F4 가 다시 본다. 13시 전원 공지(툴·TCP 풀림 · 실기 끝낼 때 순서 · 단위 먼저) 전파', '황인재 9/22 12:55', 'H,M']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -1714,7 +1897,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)

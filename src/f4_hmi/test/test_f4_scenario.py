@@ -116,3 +116,12 @@ def test_scenes_know_their_item_so_abort_can_skip_to_the_next_one():
     assert sc.start_of(scenes, nxt) == pytest.approx(sum(s.duration_s for s in scenes[:nxt]))
     last_wipe = max(k for k, s in enumerate(scenes) if s.state['step'] == 'WIPE')
     assert scenes[sc.after_item(scenes, last_wipe)].state['step'] == 'DONE'          # 마지막 용기를 접으면 DONE 으로
+
+
+def test_rack_scene_has_not_counted_its_own_container_yet():
+    """진짜 flow 는 적재까지 **다 끝난 뒤** done 을 올린다 → 적재(RACK) 중에는 이번 용기가 아직 안 세어져 있다.
+    그래야 화면이 지금 넣는 칸(rack_order[done])을 가리킨다. 9/21 황인재: 가짜가 먼저 세어 다음 칸이 '적재 중' 으로 보였다."""
+    scenes = sc.build(sc.load('normal'))
+    racks = [s.state for s in scenes if s.state['step'] == 'RACK']
+    assert [(r['kind'], r['done_bowl'], r['done_cup']) for r in racks] == [
+        ('BOWL', 0, 0), ('BOWL', 1, 0), ('CUP', 2, 0), ('CUP', 2, 1)]
