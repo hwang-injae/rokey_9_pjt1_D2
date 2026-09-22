@@ -144,6 +144,10 @@ class Flow:
         self.rack_order = self.cfg.get('rack_order') or {}
         self.counts = self._check_counts(self.cfg.get('counts') or {})
         self.rounds = self._num('leftover_max_rounds', 2, int)
+        # 🆕 FLOW-05 (결정 E25 · 9/22): 무게 단계(move_to WEIGH · leftover_loop)를 **하는 종류**.
+        #    🟡 임시 건너뛰기 — 시나리오 변경이 아니다. 컵 무게 측정이 미완성이라 동결 전에 컵만 잠시 뺀 것(민범진 9/22).
+        #    완성되면 params 의 flow.weigh_kinds 를 [BOWL, CUP] 으로 되돌린다(코드 변경 없음). 키가 없으면 예전대로 전부.
+        self.weigh_kinds = self._check_weigh_kinds(self.cfg.get('weigh_kinds'))
         # DONE 을 화면에 보여 주는 시간. /flow/state 주기(state_pub_hz)보다 길어야 한 번은 잡힌다
         self.done_hold_s = self._num('done_hold_s', 1.0, float)
         self.step_delay_s = self._num('step_delay_s', 0.0, float)
@@ -211,6 +215,20 @@ class Flow:
         if not good:
             self.log.warn('flow.plan 에 쓸 수 있는 항목이 없다 — start 를 눌러도 아무것도 하지 않는다')
         return good
+
+    def _check_weigh_kinds(self, raw):
+        """flow.weigh_kinds — 무게 단계를 하는 종류 목록. 없으면 ['BOWL', 'CUP'](예전 동작), 이상하면 경고 + 전부."""
+        if raw is None:
+            return ['BOWL', 'CUP']
+        try:
+            kinds = [str(k).upper() for k in raw]
+        except TypeError:
+            self.log.warn(f'flow.weigh_kinds 가 목록이 아니다 ({raw!r}) → 전부 무게를 잰다')
+            return ['BOWL', 'CUP']
+        bad = [k for k in kinds if k not in ('BOWL', 'CUP')]
+        if bad:
+            self.log.warn(f'flow.weigh_kinds 에 모르는 종류 {bad} — 무시한다')
+        return [k for k in kinds if k in ('BOWL', 'CUP')]
 
     def _check_counts(self, counts):
         """횟수 설정이 빠졌으면 **시작할 때** 알려 주고 기본값으로 채운다."""
@@ -514,6 +532,9 @@ class Flow:
             ('RACK', 'f1', 'rack_place', (self.rack_slot, self.kind)),
             ('RACK', 'f1', 'move_to', ('HOME', False)),
         ]
+        if self.kind not in self.weigh_kinds:        # 🆕 FLOW-05 · E25 — 컵은 PICK 에서 곧장 SEAT 로
+            steps = [st for st in steps if st[0] != 'WEIGH']
+            self.log.info(f'{self.kind} 은(는) 무게 단계를 건너뛴다 (flow.weigh_kinds={self.weigh_kinds} · E25)')
         # 🚨 for 가 아니라 while 이다 — PAUSED 에서 재개하면 **실패한 그 단계부터 다시** 해야 해서
         #    같은 자리를 한 번 더 돌 수 있어야 한다(IRD §8 · 9/20 PM 결정). for 로는 못 돌아온다.
         i = 0

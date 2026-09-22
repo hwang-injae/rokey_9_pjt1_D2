@@ -15,7 +15,8 @@ FORCE_FRESH_S = 0.5             # /cell/force 는 닦는 동안만 온다 → �
 
 
 class StateStore:
-    def __init__(self, disconnect_after_s, clock=time.monotonic):
+    def __init__(self, disconnect_after_s, clock=time.monotonic, rack_slots=0):
+        """rack_slots: 팔레트 한 장의 칸 수(params.yaml flow.rack_order 의 합) — 한 회차가 이만큼 채우고 끝나면 팔레트 1장 완료."""
         self._limit = float(disconnect_after_s)
         self._clock = clock
         self._lock = threading.Lock()
@@ -24,6 +25,9 @@ class StateStore:
         self._force, self._force_at = None, None
         self._events = deque(maxlen=RECENT_EVENTS)
         self._count = 0                                     # 받은 /flow/state 수 (시험·진단용)
+        # 누적 — flow 가 계획을 마치고 DONE 으로 넘어가는 순간 한 회차로 센다. HMI 를 켠 뒤부터(끄면 사라진다 · 저장은 F4-04 SQLite)
+        self._rack_slots = int(rack_slots)
+        self._totals = {'runs': 0, 'pallets': 0, 'bowls': 0, 'cups': 0, 'isolated': 0}
         self._listeners = []
 
     def subscribe(self, fn):
@@ -36,9 +40,22 @@ class StateStore:
     # ------------------------------------------------------------------ ROS 스레드
     def put_state(self, fields: dict):
         with self._lock:
+            before = self._state.get('step') if self._state else None
+            if before is not None and before != 'DONE' and fields.get('step') == 'DONE':   # 회차가 끝났다(처음 받은 값이 DONE 이면 세지 않는다 — 못 본 회차)
+                self._count_run(fields)
             self._state, self._state_at = dict(fields), self._clock()
             self._count += 1
         self._tell('state', self.live())
+
+    def _count_run(self, s):
+        t = self._totals
+        bowls, cups = int(s.get('done_bowl') or 0), int(s.get('done_cup') or 0)
+        t['runs'] += 1
+        t['bowls'] += bowls
+        t['cups'] += cups
+        t['isolated'] += int(s.get('isolated') or 0)
+        if self._rack_slots and bowls + cups >= self._rack_slots:     # 칸을 다 채우고 끝났다 → 팔레트 1장
+            t['pallets'] += 1
 
     def put_event(self, fields: dict):
         with self._lock:
@@ -77,4 +94,5 @@ class StateStore:
                 'gripping': self._gripping,
                 'force_n': round(self._force, 2) if fresh else None,
                 'events': [dict(e) for e in self._events],
+                'totals': {**self._totals, 'rack_slots': self._rack_slots},
             }
