@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v13.4'
+VERSION = 'v13.5'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1626,6 +1626,26 @@ HISTORY84 = ['v13.4', '완료', 'ENV-05, V-02, F3-02, MID-01·02(행 삭제 보�
              '황인재 9/22 08:45', 'M,P,H']
 
 
+# ---------------------------------------------------------------- 9/22 09:50 PR #66 merge(F4-03 운영 화면) · F4 보고 V-26 통과 · V-24 ① 끝
+P0950 = {
+ 'F4-03':   dict(status='완료', prog='1.0', note_add='✅ 9/22 PR #66 merge(황인재 직접 실행 확인·승인): 운영 화면 — `/` = Next.js 정적 화면(web/out) · `/test` = 시험 페이지 · 단계 그림 카드 · 팔레트 입체 그림 · 숫자 패널 · 이력 · 누적. '
+                          '검증: 병합본 370 통과(두 환경) · f4_hmi 29+1 · 가짜 flow 대본 5개 · 🟡 실제 flow_node 연결은 INT-4 · L3. 🔔 후속(막는 사유 아님): ① 연결 끊김이면 일시 정지 버튼이 꺼진다 → 켜 두는 쪽 권장 ② 화면 PC(PC-B)에서 `npm install && npm run build` 필요(안 하면 / 가 시험 페이지)'),
+ 'V-13':    dict(status='완료', prog='1.0', note_add='✅ 9/22 PR #66: 운영 화면에서 가짜 flow 대본 5개(정상 · 일시 정지 · 격리 · 오류 · 빈 구역)로 PAUSED·재개 반영 확인(황인재 직접). 버튼 → 실제 flow 반응은 INT-4'),
+ 'V-26':    dict(status='진행', prog='0.9', note_add='✅ 9/22 오전 F4 보고: Ctrl+C 정지 실기 **5/5 통과**(0.47~0.50 s). 기록 PR 은 황인재 확인 뒤 → merge 되면 완료'),
+ 'V-24':    dict(note_add='📈 9/22 오전 F4 보고: 실기 ① 관절 이동 일시 정지 → 재개 2회 OK. ②③④ 는 로봇이 빌 때 다시(움직이는 중 누른 q 가 다음 입력으로 들어가 시험 도구가 일찍 끝났다 — 결함 아님)'),
+ 'NOTE-02': dict(note_add='9/22: 운영 화면이 main 에 들어왔다(PR #66) → 가짜 flow 대본으로 gif 를 찍으면 된다'),
+ 'INT-4':   dict(note_add='9/22 PR #66 뒤: 화면 PC(PC-B)에서 `cd src/f4_hmi/web && npm install && npm run build` 먼저 — 안 하면 / 가 시험 페이지'),
+}
+for _tid, _e in P0950.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+_o = 'V-24·V-25·V-26(H · 30분 — 셋 다 9/21 실기 안 함 · F4 확인)'
+assert _o in SLOT['9/22 화']['C']
+SLOT['9/22 화']['C'] = SLOT['9/22 화']['C'].replace(_o, 'V-25 · V-24 ②③④(H · 25분 — V-26 은 오전에 5/5 통과 · V-24 ① 끝)')
+HISTORY85 = ['v13.5', '완료·진척', 'F4-03, V-13, V-26, V-24, NOTE-02, INT-4, 9/22 오후 로봇 슬롯',
+             'PR #66 merge(9/22 · 황인재 확인·승인): F4-03 운영 화면 완료 · V-13 완료(가짜 flow 대본 5개로 PAUSED·재개 반영). F4 보고: V-26 Ctrl+C 정지 실기 5/5 통과(0.47~0.50 s · 기록 PR 대기) · V-24 ① 관절 일시 정지→재개 OK(②③④ 남음). 오후 황인재 칸 = V-25 + V-24 ②③④',
+             '황인재 9/22 09:50', 'H']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -1714,7 +1734,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
