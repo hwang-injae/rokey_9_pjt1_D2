@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v14.7'
+VERSION = 'v15.1'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1809,6 +1809,82 @@ EDIT.setdefault('V-02', {}).update(dict(note_add='🔄 9/22 12:55 황인재: **�
 HISTORY97 = ['v14.7', '분담', 'V-02', '황인재 9/22 12:55: 컵 놓침 판정(컵이 30 g 보다 가벼워 무게로 못 잡는 문제)은 F4 가 다시 본다. 13시 전원 공지(툴·TCP 풀림 · 실기 끝낼 때 순서 · 단위 먼저) 전파', '황인재 9/22 12:55', 'H,M']
 
 
+# ---------------------------------------------------------------- 9/22 13:20 PR #68 merge(민범진) — 무게 Fz 부호 · 문지기 · 잔반 버리기 기울이기
+M68 = '✅ 9/22 PR #68 merge(민범진)'
+P1320 = {
+ 'INF-02c': dict(prog='0.9', note_add=M68 + ': weigh() = −Fz(get_tool_force · BASE) × 101.97 g · 표본 10 × 간격 0.7 s · 도착 뒤 5 s. 🟡 기준값·판정은 V-02(F4)'),
+ 'V-02':    dict(note_add=M68 + ': main 이 이제 Fz 부호 방식 → V-02 기준값을 main 으로 잴 수 있다(F4)'),
+ 'F2-01':   dict(prog='0.9', note_add=M68 + ': 잔반 버리기 = J5 −90° 기울여 흔들고 되돌림(E24 · tilt_deg · 상한 max_tilt_deg 100) · 잔반통 자세 WASTE.BOWL J6 0 → 180(그릇이 잔반통 위로 · 🟡 케이블 감김은 계속 눈으로) · 문지기(TS-07 — 툴·TCP 이름이 다르면 시작 거부)'),
+ 'F2-02':   dict(note_add=M68 + ': 헹굼 담금 1 → 2회(flow.counts.rinse_dips · 회당 약 6 s) · 물 털기는 기울이지 않음 · 🟡 물 털기 실기는 아직'),
+ 'V-07':    dict(prog='0.5', status='진행', note_add=M68 + ': 그릇 잔반 버리기(기울이기) 🟢 실기 — 저속 1회 + 원속 눈 확인 · 알람 0 · 미끄러짐 0.3 mm · 잔반 털림. 🟡 남은 것: 컵(HOLD 없음 · E19) · 물 털기 RINSE'),
+ 'UT-F2':   dict(note_add=M68 + ': rig_f2 · rig_int12 에 문지기 연결. 🟡 TC-03·04·08 연속 3회 기록은 아직'),
+ 'FLOW-04': dict(note_add='9/22 PR #68: flow_node 가 로봇을 쓸 때(use_mock 에 f1·f2·f3 가 다 있지 않으면) 시작 전 툴·TCP 문지기를 통과해야 한다 — 다르면 종료 코드 2'),
+}
+for _tid, _e in P1320.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY98 = ['v14.8', '진척', 'INF-02c, V-02, F2-01, F2-02, V-07, UT-F2, FLOW-04',
+             'PR #68 merge(민범진 9/22): 무게는 부호 있는 Fz 로(V-02 전제 해소) · 움직이기 전 툴·TCP 문지기(TS-07) · 잔반 버리기 = J5 −90° 기울여 흔들기(E24 · V-07 그릇 🟢 실기) · 잔반통 J6 180 · 헹굼 담금 2회. 🟡 컵 V-07 · 물 털기 · UT-F2 연속 기록 남음',
+             '황인재 9/22 13:20', 'M,H']
+
+
+# ---------------------------------------------------------------- 9/22 13:55 결정 E25 — 컵은 무게·잔반 버리기 없음(헹굼·물 털기는 함) · PR #69 수정 요청
+NEW.append(
+ ('FLOW-05', 'FLOW-04', 'FLOW-04', '개발', 'flow 에서 컵은 WEIGH 단계(move_to WEIGH · leftover_loop)를 건너뛴다 — 결정 E25(컵은 액체만 · 잔반 없음) · 헹굼 담금·물 털기는 그대로',
+  'M', '시작 전', S('9/22 오후'), '`flow.py process_one` 수정 + 자동 시험(컵 계획에서 WEIGH 호출 0회 · 그릇은 그대로) · PR',
+  '가짜 기능(use_mock=f1,f2,f3)으로 컵 1개 돌릴 때 f1.move_to("WEIGH") · f2.leftover_loop 가 **한 번도 불리지 않고** SEAT 로 간다 · 그릇은 예전 그대로 · /flow/state 의 step 이 컵에서 WEIGH 를 안 거친다 · 자동 시험 통과(두 환경)',
+  '황인재 9/22 13:55 결정 E25: 컵에는 액체만 있고 음식물이 없다고 가정 → 무게 재기·잔반 버리기를 하지 않는다. 헹굼 담금·물 털기는 한다. 계기: 한석형 PR #69 주석. 로봇 불필요(가짜 기능으로 확인) · **9/23 동결 전** · 컵 기준값·컵 WEIGH 자세·컵 놓침 무게 판정은 필요 없어진다'))
+EASY['FLOW-05'] = '메인 프로그램이 컵을 처리할 때 "무게 재기 → 잔반 버리기" 단계를 건너뛰게 고친다. 컵에는 국물 같은 액체만 있고 음식물은 없다고 보기로 했기 때문이다. 헹굼과 물 털기는 그대로 한다'
+E25N = '🔄 9/22 E25(황인재): 컵은 무게·잔반 버리기 없음(헹굼·물 털기는 함)'
+P1355 = {
+ 'INT-12a': dict(task='INT-12a F1+F2 — 집기→무게→잔반 버리기 5회 · **그릇만**(E25 컵은 무게 단계 없음) · 시험대 rig_int12(flow_node 없이 — flow_node 실기는 FLOW-04)', owner='M(S)',
+                 note_add=E25N + ' → INT-12a 는 그릇만. rig_int12 의 CUP a 는 쓰지 않는다'),
+ 'INT-12b': dict(note_add=E25N + ' → INT-12b(재파지 → 헹굼 → 물 털기 → 적재)는 **컵도 한다**'),
+ 'V-02':    dict(note_add=E25N + ' → **컵 빈 용기 기준값 · 컵 WEIGH 자세 · 컵 놓침 무게 판정은 필요 없다** — F4 컵 R2 중단 · 그릇만 마무리'),
+ 'V-07':    dict(task='V-07 털기 실기 — 잔반 버리기(그릇 · E24 새 동작)와 물기 털기(그릇·컵)에서 충돌 감지 오작동·놓침 여부', note_add=E25N + ' → 컵은 **물 털기만**(잔반 버리기 없음). 남은 것: 물 털기 RINSE 그릇·컵'),
+ 'V-16':    dict(note_add=E25N + ' → 컵은 물 털기에서만 본다'),
+ 'F2-01':   dict(note_add=E25N + ' — weigh · leftover_loop 는 그릇 전용이 된다. flow 수정은 FLOW-05'),
+ 'INT-3b':  dict(note_add=E25N + ' → 컵 끝까지 = PICK → SEAT → SOAP → WIPE → RINSE → RACK(WEIGH 없음) — FLOW-05 merge 뒤'),
+ 'F1-02':   dict(note_add='🔴 9/22 13:45 PR #69 **수정 요청**(merge 보류): ① 컵 잡는 힘 5 → 40 N — E19 근거(15 N 변형 · 20 N 안전 스위치)와 반대 · 설명 필요(황인재) ② 주석 "RINSE SHAKE 생략" 은 틀림(E25: 물 털기는 한다) · E19 한계 설명 복원 ③ 자동 시험 1건(KNOWN_TILTED 에서 RACK_C2 제거). 🚨 pick()·rack_place 코드는 이 PR 에 없음 — 저녁 INT-12·FLOW-04 전제'),
+ 'F1-04':   dict(note_add='9/22 PR #69: 컵 칸 C1·C2 접근점이 끝점 바로 위로 고쳐짐(👍) · 새 키 rack.cup_via · cup_entry_z_mm(제품 코드 미사용). rack_place 코드는 아직'),
+}
+for _tid, _e in P1355.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY99 = ['v14.9', '결정 E25·신규·PR', 'FLOW-05(신규), INT-12a·12b, V-02, V-07, V-16, F2-01, INT-3b, F1-02, F1-04',
+             '황인재 9/22 13:55 결정 E25: 컵은 무게·잔반 버리기를 하지 않는다(액체만 · 잔반 없음) — 헹굼 담금·물 털기는 한다 → 🆕 FLOW-05(민범진 · flow 에서 컵 WEIGH 건너뛰기 · 동결 전) · INT-12a 그릇만 · 컵 기준값·컵 WEIGH 자세·컵 놓침 판정 불필요(F4 컵 R2 중단). '
+             'PR #69(한석형 컵 좌표) 수정 요청: 컵 힘 40 N 설명 필요 · 주석 정정 · 시험 목록 갱신 · pick()/rack_place 코드는 아직',
+             '황인재 9/22 13:55', 'M,S,H']
+
+
+# ---------------------------------------------------------------- 9/22 14:15 F4 V-02 그릇 1차 — 흔들림 45 g(기준 20 초과) · 제안 4개
+V02B = ('📈 9/22 F4 V-02 그릇 1차(실기 13:54~14:01 · main #68 weigh · 도착 뒤 5 s · 10 표본 × 0.7 s · WEIGH.BOWL z 158): `rig_f2 empty -n 10` 회차 중앙값 −12.9 ~ −46.5 → **중앙값 −20.4 g · 폭 44.8 g(기준 20 g 초과)**. '
+        '원값은 −1 ~ −52 를 10~20 s 주기로 오르내린다(툴·TCP 복구 뒤에도 그대로). 이어서 weigh 2회는 같은 자세인데 −65/−62 로 45 g 낮음(그릇 안 내용물 황인재 확인 중). '
+        '→ 판정식 "읽음 − 기준값" 의 전제(옵셋이 시간·방문에 걸쳐 같다)가 지금 정밀도에서는 안 선다. F4 제안(결정 = 민범진 f2 절 · PM): ① leftover_threshold_g 50 → 100(SDD §9.9 대안) ② min_net_g −30 → −60 이하(놓침은 폭 slip_tol 로) ③ 표본 창을 주기보다 길게(30 × 0.7 = 21 s) ④ 기준값은 flow 와 같은 경로(pick → WEIGH → 5 s → 1회)로 INT-12a 에서 다시. '
+        '우선 기준값 −20(🟡 폭 45)을 F4 브랜치 params 에 넣어 PR(민범진 멘션). ⚠ 정정: min_net_g −30 되돌림의 근거였던 "복구 뒤 PM 실측 9.5 g" 은 12 s 창 값 — 65 s 로 재면 폭 45 g → 근거 약함')
+P1415 = {
+ 'V-02':    dict(prog='0.6', note_add=V02B),
+ 'F2-01':   dict(note_add='🔔 9/22 14:15 F4: 정지 중 흔들림이 복구 뒤에도 폭 45 g(10~20 s 주기) → 임계 50 g · min_net_g −30 · 기준값 뺄셈 모두 여유가 없다 — F4 제안 ①~④(V-02 비고)를 민범진이 판단(f2 절)'),
+ 'INT-12a': dict(note_add='🔔 9/22 F4 제안 ④: 그릇 빈 용기 기준값을 flow 와 같은 경로(pick → WEIGH → 5 s → 1회)로 여기서 다시 잰다'),
+}
+for _tid, _e in P1415.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY100 = ['v15.0', '실기 결과', 'V-02, F2-01, INT-12a',
+              'F4 V-02 그릇 1차(9/22 14:00): 기준값 −20.4 g · 폭 44.8 g(기준 20 초과) · 10~20 s 주기 흔들림이 복구 뒤에도 그대로 → 판정식 전제가 약함. F4 제안: 임계 50 → 100 · min_net_g −60 · 표본 창 21 s · 기준값은 INT-12a 에서 같은 경로로. 결정 = 민범진(f2 절)·PM. min_net_g −30 주석의 "9.5 g" 근거 정정',
+              '황인재 9/22 14:15', 'H,M']
+
+
+# ---------------------------------------------------------------- 9/22 14:25 PR #69 merge(한석형) — 컵 동선 좌표 확정
+M69 = '✅ 9/22 PR #69 merge(한석형 · 수정 요청 반영 뒤)'
+P1425 = {
+ 'CELL-04': dict(note_add=M69 + ': 컵 집기 RET_C(접근점 z 215 → 끝점 z 47) · 스펀지 홈 C(→ z 110 · exit +140) · 팔레트 C1·C2(끝점 바로 위 350 → 258 · exit z +92 → y) 실기값이 cell.yaml 에 · 컵 76 mm · 힘 5 N(E19 유지 — 40 N 은 근거 없어 되돌림) · RACK_C2 가 수직 접근이 됨(시험 예외에서 제거). 🟡 제품 코드(pick·rack_place)로는 미확인'),
+ 'F1-02':   dict(prog='0.6', note_add=M69 + ': 컵 집기 좌표·프리셋 main 에. 🔴 **pick() 본 구현은 아직**(저녁 INT-12a · FLOW-04 전제 — 시점 확인 중)'),
+ 'F1-04':   dict(prog='0.4', note_add=M69 + ': 컵 칸 C1·C2 좌표 확정 · 새 키 rack.cup_via · cup_entry_z_mm(제품 코드 미사용). 🔴 rack_place 코드는 아직'),
+ 'V-06':    dict(note_add='9/22 PR #69: 컵 칸 좌표는 실기 동선으로 확정 — rack_place 구현 뒤 여기서 제품 코드로 확인'),
+}
+for _tid, _e in P1425.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY101 = ['v15.1', '진척', 'CELL-04, F1-02, F1-04, V-06', 'PR #69 merge(한석형 9/22 14:25): 컵 집기·스펀지 홈·팔레트 C1/C2 실기 좌표 cell.yaml 반영 · 컵 76 mm · 힘 5 N 유지 · RACK_C2 수직 정렬. 🔴 pick()·rack_place 코드는 아직 — 저녁 INT-12 · FLOW-04 전제', '황인재 9/22 14:25', 'S']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -1897,7 +1973,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
