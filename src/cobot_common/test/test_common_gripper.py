@@ -223,20 +223,6 @@ def test_grip_level_learns_force_by_one_step_regrip_when_unknown(fake, monkeypat
     assert G._force_n == pytest.approx(35.0)
 
 
-def test_grip_level_still_raises_when_regrip_gives_no_reading(fake, monkeypatch):
-    """다시 잡아도 effort 가 안 오면 — 모르는 채 힘을 바꾸지 않고 멈춘다."""
-    monkeypatch.setattr(G, '_force_n', None)
-
-    class Silent(type(G._client)):
-        def call(self, req):
-            self.sent.append(req.command); self.calls += 1
-            return FakeRes(True, '')                                     # effort 를 끝내 안 준다
-    monkeypatch.setattr(G, '_client', Silent())
-    with pytest.raises(RuntimeError):
-        G.grip_level('BOWL', 'HOLD')
-    assert G._client.sent == ['i']                                       # 탐색 한 번만 · 힘 계단은 안 보냄
-
-
 def test_grip_level_uses_preset_force(fake, monkeypatch):
     """HOLD 는 프리셋의 hold_force_n 을 쓴다. 폭은 다시 명령하지 않는다."""
     monkeypatch.setattr(G, '_force_n', 20.0)
@@ -256,14 +242,21 @@ def test_grip_level_back_to_normal(fake, monkeypatch):
 
 
 def test_grip_level_without_anchor_refuses(fake, monkeypatch):
-    """🚨 쥔 채 힘을 바꾸려는데 기준이 없으면 거부한다 — 맞추려면 0 N 을 지나야 해서 놓친다.
-
-    PM 9/20 · #17 검토 2번. 조용히 떨어뜨리는 대신 예외 → flow 가 ROBOT_ERROR 로 멈춘다.
+    """🚨 쥔 채 힘을 바꾸려는데 힘을 모르면 — 놓지 않고 'i' 한 계단으로 다시 잡아 읽어 본다(9/23).
+    그래도 드라이버가 effort 를 안 주면 거부한다(모르는 채 계단을 보내면 놓친다 · PM 9/20 · #17 검토 2번).
+    조용히 떨어뜨리는 대신 예외 → flow 가 ROBOT_ERROR 로 멈춘다.
     """
     monkeypatch.setattr(G, '_joint_angle', 0.83)
+
+    class Silent(type(G._client)):
+        def call(self, req):
+            self.sent.append(req.command); self.calls += 1
+            return FakeRes(True, '')                                     # effort 를 끝내 안 준다
+    monkeypatch.setattr(G, '_client', Silent())
     with pytest.raises(RuntimeError, match='못 읽었다'):
         G.grip_level('BOWL', 'HOLD')
-    assert fake.client.sent == [], '거부했으면 아무 명령도 안 보낸다'
+    assert G._client.sent == ['i'], '탐색 한 번만 · 힘 계단은 안 보냄'
+
 
 
 def test_grip_level_bad_level(fake):
