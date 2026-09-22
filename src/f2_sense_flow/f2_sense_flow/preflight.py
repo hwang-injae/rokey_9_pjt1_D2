@@ -151,7 +151,7 @@ def _cc():
 def go_home_safely(kind=None, log=None, carrying=True):
     """HOME 으로 간다 — 낮은 자세면 **곧게 위로 빠져나온 뒤에** 간다 (cc.safe_retreat → cc.move_to('HOME')).
 
-    🚨 왜 (9/22 17:07 실기 충돌): f2.dip · f2.shake 는 **수조 안 자세**에서 끝난다
+    🚨 왜 (9/22 17:27 실기 충돌): f2.dip · f2.shake 는 **수조 안 자세**에서 끝난다
        (cell.stations.RINSE 끝점 z = −13.6 mm — 받침면보다 아래). 그 자리에서 cc.move_to('HOME') 을
        부르면 **관절 이동**이라 팔이 테이블 높이를 가로지르며 그리퍼가 상판을 쓸었다
        → 충돌 → 비상정지 → **툴 전원이 끊겨 그리퍼 드라이버(OnRobotRGControllerServer)까지 죽었다**

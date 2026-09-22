@@ -617,7 +617,7 @@ def test_abort_midmove_clears_the_flags():
 def test_abort_retreats_before_going_home():
     """🚨 중단은 **수조 안**(헹굼 구간)에서도 눌린다 → HOME 으로 가기 전에 곧게 올라와야 한다.
 
-    9/22 17:07 실기: 수조 안 자세(z −13.6)에서 HOME 으로 간 관절 이동이 테이블을 가로질러
+    9/22 17:27 실기: 수조 안 자세(z −13.6)에서 HOME 으로 간 관절 이동이 테이블을 가로질러
     그리퍼가 상판을 쓸었다 → 비상정지 · 툴 전원이 끊겨 그리퍼 드라이버까지 죽었다.
     """
     order = []
