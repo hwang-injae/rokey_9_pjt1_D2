@@ -365,8 +365,9 @@ def rack_place(rack_slot: str, kind: str) -> Result:
     limit_n = float(_need(cell.get('limits'), 'insert_limit_n', 'cell.limits'))
 
     cc.force_off()
-    if not _near_slot(slot):                                        # 🔄 9/22 밤(황인재): 재시도(flow retry)는 이미 칸 위에 있다 → 수조·경유점 생략(22:57 실기: 헹굼 자리로 되돌아갔다)
-        cc.move_to('RINSE', True, kind)                             # ① 수조 위로 (접근점 — 같은 x·y 라 곧게 올라온다)
+    if not _near_slot(slot):                                        # 🔄 9/22 밤(황인재): 재시도(flow retry)는 이미 칸 위에 있다 → 수조·경유점 생략(21:32 실기: 헹굼 자리로 되돌아갔다)
+        cc.safe_retreat()                                           # 🔄 9/22 21:5x: 먼저 **Z 만 safe_z(235)** 로 — 낮은 채 수조 쪽으로 가면 툴 홀더(솔)에 걸린다(황인재 실기)
+        cc.move_to('RINSE', True, kind)                             # ① 수조 위로 (접근점 z 235 — 같은 높이로 평행 이동)
         if kind == CUP:
             entry_z = float(_need(cell.get('rack'), 'cup_entry_z_mm', 'cell.rack'))
             dz = entry_z - float(cc.where()[2])
