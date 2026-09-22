@@ -13,7 +13,9 @@
 왜: 9/21 민범진 실기에서 같은 그릇이 z 158 에서 9 g(0 에 잘림), z 235 에서 68 g 으로 읽혔다(자세 고정 오차).
     툴 무게를 다시 등록한 뒤 **두 높이의 차이가 줄었는지**가 R2 의 핵심이다. z 158 빈손이 0 근처로 잘리면
     WEIGH 자세를 z 235 로 옮긴다(E14 — 좌표 담당 황인재가 고치고 보고).
-원값은 get_workpiece_weight() 그대로(kg · 9/21 확인)를 g 로 바꿔 찍는다. 판정하지 않는다 — 판정은 기록 문서에서.
+두 값을 나란히 찍는다 — 판정하지 않는다(판정은 기록 문서에서).
+    · 하중 API get_workpiece_weight() — kg(9/21) · 🚨 Fz 의 **절댓값**이라 0 을 지나며 되튄다(9/22 민범진) = 어제 "0 에 잘림"의 정체
+    · 툴 힘 Fz(BASE) 부호 그대로 → 무게 g = −Fz × 101.97 (9/22 민범진 방식 · 빈손이 음수여도 기준값 빼기로 상쇄)
 파일 이름이 test_* 가 아니라서 pytest 는 모으지 않는다. 종료 코드 0 / 2(실행 거부) / 130(q·Ctrl+C).
 """
 import argparse
@@ -27,12 +29,15 @@ _STATE = {0: 'INITIALIZING', 1: 'STANDBY', 2: 'MOVING', 3: 'SAFE_OFF', 4: 'TEACH
           6: 'EMERGENCY_STOP', 7: 'HOMMING', 8: 'RECOVERY', 9: 'SAFE_STOP2', 10: 'SAFE_OFF2'}
 
 
-def summary(label, grams):
-    """[(g)...] → 한 줄 요약. 음수는 0 에 잘린 값이라 따로 센다."""
+N_TO_G = 101.97        # 1 N = 101.97 g (중력)
+
+
+def summary(label, grams, signed=False):
+    """[(g)...] → 한 줄 요약. 하중 API 는 0 근처 값을 따로 센다(절댓값이라 되튄 값일 수 있다)."""
     if not grams:
         return f'{label}: 읽은 값 없음'
     med = statistics.median(grams)
-    zeros = sum(1 for g in grams if g <= 0.5)
+    zeros = 0 if signed else sum(1 for g in grams if g <= 0.5)
     return (f'{label}: 중앙값 {med:.1f} g · 최소 {min(grams):.1f} · 최대 {max(grams):.1f} · 폭 {max(grams) - min(grams):.1f} g'
             + (f' · 🚨 0 근처 {zeros}회(잘림 의심)' if zeros else ''))
 
@@ -43,6 +48,7 @@ def main():
     ap.add_argument('-n', type=int, default=10, help='높이마다 읽는 횟수')
     ap.add_argument('--up-to', type=float, default=235.0, help='둘째 높이 z (mm) — 기본 safe_z 235')
     ap.add_argument('--gap', type=float, default=0.5, help='읽기 사이 대기 (s)')
+    ap.add_argument('--settle', type=float, default=5.0, help='도착 뒤 기다릴 시간 (s) — 9/22 민범진: 5 s 전에는 +30 g')
     a = ap.parse_args()
 
     cc.init('rig_weigh_poses')
@@ -64,21 +70,24 @@ def main():
         return float(d.get_current_posx(ref=d.DR_BASE)[0][2])
 
     def read(tag):
-        settle = float(cc.cfg()['f2']['weigh_settle_s'])
-        time.sleep(settle)                                   # 움직임이 멈춘 뒤에 잰다(SDD §5.3)
+        time.sleep(a.settle)                                 # 도착 뒤 약 5 s 는 +30 g 높게 읽힌다(9/22 민범진)
         z = z_now()
-        grams = []
-        log.info(f'── {tag} · z {z:.1f} mm · {a.n}회 (대기 {settle:g} s 뒤)')
+        api, fz_g = [], []
+        log.info(f'── {tag} · z {z:.1f} mm · {a.n}회 (도착 뒤 {a.settle:g} s 기다린 뒤)')
         for i in range(a.n):
             v = d.get_workpiece_weight()
+            fz = float(cc.read_force()[2])                   # BASE 기준 Fz (N)
+            g_fz = -fz * N_TO_G
+            fz_g.append(g_fz)
             if isinstance(v, (int, float)) and v >= 0:
-                grams.append(float(v) * 1000.0)              # kg → g (9/21 민범진: 단위 kg)
-                log.info(f'  {i + 1:2d}  {float(v):.4f} kg = {float(v) * 1000.0:6.1f} g')
+                api.append(float(v) * 1000.0)                # kg → g (9/21 민범진: 단위 kg)
+                log.info(f'  {i + 1:2d}  하중 API {float(v):.4f} kg = {float(v) * 1000.0:7.1f} g   ·   Fz {fz:+.3f} N → {g_fz:+7.1f} g')
             else:
-                log.warn(f'  {i + 1:2d}  {v!r} — 읽기 실패')
+                log.warn(f'  {i + 1:2d}  하중 API {v!r} — 읽기 실패   ·   Fz {fz:+.3f} N → {g_fz:+7.1f} g')
             time.sleep(a.gap)
-        log.info('   ' + summary(tag, grams))
-        return z, grams
+        log.info('   ' + summary(f'{tag} · 하중 API', api))
+        log.info('   ' + summary(f'{tag} · −Fz', fz_g, signed=True))
+        return z, api, fz_g
 
     try:
         scale = float(cc.cfg()['run']['vel_scale'])
@@ -97,22 +106,26 @@ def main():
             cc.move_rel(0.0, 0.0, -up, 'BASE')
         if not standby('읽기'):
             return 2
-        z1, low = read(f'WEIGH.{a.kind} 티칭 자세')
+        z1, low, low_fz = read(f'WEIGH.{a.kind} 티칭 자세')
         dz = a.up_to - z1
         if dz <= 0 or dz > 150:
             log.error(f'둘째 높이 z {a.up_to:g} 가 지금 z {z1:.1f} 보다 낮거나 150 mm 넘게 높다 — 올라가지 않는다')
             return 2
         ask(f'③ 같은 x·y 로 곧게 {dz:.1f} mm 올라가 z {a.up_to:g} 로')
         cc.move_rel(0.0, 0.0, dz, 'BASE')
-        z2, high = read(f'z {a.up_to:g} (같은 x·y)')
+        z2, high, high_fz = read(f'z {a.up_to:g} (같은 x·y)')
         ask('④ HOME 으로')
         cc.move_to('HOME', True, a.kind)
         log.info('──── 결과 (판정은 기록 문서에서) ────')
-        log.info('  ' + summary(f'z {z1:.1f}', low))
-        log.info('  ' + summary(f'z {z2:.1f}', high))
+        log.info('  ' + summary(f'z {z1:.1f} · 하중 API', low))
+        log.info('  ' + summary(f'z {z2:.1f} · 하중 API', high))
+        log.info('  ' + summary(f'z {z1:.1f} · −Fz', low_fz, signed=True))
+        log.info('  ' + summary(f'z {z2:.1f} · −Fz', high_fz, signed=True))
         if low and high:
-            log.info(f'  두 높이 차이(중앙값): {statistics.median(high) - statistics.median(low):+.1f} g'
+            log.info(f'  두 높이 차이 · 하중 API: {statistics.median(high) - statistics.median(low):+.1f} g'
                      '  ← 9/21 등록 전: 그릇 약 +56 g (12.9 → 68.4)')
+        if low_fz and high_fz:
+            log.info(f'  두 높이 차이 · −Fz: {statistics.median(high_fz) - statistics.median(low_fz):+.1f} g   (0 에 가까울수록 자세와 무관)')
         return 0
     except KeyboardInterrupt:
         log.warn('q 또는 Ctrl+C — 정지 명령을 보내고 끝낸다')
