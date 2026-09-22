@@ -56,6 +56,16 @@ def check_controller(node, expect, timeout_s=3.0):
     return out
 
 
+def _is_virtual():
+    """지금 붙어 있는 컨트롤러가 에뮬레이터인가. 두산 노드가 없으면(robot=False) False."""
+    try:
+        from cobot_common.bootstrap import dsr
+        d = dsr()
+        return d.get_robot_system() == d.ROBOT_SYSTEM_VIRTUAL
+    except Exception:                                    # noqa: BLE001 — 모르면 "실기" 로 보고 확인한다(안전한 쪽)
+        return False
+
+
 def require_controller(node, cfg, log=None):
     """flow.preflight 설정대로 확인하고, 하나라도 다르면 PreflightError. 통과하면 읽은 이름을 돌려준다.
 
@@ -65,6 +75,10 @@ def require_controller(node, cfg, log=None):
     if not pf:
         if log:
             log.warn('flow.preflight 가 없다 — 툴·TCP 이름을 확인하지 않고 움직인다 (TS-07)')
+        return {}
+    if _is_virtual():                                    # 🆕 9/22 — 에뮬레이터의 툴·TCP 이름은 실기 등록값과 다르다 → 가상에서는 건너뛴다
+        if log:
+            log.warn('Virtual 컨트롤러 — 툴·TCP 이름 확인을 건너뛴다 (실기 등록값과 다르다 · TS-07 은 실기용)')
         return {}
     got = check_controller(node, pf, pf.get('timeout_s', 3.0))
     bad = {k: v for k, (ok, v) in got.items() if not ok}
