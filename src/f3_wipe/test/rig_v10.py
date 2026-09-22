@@ -33,7 +33,7 @@ import time
 
 import cobot_common as cc
 from cobot_common.bootstrap import dsr
-from f3_wipe.wipe import JointGuardStop, _scrub_cup, _Trip, cup_hops, cup_stroke
+from f3_wipe.wipe import JointGuardStop, _fast_z, _scrub_cup, _Trip, cup_hops, cup_stroke
 
 STAGES = ('find', 'scrub')
 EXPECTED_TOOL, EXPECTED_TCP = 'Tool Weight', 'GripperDA_v1'
@@ -152,7 +152,7 @@ def main() -> int:
         started = True
 
         # ── ① HOME → 컵 위 → 정한 길이만큼 빠르게 → 바닥 찾기 ───────────────────
-        trip = _Trip(cup_hops(p))                                       # 제품 코드와 같은 길: HOME → z +40 → y +140 → z −40
+        trip = _Trip(cup_hops(p), p)                                       # 제품 코드와 같은 길: HOME → z +40 → y +140 → z −40
         trip.go()
         if a.air:                                                        # 공중에서 돌리기 — 솔 끝이 컵 테두리보다 55 mm 위
             cc.move_rel(0.0, 0.0, 60.0, 'BASE')
@@ -169,7 +169,7 @@ def main() -> int:
         rec.zero()
         fast = float(p['fast_down_mm'])
         log.info(f'컵 위 Z {z_top:.1f} → 빠르게 {fast:g} mm 내려간 뒤 힘으로 찾는다')
-        cc.move_rel(0.0, 0.0, -fast, 'BASE')
+        _fast_z(p, -fast)                                                # 제품 코드와 같은 빠른 하강 속도
         n0 = len(rec.rows)
         found, f_n = cc.contact_down(float(p['find_max_mm']), float(p['find_limit_n']))
         z_bottom = cc.where()[2]
