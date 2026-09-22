@@ -150,9 +150,17 @@ def _regrip(bed: str, kind: str) -> PickResult:
         #    잡은 뒤 cc.set_grip_preset 으로 알려 주어 f2 의 HOLD/NORMAL 전환이 이 프리셋의 힘(5 N)을 쓰게 한다(35 N 이면 눌림 · E19).
         preset = bed_spec.get('regrip_preset') or kind
         cc.release()
-        cc.move_to(bed, False, kind, _REGRIP_POINT)                 # posj — 접근점 없음
+        # 🔄 9/23 08:1x(황인재): 재파지 자세에 **접근점**(approach_posx + posx · rig_fkin 으로 posj → posx)을 두면
+        #    위에서 자세를 맞추고 **Z 만 내려** 손가락이 컵 양옆으로 내려온다. posj 만 있으면(옛 방식) 관절 이동으로 곧장 가는데,
+        #    07:55 실기에서 HOME 에서 곧장 가다 열린 그리퍼가 홈 C 의 컵에 걸려 SAFE_STOP 이 났다.
+        up = float(cc.move_to(bed, False, kind, _REGRIP_POINT) or 0.0)
+        if up > 0.0:
+            cc.move_rel(0.0, 0.0, -up, 'BASE')
         ok, width = _grip_here(preset)
         if not ok:
+            cc.release()                                            # 헛잡음 — 놓고 접근점으로 올라가 GRIP_FAIL(사람이 확인)
+            if up > 0.0:
+                cc.move_rel(0.0, 0.0, up, 'BASE')
             return PickResult.fail(GRIP_FAIL, attempts=1)
         if preset != kind:
             cc.set_grip_preset(preset)
