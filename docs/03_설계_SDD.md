@@ -230,7 +230,7 @@ sequenceDiagram
   W->>C: soap(3) · wipe_bowl()
   C-->>W: WipeBowlResult(ok, force_log)
   W->>A: tool('SPONGE','RETURN') · pick('SPONGE_BED_B','BOWL')
-  W->>B: dip('RINSE',1,'BOWL') · shake('RINSE',3,'BOWL')
+  W->>B: dip('RINSE',2,'BOWL') · shake('RINSE',3,'BOWL')
   W->>A: rack_place('RACK_B1','BOWL') · move_to('HOME', False)
   W-->>H: /flow/event(DONE) · /flow/state (2 Hz, 통신 노드 스레드)
 ```
@@ -417,7 +417,7 @@ return EMPTY_ZONE (attempts = 슬롯 수)
 - `weigh`: `up = move_to(WEIGH)`(`up > 0`이면 그만큼 하강) → 0.5 s 정지 → `cobot_common.weigh(n)`. 0점 재설정은 선택 동작(TS-03) — 판정은 `측정값 − 빈 용기 기준값`이라 고정 옵셋이 상쇄된다.
 - `leftover_loop`: `weigh` → 판정(임계 50 g, 미만은 OK) → `move_to(WASTE)` → `shake(WASTE)` → `weigh` … 최대 `max_rounds`.
 - **강한 파지**: `shake`·`dip`(과 이를 부르는 `leftover_loop`)는 시작할 때 `grip_level(kind,'HOLD')`, 끝날 때 `grip_level(kind,'NORMAL')`. 동작 전후 폭을 비교해 변했으면(미끄러짐) `GRIP_FAIL`.
-- `shake`: 티칭 자세(잔반통·수조 **위**)에서 J5/J6 관절 왕복 — `cc.move_joint_rel(joint, ±amp, time_s=…)`. 🚨 `time_s`는 **한 번 움직이는 구간의 시간**이다(가운데 → 끝 = `period_s/4`, 끝 → 반대쪽 끝 = `period_s/2`) — `period_s`를 그대로 넘기면 4배 느려진다. 평균 속도가 `cell.motion.vel_joint_max_deg_s × vel_scale`을 넘으면 자동으로 느려진다(#16). 충돌 감지 오작동 시 진폭 축소(V-07).
+- `shake`: 🔄 **E24(9/22) — `mode` 마다 다른 동작이다**: `WASTE` = **잔반 버리기** — ✅ PR #68: 흔들기 **전에** J5 를 `f2.shake.WASTE.tilt_deg`(−90 · V-07 실기)만큼 기울여 입을 잔반통 쪽으로 → 그 자세를 가운데로 ±amp 흔들고 → 되돌린다(실패하면 finally 가 되돌림 · 상한 `f2.limits.max_tilt_deg` 100) · 잔반통 자세 J6 180(그릇이 잔반통 위로 · 케이블 주의) · 🟡 컵은 V-07 미확인 / `RINSE` = **물기 털기**(아래 관절 왕복). 서명은 그대로. — 물기 털기: 티칭 자세(수조 **위**)에서 J5/J6 관절 왕복 — `cc.move_joint_rel(joint, ±amp, time_s=…)`. 🚨 `time_s`는 **한 번 움직이는 구간의 시간**이다(가운데 → 끝 = `period_s/4`, 끝 → 반대쪽 끝 = `period_s/2`) — `period_s`를 그대로 넘기면 4배 느려진다. 평균 속도가 `cell.motion.vel_joint_max_deg_s × vel_scale`을 넘으면 자동으로 느려진다(#16). 충돌 감지 오작동 시 진폭 축소(V-07).
 - `dip`: 티칭 자세(수조 위, 담그기 시작 자세)까지 → **그 자세에서** `depth_mm` 하강 → `hold_s` → `depth_mm` 상승. `depth_mm`은 수조 깊이 − 용기 높이보다 작아야 한다(값은 V-07에서, 물 없이 모션만).
 
 ### 5.4 f3_wipe — `wipe.py` (박진용)

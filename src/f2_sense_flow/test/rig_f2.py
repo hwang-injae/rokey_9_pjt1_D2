@@ -29,6 +29,7 @@ import cobot_common as cc
 from cobot_api import F2Api, check_api
 
 from f2_sense_flow import sense
+from f2_sense_flow.preflight import require_controller   # 🆕 TS-07 — 움직이기 전 툴·TCP 확인
 
 
 def main():
@@ -74,6 +75,8 @@ def main():
     log = cc.io_node().get_logger()
     if a.no_robot:
         log.warn('--no-robot — 두산 드라이버 없이 함수 반환만 확인한다')
+    else:
+        require_controller(cc.io_node(), cc.cfg(), log)   # 🆕 TS-07 — 다르면 PreflightError 로 여기서 끝
     try:
         # 🚨 9/21 결정 E15 — 잔반통(로봇 **뒤**) ↔ 저울·수조·반납 구역(**앞**) 사이는 HOME 을 거친다.
         #    앞뒤로 곧장 가면 로봇 몸통을 가로지르고(E7 로 안전 높이 경유가 없다) 6번 관절이 163°
@@ -149,6 +152,7 @@ def _hold_container(a):
     """
     cc.init('rig_f2', robot=True)
     log = cc.io_node().get_logger()
+    require_controller(cc.io_node(), cc.cfg(), log)   # 🆕 TS-07
     try:
         if a.which == 'release':
             cc.release()                             # 열기 + (첫 호출이면) 힘 기준 맞추기
@@ -195,6 +199,7 @@ def _measure_empty(a):
     """
     cc.init('rig_f2', robot=True)
     log = cc.io_node().get_logger()
+    require_controller(cc.io_node(), cc.cfg(), log)   # 🆕 TS-07
     try:
         # 🚨 재기 전에 **그 종류의 WEIGH 자세로 간다.** 하중 옵셋(+42~45 g)은 자세마다 다르므로
         #    잰 자세와 실제 운전에서 재는 자세가 같아야 판정식 `측정값 − 기준값` 에서 상쇄된다.
@@ -208,6 +213,11 @@ def _measure_empty(a):
         if up > 0.0:
             cc.move_rel(0.0, 0.0, -up, 'BASE')
         samples = cc.cfg()['f2']['weigh_samples']
+        settle = float(cc.cfg()['f2'].get('weigh_settle_s') or 0.0)
+        # 🔄 9/22 발견: 여기는 cc.weigh 를 직접 불러 sense.weigh 의 정지 대기(weigh_settle_s)를 건너뛰었다
+        #    → 도착 직후 5 s 동안 +30 g 높게 읽히는 구간을 그대로 기준값에 넣고 있었다. 실제 운전과 같게 기다린다
+        log.info(f'도착 — {settle:.1f} s 정지 뒤 잰다 (f2.weigh_settle_s · 실제 운전과 같게)')
+        time.sleep(settle)
         log.info(f'빈 {a.kind} 을(를) 그리퍼에 물린 상태에서 {a.n}회 잰다 (회당 {samples} 표본)')
         got = []
         for i in range(a.n):

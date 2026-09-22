@@ -336,6 +336,11 @@ def shake(mode: str, count: int, kind: str) -> Result:
 
     한 번 왕복 = 가운데 → +amp → −amp → 가운데. 🚨 **항상 가운데에서 끝난다** —
     도중에 실패해도 finally 가 남은 각도를 되돌린다(자세가 밀린 채 다음 용기로 가면 안 된다).
+
+    🆕 9/22 V-07 실기 — **기울이기(tilt_deg)**: 똑바로 든 채 ±15° 흔들면 그릇 입이 계속 위를 봐서 고형 잔반이
+       안 쏟아진다. f2.shake.<mode>.tilt_deg 가 있으면 흔들기 **전에** 같은 관절을 그만큼 기울여(입이 잔반통 쪽으로)
+       그 자세를 가운데 삼아 흔들고, 끝나면 되돌린다. 없거나 0 이면 예전 그대로(RINSE 물 털기는 안 기울인다).
+       부호는 실기에서 정한다(어느 쪽이 잔반통 쪽인지는 자세마다 다르다). 상한 f2.limits.max_tilt_deg.
     """
     conf = _f2()
     lim = _limits(conf)
@@ -345,6 +350,10 @@ def shake(mode: str, count: int, kind: str) -> Result:
                 where=f'f2.shake.{mode}')
     period = _need(p, 'period_s', lo=0.0, where=f'f2.shake.{mode}')
     slip_tol = _need(conf, 'slip_tol_mm')
+    tilt = 0.0
+    if p.get('tilt_deg') is not None:                        # 🆕 선택 — 있으면 상한까지 검사
+        max_tilt = _need(lim, 'max_tilt_deg', where='f2.limits')
+        tilt = _need(p, 'tilt_deg', lo=-max_tilt, hi=max_tilt, where=f'f2.shake.{mode}')
     n = int(count)
 
     if n <= 0:
@@ -365,6 +374,10 @@ def shake(mode: str, count: int, kind: str) -> Result:
     moved = 0.0                                 # 가운데에서 얼마나 벗어나 있나 (실패 복구용)
     _hold(kind, HOLD)                           # 흔들 때는 더 꽉 잡는다 (IRD §4)
     try:
+        if tilt:                                # 🆕 기울이기 — 들고 가는 속도(시간 지정 없음), 흔들기의 새 가운데
+            _log().info(f'shake({mode}) — J{joint} {tilt:+.0f}° 기울인다 (입이 잔반통 쪽으로)')
+            cc.move_joint_rel(joint, tilt, carrying=True)
+            moved += tilt
         for i in range(1, n + 1):
             cc.move_joint_rel(joint, +amp, time_s=t_quarter, carrying=True)   # 가운데 → 끝
             moved += amp
@@ -373,6 +386,9 @@ def shake(mode: str, count: int, kind: str) -> Result:
             cc.move_joint_rel(joint, +amp, time_s=t_quarter, carrying=True)   # 끝 → 가운데
             moved += amp
             _log().info(f'shake({mode}) {i}/{n} — J{joint} ±{amp:.0f}° · 주기 {period:.2f} s')
+        if tilt:                                # 🆕 아직 꽉 쥔 채 똑바로 되돌린다 (finally 는 실패용)
+            cc.move_joint_rel(joint, -tilt, carrying=True)
+            moved -= tilt
     finally:
         if abs(moved) > 1e-9:                   # 🚨 도중에 실패했으면 가운데로 되돌린다
             _quietly('가운데 복귀', cc.move_joint_rel, joint, -moved)
