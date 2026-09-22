@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v14.1'
+VERSION = 'v14.2'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1745,6 +1745,22 @@ HISTORY91 = ['v14.1', '최신화', 'NOTE-01, V-08, V-02',
              '황인재 9/22 12:05', 'H,M']
 
 
+# ---------------------------------------------------------------- 9/22 12:15 F4 보고 — 컨트롤러 툴·TCP 선택이 풀려 있었다(복구 끝)
+TCPX = ('🚨 9/22 F4 보고: 컨트롤러의 **현재 툴·TCP 선택이 풀려 있었다**(get_current_tool · tcp = 빈 값 · 등록 값은 그대로) — 10:54 정상(민범진 무게) · 11:17 풀림 → 12시 무렵 황인재가 펜던트에서 다시 골라 복구'
+        '(빈손 1.316 → 0.123 kg · HOME z 214.73 · ROS set 서비스는 거절). 풀린 동안 posx 이동은 손끝 208 mm 아래로 · 무게 1.3 kg 고정 · 힘 값도 달랐다 → 그 시간(10:54~12:00) 실기 결과는 다시 확인. 원인 미확인')
+P1215 = {
+ 'ENV-05': dict(note_add=TCPX + '. 🔜 F4: cobot_common.init 이 시작할 때 두 이름을 확인하고 다르면 움직이지 않게(V-02 뒤 PR)'),
+ 'V-02':   dict(note_add='✅ 9/22 12:15: 1.33 kg 고정 원인 = 툴·TCP 선택 풀림(복구 끝 · ENV-05 비고). 10:48~10:54 민범진 값은 정상 때 · 11:17 뒤 값은 버린다 → R2 · V-02 진행 가능'),
+ 'F1-02':  dict(note_add='🔴 9/22 12:15: 10:54~12:00 사이 툴·TCP 선택이 풀려 있었다 → 그 사이 찍은 컵 C1·C2 등 posx 는 플랜지 값일 수 있다(z +208) — pick() PR 전에 다시 확인(묶음 ①)'),
+ 'F3-02':  dict(note_add='🔴 9/22 12:15: 10:54~12:00 사이 툴 선택이 풀려 힘 값이 그리퍼 무게만큼 달랐다 → 그 시간에 한 재검증은 다시(묶음 ③)'),
+}
+for _tid, _e in P1215.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY92 = ['v14.2', '사고·복구', 'ENV-05, V-02, F1-02, F3-02',
+             'F4 보고(9/22 12:15): 컨트롤러 툴·TCP 선택이 10:54~11:17 사이부터 12시 무렵까지 풀려 있었다(등록 값은 그대로) → posx 이동 손끝 208 mm 아래 · 무게 1.3 kg 고정 · 힘 값 다름. 펜던트에서 다시 골라 복구. 그 시간 실기 결과는 다시 확인 · 앞으로 로봇 움직이기 전 두 이름 확인(리마인드 §6) · 전원 공지는 13시 묶음',
+             '황인재 9/22 12:15', '전원']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -1833,7 +1849,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
