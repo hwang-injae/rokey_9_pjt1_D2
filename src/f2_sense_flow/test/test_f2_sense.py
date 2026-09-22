@@ -536,6 +536,20 @@ def test_shake_and_dip_refuse_to_move_when_gripper_is_open(monkeypatch):
         assert not r.of('move_to') and not r.of('move_rel') and not r.of('move_joints_via') and not r.of('grip_level')
 
 
+def test_shake_and_dip_refuse_to_move_when_gripper_is_closed_empty(monkeypatch):
+    """🆕 9/23: 폭 판정 프리셋(벽 집기)에서 폭 ≤ 영점 + 허용오차 = **꽉 닫힌 빈손** → 움직이기 전에 GRIP_FAIL(08:4x 실기 10.5 mm).
+    고정 폭 프리셋(grip_target_mm · 옆면 컵)은 이 판정을 하지 않는다."""
+    for call in (lambda s: s.shake('RINSE', 3, 'BOWL'), lambda s: s.dip('RINSE', 2, 'BOWL')):
+        r = RecCell(widths=[10.5])                          # BOWL: 영점 10.58 · tol 0.6 → 11.18 이하 = 빈손
+        s = _sense(monkeypatch, r)
+        out = call(s)
+        assert not out.ok and out.code == GRIP_FAIL
+        assert not r.of('move_to') and not r.of('move_rel') and not r.of('move_joints_via') and not r.of('grip_level')
+    r = RecCell(widths=[76.0, 76.0, 76.0])                  # CUP(고정 폭 76 · E19): 판정 안 함 → 움직인다
+    s = _sense(monkeypatch, r)
+    assert s.dip('RINSE', 1, 'CUP').ok and r.of('move_to')
+
+
 def test_shake_waste_unchanged_by_e36(monkeypatch):
     """잔반 털기(WASTE)는 그대로 — 티칭 자세까지 가고(_goto) J5 · vel_scale 적용(scale 키워드 없음)."""
     r = Rec(up=30.0)
@@ -890,7 +904,9 @@ class RecCell(Rec):
     """cell.presets 까지 들고 있는 가짜 — 폭 판정을 켠다."""
 
     def cfg(self):
-        return dict(CFG, **_CELL_PRESETS)
+        c = dict(CFG)
+        c['cell'] = {**CFG.get('cell', {}), **_CELL_PRESETS['cell']}   # 🔄 stations·motion 은 CFG 것 + presets 덧붙임(깊은 합치기)
+        return c
 
 
 def test_weigh_low_but_width_says_held_is_not_a_drop(monkeypatch):
