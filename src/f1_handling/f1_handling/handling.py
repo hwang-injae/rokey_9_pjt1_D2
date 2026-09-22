@@ -154,13 +154,37 @@ def _regrip(bed: str, kind: str) -> PickResult:
         #    위에서 자세를 맞추고 **Z 만 내려** 손가락이 컵 양옆으로 내려온다. posj 만 있으면(옛 방식) 관절 이동으로 곧장 가는데,
         #    07:55 실기에서 HOME 에서 곧장 가다 열린 그리퍼가 홈 C 의 컵에 걸려 SAFE_STOP 이 났다.
         up = float(cc.move_to(bed, False, kind, _REGRIP_POINT) or 0.0)
+        free = depth = 0.0
         if up > 0.0:
-            cc.move_rel(0.0, 0.0, -up, 'BASE')
+            # 🔄 9/23 08:2x: 내려오는 마지막 f1.regrip_watch_mm(60)은 **힘 감시**(cell.limits.insert_limit_n) — 손가락이 컵 테두리에 얹히면
+            #    컨트롤러 SAFE_STOP(07:55) 대신 상한에서 멈춰 되올라오고 GRIP_FAIL(정책 pause · 사람이 자세 XY 확인). 컵 윗단은 잡는 높이 +45 쯤.
+            cell = _cell()
+            watch = min(up, float((cc.cfg().get('f1') or {}).get('regrip_watch_mm') or 60.0))
+            free = up - watch
+            if free > 0.0:
+                cc.move_rel(0.0, 0.0, -free, 'BASE')
+            limit_n = float(_need(cell.get('limits'), 'insert_limit_n', 'cell.limits'))
+            try:
+                depth, force = cc.contact_down(watch, limit_n, timeout_s=_contact_timeout())
+            except ForceLimitError as e:
+                _log().error(f'재파지({bed}) 하강 — 힘 상한: {e}')
+                _after_contact_failure(free, watch)
+                return PickResult.fail(FORCE_LIMIT, attempts=1)
+            except MotionTimeout as e:
+                _log().error(f'재파지({bed}) 하강 — 시간 초과: {e}')
+                _after_contact_failure(free, watch)
+                return PickResult.fail(TIMEOUT, attempts=1)
+            cc.force_off()
+            tol = float((cell.get('rack') or {}).get('seat_tol_mm') or 3.0)
+            if depth < watch - tol:
+                _log().warn(f'재파지({bed}) — {depth:.1f}/{watch:.1f} mm 에서 {force:.1f} N 닿음 → 손가락이 컵에 얹힌 것 · 재파지 자세 XY 확인 → GRIP_FAIL')
+                cc.move_rel(0.0, 0.0, free + depth, 'BASE')
+                return PickResult.fail(GRIP_FAIL, attempts=1)
         ok, width = _grip_here(preset)
         if not ok:
             cc.release()                                            # 헛잡음 — 놓고 접근점으로 올라가 GRIP_FAIL(사람이 확인)
             if up > 0.0:
-                cc.move_rel(0.0, 0.0, up, 'BASE')
+                cc.move_rel(0.0, 0.0, free + depth, 'BASE')
             return PickResult.fail(GRIP_FAIL, attempts=1)
         if preset != kind:
             cc.set_grip_preset(preset)
