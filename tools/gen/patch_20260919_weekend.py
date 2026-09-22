@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v14.8'
+VERSION = 'v14.9'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1827,6 +1827,34 @@ HISTORY98 = ['v14.8', '진척', 'INF-02c, V-02, F2-01, F2-02, V-07, UT-F2, FLOW-
              '황인재 9/22 13:20', 'M,H']
 
 
+# ---------------------------------------------------------------- 9/22 13:55 결정 E25 — 컵은 무게·잔반 버리기 없음(헹굼·물 털기는 함) · PR #69 수정 요청
+NEW.append(
+ ('FLOW-05', 'FLOW-04', 'FLOW-04', '개발', 'flow 에서 컵은 WEIGH 단계(move_to WEIGH · leftover_loop)를 건너뛴다 — 결정 E25(컵은 액체만 · 잔반 없음) · 헹굼 담금·물 털기는 그대로',
+  'M', '시작 전', S('9/22 오후'), '`flow.py process_one` 수정 + 자동 시험(컵 계획에서 WEIGH 호출 0회 · 그릇은 그대로) · PR',
+  '가짜 기능(use_mock=f1,f2,f3)으로 컵 1개 돌릴 때 f1.move_to("WEIGH") · f2.leftover_loop 가 **한 번도 불리지 않고** SEAT 로 간다 · 그릇은 예전 그대로 · /flow/state 의 step 이 컵에서 WEIGH 를 안 거친다 · 자동 시험 통과(두 환경)',
+  '황인재 9/22 13:55 결정 E25: 컵에는 액체만 있고 음식물이 없다고 가정 → 무게 재기·잔반 버리기를 하지 않는다. 헹굼 담금·물 털기는 한다. 계기: 한석형 PR #69 주석. 로봇 불필요(가짜 기능으로 확인) · **9/23 동결 전** · 컵 기준값·컵 WEIGH 자세·컵 놓침 무게 판정은 필요 없어진다'))
+EASY['FLOW-05'] = '메인 프로그램이 컵을 처리할 때 "무게 재기 → 잔반 버리기" 단계를 건너뛰게 고친다. 컵에는 국물 같은 액체만 있고 음식물은 없다고 보기로 했기 때문이다. 헹굼과 물 털기는 그대로 한다'
+E25N = '🔄 9/22 E25(황인재): 컵은 무게·잔반 버리기 없음(헹굼·물 털기는 함)'
+P1355 = {
+ 'INT-12a': dict(task='INT-12a F1+F2 — 집기→무게→잔반 버리기 5회 · **그릇만**(E25 컵은 무게 단계 없음) · 시험대 rig_int12(flow_node 없이 — flow_node 실기는 FLOW-04)', owner='M(S)',
+                 note_add=E25N + ' → INT-12a 는 그릇만. rig_int12 의 CUP a 는 쓰지 않는다'),
+ 'INT-12b': dict(note_add=E25N + ' → INT-12b(재파지 → 헹굼 → 물 털기 → 적재)는 **컵도 한다**'),
+ 'V-02':    dict(note_add=E25N + ' → **컵 빈 용기 기준값 · 컵 WEIGH 자세 · 컵 놓침 무게 판정은 필요 없다** — F4 컵 R2 중단 · 그릇만 마무리'),
+ 'V-07':    dict(task='V-07 털기 실기 — 잔반 버리기(그릇 · E24 새 동작)와 물기 털기(그릇·컵)에서 충돌 감지 오작동·놓침 여부', note_add=E25N + ' → 컵은 **물 털기만**(잔반 버리기 없음). 남은 것: 물 털기 RINSE 그릇·컵'),
+ 'V-16':    dict(note_add=E25N + ' → 컵은 물 털기에서만 본다'),
+ 'F2-01':   dict(note_add=E25N + ' — weigh · leftover_loop 는 그릇 전용이 된다. flow 수정은 FLOW-05'),
+ 'INT-3b':  dict(note_add=E25N + ' → 컵 끝까지 = PICK → SEAT → SOAP → WIPE → RINSE → RACK(WEIGH 없음) — FLOW-05 merge 뒤'),
+ 'F1-02':   dict(note_add='🔴 9/22 13:45 PR #69 **수정 요청**(merge 보류): ① 컵 잡는 힘 5 → 40 N — E19 근거(15 N 변형 · 20 N 안전 스위치)와 반대 · 설명 필요(황인재) ② 주석 "RINSE SHAKE 생략" 은 틀림(E25: 물 털기는 한다) · E19 한계 설명 복원 ③ 자동 시험 1건(KNOWN_TILTED 에서 RACK_C2 제거). 🚨 pick()·rack_place 코드는 이 PR 에 없음 — 저녁 INT-12·FLOW-04 전제'),
+ 'F1-04':   dict(note_add='9/22 PR #69: 컵 칸 C1·C2 접근점이 끝점 바로 위로 고쳐짐(👍) · 새 키 rack.cup_via · cup_entry_z_mm(제품 코드 미사용). rack_place 코드는 아직'),
+}
+for _tid, _e in P1355.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY99 = ['v14.9', '결정 E25·신규·PR', 'FLOW-05(신규), INT-12a·12b, V-02, V-07, V-16, F2-01, INT-3b, F1-02, F1-04',
+             '황인재 9/22 13:55 결정 E25: 컵은 무게·잔반 버리기를 하지 않는다(액체만 · 잔반 없음) — 헹굼 담금·물 털기는 한다 → 🆕 FLOW-05(민범진 · flow 에서 컵 WEIGH 건너뛰기 · 동결 전) · INT-12a 그릇만 · 컵 기준값·컵 WEIGH 자세·컵 놓침 판정 불필요(F4 컵 R2 중단). '
+             'PR #69(한석형 컵 좌표) 수정 요청: 컵 힘 40 N 설명 필요 · 주석 정정 · 시험 목록 갱신 · pick()/rack_place 코드는 아직',
+             '황인재 9/22 13:55', 'M,S,H']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -1915,7 +1943,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)

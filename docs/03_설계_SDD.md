@@ -231,6 +231,7 @@ sequenceDiagram
   C-->>W: WipeBowlResult(ok, force_log)
   W->>A: tool('SPONGE','RETURN') · pick('SPONGE_BED_B','BOWL')
   W->>B: dip('RINSE',2,'BOWL') · shake('RINSE',3,'BOWL')
+  Note over W: 🔄 E25(9/22) — kind == CUP 이면 WEIGH 두 단계(move_to WEIGH · leftover_loop)를 건너뛴다(컵은 액체만 · 잔반 없음). RINSE 담금·물 털기는 컵도 한다
   W->>A: rack_place('RACK_B1','BOWL') · move_to('HOME', False)
   W-->>H: /flow/event(DONE) · /flow/state (2 Hz, 통신 노드 스레드)
 ```
