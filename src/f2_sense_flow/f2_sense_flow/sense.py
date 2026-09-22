@@ -91,6 +91,27 @@ def _group(conf, group, name):
     return g[name]
 
 
+def shake_params(conf, mode, kind):
+    """f2.shake.<mode> 의 값 묶음 — 🆕 9/22 **종류별**: 그 안에 BOWL/CUP 묶음이 있으면 kind 것을, 없으면 공용 묶음을 쓴다.
+
+        shake:
+          RINSE:                      # 종류별 (컵과 그릇의 까딱임이 다르다 — 민범진 9/22)
+            BOWL: {joint: 5, amp_deg: 10, period_s: 0.5}
+            CUP:  {joint: 5, amp_deg: 6, period_s: 0.6}
+          WASTE: {joint: 5, amp_deg: 15, cycles: 4, period_s: 0.6, tilt_deg: -90}   # 공용(그릇만 쓴다 · E25)
+
+    종류별 묶음이 있는데 kind 것이 없으면 KeyError — 조용히 다른 종류 값으로 돌지 않는다.
+    시험대(rig_f2 · rig_shake_tune)도 이 함수로 같은 묶음을 집어 덮어쓴다.
+    """
+    g = _group(conf, 'shake', mode)
+    per_kind = {k: v for k, v in g.items() if k in ('BOWL', 'CUP') and isinstance(v, dict)}
+    if per_kind:
+        if kind not in per_kind:
+            raise KeyError(f'params.yaml 의 f2.shake.{mode}.{kind} 가 없다 — 종류별로 나눴으면 둘 다 채운다')
+        return per_kind[kind]
+    return g
+
+
 def _limits(conf):
     lim = conf.get('limits')
     if not isinstance(lim, dict):
@@ -286,7 +307,7 @@ def leftover_loop(kind: str, max_rounds: int) -> LeftoverResult:
     """
     conf = _f2()
     threshold = _need(conf, 'leftover_threshold_g')
-    cycles = _need(_group(conf, 'shake', 'WASTE'), 'cycles', cast=int, lo=1,
+    cycles = _need(shake_params(conf, 'WASTE', kind), 'cycles', cast=int, lo=1,
                    where='f2.shake.WASTE')
     rounds_max = max(0, int(max_rounds))
 
@@ -340,6 +361,8 @@ def shake(mode: str, count: int, kind: str) -> Result:
     🆕 9/22 물 털기 — **직선 왕복(axis · amp_mm)**: f2.shake.<mode> 에 `joint` 대신 `axis: x|y|z` 와 `amp_mm` 를 주면
        BASE 기준 그 축으로 ±amp_mm 왕복한다(가운데 → +amp → −amp → 가운데 · cc.move_rel). 관절 왕복과 같은 모양이고
        단위만 mm 다. 속도는 period_s 에 맞춘다(구간 거리 ÷ 구간 시간 · 상한은 move_rel 이 건다). 상한 f2.limits.max_amp_mm.
+       `acc_mm_s2`(선택)를 주면 그 가속도로 — 짧은 왕복은 가속도가 "임팩트" 를 정한다(안 주면 move_rel 기본 = 들고 가는 30 %).
+       상한은 cell.motion.acc_tcp_max_mm_s2 × vel_scale 로 move_rel 이 자른다.
        RINSE(물 털기) 가 이 방식 — 민범진 9/22 결정(그릇 입은 위 · 손목 회전 없이 앞뒤로).
     🆕 9/22 V-07 실기 — **기울이기(tilt_deg)**: 똑바로 든 채 ±15° 흔들면 그릇 입이 계속 위를 봐서 고형 잔반이
        안 쏟아진다. f2.shake.<mode>.tilt_deg 가 있으면 흔들기 **전에** 같은 관절을 그만큼 기울여(입이 잔반통 쪽으로)
@@ -348,7 +371,7 @@ def shake(mode: str, count: int, kind: str) -> Result:
     """
     conf = _f2()
     lim = _limits(conf)
-    p = _group(conf, 'shake', mode)
+    p = shake_params(conf, mode, kind)                       # 🆕 종류별(BOWL/CUP) 묶음이 있으면 그것
     linear = p.get('axis') is not None                       # 🆕 직선 왕복(axis·amp_mm) 인가, 관절 왕복(joint·amp_deg) 인가
     if linear:
         axis = str(p.get('axis')).lower()
@@ -356,6 +379,7 @@ def shake(mode: str, count: int, kind: str) -> Result:
             raise ValueError(f'f2.shake.{mode}.axis = {p.get("axis")!r} — x·y·z 중 하나')
         amp = _need(p, 'amp_mm', lo=0.0, hi=_need(lim, 'max_amp_mm', where='f2.limits'),
                     where=f'f2.shake.{mode}')
+        acc = _need(p, 'acc_mm_s2', lo=0.0, where=f'f2.shake.{mode}') if p.get('acc_mm_s2') is not None else None
         joint = None
     else:
         joint = _need(p, 'joint', cast=int, lo=1, hi=6, where=f'f2.shake.{mode}')
@@ -392,8 +416,8 @@ def shake(mode: str, count: int, kind: str) -> Result:
         vec = {'x': (1.0, 0.0, 0.0), 'y': (0.0, 1.0, 0.0), 'z': (0.0, 0.0, 1.0)}[axis]
 
         def _step(d):                           # BASE 기준 d mm 만큼 그 축으로
-            cc.move_rel(vec[0] * d, vec[1] * d, vec[2] * d, 'BASE', vel_mm_s=vel)
-        what = f'{axis.upper()} ±{amp:.0f} mm'
+            cc.move_rel(vec[0] * d, vec[1] * d, vec[2] * d, 'BASE', vel_mm_s=vel, acc_mm_s2=acc)
+        what = f'{axis.upper()} ±{amp:.0f} mm' + (f' · 가속 {acc:.0f}' if acc else '')
     else:
         def _step(d, t=None):
             cc.move_joint_rel(joint, d, time_s=t, carrying=True)

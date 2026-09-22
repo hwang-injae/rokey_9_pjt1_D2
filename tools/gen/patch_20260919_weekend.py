@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v15.3'
+VERSION = 'v15.9'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1917,6 +1917,105 @@ for _tid, _e in P1500.items():
 HISTORY103 = ['v15.3', '진척', 'FLOW-05, F2-02, V-07, V-02, F2-01, INT-4c, INT-3b', 'PR #70 merge(민범진 9/22 15:00): FLOW-05 완료(flow.weigh_kinds · 컵은 무게 단계 건너뜀 · 🟡 FLOW-04/INT-3b 실기) · 물 털기 = BASE X 직선 왕복(🟡 V-07) · 무게 표본 창 21 s · min_net_g −60 · 임계 50 보류(INT-12a 에서 결정). 사이클 +25~75 s', '황인재 9/22 15:00', 'M,H']
 
 
+# ---------------------------------------------------------------- 9/22 15:15 F4 자세별 하중 흔들림(참고)
+EDIT.setdefault('V-02', {}).update(dict(note_add='📈 9/22 F4 자세별 흔들림(빈손 · 14:19~14:25 · 자세마다 63 s · −Fz): HOME −153.5(폭 39) · WEIGH.BOWL z158 −65.5(**폭 25 · 가장 안정**) · z235 +14(폭 68 · +230 튐 1회) · HOME 끝 −154.7. 어느 자세도 ±10 g 는 안 됨 · 2 h 사이 z158 빈손 −34 → −65.5(센서의 느린 흐름) → **WEIGH.BOWL z158 유지 권고**(황인재 확인 대기) · 표본 30 이면 주기 흔들림은 덮이고 남는 것은 방문 사이·시간 흐름 → INT-12a 에서 같은 경로로 기준값(④)이 핵심. 다음: 그릇 쥔 채 결정 시험(황인재 동의 뒤) → V-02 기록·PR(BOWL 기준값 한 줄) · F4 브랜치에 main #70 병합 완료(0b216ab)'))
+HISTORY104 = ['v15.4', '실기 결과', 'V-02', 'F4 자세별 하중 흔들림(9/22 14:20 · 참고): z158 이 가장 안정(폭 25 g) · HOME 은 ±20 g 출렁 · 2 h 사이 −31 g 흐름 → WEIGH.BOWL z158 유지 권고 · 기준값은 INT-12a 에서 같은 경로로. F4 브랜치 main #70 병합 완료', '황인재 9/22 15:15', 'H']
+
+
+# ---------------------------------------------------------------- 9/22 15:25 박진용 답 — 11:10 rig_v03 실행(툴·TCP 풀림 구간 안) · 재검증 다시 · moved=False 갈래 확인
+P1525 = {
+ 'F3-02':  dict(note_add='📥 9/22 15:25 박진용: 그릇 닦기 재검증은 **11:10 실행**(툴·TCP 풀림 구간 10:54~11:17 안) — 공중 Fz 1.77 N · 접촉 5.6 N · 평균 1.4 N 전부 그리퍼 무게 미반영이라 **다시 잰다**. 복구 뒤 12:18 · 12:54 두 번 돌림(결과 미보고). "실패해도 곧게 올라와 HOME" 그대로 · **moved=False(MotionHalted·MoveIncomplete) 갈래는 wipe_bowl·wipe_cup·soap 전부 남아 있음**(finally 가 moved 확인 뒤 안 움직임) — PR 검토 때 대조'),
+ 'ENV-05': dict(note_add='🔎 9/22 15:25 원인 단서(박진용): 10:54~11:17 사이 펜던트는 안 만짐 · **11:10 에 rig_v03 계열(닦기 시나리오)을 돌림** — 그때 찍힌 툴·TCP 이름은 로그에 없음(다음부터 확인). rig_v03 은 툴 이름을 확인·되돌리는 코드가 있어 F4 가 그 호출(set 계열 서비스)이 선택을 지울 수 있는지 확인'),
+ 'SAFE-01': dict(note_add='📥 9/22 박진용: 실측 줄은 복구 뒤 재검증(12:18 · 12:54) 값으로 채운다 — 11:10 값은 무효'),
+}
+for _tid, _e in P1525.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY105 = ['v15.5', '보고 반영', 'F3-02, ENV-05, SAFE-01', '박진용 9/22 15:25: 그릇 닦기 재검증 11:10 실행은 툴·TCP 풀림 구간 → 다시 잰다(복구 뒤 12:18·12:54 결과 대기) · moved=False 갈래 3함수 모두 남아 있음 · 펜던트 안 만짐 · 11:10 rig_v03 실행이 풀림 원인 단서(F4 확인)', '황인재 9/22 15:25', 'P,H']
+
+
+# ---------------------------------------------------------------- 9/22 15:45 F4 — 무게 흔들림 원인 = 그리퍼 케이블 장력 · 툴·TCP 풀림 시점 분석
+C1545 = '🔑 9/22 15:45 F4(황인재 관찰): **무게 오르내림의 원인 = 그리퍼 케이블 장력·흔들림** — 전선을 늘려 주니 ±10 g 안팎(숫자는 결정 시험으로 기록)'
+P1545 = {
+ 'V-02':    dict(note_add=C1545 + '. 오후 자세별 결과(HOME −153 출렁 · z235 +230 튐)도 케이블로 설명될 가능성 → 케이블 느슨하게 고정한 뒤 그릇 쥔 채 결정 시험 → V-02 기록·PR'),
+ 'INT-12a': dict(note_add='🔗 9/22 전제 추가: **그리퍼 케이블 상태(느슨하게 · 자세마다 당기지 않게)를 먼저 맞춘다** — 무게 흔들림의 원인(케이블 장력)이 시험 중 바뀌면 기준값이 흔들린다'),
+ 'F3-02':   dict(note_add='🔗 9/22 15:45 F4 분석: 11:10 실행은 툴·TCP 가 **정상**이었다(공중 Fz 1.77 N — 풀렸으면 약 14 N 이라 rig_v03 이 거부했을 것) → 11:10 값이 무효가 아닐 수 있음. 다만 공중 1.77 N(≈180 g)은 케이블 장력일 수 있다 → 케이블 정리 뒤 재실행이 맞다'),
+ 'ENV-05':  dict(note_add='🔎 9/22 15:45 F4 분석: rig_v03 은 이름이 다를 때만 MANUAL 로 바꿔 set_tool/set_tcp 하고 AUTONOMOUS 로 되돌린다 · 11:10 실행은 정상이었다 → **풀린 시점 = 11:10 실행 뒤 ~ 11:17**. 12시 ROS set 실패는 AUTONOMOUS 모드라 거부된 것(펜던트가 필요했던 이유). rig_v03 주석 "브링업을 새로 켜면 툴·TCP 가 비어 있다(9/19)" → 그 사이 브링업 재시작(killdrcf 포함) 여부·9/19 관찰 조건을 박진용에게 확인. F4 의견: 시험 도구가 ROS 로 set 하고 모드를 오가는 것은 위험 → "확인만 · 다르면 거부 + 펜던트 안내" 로(황인재 결정 · 박진용 파일)'),
+}
+for _tid, _e in P1545.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY106 = ['v15.6', '원인·분석', 'V-02, INT-12a, F3-02, ENV-05', '황인재 9/22 15:45(F4 전달): 무게 흔들림 원인 = 그리퍼 케이블 장력(늘리니 ±10 g) → INT-12a 전제로 케이블 상태 고정 · 리마인드 §6. 툴·TCP 풀림 시점은 11:10 실행 뒤~11:17(11:10 은 정상) → 브링업 재시작 여부를 박진용에게. 시험 도구의 ROS set·모드 전환을 "확인만" 으로 바꿀지는 황인재 결정', '황인재 9/22 15:45', 'H,P,M']
+
+
+# ---------------------------------------------------------------- 9/22 15:55 결정 E26 — 툴·TCP 는 확인만(ROS set · 모드 전환 금지) · 케이블 여유 길이로 해결
+NEW_RULES.append(('🚨 실기 시작', '툴·TCP 이름 확인', '로봇을 움직이기 전에 get_current_tcp → GripperDA_v1 · get_current_tool → Tool Weight 를 확인한다. 비어 있거나 다르면 움직이지 말고 브링업을 끈 뒤 펜던트에서 다시 고른다. 🚨 E26(9/22): 프로그램·시험 도구도 **확인만** — ROS 로 set_tool/set_tcp 하거나 MANUAL↔AUTONOMOUS 를 오가지 않는다(다르면 종료 + 펜던트 안내). 9/22 오전 선택이 풀려 posx 이동이 손끝 208 mm 아래로 갔다'))
+NEW_RULES.append(('🔗 케이블', '그리퍼 전선 느슨하게', '그리퍼 케이블이 팽팽하면 힘·무게 값이 ±25 g 이상 흔들린다(9/22 황인재 — 여유 길이를 늘려 해결 · ±10 g 안팎). 실기 전 케이블을 느슨하게 두고 자세마다(잔반통 J6 180° 회전 · HOME) 당기지 않는지 본다. 무게·힘 실기는 케이블 상태부터'))
+P1555 = {
+ 'F3-02':  dict(note_add='🔴 9/22 결정 E26(황인재): rig_v03 · rig_v10 의 **set_tool/set_tcp · MANUAL↔AUTONOMOUS 전환 줄을 뺀다** — 확인만 하고 다르면 종료 + 펜던트 안내(민범진 preflight 와 같은 방식). 박진용에게 요청(오후 묶음 ③-3) · 작은 PR'),
+ 'ENV-05': dict(note_add='✅ 9/22 15:55 결정 E26: 툴·TCP 는 확인만(ROS set · 모드 전환 금지) — 규칙 시트 · 리마인드 §6. F4 init 이름 확인 PR 도 같은 원칙'),
+ 'V-02':   dict(note_add='🔗 9/22 15:55 황인재: 케이블은 **여유 길이를 늘려서 해결**. 그릇 쥔 채 결정 시험(--revisit · 물건 100 g) 진행 중 → 결과로 V-02 기록·PR'),
+}
+for _tid, _e in P1555.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY107 = ['v15.7', '결정 E26·규칙', 'F3-02, ENV-05, V-02, 규칙 시트', '황인재 9/22 15:45~55(F4 전달): E26 — 툴·TCP 는 확인만, 다르면 거부 + 펜던트(ROS set·모드 전환 금지) → 박진용 rig_v03·rig_v10 set 줄 제거 요청 · F4 init PR 같은 원칙 · 규칙 시트 갱신. 케이블은 여유 길이로 해결(규칙 🔗) · 그릇 결정 시험 진행 중', '황인재 9/22 15:55', 'P,H,M']
+
+
+# ---------------------------------------------------------------- 9/22 16:30 PR #71 merge(민범진) — 물 털기 종류별 · 튜닝 시험대 · RINSE 값 인계 요청
+M71 = '✅ 9/22 PR #71 merge(민범진)'
+P1630 = {
+ 'F2-02':  dict(prog='0.9', note_add=M71 + ': 물 털기 = **J5 관절 왕복으로 되돌림 · 그릇·컵 종류별**(`f2.shake.RINSE.BOWL` ±10° 0.5 s · `.CUP` ±6° 0.6 s — 🟡 시작값) · `shake_params()` 종류별 묶음(한쪽만 있으면 KeyError) · 직선 왕복은 옵션(acc_mm_s2 추가) · 키보드 튜닝 시험대 `rig_shake_tune.py`(스페이스 = 진짜 shake · v = 30↔100 %) · 인계 절차서 `docs/test_logs/20260922_RINSE_물털기_튜닝_인계_민범진.md`. 병합본 390 통과'),
+ 'V-07':   dict(note_add=M71 + ': 🟡 물 털기 값(그릇·컵)은 실기로 정해야 함 — **민범진이 "PM(황인재) 인계" 요청**(그릇 10분 · 컵 10분 · 시험대·절차서 준비됨). 황인재 11:40 분담(무게만 F4)과 달라 **황인재 확인 대기** — 확정 전 담당은 민범진 그대로. 처음은 PREWASH_VEL_SCALE=0.3'),
+ 'UT-F2':  dict(note_add=M71 + ': rig_f2 shake 에 --amp/--period/--acc/--tilt(이번 실행만) 추가'),
+}
+for _tid, _e in P1630.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY108 = ['v15.8', '진척', 'F2-02, V-07, UT-F2', 'PR #71 merge(민범진 9/22 16:30): 물 털기 J5 왕복 · 그릇·컵 종류별(🟡 시작값) · 튜닝 시험대 · 인계 절차서. 민범진이 RINSE 값 정하기를 PM(황인재)에게 인계 요청 → 황인재 확인 대기(11:40 분담은 무게만)', '황인재 9/22 16:30', 'M,H']
+
+
+# ---------------------------------------------------------------- 9/22 16:50 황인재 — ① 물 털기 값 = F4 ② GitHub 대조 ③ 뼈대 통합 계획(INT-F2 · INT-F3 · INT-ALL · NEW-01)
+NEW.append(
+ ('INT-F2', 'INT-12a', 'INT-12a', '통합', '민범진 F2 기능(무게·잔반 버리기·헹굼·물 털기)을 한석형 뼈대 코드(그릇 한 바퀴 시나리오)에 통합 — 실기로 한 바퀴',
+  'M(S)', '시작 전', S('9/22 저녁'), '뼈대 + F2 통합본(브랜치 · PR) · 실기 기록(한 바퀴 몇 회 · 막힌 곳)',
+  '한석형 뼈대(집기 → … → 적재)에 F2 함수(leftover_loop · dip · shake)가 진짜로 들어가 그릇 1개가 실기로 끝까지 돈다(F3 구간은 손·가짜) · INT-12a·12b(5회)는 이 안에서 같이 센다',
+  '황인재 9/22 16:50 통합 방식: 민범진·박진용이 각자 자기 기능을 한석형 뼈대에 넣는다 → 둘 다 끝나면 한 사람이 두 통합본을 합쳐 전체 통합 코드 → 한석형 + 나머지 1명은 새 기능 구현. 🟡 뼈대 = `rig_bowl_scenario_real.py`(한석형 9/21~22 실기 완주본)으로 이해 — 확인 필요'))
+NEW.append(
+ ('INT-F3', 'INT-13', 'INT-13', '통합', '박진용 F3 기능(세제·닦기 + 안착 놓기)을 한석형 뼈대 코드에 통합 — 실기로 한 바퀴',
+  'P(S)', '시작 전', S('9/22 저녁'), '뼈대 + F3 통합본(브랜치 · PR) · 실기 기록',
+  '한석형 뼈대에 F3 함수(soap · wipe_bowl · wipe_cup)와 안착 놓기(F1-05)가 진짜로 들어가 그릇 1개가 실기로 끝까지 돈다(F2 구간은 손·가짜) · INT-13(5회)은 이 안에서 같이 센다',
+  '황인재 9/22 16:50 통합 방식(INT-F2 와 같음). 박진용은 9/21 밤 이미 "한석형 경로 + 9/20 닦기" 로 한 바퀴 1회 성공 — 그 판을 main 코드(wipe.py)로 바꿔 잇는다'))
+NEW.append(
+ ('INT-ALL', 'SAFE-01', 'INT-3a', '통합', '전체 통합 코드 — INT-F2 통합본 + INT-F3 통합본을 한 사람이 합친다(뼈대 1개 · 기능 3개 · 그릇 한 바퀴 실기)',
+  '🟡 M 또는 P (황인재 지정)', '시작 전', S('9/23 오전'), '전체 통합본(브랜치 · PR) · 실기 기록(그릇 한 바퀴 · 컵 한 바퀴)',
+  '두 통합본을 합친 코드로 그릇 1개가 실기로 끝까지 돈다(손·가짜 없음) · 컵도 같은 코드로(E25: 무게 없음) · 🟡 flow_node·HMI 와의 관계는 황인재 확인',
+  '황인재 9/22 16:50: INT-F2·INT-F3 가 둘 다 끝나면 한 사람이 합친다. 🟡 누가 합칠지 미정 · 🟡 이 전체 통합 코드가 flow_node(제품 메인 프로그램 · HMI 연결)를 대신하는지, flow_node 안으로 넣는 것인지 확인 필요 — L3(INT-3a·3b · flow + HMI)와 시연 구성이 달라진다'))
+NEW.append(
+ ('NEW-01', 'INT-ALL', 'INT-3a', '개발', '새 기능 구현 — 한석형 + 나머지 1명 (내용 🟡 황인재 지정)',
+  '🟡 S + (M 또는 P)', '시작 전', S('9/23 오전', '9/23 오후'), '🟡 황인재 지정',
+  '🟡 황인재 지정 — INT-ALL 을 맡지 않는 사람이 한석형과 함께 한다. 9/23 저녁 동결 전에 끝나는 범위로',
+  '황인재 9/22 16:50: 통합을 한 사람에게 맡기고 한석형 + 나머지 1명은 새 기능을 만든다. 내용·담당은 황인재가 정한다(후보: 실패 주입 대응 · 컵 팔레트 2번째 칸 · HMI 연동 등 — PM 추정 아님, 미정)'))
+EASY['INT-F2'] = '민범진이 자기가 만든 무게·털기·헹굼 함수를 한석형이 만든 "그릇 한 바퀴" 뼈대 프로그램에 끼워 넣고, 실제 로봇으로 한 바퀴 돌려 본다'
+EASY['INT-F3'] = '박진용이 자기가 만든 세제·닦기·안착 함수를 한석형 뼈대 프로그램에 끼워 넣고, 실제 로봇으로 한 바퀴 돌려 본다'
+EASY['INT-ALL'] = '민범진 통합본과 박진용 통합본을 한 사람이 하나로 합쳐 "전체가 다 들어간" 프로그램을 만들고 실기로 확인한다'
+EASY['NEW-01'] = '통합을 맡지 않은 사람이 한석형과 함께 새 기능을 만든다(무엇을 만들지는 황인재가 정한다)'
+H1650 = '🔄 9/22 16:50 황인재'
+P1650 = {
+ 'V-07':    dict(owner='H(M)', note_add=H1650 + ': **물 털기 값 정하기(그릇·컵)는 F4(황인재)가 맡는다** — 민범진 인계 수락. 시험대 rig_shake_tune · 절차서(main `docs/test_logs/20260922_RINSE_물털기_튜닝_인계_민범진.md` · 🔔 15:34 개정판은 브랜치 `beomjin/20260922-F2-02-rinse-per-kind` 에만) · 처음 PREWASH_VEL_SCALE=0.3. 잔반 버리기(그릇)는 민범진이 이미 🟢'),
+ 'INT-12a': dict(note_add=H1650 + ': 통합 방식 변경 — 시험대(rig_int12) 대신 **INT-F2(한석형 뼈대에 F2 통합)** 안에서 5회를 센다. 이 행은 기록용'),
+ 'INT-12b': dict(note_add=H1650 + ': **INT-F2** 안에서 같이(재파지 → 헹굼 → 물 털기 → 적재)'),
+ 'INT-13':  dict(note_add=H1650 + ': **INT-F3** 안에서 같이(안착 → 툴 → 세제 → 닦기 → 반납)'),
+ 'FLOW-04': dict(note_add=H1650 + ': 🟡 통합 방식이 "한석형 뼈대에 기능 통합 → 전체 통합 코드" 로 바뀜 — flow_node 첫 실기를 언제·어떻게 할지는 INT-ALL 과 flow_node 의 관계가 정해진 뒤(황인재)'),
+ 'F1-02':   dict(note_add=H1650 + ': 저녁 통합(INT-F2·F3)이 한석형 뼈대(시나리오 스크립트)를 쓰므로 **pick() 제품 코드가 저녁 전제에서 빠짐** — 그래도 L3·flow_node 에는 필요'),
+}
+for _tid, _e in P1650.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+SLOT['9/22 화']['D'] = ('🔄 16:50 통합 방식 변경(황인재): **① 민범진 INT-F2 — F2 기능을 한석형 뼈대에 통합해 그릇 한 바퀴(M·S · 60분)** → **② 박진용 INT-F3 — F3 기능 + 안착을 한석형 뼈대에 통합해 그릇 한 바퀴(P·S · 60분)** · '
+                        'INT-12a·12b·13 의 5회는 이 안에서 센다 · 로봇 불필요: 황인재 물 털기 값(V-07)은 로봇 빌 때 20분 · UT-FLOW(M) · NOTE-02 gif(H)')
+SLOT['9/23 수']['B'] = ('🔄 통합 계획(황인재 9/22): **INT-ALL — 두 통합본을 한 사람이 합쳐 전체 통합 코드(🟡 담당 미정 · 그릇·컵 한 바퀴 실기)** · **NEW-01 새 기능 — 한석형 + 나머지 1명(🟡 내용 미정)** · '
+                        'UT-F4·F4-05(H) — G3(L2) · 🛡 L1 잔여가 있으면 여기서 닫는다')
+HISTORY109 = ['v15.9', '분담·통합 계획', 'V-07, INT-F2(신규), INT-F3(신규), INT-ALL(신규), NEW-01(신규), INT-12a·12b·13, FLOW-04, F1-02, 9/22 저녁·9/23 오전 로봇 슬롯',
+              '황인재 9/22 16:50: ① 물 털기 값 정하기(V-07)는 F4(황인재) — 민범진 인계 수락 ② GitHub 대조(PR #65~#71 전부 반영 · 누락 없음 · 민범진 15:34 인계 문서 개정판은 브랜치에만) ③ 통합 방식: 민범진·박진용이 각자 기능을 한석형 뼈대에 통합(INT-F2·INT-F3 · 9/22 저녁) → 한 사람이 합쳐 전체 통합 코드(INT-ALL · 9/23 오전 · 🟡 담당 미정) → 한석형 + 1명 새 기능(NEW-01 · 🟡 내용 미정). 🟡 전체 통합 코드와 flow_node·HMI 의 관계 확인 필요',
+              '황인재 9/22 16:50', 'S,M,P,H']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -2005,7 +2104,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
