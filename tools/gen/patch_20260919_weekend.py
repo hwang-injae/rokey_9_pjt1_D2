@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v14.5'
+VERSION = 'v14.6'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1790,6 +1790,20 @@ NEW_RULES.append(('🧪 테스트 순서', '단위 먼저 · 통합은 슬롯에
 HISTORY95 = ['v14.5', '규칙', '규칙 시트', '황인재 9/22 12:45: 테스트는 단위 기능 먼저, 통합은 통합 슬롯(L2 · L3)에서 — 혼자 통합 테스트로 로봇을 오래 쓰지 않는다. 리마인드 §8 · 13시 전원 공지', '황인재 9/22 12:45', '전원']
 
 
+# ---------------------------------------------------------------- 9/22 12:50 F4 R2 컵 결과
+R2C = ('📈 9/22 F4 R2 컵(실기 · 5 N · 78 mm · 도착 뒤 5 s · 10회 · −Fz 중앙값): WEIGH.CUP z 147.4 빈손 −36.9 · 컵 쥠 −16.2 → **컵 20.7 g** · 흔들림 20.8/17.8 g(시간 따라 오르는 추세) / z 235 빈손 −180.9 · 컵 쥠 −164.7 → 컵 16.2 g · 흔들림 8.8/5.7 g ✅. '
+       '🔴 main 방식(하중 API 절댓값)으로 빼면 컵이 −18 g 로 부호가 뒤집히고 잔반이 늘면 값이 줄어든다 → 컵 잔반 판정이 틀린다 → d4d44bc 가 V-07 · INT-12a 전제. '
+       '🟡 컵 자체가 16~21 g < 30 g → 놓쳐도 순무게 ≈ −20 g 라 min_net_g −30 에 안 걸린다(GRIP_FAIL 이 아니라 "잔반 없음" 으로 흐른다) — E19 ③ 한계가 실제로 걸린다 → 황인재·민범진 결정 대기. '
+       '컵 WEIGH 높이(z 147 유지 / z 235)는 F4 가 도착 뒤 10 s 재측정으로 정한다(E14 · 옮기면 cell.yaml PR). 5 N · 78 mm 로 HOME → WEIGH → z 235 → HOME 떨어뜨리지 않음(털기 전 확인 · V-07 아님)')
+P1250 = {
+ 'V-02':  dict(prog='0.5', note_add=R2C),
+ 'V-07':  dict(note_add='🔴 9/22 F4 컵 R2: main weigh.py(절댓값)로는 컵 잔반 판정이 틀린다 → 민범진 d4d44bc(Fz 부호) merge 뒤에 V-07'),
+}
+for _tid, _e in P1250.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY96 = ['v14.6', '실기 결과', 'V-02, V-07', 'F4 R2 컵(9/22): 컵 16~21 g · 절댓값 방식이면 부호가 뒤집혀 컵 잔반 판정이 틀림 → d4d44bc 가 V-07 · INT-12a 전제. 컵이 30 g 보다 가벼워 놓침을 무게로 못 잡는다(E19 ③ 한계가 실제로 걸림 — 결정 대기). 컵 WEIGH 높이는 F4 가 재측정으로 정한다', '황인재 9/22 12:50', 'H,M']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -1878,7 +1892,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
