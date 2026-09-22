@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""그릇 한 바퀴 실기 — 한석형 동선(rig_bowl_scenario_real.py · 1644620, 9/22 최신) + ⑦ F3 자리에 wipe_bowl (박진용 9/22).
+"""그릇 한 바퀴 실기 — 한석형 동선(rig_bowl_scenario_real.py BOWL 분기, main 최신) + F3 자리에 soap·wipe_bowl (박진용 9/22).
 
-    cd ~/cobot1/rokey_9_pjt1_D2 && soc && PREWASH_VEL_SCALE=0.3 python3 src/f3_wipe/test/rig_bowl_scenario_wipe.py            # 한 번에
+    cd ~/cobot1/rokey_9_pjt1_D2 && soc && PREWASH_VEL_SCALE=0.3 python3 src/f3_wipe/test/rig_bowl_scenario_wipe.py
     cd ~/cobot1/rokey_9_pjt1_D2 && soc && PREWASH_VEL_SCALE=0.3 python3 src/f3_wipe/test/rig_bowl_scenario_wipe.py --step     # 구간마다 Enter
 
-한석형 파일에서 바꾼 곳은 세 군데뿐이다(값·좌표·속도·순서는 전부 그대로):
+🔸 컵은 `rig_cup_scenario_wipe.py`로 완전히 분리했다(박진용 9/22 3차 — 공용 함수를 같이 쓰다 그릇·컵이
+   서로 영향받는 걸 피한다). F1(한석형) 쪽은 확정됐다(더 이상 안 바뀐다) — 두 파일 다 그 확정본에서
+   각자 종류만 떼어 우리(F3) 코드와 연동 시험하는 용도다.
+
+한석형 파일에서 바꾼 곳(값·좌표·속도·순서는 전부 그대로):
   ① 구간마다 Enter — --step 을 줄 때만 묻는다(기본은 한 번에)
-  ② 8번(수세미 집기) 다음 자리 = F3: wipe_bowl() (HOME 관절로 가서 닦고 HOME 으로 돌아온다) → 실패면 여기서 멈춘다
-     🚨 soap()은 아직 안 넣었다 — TOOL_SPONGE.pick(posj, J6=−220°)에서 SOAP.BOWL(posx)로 바로 가는 경로가
-        티칭·검증된 적이 없다(cell.yaml 자체 경고: "이어지는 직선 이동에서 손목이 크게 풀릴 수 있다").
-        wipe_bowl()은 자체적으로 HOME(관절 이동)부터 다시 가므로 이 문제를 안 겪는다 — soap을 넣기 전 한석형·황인재 확인 필요.
-  ③ 수세미를 쥔 폭이 목표 폭(30 mm)까지 닫혔으면 빈손 → 멈춘다(9/21 실기: 손잡이에서 25.6 mm 에 멈췄다)
+  ② 수세미 집기 다음 자리 = F3: soap('BOWL') → wipe_bowl() → 실패면 여기서 멈춘다
+  ③ 수세미를 쥔 폭이 목표 폭(22 mm, 9/22 실측 15mm 반영)까지 닫혔으면 빈손 → 멈춘다
+  ④ 툴 반납은 잡을 때와 완전히 같은 깊이로(+10mm 여유 제거, 9/22 실기로 안 눌리는 거 확인)
 """
 import argparse
 import sys
@@ -29,7 +31,6 @@ BED_B_APPROACH_X = [419.7, 17.5, 202.1, 128.2, 180.0, -52.0]
 BED_B_PLACE_X = [419.7, 17.5, 54.4, 128.0, 180.0, -52.2]
 
 TOOL_SPONGE_PICK_J = [-40.45, 2.5, 111.5, 0.0, 66.06, -220.37]
-TOOL_BRUSH_PICK_J = [-28.7, 17.0, 84.0, -0.12, 79.0, -28.7]
 
 RINSE_B_APPROACH_X = [205.8, -445.7, 150.0, 123.2, 180.0, 123.0]
 
@@ -57,13 +58,8 @@ BOWL_CMD_MM = BOWL_ZERO_MM + max(
     BOWL_EXPECTED_MM - 2.0 * BOWL_TOL_MM
 )
 
-SPONGE_WIDTH_MM = 22.0
+SPONGE_WIDTH_MM = 22.0                # 🔧 9/22 박진용: 손잡이 실측 15mm 반영(30 → 22) — 빈손 판정 부등호도 뒤집었다(아래 F3 구간)
 SPONGE_FORCE_N = 40.0
-
-# BRUSH grip 값은 SDD의 기존 초안값이며, 최신 cell.yaml 확정값은 아니다.
-# production cell.yaml 은 건드리지 않고, 실기 전에 값이 다시 확정되면 이 자리를 교체한다.
-BRUSH_WIDTH_MM = 22.0
-BRUSH_FORCE_N = 30.0
 
 
 def f1_tool_pick(station, width_mm, force_n, label):
@@ -71,17 +67,12 @@ def f1_tool_pick(station, width_mm, force_n, label):
 
     - F1 은 grip 까지만 한다.
     - Z 상승 / HOME 복귀는 여기서 하지 않는다.
-    - BOWL/SPONGE 는 검증값을 그대로 유지한다.
-    - BRUSH 는 현재 설정이 비어 있어 실기 전에 확정이 필요하다.
+    - SPONGE 는 검증값을 그대로 유지한다.
     """
     d = dsr()
     station_name = str(station)
     width_value = float(width_mm)
     force_value = float(force_n)
-
-    if station_name == "TOOL_BRUSH":
-        width_value = float(BRUSH_WIDTH_MM)
-        force_value = float(BRUSH_FORCE_N)
 
     print(f"\n[F1 {label}] {station_name} PICK")
     cc.move_to(station_name, False, point="pick")
@@ -176,15 +167,12 @@ def patch_runtime_config(cfg):
         "move_timeout_s": 30.0,
     })
 
-    stations["HOME"] = {"posj": HOME_J, "posx_z_mm": 215.11}  # cell.yaml 실측(9/21 --where) — soap 상승이 이 z 로 계산한다
+    stations["HOME"] = {"posj": HOME_J, "posx_z_mm": 215.11, "posx_x_mm": 367.48, "posx_y_mm": 8.09}  # cell.yaml 실측(9/21 --where)
     stations["WASTE"] = {"BOWL": {"posj": WASTE_J}}
     stations["RET_B_APPROACH_TEST"] = {"posj": RET_B_APPROACH_J}
     stations["RET_B_GRIP_TEST"] = {"posj": RET_B_GRIP_J}
     stations["TOOL_SPONGE"] = {
         "pick": {"posj": TOOL_SPONGE_PICK_J}
-    }
-    stations["TOOL_BRUSH"] = {
-        "pick": {"posj": TOOL_BRUSH_PICK_J}
     }
     stations["RACK_B_VIA_TEST"] = {"posj": RACK_B_VIA_J}
 
@@ -204,32 +192,13 @@ def patch_runtime_config(cfg):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(
-        "--kind",
-        choices=("BOWL", "CUP"),
-        default="BOWL",
-        help="BOWL 또는 CUP 시나리오 선택",
-    )
-    ap.add_argument(
         "--slot",
-        choices=("RACK_B1", "RACK_B2", "RACK_C1", "RACK_C2"),
-        default=None,
+        choices=("RACK_B1", "RACK_B2"),
+        default="RACK_B1",
     )
     ap.add_argument("--step", action="store_true", help="구간마다 Enter 로 확인 (기본: 한 번에)")
     args = ap.parse_args()
-
-    if args.kind == "BOWL":
-        allowed_slots = {"RACK_B1", "RACK_B2"}
-        default_slot = "RACK_B1"
-    else:
-        allowed_slots = {"RACK_C1", "RACK_C2"}
-        default_slot = "RACK_C1"
-
-    slot = args.slot or default_slot
-    if slot not in allowed_slots:
-        raise ValueError(
-            f"{args.kind} 시나리오에서는 {sorted(allowed_slots)} 만 허용합니다. "
-            f"요청값={slot}"
-        )
+    slot = args.slot
 
     cc.init("rig_bowl_scenario_wipe")
 
@@ -240,12 +209,15 @@ def main():
         stations = cell["stations"]
 
         tcp = d.get_tcp()
+        tool_setting = d.get_tool()
+        vel_scale = float(cfg["run"]["vel_scale"])
 
         print("\n" + "=" * 74)
         print("BOWL REAL route verification")
         print("=" * 74)
         print("TCP =", repr(tcp))
-        print("vel_scale =", cfg["run"]["vel_scale"])
+        print("TOOL =", repr(tool_setting))
+        print("vel_scale =", vel_scale)
         print("BOWL raw grip target =", round(BOWL_CMD_MM, 2), "mm")
         print("BOWL force =", BOWL_FORCE_N, "N")
         print("TOOL_VIA = NOT USED")
@@ -253,9 +225,14 @@ def main():
         print("RACK via =", RACK_B_VIA_J)
         print("=" * 74)
 
-        if not tcp:
+        if tcp != "GripperDA_v1" or tool_setting != "Tool Weight":
             raise RuntimeError(
-                "현재 TCP가 비어 있음 — DART에서 RG2 TCP 선택 후 재실행"
+                "TCP/TOOL 설정 불일치 — DART에서 GripperDA_v1 / Tool Weight를 "
+                "선택하고 브링업을 다시 시작한 뒤 재실행"
+            )
+        if vel_scale > 0.3:
+            raise RuntimeError(
+                f"실기 동선 검증은 vel_scale 0.3 이하만 허용한다 (현재 {vel_scale})"
             )
 
         step = 0
@@ -278,7 +255,7 @@ def main():
             step += 1
             print("\n" + "=" * 74)
             print(f"[STEP {step}] {label}")
-            if not args.step:
+            if not args.step:                                              # 🔧 박진용: 기본은 한 번에 — --step 줄 때만 Enter로 확인
                 return
             cmd = input(
                 "Enter = 실행 / q = 종료 > "
@@ -439,37 +416,6 @@ def main():
         _, home_x = pose()
 
         release("초기 빈손 RELEASE")
-
-        if args.kind == "CUP":
-            print("\n" + "=" * 74)
-            print("[CUP / TOOL_BRUSH] F1 공용 함수: pick + grip only")
-            print("F3: 꺼내기 → CUP WASH → HOME 복귀")
-            print("F1: HOME에서 XY → orientation → Z down → release → Z up → HOME orientation → HOME XY")
-            print("=" * 74)
-
-            ask("BRUSH PICK 준비")
-            brush_pick_x = f1_tool_pick(
-                "TOOL_BRUSH",
-                BRUSH_WIDTH_MM,
-                BRUSH_FORCE_N,
-                "BRUSH",
-            )
-
-            print()
-            print("=" * 74)
-            print("[F3 CUP 담당]")
-            print("BRUSH 꺼내기 → CUP WASH → HOME 복귀")
-            print("=" * 74)
-            input("F3가 BRUSH 들고 HOME 복귀했으면 Enter > ")
-
-            # F1: HOME 에서 반납 순서
-            # XY 이동 → orientation 맞춤 → Z 하강 → release → Z 상승 → HOME orientation → HOME XY
-            f1_tool_return(brush_pick_x, "BRUSH")
-
-            print("\n" + "=" * 74)
-            print("CUP TOOL_BRUSH 동선 시험 완료")
-            print("=" * 74)
-            return 0
 
         move(
             "RET_B_APPROACH_TEST",

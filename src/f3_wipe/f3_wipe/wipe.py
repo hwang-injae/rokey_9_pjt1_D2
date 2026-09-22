@@ -5,10 +5,11 @@ flow_node(메인 프로그램)나 test/rig_f3.py 가 cobot_common.init() 뒤 **�
 Result.fail(code) 로 돌려준다. 숫자는 전부 params.yaml 의 f3 절 · cell.yaml 에서 읽는다(AGENTS 규칙 6).
 
 시작 전제: 용기는 스펀지 홈에 안착돼 있고(F1 place) 툴을 쥔 상태(F1 tool PICK).
-🔸 닦기(wipe_bowl·wipe_cup)는 **언제나 초기자세 HOME(관절 0·0·90·0·90·0)에서 시작해 HOME 으로 끝난다**(박진용 9/21).
-   그릇은 HOME 바로 아래라 그 자리에서 내려가고, 컵은 HOME 에서 z +40 → y +140 → z −40 으로 컵 위에 간다.
-   돌아올 때는 곧게 올린 뒤 그 반대로 — 초기자세 높이에서 옆으로 바로 가면 솔이 컵에 걸린다.
-끝난 뒤: 툴을 쥔 채 HOME. 툴 반납·재파지는 flow 가 F1 을 부른다.
+🔧 9/22 3차(박진용): `soap()`이 쥔 폭으로 수세미/컵솔을 스스로 가려서 **작업 위치까지 좌표로 직접 데려간다**
+   (movej로 HOME을 들르지 않는다) — 수세미면 HOME(367.48, 8.09, 215.11), 컵솔이면 그 z+40·y+140(컵 위).
+   `wipe_bowl()`·`wipe_cup()`은 더 이상 스스로 위치를 찾지 않는다 — 호출되면 **그 자리에서 바로 하강**하고,
+   끝나면 호출 시점 높이로 곧게 상승만 하고 끝난다(호출자가 이미 올바른 자리에 데려다 놨다는 전제).
+끝난 뒤: 툴을 쥔 채 그 자리. 툴 반납·재파지는 flow 가 F1 을 부른다.
 
 🔸 툴 파지 기준(9/20 확정): 수세미·솔 모두 세척부 위에 손잡이가 있고, **그리퍼 끝을 세척부 윗면에 닿게** 쥔다
    → 그리퍼 끝에서 툴 끝까지 = 세척부 높이 = params.yaml 의 f3.wipe_bowl.tool.clean_h_mm(수세미 35) · f3.wipe_cup.tool.clean_h_mm(솔 95).
@@ -42,42 +43,69 @@ FORCE_LOG_HEADER = ('t', 'fx', 'fy', 'fz', 'target')   # SDD §4.2 힘 로그 �
 def soap(count: int, kind: str = None) -> Result:
     """툴 든 채 세제를 묻힌다(모션만, 물 없음). — F3-03. 코드 OK / TIMEOUT / ROBOT_ERROR.
 
-    kind(BOWL/CUP): BOWL = 수세미를 쥔 자세 · CUP = 솔을 쥔 자세 (9/20 약속 추가, flow 가 넘겨 준다).
-    🔸 9/22 박진용: 그릇·컵 둘 다 **동작이 같다**(비틀고 왕복) — **SOAP 자리로 옮기지 않는다**, 툴 픽업 직후
-       그 자리에서 그대로: ① 좌우 비틀기(6번 관절 ±twist_deg) twist_cycles 회 → ② Z 왕복(±updown_mm) updown_cycles 회
-       → ③ 초기자세(HOME) 실측 z(cell.yaml stations.HOME.posx_z_mm)까지 곧게 상승 → ④ 관절 이동으로 HOME(6번 관절이 이 안에서 자연히 풀린다).
-       `count` 인자는 지금 이 방식에서는 안 쓴다(횟수는 config 의 twist_cycles·updown_cycles 가 정한다).
+    kind 인자는 안 쓴다(호환용으로만 남김) — 🔧 9/22 3차: **쥔 폭으로** 수세미/컵솔을 스스로 가린다
+    (`f3.soap.tool_split_width_mm`). 그릇·컵 둘 다 **동작이 같다**(비틀고 왕복) — SOAP 자리로 옮기지 않고
+    툴 픽업 직후 그 자리에서: ① 좌우 비틀기(6번 관절 ±twist_deg) twist_cycles 회 → ② Z 왕복(±updown_mm)
+    updown_cycles 회 → ③ 작업 위치까지 **좌표로 직접**(z 먼저, 그다음 x·y) — movej·HOME 경유 없음:
+       수세미 → HOME(cell.yaml stations.HOME 실측 x·y·z) · 컵솔 → 그 z+over_cup_up_mm·y+over_cup_dy_mm(컵 위).
+    `wipe_bowl()`·`wipe_cup()`은 이 위치를 전제로 **호출되자마자 바로 하강**한다(스스로 자리 안 찾음).
+    `count` 인자는 안 쓴다(횟수는 config 의 twist_cycles·updown_cycles 가 정한다).
     """
     return _soap_twist_updown()
 
 
-def _soap_rise_to_home():
-    """지금 z 에서 HOME 실측 z(cell.yaml stations.HOME.posx_z_mm)까지만 곧게 상승 — 이미 위면 움직이지 않는다.
-    🔧 9/22 2차: `cc.safe_retreat()`(safe_z_mm 235)를 성공 뒤에도 불러서 HOME(215) 에 이미 도착했는데
-       또 20 mm 더 뜨는 "위로 깔짝"이 실기에서 보였다 — HOME 자체가 이미 안전 높이(다른 모든 구간의 시작·끝)라
-       실패 후퇴도 safe_z_mm 대신 이 HOME 높이로 한다(박진용 9/22)."""
-    wb = cc.cfg()['f3']['wipe_bowl']                                      # 세척 하강·상승과 같은 속도로 통일(박진용 9/22)
-    home_z = float(cc.cfg()['cell']['stations'][START]['posx_z_mm'])
-    dz = home_z - cc.where()[2]
+def _soap_is_cup():
+    """지금 쥔 폭으로 컵솔인지 판정한다(박진용 9/22 3차) — 수세미는 막히면 ≈25.6mm, 컵솔 목표는 5mm 근처라
+    둘 사이 문턱값(`tool_split_width_mm`, 15.0)보다 좁으면 컵솔."""
+    split = float(cc.cfg()['f3']['soap']['tool_split_width_mm'])
+    return cc.grip_width() < split
+
+
+def _soap_target(is_cup):
+    """작업 위치 (x, y, z) — 수세미는 HOME 그대로, 컵솔은 HOME + z(over_cup_up_mm) + y(over_cup_dy_mm)(컵 위)."""
+    home = cc.cfg()['cell']['stations'][START]
+    x, y, z = float(home['posx_x_mm']), float(home['posx_y_mm']), float(home['posx_z_mm'])
+    if is_cup:
+        wc = cc.cfg()['f3']['wipe_cup']
+        z += float(wc['over_cup_up_mm'])
+        y += float(wc['over_cup_dy_mm'])
+    return x, y, z
+
+
+def _soap_move_to(target_xyz):
+    """지금 자리에서 목표 (x, y, z) 로 — **z 먼저**(제자리 곧게 상승) → **그다음 x·y**(수평 이동).
+    빠른 하강과 같은 속도(f3.wipe_bowl.fast_vel_mm_s·fast_acc_mm_s2, 박진용 9/22 3차) — 이미 도착했으면 안 움직인다."""
+    wb = cc.cfg()['f3']['wipe_bowl']
+    vel, acc = float(wb['fast_vel_mm_s']) * _scale(), float(wb['fast_acc_mm_s2']) * _scale()
+    tx, ty, tz = target_xyz
+    dz = tz - cc.where()[2]
     if dz > 0:
-        cc.move_rel(0.0, 0.0, dz, 'BASE',
-                    vel_mm_s=float(wb['fast_vel_mm_s']) * _scale(), acc_mm_s2=float(wb['fast_acc_mm_s2']) * _scale())
+        cc.move_rel(0.0, 0.0, dz, 'BASE', vel_mm_s=vel, acc_mm_s2=acc)
+    now = cc.where()
+    dx, dy = tx - now[0], ty - now[1]
+    if abs(dx) > 1e-6 or abs(dy) > 1e-6:
+        cc.move_rel(dx, dy, 0.0, 'BASE', vel_mm_s=vel, acc_mm_s2=acc)
 
 
 def _soap_twist_updown() -> Result:
-    """툴 픽업 직후 그 자리에서 좌우 비틀기 → Z 왕복(톡톡) → HOME (박진용 9/22). soap() 의 실제 구현 — 그릇·컵 공용.
+    """툴 픽업 직후 그 자리에서 좌우 비틀기 → Z 왕복(톡톡) → 작업 위치(박진용 9/22 3차). soap() 의 실제 구현 — 그릇·컵 공용.
 
     🔧 9/22 1차 실기: 전체 시간 상한으로 `cell.limits.timeout_s`(10s, 접촉 동작 전용)를 잘못 빌려 써서
-       HOME 복귀 관절 이동 도중 TIMEOUT — 자기 전용 `f3.soap.duration_s`(60s)로 교체.
+       TIMEOUT — 자기 전용 `f3.soap.duration_s`(60s)로 교체.
     🔧 2차: `move_joint_rel`·`move_rel`은 vel_scale 로 강제로 깎여(30°/s·120mm/s 상한) config 를 올려도 안 빨라졌다
        → 결정 E17("세척 동작 속도는 vel_scale 예외")과 같은 방식으로 **`move_periodic(scale=False)`**로 교체(9/22).
        🔸 컵과 달리 **1·4번 관절 감시는 넣지 않는다**(박진용 9/22 — 컵에만 둔다).
+    🔧 3차: movej로 HOME 관절 이동하며 6번 관절을 풀어주던 걸 없앴다 — **좌표로 직접** 작업 위치까지 간다
+       (그 자리에서 상승만 → 수평 이동만). 비틀기가 왕복이라 한 번 호출로는 거의 원위치로 돌아오지만,
+       여러 번 반복되면 6번 관절이 조금씩 남아 쌓일 수 있다 — 실기로 지켜봐야 한다(박진용도 인지).
     """
     p = cc.cfg()['f3']['soap']
     duration = float(p['duration_s'])
     ramp = float(p['ramp_s'])
     t0 = time.monotonic()
     code, moved = ROBOT_ERROR, True
+    is_cup = _soap_is_cup()
+    target = _soap_target(is_cup)
     try:
         _halt_check('세제 동작 시작')
         twist = float(p['twist_deg'])
@@ -110,15 +138,10 @@ def _soap_twist_updown() -> Result:
                 cc.stop_now()
                 raise cc.MotionTimeout(f'soap: {duration:g} s 안에 왕복을 못 끝냈다')
             time.sleep(0.05)
-        _halt_check('HOME 복귀')
+        _halt_check('작업 위치로 이동')
         if time.monotonic() - t0 > duration:
-            raise cc.MotionTimeout(f'soap: {duration:g} s 안에 HOME 복귀를 못 끝냈다')
-        _soap_rise_to_home()
-        # 🔧 cc.move_to('HOME') 기본 속도(9°/s)·wipe_bowl 의 home_vel_deg_s(12°/s)도 둘 다 너무 느렸다(9/22 실기 — 체감 차이 없음)
-        #    → 한석형 move_fast 와 같은 100 % 기준(관절 100°/s)으로 곧장 관절 이동
-        m = cc.cfg()['cell']['motion']
-        cc.move_joints(cc.cfg()['cell']['stations'][START]['posj'],
-                        float(m['vel_joint_max_deg_s']), float(m['acc_joint_max_deg_s2']))
+            raise cc.MotionTimeout(f'soap: {duration:g} s 안에 작업 위치로 이동을 못 끝냈다')
+        _soap_move_to(target)
         code = OK
     except (cc.MotionHalted, cc.MoveIncomplete):                          # 로봇 위치를 모른다 → 올리지 않는다
         moved = False
@@ -135,25 +158,25 @@ def _soap_twist_updown() -> Result:
         if not moved:
             _warn('🚨 로봇이 어디 있는지 모른다 → 힘만 끄고 **움직이지 않았다**. '
                   '티치펜던트로 상태를 확인하고 사람이 복구한다')
-        elif code != OK:                                                  # 성공(이미 정확히 HOME)이면 더 올리지 않는다(9/22 2차 — safe_z_mm 235 까지
-            try:                                                          #   또 뜨던 "위로 깔짝" 원인) — 실패했을 때만 HOME 높이로 후퇴
-                _soap_rise_to_home()
+        elif code != OK:                                                  # 성공(이미 정확히 목표 위치)이면 더 안 움직인다 — 실패했을 때만 후퇴
+            try:
+                _soap_move_to(target)
             except Exception as e:                                       # noqa: BLE001 — 복구는 끝까지
-                _warn(f'정리 실패: 곧게 올라오기 — {e!r} · 눈으로 확인')
+                _warn(f'정리 실패: 목표 위치로 후퇴 — {e!r} · 눈으로 확인')
     return Result(ok=(code == OK), code=code)
 
 
 def wipe_bowl() -> WipeBowlResult:
     """그릇 안쪽을 수세미로 닦는다 — F3-02. 코드 OK / FORCE_LIMIT / TIMEOUT / ROBOT_ERROR.
 
-    🔸 **9/20 실기에서 나선·벽면까지 돈 src/cobot_common/test/rig_v03.py 의 실행 순서·명령을 그대로 옮겼다**(박진용 9/21).
-       9/21 실기: rig_v03 그대로는 끝까지 됐고, 다르게 옮겨 쓴 판은 나선이 4 번 모두 시작하지 않았다
-       → rig_v03 이 부른 두산 명령(movej · 동기 movel · amove_spiral · movec · release_*)과 **같은 명령을 하는 cc 함수**를
-         같은 순서·같은 값으로 부른다(AGENTS 규칙 4 — 두산 함수는 cobot_common 안에서만).
-       rig_v03 에서 바꾼 것은 박진용 지시 세 가지뿐: 빠른 하강 140 mm · 바닥 판정 3 N · 곧게 올라오기 = 빠른 하강 속도.
-       값은 params.yaml f3.wipe_bowl (rig_v03.yaml 값과 같다).
-    순서 (rig_v03 main 그대로):
-      HOME(관절) → 빠른 하강(movel) → 공중 기준 5 회(|Fz| > 3 N 이면 중단) → 바닥 찾기(cc.contact_down 3 mm 걸음 · 3 N)
+    🔸 두산 명령(동기 movel · amove_spiral · movec · release_*)은 **cc 함수로만** 부른다(AGENTS 규칙 4).
+       값은 params.yaml f3.wipe_bowl.
+    🔧 9/22: 나선이 조용히 시작 안 하던 문제는 **시작 위치·순서와 무관했다** — 진짜 원인은 (1) 나선 진입 직전
+       순응을 껐다 켜던 토글(`contact_down(keep_compliance=True)`로 제거) (2) 시작 감지 대기시간이 짧음
+       (`_START_WAIT_S` 2.0→5.0) (3) 그래도 실패하면 재시도(`move_spiral` 최대 3회) 였다 — force.py 참고.
+       "9/20 rig_v03 순서 그대로 복제해야 한다"는 옛 가설(9/21)은 틀렸다 — 폐기.
+    순서:
+      하강(movel) → 공중 기준 5 회(|Fz| > 3 N 이면 중단) → 바닥 찾기(cc.contact_down 3 mm 걸음 · 3 N)
       → ① 순응 ON(찾은 자리 · 밀렸으면 되돌림) → ② 나선(힘제어 없이 · 시작 기다림 · 도는 동안 힘·위치)
       → ③ 힘제어 ON(1.5 N + 공중 기준) → 벽면(+18° 로 붙기 · 원호 12 개 시계 · ±18°) → 힘제어 OFF
       → 중심 복귀 → 힘·순응 OFF → 곧게 올라와 HOME(관절). 실패해도 힘 끄고 올라와 HOME —
@@ -163,12 +186,11 @@ def wipe_bowl() -> WipeBowlResult:
     p = cc.cfg()['f3']['wipe_bowl']
     t0 = time.monotonic()
     log = _Log(p, t0)
-    code, started, moved, z_home = ROBOT_ERROR, False, True, None
+    code, started, moved, bowl_check_z = ROBOT_ERROR, False, True, None
     try:
         _halt_check('그릇 닦기 시작')
-        _bowl_home(p)
+        bowl_check_z = cc.where()[2]                                      # 호출된 자리(soap이 이미 데려다 놓음) — 안 움직이고 기록만
         started = True
-        z_home = cc.where()[2]
         _bowl_move_z(-float(p['fast_down_mm']), p['fast_vel_mm_s'], p['fast_acc_mm_s2'])
         _bowl_zero(log)
         if abs(log.base[2]) > float(p['air_force_max_n']):
@@ -205,13 +227,9 @@ def wipe_bowl() -> WipeBowlResult:
         _warn(f'wipe_bowl 중단: {type(e).__name__}: {e}')
         code = ROBOT_ERROR
     finally:
-        _bowl_finish(p, started, moved, z_home)                          # 끄기 → (위치 알 때만) 기다림 → 곧게 위로 → HOME
+        _bowl_finish(p, started, moved, bowl_check_z)                    # 끄기 → (위치 알 때만) 기다림 → 곧게 호출 시점 높이로
     return WipeBowlResult(ok=(code == OK), code=code, force_log_path=log.save(),
                           duration_s=time.monotonic() - t0, force_mean_n=log.mean())
-
-
-def _bowl_home(p):
-    cc.move_joints(cc.cfg()['cell']['stations'][START]['posj'], float(p['home_vel_deg_s']), float(p['home_acc_deg_s2']))
 
 
 def _bowl_move_z(dz, vel, acc):
@@ -316,11 +334,11 @@ def _bowl_to_center(p, log):
                  float(p['lin_acc_mm_s2']), float(p['rot_acc_deg_s2']))
 
 
-def _bowl_finish(p, started, moved, z_home):
-    """힘·순응 끄기는 언제나 → moved 면 동작 끝 대기 → 곧게 위로(HOME 높이, 빠른 하강 속도) → HOME.
+def _bowl_finish(p, started, moved, bowl_check_z):
+    """힘·순응 끄기는 언제나 → moved 면 동작 끝 대기 → 곧게 호출 시점 높이로 상승. 그걸로 끝(움직여서 자리 안 찾는다).
 
     🚨 moved=False(MotionHalted·MoveIncomplete — 로봇 위치를 모른다)면 힘만 끄고 움직이지 않는다
-       (soap·_Trip.back 과 같은 규칙 — AGENTS §4, 9/21 6번 관절 케이블 꼬임 사고)."""
+       (soap 과 같은 규칙 — AGENTS §4, 9/21 6번 관절 케이블 꼬임 사고)."""
     if not started:
         try:
             cc.force_off()
@@ -337,11 +355,11 @@ def _bowl_finish(p, started, moved, z_home):
         return
 
     def rise():
-        dz = z_home - cc.where()[2]
+        dz = bowl_check_z - cc.where()[2]
         if dz > 0:
             _bowl_move_z(dz, p['fast_vel_mm_s'], p['fast_acc_mm_s2'])
 
-    for what, fn in (('동작 끝 대기', cc.wait_done), ('곧게 올라오기', rise), ('HOME', lambda: _bowl_home(p))):
+    for what, fn in (('동작 끝 대기', cc.wait_done), ('곧게 올라오기', rise)):
         try:
             fn()
         except Exception as e:                                           # noqa: BLE001 — 복구는 끝까지
@@ -349,9 +367,13 @@ def _bowl_finish(p, started, moved, z_home):
 
 
 def cup_hops(p):
-    """HOME → 컵 위 상대 이동 [(dx, dy, dz), ...] (BASE). 올라가서 옆으로 가서 내려온다 — 솔이 컵에 걸리지 않게."""
+    """HOME → 컵 위 상대 이동 [(dx, dy, dz), ...] (BASE). 올라가서 옆으로 — 컵 위 높이(HOME + over_cup_up_mm)에서 멈춘다.
+
+    🔧 9/22 박진용 2차: 예전엔 올라갔다가 다시 내려와 HOME 높이로 돌아온 뒤 fast_down_mm 로 다시 내려갔다
+       — 위로 40 갔다가 도로 40 내려오는 왕복이 그대로 보였다("위아래로 깔짝"). 이제 **내려오지 않고 그 높이가
+       바로 컵 세척 시작점**이다 — fast_down_mm 을 그만큼(over_cup_up_mm) 늘려서 같은 깊이까지 내려간다."""
     up, dy = float(p['over_cup_up_mm']), float(p['over_cup_dy_mm'])
-    return [(0.0, 0.0, up), (0.0, dy, 0.0), (0.0, 0.0, -up)]
+    return [(0.0, 0.0, up), (0.0, dy, 0.0)]
 
 
 def _fast_z(p, dz):
@@ -478,9 +500,10 @@ def _scale():
 def wipe_cup() -> WipeCupResult:
     """컵 안을 솔로 닦는다 — F3-03. 코드 OK / FORCE_LIMIT / TIMEOUT / ROBOT_ERROR.
 
-    9/21 확정 시나리오. 괄호 안은 강의자료 근거.
-      ⓪ 초기자세 HOME → z +over_cup_up_mm → y +over_cup_dy_mm → z −over_cup_up_mm (컵 위, 솔이 컵에 걸리지 않게)
-      ① 거기서 **fast_down_mm 만큼 빠르게** 내려간다(9/21 실측 90 mm − 10). 바닥 위치는 미리 정하지 않는다
+    9/21 확정 시나리오, 🔧 9/22 3차(박진용) — **스스로 컵 위를 찾아가지 않는다**: soap()이 이미 컵 위
+    (HOME + z(over_cup_up_mm) + y(over_cup_dy_mm))에 데려다 놨다는 전제로, 호출되자마자 바로 하강부터 시작한다.
+    괄호 안은 강의자료 근거.
+      ① 호출된 그 자리에서 **fast_down_mm 만큼 빠르게** 내려간다(9/21 실측 90 mm − 10 + over_cup_up_mm 40). 바닥 위치는 미리 정하지 않는다
       ② **바닥을 찾는다** — cc.contact_down(순응 ON, 조금씩 하강, f3.wipe_cup.find_limit_n 5 N — 15 N 이면 컵이 눌렸다)
          (중급2 "힘 방향과 같은 방향의 모션 불가" — Z 힘제어로는 내려갈 수 없다. 순응 + 걸음 하강이 매뉴얼 방식)
       ③ 바닥을 찾으면 **힘을 풀고**(contact_down 이 해제한다) — 세척의 **가장 낮은 곳 = 바닥 + 3 mm**
@@ -490,7 +513,7 @@ def wipe_cup() -> WipeCupResult:
          🚨 회전 최고 속도가 로봇 한계 225 °/s 를 넘으면 움직이기 전에 멈춘다
          🚨 회전 칸은 **rz** — rx 는 실기에서 4번 조인트를 돌렸다. Virtual 은 rx ↔ rz 를 뒤바꿔 움직여 믿지 않는다(9/21)
       ⑥ cycles(5) 번 뒤 가장 낮은 곳(바닥 + 3)으로 내려서 끝낸다 — 6번 조인트도 제자리
-      ⑦ 솔을 컵에서 곧게 뽑아 컵 위 높이로 → z +40 → y −140 → z −40 → HOME (⓪ 의 반대)
+      ⑦ 솔을 컵에서 곧게 뽑아 **호출된 자리 높이로만** 상승 — 그걸로 끝(HOME 이동·수평 복귀 없음)
 
     🚨 그릇(고정 좌표, 결정 E6)과 달리 컵은 **바닥을 힘으로 찾는다** — 컵이 깊고(95 mm) 솔이 단단해
        높이가 어긋나면 바로 세게 박히고, 그릇과 달리 물러서 완충해 줄 것이 없다.
@@ -504,12 +527,10 @@ def wipe_cup() -> WipeCupResult:
     p = cc.cfg()['f3']['wipe_cup']
     t0 = time.monotonic()
     log = _Log(p, t0)
-    trip = _Trip(cup_hops(p), p)
-    code, depth, moved = ROBOT_ERROR, 0.0, True
+    code, depth, moved, cup_check_z = ROBOT_ERROR, 0.0, True, None
     try:
         _halt_check('컵 닦기 시작')
-        check_spin_speed(p)                                              # 로봇 한계를 넘는 설정이면 움직이기 전에 멈춘다
-        trip.go()                                                        # ⓪ HOME → 컵 위
+        cup_check_z = cc.where()[2]                                      # 호출된 자리(soap이 이미 데려다 놓음) — 안 움직이고 기록만
         log.start(cc.read_force())                                       # 공중 기준값은 내려가기 전에
         fast = float(p['fast_down_mm'])
         _fast_z(p, -fast)                                                # ① 정한 길이만큼 빠르게
@@ -525,9 +546,9 @@ def wipe_cup() -> WipeCupResult:
     except (cc.MotionHalted, cc.MoveIncomplete):                         # 로봇 위치를 모른다 → 올린다
         moved = False
         raise
-    except JointGuardStop as e:                                          # 1·4번 조인트가 움직였다 — 그릇과 같게 곧게 뽑아 HOME(박진용 9/22)
+    except JointGuardStop as e:                                          # 1·4번 조인트가 움직였다 — 곧게 뽑아 호출된 높이로(박진용 9/22)
         code = ROBOT_ERROR                                               #   수세미·솔 둘 다 무르다 → 컵도 그릇처럼 자동 복귀해도 된다
-        _warn(f'{e} → HOME으로 복귀했다. 티치펜던트로 자세 확인')
+        _warn(f'{e} → 호출된 높이로 복귀했다. 티치펜던트로 자세 확인')
     except cc.ForceLimitError:
         code = FORCE_LIMIT
     except (cc.MotionTimeout, cc.MoveTimeout):
@@ -535,9 +556,34 @@ def wipe_cup() -> WipeCupResult:
     except (RuntimeError, ValueError, KeyError):
         code = ROBOT_ERROR
     finally:
-        trip.back(moved)                                                 # ⑦ 힘 끄고, 위치를 알 때만 곧게 뽑아 ⓪ 의 반대로 HOME
+        _cup_finish(p, moved, cup_check_z)                                # 힘 끄고, 위치를 알 때만 곧게 호출된 높이로만
     return WipeCupResult(ok=(code == OK), code=code, force_log_path=log.save(),
                          duration_s=time.monotonic() - t0, insert_depth_mm=depth)
+
+
+def _cup_finish(p, moved, cup_check_z):
+    """힘 끄기는 언제나 → moved 면 동작 끝 대기 → 곧게 호출 시점 높이로 상승. 그걸로 끝(움직여서 자리 안 찾는다, 박진용 9/22 3차)."""
+    try:
+        cc.force_off()
+    except Exception as e:                                               # noqa: BLE001 — 복구는 끝까지
+        _warn(f'정리 실패: 힘 끄기 — {e!r} · 눈으로 확인')
+    if not moved:
+        _warn('🚨 로봇이 어디 있는지 모른다 → 힘만 끄고 **움직이지 않았다**. '
+              '티치펜던트로 상태를 확인하고 사람이 복구한다')
+        return
+
+    def rise():
+        if cup_check_z is None:
+            return
+        dz = cup_check_z - cc.where()[2]
+        if dz > 0:
+            _fast_z(p, dz)
+
+    for what, fn in (('동작 끝 대기', cc.wait_done), ('곧게 올라오기', rise)):
+        try:
+            fn()
+        except Exception as e:                                           # noqa: BLE001 — 복구는 끝까지
+            _warn(f'정리 실패: {what} — {e!r} · 눈으로 확인')
 
 
 def cup_stroke(p):
@@ -554,17 +600,6 @@ def spin_room(j6, p):
     half, lim = float(p['spin_deg']) / 2.0, float(p['j6_limit_deg']) - float(p['j6_margin_deg'])
     if abs(j6) + half > lim:
         raise ValueError(f'wipe_cup: 6번 조인트 {j6:.1f}° 에서 ±{half:g}° 를 돌면 한계(±{lim:g}°)를 넘는다 — 돌지 않는다')
-
-
-def check_spin_speed(p):
-    """세척 회전 최고 속도 2π × (spin_deg/2) / period_s 가 로봇 한계(rot_vel_limit_deg_s)를 넘으면 ValueError — **내려가기 전에** 본다.
-    넘으면 컨트롤러가 Periodic 을 거절한다(9/21 알람 1212: 251 > 225 °/s)."""
-    peak = 2.0 * math.pi * float(p['spin_deg']) / 2.0 / float(p['period_s'])
-    lim = float(p['rot_vel_limit_deg_s'])
-    if peak > lim:
-        raise ValueError(f'wipe_cup: 세척 회전 최고 {peak:.0f} °/s > 로봇 한계 {lim:g} °/s — period_s 를 '
-                         f'{2 * math.pi * float(p["spin_deg"]) / 2 / lim:.2f} s 이상으로')
-    return peak
 
 
 def cup_periodic(p, stroke):
