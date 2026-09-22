@@ -14,7 +14,7 @@
 쓰는 곳: flow_node.main (robot=True 일 때) · rig_f2 · rig_int12 · rig_weigh_probe — cc.init 직후, 첫 이동 전.
 🚨 통신 노드의 실행기가 다른 스레드에서 돌고 있어야 동기 호출(call)이 돌아온다 — cc.init 뒤에만 부른다(gripper._send 와 같은 조건).
 """
-__all__ = ['PreflightError', 'check_controller', 'require_controller']
+__all__ = ['PreflightError', 'check_controller', 'require_controller', 'warn_if_cable_tight']
 
 _SRV_PREFIX = '/dsr01/dsr_controller2/'          # 두산 드라이버 서비스 이름 (motion.py 와 같다)
 
@@ -56,6 +56,16 @@ def check_controller(node, expect, timeout_s=3.0):
     return out
 
 
+def _is_virtual():
+    """지금 붙어 있는 컨트롤러가 에뮬레이터인가. 두산 노드가 없으면(robot=False) False."""
+    try:
+        from cobot_common.bootstrap import dsr
+        d = dsr()
+        return d.get_robot_system() == d.ROBOT_SYSTEM_VIRTUAL
+    except Exception:                                    # noqa: BLE001 — 모르면 "실기" 로 보고 확인한다(안전한 쪽)
+        return False
+
+
 def require_controller(node, cfg, log=None):
     """flow.preflight 설정대로 확인하고, 하나라도 다르면 PreflightError. 통과하면 읽은 이름을 돌려준다.
 
@@ -65,6 +75,10 @@ def require_controller(node, cfg, log=None):
     if not pf:
         if log:
             log.warn('flow.preflight 가 없다 — 툴·TCP 이름을 확인하지 않고 움직인다 (TS-07)')
+        return {}
+    if _is_virtual():                                    # 🆕 9/22 — 에뮬레이터의 툴·TCP 이름은 실기 등록값과 다르다 → 가상에서는 건너뛴다
+        if log:
+            log.warn('Virtual 컨트롤러 — 툴·TCP 이름 확인을 건너뛴다 (실기 등록값과 다르다 · TS-07 은 실기용)')
         return {}
     got = check_controller(node, pf, pf.get('timeout_s', 3.0))
     bad = {k: v for k, (ok, v) in got.items() if not ok}
@@ -77,3 +91,50 @@ def require_controller(node, cfg, log=None):
     if log:
         log.info('문지기 통과 — ' + ' · '.join(f'{k} {v!r}' for k, (_, v) in got.items()))
     return {k: v for k, (_, v) in got.items()}
+
+
+# ────────────────────────────────── 🔗 케이블 장력 (9/22 황인재 V-02 원인)
+def _read_fz():
+    """툴 힘 Fz(BASE · N) 한 번 — 시험에서 바꿔 끼운다."""
+    from cobot_common.bootstrap import dsr
+    d = dsr()
+    f = d.get_tool_force(ref=d.DR_BASE)
+    if not isinstance(f, (list, tuple)) or len(f) != 6:
+        raise RuntimeError(f'get_tool_force 실패값 {f!r}')
+    return float(f[2])
+
+
+def warn_if_cable_tight(cfg, log=None):
+    """움직이기 **전에** 정지 상태에서 Fz 를 몇 번 읽어 흔들림(10~90 % 폭 · g)을 본다 → 넘으면 경고(멈추지 않는다).
+
+    설정 flow.preflight.cable: {samples: 8, gap_s: 0.7, max_spread_g: 60}. 없거나 samples 0 이면 건너뛴다.
+    왜: 그리퍼 케이블이 팽팽하면 팔이 서 있어도 힘센서가 ±25 g 넘게 오르내린다(9/22). 문지기 뒤 HOME 에서 약 6 s —
+        시작할 때 한 번이라 공정 시간은 안 든다. 무게를 잴 때마다의 검사는 cobot_common.weigh 가 같은 기준으로 한다.
+    → (spread_g, samples) 또는 건너뛰면 (None, [])
+    """
+    import time
+    cab = (((cfg or {}).get('flow') or {}).get('preflight') or {}).get('cable') or {}
+    n = int(cab.get('samples') or 0)
+    if n <= 0 or _is_virtual():
+        return None, []
+    gap = float(cab.get('gap_s') or 0.7)
+    limit = cab.get('max_spread_g')
+    vals = []
+    for i in range(n):
+        if i:
+            time.sleep(gap)
+        try:
+            vals.append(-_read_fz() * 101.97)            # 무게 g (−Fz · weigh.py 와 같은 부호)
+        except Exception as e:                            # noqa: BLE001 — 못 읽으면 검사만 건너뛴다
+            if log:
+                log.warn(f'케이블 확인 — 힘을 못 읽었다({e!r}) · 건너뛴다')
+            return None, vals
+    s = sorted(vals)
+    spread = (s[int(0.9 * (n - 1))] - s[int(0.1 * (n - 1))]) if n >= 5 else (s[-1] - s[0])
+    if log:
+        if limit is not None and spread > float(limit):
+            log.warn(f'🔗 시작 전 힘센서 흔들림 {spread:.0f} g > {float(limit):.0f} g ({n}회 · {gap * (n - 1):.0f} s) — '
+                     '그리퍼 **케이블 장력** 의심. 움직이기 전에 케이블 여유 길이를 확인한다(9/22 V-02 · 리마인드 §6)')
+        else:
+            log.info(f'케이블 확인 — 정지 흔들림 {spread:.0f} g ({n}회) ✅')
+    return spread, vals

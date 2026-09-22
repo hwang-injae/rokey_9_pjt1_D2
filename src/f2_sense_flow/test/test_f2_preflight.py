@@ -97,3 +97,58 @@ def test_no_config_warns_and_passes():
     log = Log()
     assert P.require_controller(_node(), {'flow': {}}, log) == {}
     assert any('preflight' in m for m in log.w)
+
+
+def test_virtual_controller_skips_check(monkeypatch):
+    """에뮬레이터면 이름이 달라도 통과(경고만) — 실기(또는 모름)면 그대로 검사한다."""
+    monkeypatch.setattr(P, '_is_virtual', lambda: True)
+
+    class Log:
+        def __init__(self): self.w = []
+        def warn(self, m): self.w.append(m)
+        def info(self, m): pass
+    log = Log()
+    assert P.require_controller(_node(tcp=''), CFG, log) == {}
+    assert any('Virtual' in m for m in log.w)
+    monkeypatch.setattr(P, '_is_virtual', lambda: False)
+    with pytest.raises(P.PreflightError):
+        P.require_controller(_node(tcp=''), CFG)
+
+
+# ────────────────────────────────── 🔗 시작 전 케이블 확인
+class _Log2:
+    def __init__(self): self.w, self.i = [], []
+    def warn(self, m): self.w.append(m)
+    def info(self, m): self.i.append(m)
+
+
+def _cable_cfg(**kw):
+    return {'flow': {'preflight': {'cable': dict({'samples': 6, 'gap_s': 0.0, 'max_spread_g': 60}, **kw)}}}
+
+
+def test_cable_warns_when_fz_wanders(monkeypatch):
+    vals = iter([-0.5, -0.9, -0.3, -1.2, -0.4, -1.1])               # N — g 로 ±40 넘게 널뜀
+    monkeypatch.setattr(P, '_read_fz', lambda: next(vals))
+    monkeypatch.setattr(P, '_is_virtual', lambda: False)
+    log = _Log2()
+    spread, samples = P.warn_if_cable_tight(_cable_cfg(), log)
+    assert len(samples) == 6 and spread > 60 and any('케이블' in m for m in log.w)
+
+
+def test_cable_quiet_when_steady(monkeypatch):
+    vals = iter([-0.50, -0.52, -0.49, -0.51, -0.50, -0.53])
+    monkeypatch.setattr(P, '_read_fz', lambda: next(vals))
+    monkeypatch.setattr(P, '_is_virtual', lambda: False)
+    log = _Log2()
+    spread, _ = P.warn_if_cable_tight(_cable_cfg(), log)
+    assert spread < 10 and not log.w and any('✅' in m for m in log.i)
+
+
+def test_cable_skips_without_config_or_on_virtual(monkeypatch):
+    monkeypatch.setattr(P, '_read_fz', lambda: (_ for _ in ()).throw(AssertionError('읽으면 안 된다')))
+    monkeypatch.setattr(P, '_is_virtual', lambda: False)
+    assert P.warn_if_cable_tight({'flow': {'preflight': {}}}, _Log2()) == (None, [])
+    assert P.warn_if_cable_tight(_cable_cfg(samples=0), _Log2()) == (None, [])
+    monkeypatch.setattr(P, '_is_virtual', lambda: True)
+    assert P.warn_if_cable_tight(_cable_cfg(), _Log2()) == (None, [])
+

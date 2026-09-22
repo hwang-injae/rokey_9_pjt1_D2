@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v16.4'
+VERSION = 'v16.9'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -2109,6 +2109,68 @@ SLOT['9/23 수']['B'] = SLOT['9/23 수']['B'].replace('UT-F4·F4-05(H) — G3(L2
 HISTORY114 = ['v16.4', '완료·재배치', 'V-02, REH-02, SKEL-01, V-24, V-25, V-08, F1-03, 9/22 저녁·9/23 오전 로봇 슬롯', 'PR #73 merge(9/22 18:05): V-02 완료 — 빈 그릇 기준값 −12 g. F4 실기 잔여(V-24 ②③④ · V-25 · V-08 → F1-03 PR)는 오늘 로봇이 없어 저녁 틈 또는 9/23 오전 첫 로봇 40분으로(F1-03 오후 마감 못 지킴 · 저녁 INT-F3 는 뼈대 스크립트라 막히지 않음). SKEL-01 은 한석형 동의 뒤 PR', '황인재 9/22 18:05', 'H,S']
 
 
+# ---------------------------------------------------------------- 9/22 18:30 민범진 PR #74(pick·rack_place 이식) — 코드 통과 · merge 는 황인재 결정 대기(E27 겹침)
+P74 = '🟡 9/22 18:30 PR #74(민범진 · 대기)'
+P1830 = {
+ 'F1-02':   dict(prog='0.8', note_add=P74 + ': 한석형 대본을 pick() 으로 이식(좌표는 cell.yaml · 그릇 폭 판정 E16 · 컵 E19 · 재파지 빈손 = GRIP_FAIL) · 자동 시험 404 통과 · 가상 12a 2/2 · 🔴 실기 미확인(V-14 · INT-12a 0.3). **handling.py 는 한석형 파일 — "PM 승인" 은 없었고 E27(F4 SKEL-01)과 겹침 → merge 는 황인재 결정 + 한석형 동의 뒤**'),
+ 'F1-04':   dict(prog='0.8', note_add=P74 + ': rack_place() 이식 — RINSE 위 → 경유점(RACK_B_VIA · RACK_B1_VIA J6 +180 · RACK_C_VIA) → 칸 위 → 마지막 30 mm 삽입력 감시(15 N) → RACK_JAM/FORCE_LIMIT/TIMEOUT 후퇴 → exit. 가상 12b 그릇 2/2 · 컵 1/1 · 🔴 실기 미확인(V-06 · INT-12b). cell.yaml RACK_B1 C +180 · RET_B 접근점 변경 — 한석형 확인 대기'),
+ 'SKEL-01': dict(note_add=P74 + ': 🚨 민범진이 같은 일(대본 → handling.py 함수)을 먼저 해서 PR #74 로 올림 — **F4 는 멈춤**(PM 18:25 통보). 황인재 결정: ① #74 를 뼈대로 받고 F4 는 tool()·컵·검토로 / ② F4 가 E27 대로 다시. 결정 전까지 handling.py 손대지 않음'),
+ 'INT-F2':  dict(note_add=P74 + ': #74 가 merge 되면 저녁 통합을 "뼈대 스크립트" 대신 **제품 함수(pick·rack_place) + rig_int12/flow** 로 갈 수 있다 — 방식은 황인재 결정'),
+}
+for _tid, _e in P1830.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY115 = ['v16.5', 'PR 대기', 'F1-02, F1-04, SKEL-01, INT-F2', '민범진 PR #74(9/22 18:30): 한석형 대본을 handling.py pick()/rack_place() 로 이식(가상 12a·12b 통과 · 404 통과) — 코드는 통과했으나 한석형 파일이고 "PM 승인" 이 없었으며 E27(F4 SKEL-01)과 겹쳐 **merge 보류 · 황인재 결정 + 한석형 동의 대기**. F4 SKEL-01 멈춤', '황인재 9/22 18:30', 'M,S,H']
+
+
+# ---------------------------------------------------------------- 9/22 18:40 F4 — V-08 1단계(툴 프리셋) · F1-03 브랜치도 handling.py · 순서 결정 요청
+F1840 = '📈 9/22 18:40 F4'
+P1840 = {
+ 'V-08':    dict(prog='0.5', status='진행', note_add=F1840 + ': 1단계 툴 프리셋 실측(E23) — 수세미 25.10 mm(영점 뺀 14.52 · 흔들림 0.20 · 40 N) · 솔 19.30(8.72 · 0.10 · 30 N) → cell.presets.SPONGE/BRUSH 채움(폭 판정 가능 · 빈손과 1.2 mm 차 · tol 0.6). 2단계 홀더 집기 → 반납 CYCLE ×10 실기 중(F1-03 브랜치) — 9/10 이상이면 황인재 승인 뒤 F1-03 PR'),
+ 'F1-03':   dict(note_add=F1840 + ': 브랜치가 handling.py 를 바꾼다(tool() +100/−7 · _TOOL_STATION) — **민범진 PR #74(pick·rack_place)와 같은 파일** → merge 순서 결정 필요(먼저 merge 되는 쪽에 다른 쪽이 rebase). PM 권고: #74 먼저(크고 이미 가상 검증) → F1-03 rebase(충돌 범위 작음)'),
+ 'SKEL-01': dict(note_add=F1840 + ': F4 는 handling.py 에 한 줄도 안 넣음(스크립트 읽기만) → 멈춤. F4 의견: #74 를 뼈대로 받고 F4 는 실기 1회 완주 검증 + place·move_to 정리 + F2/F3 끼울 자리 명시로(리터럴 좌표 없어야 · E14)'),
+}
+for _tid, _e in P1840.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY116 = ['v16.6', '진척', 'V-08, F1-03, SKEL-01', 'F4 9/22 18:40: V-08 1단계 툴 프리셋 실측(수세미 25.10 · 솔 19.30 → cell.presets) · 2단계 CYCLE ×10 실기 중. F1-03 브랜치도 handling.py 를 바꿔 PR #74 와 순서 결정 필요(PM 권고 #74 먼저). SKEL-01 은 시작 전 멈춤 — #74 를 뼈대로 받는 안', '황인재 9/22 18:40', 'H,M']
+
+
+# ---------------------------------------------------------------- 9/22 18:50 황인재 결정(E27 갱신) — PR #74 merge · 뼈대 = 민범진 이식 · F4 손 뗌
+M74 = '✅ 9/22 PR #74 merge(민범진 · 황인재 결정 E27 갱신)'
+P1850 = {
+ 'F1-02':   dict(owner='S', prog='0.85', note_add=M74 + ': pick() 제품 코드 main 에(대본 이식 · 좌표 cell.yaml · 가상 12a 2/2). 🔴 실기 미확인 → 오늘 저녁 INT-12a 첫 실기 0.3(V-14 겸). 이후 수정은 한석형. 한석형 확인 2건: RACK_B1 C +180 · HOME J6 0(케이블)'),
+ 'F1-04':   dict(owner='S', prog='0.85', note_add=M74 + ': rack_place() main 에(경유점 3개 · 삽입력 감시 15 N · RACK_JAM/FORCE_LIMIT/TIMEOUT). 🔴 실기 미확인 → INT-12b(V-06 겸)'),
+ 'SKEL-01': dict(status='완료', prog='1.0', note_add='✅ 9/22 18:2x 황인재: **뼈대 = 민범진 PR #74** — F4 는 손 뗌(E27 갱신). 이 행은 #74 로 갈음'),
+ 'INT-F2':  dict(note_add='🔄 9/22 18:50: #74 merge → 저녁 통합은 **제품 함수(pick·rack_place·F2) + rig_int12(또는 flow)** 로 — 뼈대 스크립트 대신. 첫 실기 0.3 · 한석형 참여'),
+ 'INT-F3':  dict(note_add='🔄 9/22 18:50: F1-03 tool() 은 아직 브랜치(V-08 2단계 뒤 PR · #74 위 rebase) → 박진용 통합은 오늘 밤엔 통합본 스크립트(rig_bowl_scenario_wipe.py) 방식 유지, tool() merge 뒤 제품 함수로'),
+ 'F1-03':   dict(note_add='🔄 9/22 18:50: 순서 확정 — **#74 먼저 merge 됨 → F1-03 은 그 위에 rebase**(F4 동의)'),
+ 'V-25':    dict(note_add='9/22 18:50 F4 순서: V-08 2단계 → F1-03 PR → V-25 → V-24 → HMI E25 · init 툴/TCP 확인 PR'),
+}
+for _tid, _e in P1850.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY117 = ['v16.7', '결정 E27 갱신·merge', 'F1-02, F1-04, SKEL-01, INT-F2, INT-F3, F1-03, V-25', '황인재 9/22 18:2x(F4 전달): 민범진 PR #74(대본 → pick·rack_place 이식)를 뼈대로 받는다 → merge · SKEL-01 완료(갈음) · F4 는 V-08 → F1-03 PR(#74 위 rebase) → V-25 → V-24. 저녁 INT-F2 는 제품 함수 + rig_int12/flow 로 · 🔴 pick/rack_place 실기 미확인(첫 실기 0.3)', '황인재 9/22 18:50', 'M,S,H']
+
+
+# ---------------------------------------------------------------- 9/22 19:00 PR #74 추가 커밋(rig_flow_once) 사후 검토 — INT-F2 = FLOW-04 도구
+P1900 = {
+ 'INT-F2':  dict(note_add='🔧 9/22 PR #74 추가 커밋(15c6570 · PM 사후 검토 OK): `src/f2_sense_flow/test/rig_flow_once.py` — flow.process_one 을 용기 1개에 실기로(HMI 없이 · PAUSED 면 사람이 Enter/a/q · 문지기 통과 뒤 · `--mock f3` 기본). 민범진: "뼈대는 따로 만들지 않는다 — 제품 경로(flow.py)가 뼈대" → 오늘 저녁 INT-F2 = 이 도구로 그릇 1개(진짜 f1·f2 · F3 가짜) = **FLOW-04 와 같은 것**'),
+ 'FLOW-04': dict(note_add='🔄 9/22 19:00: rig_flow_once(#74)로 오늘 저녁 INT-F2 에서 사실상 수행 — process_one 을 진짜 f1·f2 로(F3 가짜). flow_node + HMI 로 같은 것을 다시 돌리면 L3(INT-3a)'),
+}
+for _tid, _e in P1900.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY118 = ['v16.8', '도구', 'INT-F2, FLOW-04', 'PR #74 에 merge 직전 올라온 rig_flow_once.py(시험 도구 · PM 사후 검토 OK · 404 통과): flow.process_one 을 용기 1개에 실기로 — 오늘 저녁 INT-F2 가 이 도구로 진행되며 FLOW-04 를 겸한다', '황인재 9/22 19:00', 'M']
+
+
+# ---------------------------------------------------------------- 9/22 19:40 PR #75 merge(민범진) — 케이블 장력 경고
+P1940 = {
+ 'F2-01':   dict(note_add='✅ 9/22 PR #75 merge(민범진): 🔗 **케이블 장력 경고** — weigh() 표본 30개의 10~90 % 폭 > `f2.limits.max_weigh_spread_g`(50) 이면 경고(추가 시간 0 s) · 시작 전 문지기 뒤 HOME 정지 Fz 8회 폭 > `flow.preflight.cable.max_spread_g`(60) 이면 경고(약 5 s · samples 0 이면 끔). 경고만 · 멈추지 않음 · Virtual 건너뜀. 🟡 기준값 2개는 임시 → 저녁 INT-F2 로그의 "퍼짐 NN g" 로 조정(params 한 줄 PR)'),
+ 'INF-02c': dict(note_add='✅ 9/22 PR #75: weigh() 에 퍼짐 계산·경고 · `weigh_last()`(기록용 요약)'),
+ 'F4-03':   dict(note_add='🔔 9/22 PR #75: 케이블 경고는 지금 flow_node 로그(PC-A 터미널)에만 — HMI 표시는 F4 몫(합의 뒤 · /flow/state.message 에 섞지 않기로)'),
+}
+for _tid, _e in P1940.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY119 = ['v16.9', '진척', 'F2-01, INF-02c, F4-03', 'PR #75 merge(민범진 9/22 19:40): 케이블 장력 경고 — 무게 잴 때 표본 퍼짐(0 s) + 시작 전 정지 흔들림(5 s) · 경고만 · 기준값 임시(저녁 실기로 조정) · 410 통과. HMI 표시는 F4 몫', '황인재 9/22 19:40', 'M,H']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -2197,7 +2259,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113, HISTORY114):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113, HISTORY114, HISTORY115, HISTORY116, HISTORY117, HISTORY118, HISTORY119):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)

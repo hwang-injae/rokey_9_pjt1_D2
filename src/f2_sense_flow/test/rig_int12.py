@@ -178,8 +178,9 @@ def main():
     if a.no_robot:
         log.warn('--no-robot — 두산 드라이버 없이 함수 반환만 본다')
     else:
-        from f2_sense_flow.preflight import require_controller
+        from f2_sense_flow.preflight import require_controller, warn_if_cable_tight
         require_controller(cc.io_node(), cfg, log)             # 🆕 TS-07 — 툴·TCP 가 다르면 여기서 끝
+        warn_if_cable_tight(cfg, log)                          # 🔗 케이블 장력(경고만)
 
     rows = []
     try:
@@ -282,12 +283,24 @@ def _stub_what_virtual_lacks(a, cfg, log):
         q = state['queue']
         return q.pop(0) if q else empty
 
+    presets = (cfg.get('cell') or {}).get('presets') or {}
+    b = presets.get('BOWL') or {}
+    bowl_held = float(b.get('grip_zero_mm') or 0.0) + float(b.get('grip_width_mm') or 0.0)   # 그릇을 쥐었을 때 드라이버 폭(12.73)
+
+    def fake_grip(width, force):                    # 🆕 9/22 진짜 f1.pick 이 판정하므로 "쥐었다" 로 보이는 폭을 돌려준다
+        return max(float(width), bowl_held)         #   그릇: 목표 11.53 → 12.73(판정 OK) · 컵: 목표 76 → 76(판정 없음)
+
+    def fake_contact_down(max_depth, limit):        # 🆕 Virtual 엔 힘·순응이 없다 → 그냥 곧게 내려가고 "끝까지 닿았다"
+        cc.move_rel(0.0, 0.0, -float(max_depth), 'BASE')
+        return float(max_depth), 0.0
+
     cc.weigh = fake_weigh
-    cc.grip = lambda width, force: _FAKE_WIDTH_MM
+    cc.grip = fake_grip
     cc.grip_level = lambda kind, level: _FAKE_WIDTH_MM
     cc.grip_width = lambda: _FAKE_WIDTH_MM
     cc.release = lambda: None
-    log.warn('🚨 Virtual 에 없는 것을 가짜로 바꿔 끼웠다 — cc.weigh · grip · grip_level · grip_width · release')
+    cc.contact_down = fake_contact_down
+    log.warn('🚨 Virtual 에 없는 것을 가짜로 바꿔 끼웠다 — cc.weigh · grip · grip_level · grip_width · release · contact_down')
     log.warn('   이 실행은 **이동·순서만** 본다. 무게·파지·낙하는 실기(INT-12a·12b)에서 본다')
     return state
 
