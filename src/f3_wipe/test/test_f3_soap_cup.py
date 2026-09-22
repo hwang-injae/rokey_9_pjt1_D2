@@ -30,7 +30,7 @@ CFG = {
                  'twist_deg': 20.0, 'twist_cycles': 3, 'twist_period_s': 1.0,
                  'updown_mm': 5.0, 'updown_cycles': 2, 'updown_period_s': 0.3,
                  'ramp_s': 0.2, 'rot_vel_limit_deg_s': 225.0,
-                 'duration_s': 60, 'tool_split_width_mm': 15.0},
+                 'duration_s': 60, 'tool_split_x_mm': 349.0},
         'wipe_bowl': {'fast_vel_mm_s': 220.0, 'fast_acc_mm_s2': 440.0,    # soap 의 상승·이동 속도가 이 값을 그대로 읽는다
                       'home_vel_deg_s': 40.0, 'home_acc_deg_s2': 40.0},
         'wipe_cup': {
@@ -46,8 +46,8 @@ CFG = {
         },
     },
 }
-POSE0 = [400.0, 100.0, 200.0, 45.0, 180.0, 45.0]                          # 픽업 위치(soap) / 임의 현재 위치(wipe_cup 단독 시험)
-SPONGE_WIDTH, BRUSH_WIDTH = 25.6, 8.0                                     # 문턱값(15.0) 위/아래 — 수세미/컵솔 판정용
+SPONGE_X, BRUSH_X = 273.0, 425.0                                          # 문턱값(349.0) 위/아래 — 수세미/컵솔 홀더 실측 X
+POSE0 = [SPONGE_X, 100.0, 200.0, 45.0, 180.0, 45.0]                       # 픽업 위치(soap) / 임의 현재 위치(wipe_cup 단독 시험)
 
 
 class _Logger:
@@ -64,12 +64,11 @@ class _Logger:
 class FakeCell:
     """가짜 셀 — 공용 함수 호출을 순서대로 적어 둔다."""
 
-    def __init__(self, up=80.0, depth=8.0, press=2.0, lateral=1.0, width=SPONGE_WIDTH):
+    def __init__(self, up=80.0, depth=8.0, press=2.0, lateral=1.0):
         self.calls = []
         self.up, self.depth = up, depth          # up = 접근점 → 닦는 높이 · depth = 거기서 바닥까지(찾기 구간)
         self.press, self.lateral = press, lateral
         self.pose = list(POSE0)
-        self.width = width                        # cc.grip_width() 가 돌려주는 값 — soap 의 수세미/컵솔 판정
         self.inserted = False
         self.halted = False
         self.j6 = self.j6_min = self.j6_max = 21.0      # 컵 위 자세의 6번 축 (9/21 Virtual 기록)
@@ -120,9 +119,6 @@ class FakeCell:
     def joints(self):
         return [0.0, 0.0, 90.0, self.j4, 90.0, self.j6]
 
-    def grip_width(self):
-        return self.width
-
     def contact_down(self, max_depth, limit):
         self.calls.append(('contact_down', max_depth, limit))
         self.inserted = True
@@ -159,7 +155,7 @@ def cell(monkeypatch, tmp_path):
     c = FakeCell()
     for name in ('cfg', 'move_to', 'move_rel', 'move_joint_rel', 'move_joints', 'move_periodic', 'motion_done',
                  'stop_now', 'contact_down', 'read_force', 'force_off', 'safe_retreat', 'io_node', 'is_halted',
-                 'where', 'joints', 'grip_width'):
+                 'where', 'joints'):
         monkeypatch.setattr(wipe.cc, name, getattr(c, name), raising=False)
     return c
 
@@ -170,8 +166,8 @@ def _rels(calls):
 
 # ------------------------------------------------------------------ soap
 def test_soap_sponge_twists_then_updowns_then_goes_to_home(cell):
-    """수세미(쥔 폭 25.6 ≥ 문턱값 15) — 비틀기 3회 → 왕복 2회(둘 다 move_periodic·scale=False) → HOME 좌표로 직접."""
-    cell.width = SPONGE_WIDTH
+    """수세미(잡은 위치 X=273 < 문턱값 349) — 비틀기 3회 → 왕복 2회(둘 다 move_periodic·scale=False) → HOME 좌표로 직접."""
+    assert cell.pose[0] == pytest.approx(SPONGE_X)                        # POSE0 기본값이 수세미 홀더 위치
     r = wipe.soap(3, 'BOWL')
     assert r.ok and r.code == OK
     assert ('move_to', 'SOAP', 'BOWL', None) not in cell.calls             # SOAP 자리로 안 간다
@@ -198,9 +194,9 @@ def test_soap_sponge_twists_then_updowns_then_goes_to_home(cell):
     assert cell.pose[0] == pytest.approx(HOME_X) and cell.pose[1] == pytest.approx(HOME_Y) and cell.pose[2] == pytest.approx(HOME_Z)
 
 
-def test_soap_cup_widths_go_to_cup_top_instead_of_home(cell):
-    """컵솔(쥔 폭 8.0 < 문턱값 15) — 같은 비틀기·왕복, 끝은 HOME이 아니라 z+40·y+140(컵 위)."""
-    cell.width = BRUSH_WIDTH
+def test_soap_cup_position_goes_to_cup_top_instead_of_home(cell):
+    """컵솔(잡은 위치 X=425 > 문턱값 349) — 같은 비틀기·왕복, 끝은 HOME이 아니라 z+40·y+140(컵 위)."""
+    cell.pose[0] = BRUSH_X
     r = wipe.soap(3, 'CUP')
     assert r.ok and r.code == OK
     periodics = [c for c in cell.calls if c[0] == 'periodic']

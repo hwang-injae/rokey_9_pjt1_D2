@@ -5,7 +5,7 @@ flow_node(메인 프로그램)나 test/rig_f3.py 가 cobot_common.init() 뒤 **�
 Result.fail(code) 로 돌려준다. 숫자는 전부 params.yaml 의 f3 절 · cell.yaml 에서 읽는다(AGENTS 규칙 6).
 
 시작 전제: 용기는 스펀지 홈에 안착돼 있고(F1 place) 툴을 쥔 상태(F1 tool PICK).
-🔧 9/22 3차(박진용): `soap()`이 쥔 폭으로 수세미/컵솔을 스스로 가려서 **작업 위치까지 좌표로 직접 데려간다**
+🔧 9/22 4차(박진용): `soap()`이 잡은 위치(BASE X)로 수세미/컵솔을 스스로 가려서 **작업 위치까지 좌표로 직접 데려간다**
    (movej로 HOME을 들르지 않는다) — 수세미면 HOME(367.48, 8.09, 215.11), 컵솔이면 그 z+40·y+140(컵 위).
    `wipe_bowl()`·`wipe_cup()`은 더 이상 스스로 위치를 찾지 않는다 — 호출되면 **그 자리에서 바로 하강**하고,
    끝나면 호출 시점 높이로 곧게 상승만 하고 끝난다(호출자가 이미 올바른 자리에 데려다 놨다는 전제).
@@ -43,8 +43,9 @@ FORCE_LOG_HEADER = ('t', 'fx', 'fy', 'fz', 'target')   # SDD §4.2 힘 로그 �
 def soap(count: int, kind: str = None) -> Result:
     """툴 든 채 세제를 묻힌다(모션만, 물 없음). — F3-03. 코드 OK / TIMEOUT / ROBOT_ERROR.
 
-    kind 인자는 안 쓴다(호환용으로만 남김) — 🔧 9/22 3차: **쥔 폭으로** 수세미/컵솔을 스스로 가린다
-    (`f3.soap.tool_split_width_mm`). 그릇·컵 둘 다 **동작이 같다**(비틀고 왕복) — SOAP 자리로 옮기지 않고
+    kind 인자는 안 쓴다(호환용으로만 남김) — 🔧 9/22 4차: **잡은 위치(BASE X)로** 수세미/컵솔을 스스로 가린다
+    (`f3.soap.tool_split_x_mm`) — 쥔 폭으로 판정했다가 그리퍼 힘 버그로 오판해 SAFE_STOP이 난 적이 있다(9/22 실기).
+    그릇·컵 둘 다 **동작이 같다**(비틀고 왕복) — SOAP 자리로 옮기지 않고
     툴 픽업 직후 그 자리에서: ① 좌우 비틀기(6번 관절 ±twist_deg) twist_cycles 회 → ② Z 왕복(±updown_mm)
     updown_cycles 회 → ③ 작업 위치까지 **좌표로 직접**(z 먼저, 그다음 x·y) — movej·HOME 경유 없음:
        수세미 → HOME(cell.yaml stations.HOME 실측 x·y·z) · 컵솔 → 그 z+over_cup_up_mm·y+over_cup_dy_mm(컵 위).
@@ -55,10 +56,11 @@ def soap(count: int, kind: str = None) -> Result:
 
 
 def _soap_is_cup():
-    """지금 쥔 폭으로 컵솔인지 판정한다(박진용 9/22 3차) — 수세미는 막히면 ≈25.6mm, 컵솔 목표는 5mm 근처라
-    둘 사이 문턱값(`tool_split_width_mm`, 15.0)보다 좁으면 컵솔."""
-    split = float(cc.cfg()['f3']['soap']['tool_split_width_mm'])
-    return cc.grip_width() < split
+    """지금 잡은 위치(BASE X)로 컵솔인지 판정한다(박진용 9/22 4차) — 쥔 **폭**으로 판정했더니 그리퍼 힘 버그로
+    컵솔이 헐겁게 잡히면 수세미로 오판해 엉뚱한 위치(HOME)로 가 SAFE_STOP까지 났다(9/22 실기). 위치는
+    그리퍼 힘·폭과 무관하다 — TOOL_SPONGE 홀더(X≈273) < 문턱값(`tool_split_x_mm`, 349) < TOOL_BRUSH 홀더(X≈425)."""
+    split = float(cc.cfg()['f3']['soap']['tool_split_x_mm'])
+    return cc.where()[0] > split
 
 
 def _soap_target(is_cup):
