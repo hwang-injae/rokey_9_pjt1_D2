@@ -71,6 +71,9 @@ class FakeDsr:
             self.at_j = [float(v) for v in pos]
         return self.ret
 
+    def posj(self, q):                       # 두산 posj 흉내(list 그대로) — 실물은 posj(list) 형이어야 movesj 가 받는다
+        return list(q)
+
     def amovesj(self, pos_list, **kw):        # 🆕 관절 스플라인(E36 물 털기) — 마지막 점에 도착한 것으로
         self.calls.append(('movesj', [list(p) for p in pos_list], kw))
         self.left = self.busy_polls

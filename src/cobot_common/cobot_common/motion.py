@@ -178,12 +178,13 @@ def move_joints_via(q_list, *, vel_deg_s=None, acc_deg_s2=None, scale=True):
               주면 그 값 × vel_scale (scale=False 면 vel_scale 예외 · E17 취지). 어느 쪽이든 100 % 기준(cell.motion.*_joint_max)을 넘지 못한다.
     🚨 순응·힘제어가 켜져 있으면 관절 이동이 안 된다(2.1903) → force_off() 뒤에. 일시정지·강제정지는 _run 이 본다.
     """
+    d = dsr()
     pts = []
     for i, q in enumerate(q_list):
         q = [float(v) for v in q]
         if len(q) != 6:
             raise ValueError(f'move_joints_via: {i}번째 점이 6개가 아니다 — {q}')
-        pts.append(q)
+        pts.append(d.posj(q))                                        # 🚨 두산 movesj 는 항목이 **posj 형**이어야 받는다(list 면 DR_Error 1000 · 9/23 08:1x 실기)
     if len(pts) < 2:
         raise ValueError('move_joints_via: 점이 2개 이상이어야 곡선이 된다')
     k = _vel_scale() if scale else 1.0
@@ -194,7 +195,6 @@ def move_joints_via(q_list, *, vel_deg_s=None, acc_deg_s2=None, scale=True):
     else:
         vel = min(_positive('vel_deg_s', vel_deg_s) * k, top_v)
         acc = min(_positive('acc_deg_s2', acc_deg_s2) * k, top_a) if acc_deg_s2 is not None else top_a
-    d = dsr()
     _run(f'amovesj({len(pts)}점 · {vel:.0f} deg/s)', _move_timeout(), lambda: d.amovesj(pts, vel=vel, acc=acc, mod=d.DR_MV_MOD_ABS))
 
 
