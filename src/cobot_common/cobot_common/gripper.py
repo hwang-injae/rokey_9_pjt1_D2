@@ -32,7 +32,7 @@ import time
 
 import numpy as np
 
-__all__ = ['grip', 'grip_level', 'release', 'grip_width']
+__all__ = ['grip', 'grip_level', 'release', 'grip_width', 'set_grip_preset']
 
 # ── 드라이버 상수 (OnRobotRGControllerServer.py 의 RG2 분기에서 그대로) ──
 _L1, _L3 = 0.108505, 0.055
@@ -55,6 +55,10 @@ _effort = None                       # 최신 effort — 0.0 이면 멈춘 것
 #    🚨 힘은 **움직이거나 닫혀 있을 때만** 읽힌다 — 활짝 열린 채 정지하면 0 이 온다(= 모름).
 #       그래서 마지막으로 읽은 값을 들고 있는다. 어떤 움직임이든 일어나면 콜백이 갱신한다.
 _force_n = None
+_held_preset = None                  # 🔄 9/23(황인재 · F4 총괄 통합): 지금 쥔 용기를 **어느 프리셋으로** 잡았는지(None = 종류 프리셋).
+                                     #    컵은 반납 자리에서 벽(테두리 · presets.CUP · HOLD 35 N)으로 집고, 홈 C 에서 **옆면 몸통**(presets.CUP_SIDE ·
+                                     #    고정 폭 76 · 5 N)으로 다시 잡는다. grip_level(kind, HOLD) 이 kind 프리셋의 35 N 을 몸통에 걸면 컵이 눌린다
+                                     #    (E19: 20 N 에서 안전 스위치) → 재파지한 쪽(f1)이 set_grip_preset 으로 알려 주고 release() 가 지운다.
 
 
 def setup_io(node):
@@ -111,10 +115,12 @@ def grip_level(kind, level):
     level = str(level).upper()
     if level not in ('NORMAL', 'HOLD'):
         raise ValueError(f"grip_level: level={level!r} — 'NORMAL' 또는 'HOLD'")
-    preset = _preset(cfg(), kind)
+    with _lock:
+        name = _held_preset or kind                      # 🔄 9/23: 다시 잡은 프리셋(컵 옆면 CUP_SIDE)이 있으면 그 힘을 쓴다
+    preset = _preset(cfg(), name)
     key = 'grip_force_n' if level == 'NORMAL' else 'hold_force_n'
     if key not in preset:
-        raise KeyError(f'cell.presets.{kind}.{key} 가 없다 — 프리셋을 확인한다')
+        raise KeyError(f'cell.presets.{name}.{key} 가 없다 — 프리셋을 확인한다')
     with _lock:
         known = _force_n is not None
     if not known:
@@ -126,7 +132,7 @@ def grip_level(kind, level):
     before = grip_width()
     _set_force(float(preset[key]))                       # 'i'/'d' 안에서 _wait_done 까지 한다
     after = grip_width()
-    _log().info(f'grip_level({kind}, {level}) — 폭 {before:.1f} → {after:.1f} mm')
+    _log().info(f'grip_level({kind}, {level}) — 폭 {before:.1f} → {after:.1f} mm' + (f' · 프리셋 {name}' if name != kind else ''))
     return after
 
 
@@ -138,6 +144,9 @@ def release():
        여기가 손이 빈 게 확실한 유일한 자리다 — 그래서 그리퍼를 쓰는 프로그램은
        아무것도 쥐지 않은 상태의 release() 로 시작한다(그 약속은 그대로다).
     """
+    global _held_preset
+    with _lock:
+        _held_preset = None                          # 🔄 9/23: 놓으면 "무엇으로 잡고 있는지" 기억도 지운다
     before = _width_or_none()
     _send('o')
     after = _wait_done()
@@ -150,6 +159,18 @@ def release():
         _wait_done()
         _send('o')
         _wait_done()
+
+
+def set_grip_preset(name):
+    """지금 쥐고 있는 용기를 **어느 프리셋**으로 잡았는지 기억한다 (None = 종류(kind) 프리셋으로 되돌림).
+
+    🔄 9/23(황인재 · 결정 ㉡): 컵은 반납 자리에서 벽(presets.CUP)으로 집고 홈 C 에서 옆면 몸통(presets.CUP_SIDE · 고정 폭 · 5 N)으로
+       다시 잡는다. 그 뒤 f2 의 grip_level('CUP', 'HOLD') 가 CUP 의 35 N 을 몸통에 걸면 컵이 눌린다(E19) →
+       다시 잡은 쪽(f1._regrip)이 여기로 알려 주면 grip_level 이 그 프리셋의 힘을 쓴다. release() 가 지운다.
+    """
+    global _held_preset
+    with _lock:
+        _held_preset = None if name is None else str(name)
 
 
 def grip_width():
