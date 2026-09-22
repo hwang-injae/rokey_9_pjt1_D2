@@ -326,6 +326,38 @@ def main():
             )
             pose()
 
+        def rel_fast(dx, dy, dz, label):
+            """
+            이미 확인한 자유공간 상대이동만 FAST.
+            PREWASH_VEL_SCALE=0.3은 그대로 유지하고,
+            이 이동 동안 vel_carry_pct만 100으로 올린다.
+            """
+            limits = cell["limits"]
+            old_pct = limits["vel_carry_pct"]
+
+            try:
+                limits["vel_carry_pct"] = 100
+
+                print(
+                    f"[FAST] vel_carry_pct: "
+                    f"{old_pct} → 100 "
+                    f"(vel_scale={cfg['run']['vel_scale']})"
+                )
+
+                ask(label)
+
+                cc.move_rel(
+                    float(dx),
+                    float(dy),
+                    float(dz),
+                    "BASE",
+                )
+
+                pose()
+
+            finally:
+                limits["vel_carry_pct"] = old_pct
+
         def release(label):
             ask(label)
             cc.release()
@@ -342,7 +374,7 @@ def main():
             pose()
             return got
 
-                def home_keep_j6(carrying, label, fast=False):
+        def home_keep_j6(carrying, label, fast=False):
             """
             기존 HOME 이동 경로는 그대로 사용한다.
 
@@ -387,7 +419,7 @@ def main():
                 label=label,
             )
 
- move("HOME", False, label="시작 HOME")
+        move("HOME", False, label="시작 HOME")
         _, home_x = pose()
 
         release("초기 빈손 RELEASE")
@@ -472,10 +504,13 @@ def main():
 
         print("[F2 SHAKE 구간 생략]")
 
-        home_keep_j6(
+        move_fast(
+            "HOME",
             True,
-            label="WASTE → HOME [FAST]",
-            fast=True,
+            label=(
+                "WASTE → HOME [FAST] "
+                "/ J6도 HOME 값으로 같이 맞춤"
+            ),
         )
 
         bed_up = move(
@@ -565,38 +600,21 @@ def main():
 
         rinse = RINSE_B_APPROACH_X
 
-        rel(
+        # --------------------------------------------------
+        # RINSE 진입
+        #
+        # 기존 STEP19:
+        # HOME 높이를 유지한 채 X/Y만 이동.
+        # 이 자유공간 이동만 FAST.
+        #
+        # 방향/J6 조정은 여기서 하지 않는다.
+        # RINSE 기능 담당(F2)이 실제 헹굼 동작에서 맡는다.
+        # --------------------------------------------------
+        rel_fast(
             rinse[0] - home_x[0],
             rinse[1] - home_x[1],
             0,
-            "RINSE: HOME 높이 유지 → X/Y만 이동",
-        )
-
-        rinse_high = list(rinse)
-        rinse_high[2] = home_x[2]
-
-        stations["RINSE_HIGH_TEST"] = {
-            "posx": rinse_high
-        }
-
-        move(
-            "RINSE_HIGH_TEST",
-            True,
-            label="RINSE 높은 위치에서 방향 맞춤",
-        )
-
-        dz = rinse[2] - home_x[2]
-
-        rel(
-            0, 0, dz,
-            "RINSE: Z만 하강",
-        )
-
-        print("[F2 RINSE/DIP 구간 생략]")
-
-        rel(
-            0, 0, -dz,
-            "RINSE EXIT: Z 먼저 상승",
+            "RINSE: HOME 높이 유지 → X/Y만 이동 [FAST]",
         )
 
         now_x = [
@@ -604,23 +622,30 @@ def main():
             for v in d.get_current_posx(ref=d.DR_BASE)[0]
         ]
 
-        home_ori_high = [
-            now_x[0],
-            now_x[1],
-            now_x[2],
-            home_x[3],
-            home_x[4],
-            home_x[5],
-        ]
+        dz = rinse[2] - now_x[2]
 
-        stations["RINSE_HOME_ORI_TEST"] = {
-            "posx": home_ori_high
-        }
+        rel(
+            0,
+            0,
+            dz,
+            "RINSE: Z만 하강",
+        )
 
-        move(
-            "RINSE_HOME_ORI_TEST",
-            True,
-            label="RINSE 높은 위치에서 HOME 방향 복원",
+        print("[F2 RINSE/DIP 구간 생략]")
+
+        # --------------------------------------------------
+        # RINSE EXIT
+        #
+        # Z 먼저 올라온 뒤,
+        # 높은 상태에서 HOME X/Y로 복귀.
+        #
+        # 기존 '높은 곳에서 HOME 방향 복원' STEP 삭제.
+        # --------------------------------------------------
+        rel(
+            0,
+            0,
+            -dz,
+            "RINSE EXIT: Z 먼저 상승",
         )
 
         now_x = [
@@ -635,69 +660,179 @@ def main():
             "RINSE EXIT: HOME X/Y로 복귀",
         )
 
-        home_keep_j6(
-            True,
-            label="RINSE → HOME",
-        )
-
-        move(
-            "RACK_B_VIA_TEST",
-            True,
-            label="HOME → RACK_B_VIA",
-        )
-
-        rack_up = move(
-            slot,
-            True,
-            label=f"RACK_B_VIA → {slot} 접근",
-        )
-
         # --------------------------------------------------
-        # BOWL은 현재 위를 보고 있으므로
-        # RACK_B1에서는 내려가기 전에 J6을 180° 뒤집는다.
+        # RINSE EXIT → HOME 경유 → RACK 접근
         #
-        # +180 / -180은 최종 자세가 동일하므로
-        # 손목이 0°에 더 가까워지는 방향을 자동 선택한다.
+        # HOME은 별도 STEP이 아니라 '경유점'.
+        #
+        # Enter 한 번으로:
+        #
+        # 현재 높은 자세
+        #   → HOME(J1~J5, 현재 J6 유지)
+        #   → RACK_B_VIA
+        #   → RACK_B1 접근
+        #
+        # RACK_B1일 때는 기존의
+        #
+        #   접근 완료
+        #   → J6만 180° 회전
+        #
+        # 을 하지 않는다.
+        #
+        # 대신:
+        #
+        #   RACK_B_VIA_J 의 J6 자체를 +180° 한 값으로 이동하고
+        #   RACK_B1 접근 POSX의 C도 +180° 한 자세로 들어간다.
+        #
+        # 따라서 손목 회전이 이동 중에 같이 일어나며,
+        # 접근 후 단독 J6 회전 STEP은 없다.
         # --------------------------------------------------
+        ask(
+            "RINSE EXIT → HOME 경유 → "
+            f"RACK_B_VIA → {slot} 접근 "
+            "/ J6 회전은 이동 중 반영"
+        )
+
+        j_now = [
+            float(v)
+            for v in d.get_current_posj()
+        ]
+
+        # HOME은 정지 STEP이 아니라 경유점.
+        # J1~J5만 HOME, J6는 현재값 유지.
+        home_via_j = [
+            float(v)
+            for v in HOME_J
+        ]
+        home_via_j[5] = j_now[5]
+
+        stations["HOME_RACK_VIA_TEST"] = {
+            "posj": home_via_j
+        }
+
+        print(
+            f"[RACK ROUTE] HOME 경유 "
+            f"J6 유지 = {j_now[5]:.2f}°"
+        )
+
+        cc.move_to(
+            "HOME_RACK_VIA_TEST",
+            True,
+        )
+        pose()
+
         if slot == "RACK_B1":
-            j_now = [
+
+            # ----------------------------------------------
+            # 기존 VIA J6 = -108°
+            #
+            # 여기에 +180°를 반영:
+            #   -108 + 180 = +72°
+            #
+            # 즉 VIA로 이동하는 동안
+            # 손목도 함께 뒤집힌다.
+            # ----------------------------------------------
+            rack_via_flipped_j = [
                 float(v)
-                for v in d.get_current_posj()
+                for v in RACK_B_VIA_J
             ]
 
-            j6_before = j_now[5]
+            rack_via_flipped_j[5] += 180.0
 
-            plus_final = j6_before + 180.0
-            minus_final = j6_before - 180.0
-
-            if abs(plus_final) <= abs(minus_final):
-                flip_delta = 180.0
-            else:
-                flip_delta = -180.0
+            stations["RACK_B_VIA_FLIPPED_TEST"] = {
+                "posj": rack_via_flipped_j
+            }
 
             print(
-                f"RACK_B1 접근 J6 = {j6_before:.2f}°"
-            )
-            print(
-                f"BOWL 뒤집기: J6 {flip_delta:+.0f}° "
-                f"→ 예상 {j6_before + flip_delta:.2f}°"
-            )
-
-            cc.move_joint_rel(
-                6,
-                flip_delta,
-                carrying=True,
+                "[RACK ROUTE] "
+                f"RACK_B_VIA J6 "
+                f"{RACK_B_VIA_J[5]:.2f}° "
+                f"→ {rack_via_flipped_j[5]:.2f}° "
+                "(+180°, 이동 중)"
             )
 
-            j_after = [
+            cc.move_to(
+                "RACK_B_VIA_FLIPPED_TEST",
+                True,
+            )
+            pose()
+
+            # ----------------------------------------------
+            # 기존 RACK_B1 접근 후 J6 +180°를 했으므로,
+            # 그 결과와 같은 TOOL-Z 회전을
+            # POSX의 마지막 C에 +180°로 반영한다.
+            #
+            # ZYZ:
+            # R = Rz(A) Ry(B) Rz(C)
+            # 이므로 C +180°는 TOOL Z축 180° 회전.
+            # ----------------------------------------------
+            rack_spec = RACKS[slot]
+
+            approach = [
                 float(v)
-                for v in d.get_current_posj()
+                for v in rack_spec["approach_posx"]
             ]
 
-            print(
-                f"RACK_B1 FLIP 완료 J6 = "
-                f"{j_after[5]:.2f}°"
+            end = [
+                float(v)
+                for v in rack_spec["posx"]
+            ]
+
+            def wrap_deg(v):
+                return (
+                    (float(v) + 180.0)
+                    % 360.0
+                    - 180.0
+                )
+
+            approach[5] = wrap_deg(
+                approach[5] + 180.0
             )
+
+            end[5] = wrap_deg(
+                end[5] + 180.0
+            )
+
+            stations["RACK_B1_FLIPPED_TEST"] = {
+                "approach_posx": approach,
+                "posx": end,
+            }
+
+            print(
+                "[RACK ROUTE] "
+                "RACK_B1 접근 방향 C "
+                f"{rack_spec['approach_posx'][5]:.2f}° "
+                f"→ {approach[5]:.2f}°"
+            )
+
+            rack_up = float(
+                cc.move_to(
+                    "RACK_B1_FLIPPED_TEST",
+                    True,
+                )
+                or 0.0
+            )
+
+            pose()
+
+        else:
+            # B2는 기존에 단독 J6 180° 회전을 하지 않았으므로
+            # 기존 경로 그대로 둔다.
+            cc.move_to(
+                "RACK_B_VIA_TEST",
+                True,
+            )
+            pose()
+
+            rack_up = float(
+                cc.move_to(
+                    slot,
+                    True,
+                )
+                or 0.0
+            )
+
+            pose()
 
         print(
             f"{slot} 수직 하강량 = "
