@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v15.1'
+VERSION = 'v15.2'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1885,6 +1885,22 @@ for _tid, _e in P1425.items():
 HISTORY101 = ['v15.1', '진척', 'CELL-04, F1-02, F1-04, V-06', 'PR #69 merge(한석형 9/22 14:25): 컵 집기·스펀지 홈·팔레트 C1/C2 실기 좌표 cell.yaml 반영 · 컵 76 mm · 힘 5 N 유지 · RACK_C2 수직 정렬. 🔴 pick()·rack_place 코드는 아직 — 저녁 INT-12 · FLOW-04 전제', '황인재 9/22 14:25', 'S']
 
 
+# ---------------------------------------------------------------- 9/22 14:50 한석형 보고 — CELL-04 완료 확인 · 남은 것 · 다음 작업
+S1450 = '📥 9/22 14:50 한석형 보고'
+P1450 = {
+ 'CELL-04': dict(status='완료', prog='1.0', note_add=S1450 + ': 컵 동선 좌표 확정 — 반납 구역 집기(접근 z 215.11 → 파지 z 46.95) · 스펀지 홈(접근 z 300 → 삽입 z 110 → 놓은 뒤 z +140) · 팔레트 C1·C2(cup_entry_z 250 → cup_via → 칸 위 z 350 → 놓기 z 258 → z 350 → y 350 퇴피) · RACK_C2 수직 정렬 · 컵 76 mm / 5 N. PR #69(02164ac · 자동 시험 382 통과) · 9/22 실기 동선(집기 → 홈 → 재파지 → 헹굼 → 팔레트) 확인. 완료 유지'),
+ 'F1-02':   dict(note_add=S1450 + ': 경로만 검증 — **pick() 제품 코드는 남음**. 다음 작업 = 확정한 컵 경로를 handling.py pick()·rack_place() 에 반영 → 단위시험(UT-F1)'),
+ 'F1-04':   dict(note_add=S1450 + ': 경로만 검증 — **rack_place() 제품 코드는 남음**(pick() 과 같이)'),
+ 'V-14':    dict(note_add=S1450 + ': 정식 반복·빈 구역 시험은 pick() 코드 뒤'),
+ 'V-06':    dict(note_add=S1450 + ': 팔레트 반복·걸림 시험은 rack_place() 코드 뒤'),
+ 'UT-F1':   dict(note_add=S1450 + ': pick()·rack_place() 구현 뒤 진행'),
+ 'V-19':    dict(note_add=S1450 + '(한석형이 "V-19·V-22 정식 결과 기록 남음" 이라 적음): V-22 는 황인재 PR #52 로 완료 · V-19 는 황인재 0.8(팔레트 컵 칸 2곳 — 이번 PR #69 로 컵 칸 좌표가 확정됐으니 rack_place 실기 때 같이 닫는다)'),
+}
+for _tid, _e in P1450.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY102 = ['v15.2', '보고 반영', 'CELL-04, F1-02, F1-04, V-14, V-06, UT-F1, V-19', '한석형 9/22 14:50: CELL-04 완료 확인(컵 동선 좌표 · PR #69) · 경로만 검증했고 pick()·rack_place() 제품 코드 · V-14 · V-06 · UT-F1 은 남음 → 다음 작업 = handling.py 반영 + 단위시험', '황인재 9/22 14:50', 'S']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -1973,7 +1989,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
