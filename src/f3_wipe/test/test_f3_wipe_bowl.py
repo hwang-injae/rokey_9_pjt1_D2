@@ -182,16 +182,16 @@ def _names(r):
 
 
 def _ended_home(r):
-    """끝은 rig_v03 finally 그대로: … → 곧게 위로(movel REL +) → HOME(movej)."""
+    """끝: … → 곧게 호출된 높이로(movel REL +) — movej 없음(박진용 9/22 3차, soap이 이미 데려다 놨다는 전제)."""
     moves = [c for c in r.calls if c[0] in ('movel', 'movej')]
-    return moves[-1][0] == 'movej' and moves[-2][0] == 'movel' and moves[-2][4] == r.REL and moves[-2][1][2] > 0
+    return bool(moves) and moves[-1][0] == 'movel' and moves[-1][4] == r.REL and moves[-1][1][2] > 0
 
 
 def test_order_is_rig_v03(rb):
     r = wipe.wipe_bowl()
     assert r.ok and r.code == OK
     n = _names(rb)
-    assert n[0] == 'movej'
+    assert n[0] == 'movel'                                                # movej 없음 — 호출되자마자 바로 하강(박진용 9/22 3차)
     # 🔸 순응은 contact_down(keep_compliance=True) 안에서 켜진 채로 넘어온다(박진용 9/22) — 여기서 따로 껐다 켜지 않는다
     assert (n.index('contact_down') < n.index('spiral') < n.index('force_on')
             < n.index('movec') < n.index('release_force'))
@@ -199,10 +199,8 @@ def test_order_is_rig_v03(rb):
 
 
 def test_values_same_as_rig_v03_except_four(rb):
-    """HOME 12 °/s·40 · 하강 140 mm 66 mm/s·132(컵과 같은 방식으로 vel_scale 적용, 박진용 9/22) · 바닥 30 mm·3 N·40 s · 나선 2.8바퀴·14 mm·3 s(속도 0)."""
+    """하강 140 mm 66 mm/s·132(컵과 같은 방식으로 vel_scale 적용, 박진용 9/22) · 바닥 30 mm·3 N·40 s · 나선 2.8바퀴·14 mm·3 s(속도 0)."""
     wipe.wipe_bowl()
-    home = rb.calls[0]
-    assert home[1] == HOME_POSJ and home[2] == pytest.approx(12.0) and home[3] == 40.0
     down = [c for c in rb.calls if c[0] == 'movel'][0]
     assert down[1][2] == -140.0 and down[2] == pytest.approx(66.0) and down[3] == pytest.approx(132.0)
     assert ('contact_down', 30.0, 3.0, 40.0) in rb.calls
