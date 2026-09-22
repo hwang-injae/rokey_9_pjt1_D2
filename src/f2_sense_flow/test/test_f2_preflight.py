@@ -97,3 +97,20 @@ def test_no_config_warns_and_passes():
     log = Log()
     assert P.require_controller(_node(), {'flow': {}}, log) == {}
     assert any('preflight' in m for m in log.w)
+
+
+def test_virtual_controller_skips_check(monkeypatch):
+    """에뮬레이터면 이름이 달라도 통과(경고만) — 실기(또는 모름)면 그대로 검사한다."""
+    monkeypatch.setattr(P, '_is_virtual', lambda: True)
+
+    class Log:
+        def __init__(self): self.w = []
+        def warn(self, m): self.w.append(m)
+        def info(self, m): pass
+    log = Log()
+    assert P.require_controller(_node(tcp=''), CFG, log) == {}
+    assert any('Virtual' in m for m in log.w)
+    monkeypatch.setattr(P, '_is_virtual', lambda: False)
+    with pytest.raises(P.PreflightError):
+        P.require_controller(_node(tcp=''), CFG)
+

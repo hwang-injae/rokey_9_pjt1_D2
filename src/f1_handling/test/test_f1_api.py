@@ -9,13 +9,10 @@ def test_handling_matches_f1api():
 
 
 def test_return_types_of_skeleton_functions():
-    """아직 골격인 함수(🚧 pick · tool · rack_place)는 약속된 타입만 돌려준다. move_to · place 는 test_f1_handling.py."""
-    assert isinstance(handling.pick('RET_B', 'BOWL'), PickResult)
+    """아직 골격인 함수(🚧 tool)는 약속된 타입만 돌려준다. pick · rack_place 는 9/22 구현 → test_f1_pick_rack.py."""
     assert isinstance(handling.tool('SPONGE', 'PICK'), ToolResult)
-    assert type(handling.rack_place('RACK_B1', 'BOWL')) is Result
 
 
 def test_skeleton_returns_ok():
-    """골격은 전부 ok=True · code='OK' 를 돌려준다 — V-20 에서 flow 가 끝까지 돌 수 있게."""
-    results = [handling.pick('RET_C', 'CUP'), handling.tool('BRUSH', 'RETURN'), handling.rack_place('RACK_C2', 'CUP')]
-    assert all(r.ok and r.code == 'OK' for r in results)
+    """골격은 ok=True · code='OK' 를 돌려준다 — V-20 에서 flow 가 끝까지 돌 수 있게."""
+    assert handling.tool('BRUSH', 'RETURN').ok
