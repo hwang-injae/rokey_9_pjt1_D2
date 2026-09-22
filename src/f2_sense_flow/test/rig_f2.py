@@ -29,7 +29,7 @@ import cobot_common as cc
 from cobot_api import F2Api, check_api
 
 from f2_sense_flow import sense
-from f2_sense_flow.preflight import require_controller   # 🆕 TS-07 — 움직이기 전 툴·TCP 확인
+from f2_sense_flow.preflight import go_home_safely, require_controller, warn_if_cable_tight   # 🆕 TS-07 — 움직이기 전 툴·TCP 확인 · 🔗 케이블
 
 
 def main():
@@ -82,6 +82,7 @@ def main():
         log.warn('--no-robot — 두산 드라이버 없이 함수 반환만 확인한다')
     else:
         require_controller(cc.io_node(), cc.cfg(), log)   # 🆕 TS-07 — 다르면 PreflightError 로 여기서 끝
+        warn_if_cable_tight(cc.cfg(), log)                # 🔗 케이블 장력(경고만)
     if a.which == 'shake':
         _override_shake(a, log)                          # 🆕 --amp/--period/--acc/--tilt (이번 실행만)
     try:
@@ -95,9 +96,8 @@ def main():
         #    --no-robot 일 때는 건너뛴다 — 여기는 _as_result 바깥이라 두산 API 가 없으면
         #    그대로 예외가 터져 나가고, 뒤의 '함수 반환만 확인' 을 못 한다(9/21 발견).
         if a.which in ('shake', 'dip', 'loop', 'weigh') and not a.no_home and not a.no_robot:
-            log.info('E15 — 먼저 HOME 으로 간다 (앞뒤를 가로지르지 않으려고)')
-            cc.force_off()
-            cc.move_to('HOME', True, a.kind)
+            log.info('E15 — 먼저 HOME 으로 간다 (앞뒤를 가로지르지 않으려고 · 낮으면 곧게 올라온 뒤에)')
+            go_home_safely(a.kind, log)
 
         for i in range(a.n):                         # ② 연속 3회 이상
             log.info(f'{i + 1}/{a.n} {a.which} → {fn()}')
@@ -230,9 +230,9 @@ def _measure_empty(a):
         #    전에는 이 함수가 로봇을 **전혀 움직이지 않아서**, 직전에 서 있던 자리(다른 종류의
         #    WEIGH 나 safe_retreat 로 올라간 높이)에서 잰 값을 설정에 넣게 되어 있었다(9/21 발견).
         #    🚨 용기가 바닥에 닿아 있으면 무게가 바닥으로 빠진다 — WEIGH 자세는 들어 올린 자세다.
-        log.info('E15 — HOME 을 거쳐 WEIGH 자세로 간다 (앞뒤를 가로지르지 않으려고)')
+        log.info('E15 — HOME 을 거쳐 WEIGH 자세로 간다 (앞뒤를 가로지르지 않으려고 · 낮으면 곧게 올라온 뒤에)')
         cc.force_off()
-        cc.move_to('HOME', True, a.kind)
+        go_home_safely(a.kind, log)
         up = float(cc.move_to('WEIGH', True, a.kind) or 0.0)
         if up > 0.0:
             cc.move_rel(0.0, 0.0, -up, 'BASE')

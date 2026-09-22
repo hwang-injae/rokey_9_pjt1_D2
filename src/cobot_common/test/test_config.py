@@ -39,7 +39,8 @@ def test_repo_cell_skeleton_uses_ird_ids():
     assert set(cell['force']) == {'compliance_stx', 'contact_step_mm', 'contact_vel_mm_s', 'contact_acc_mm_s2',
                                   'retreat_vel_mm_s', 'retreat_acc_mm_s2', 'force_max_n', 'search_y_period_ratio'}   # 이슈 #7 ①
     beds = {'SPONGE_BED_B', 'SPONGE_BED_C'}
-    assert set(cell['stations']) == set(STATIONS) - beds          # 스펀지 홈은 beds 에 있다
+    vias = {'RACK_B_VIA', 'RACK_B1_VIA', 'RACK_C_VIA'}           # 🆕 9/22 팔레트 경유점(f1.rack_place · 리마인드 §7 "stations 아래에") — IRD 자리는 아니다
+    assert set(cell['stations']) == (set(STATIONS) - beds) | vias   # 스펀지 홈은 beds 에 있다
     assert set(cell['beds']) == beds
     assert set(cell['zones']) == {RET_B, RET_C}
     assert set(cell['rack']['slots']) == set(RACK_SLOTS)
@@ -74,7 +75,7 @@ def _angle_between(p, q):
 # ⚠ 접근점 → 끝점이 수직이 아닌 채로 옮겨 온 자세. 한석형이 다시 찍으면 여기서 지운다.
 #   · 9/20 저녁: RET_B 슬롯 1 은 접근(잡기1) → 그립(잡기2)이 수평 2.8 mm
 #   · RACK_C2 는 9/22 실기 좌표로 수직 정렬해 목록에서 제거했다.
-KNOWN_TILTED = {'cell.zones.RET_B.slots[1]'}
+KNOWN_TILTED = set()                                            # 🔄 9/22 RET_B 접근점을 끝점 바로 위로 고쳐(민범진 · E14) 알려진 예외가 없어졌다
 
 
 def test_repo_approach_points_are_straight_above_end_points():
@@ -119,9 +120,12 @@ def test_unfilled_lists_empty_cell_values():
     assert 'cell.limits.safe_z_mm' not in empty                   # 9/21: limits·motion·seat 는 설계 문서 값으로 채웠다
     poses = [e for e in empty if not e.startswith('cell.presets.')]
     assert poses == [], f'빈 자세가 남아 있다: {poses}'           # 9/21: 자세는 전부 찼다(E14 · 격리까지)
-    # 남은 빈 값: 툴 프리셋(SPONGE·BRUSH — 9/22 오전) + approach_z_mm(좌표 담당)
-    assert {e.split('.')[2] for e in empty} == {'SPONGE', 'BRUSH', 'BOWL', 'CUP'}, empty
-    assert {e.split('.')[3] for e in empty if e.split('.')[2] in ('BOWL', 'CUP')} == {'approach_z_mm'}
+    # 9/22 18:10 V-08 실기로 **툴 프리셋(SPONGE·BRUSH)도 채웠다**(황인재 · rig_tool_width --at-holder) → 남은 빈 값은 approach_z_mm 뿐
+    for tool_ in ('SPONGE', 'BRUSH'):
+        for key in ('grip_width_mm', 'grip_zero_mm', 'grip_force_n', 'width_tol_mm'):
+            assert f'cell.presets.{tool_}.{key}' not in empty, f'{tool_}.{key} 가 다시 비었다'
+    assert {e.split('.')[2] for e in empty} == {'BOWL', 'CUP'}, empty
+    assert {e.split('.')[3] for e in empty} == {'approach_z_mm'}
     assert 'cell.stations.HOME.posj' not in empty and 'cell.zones.RET_B.slots[1].posj' not in empty   # 슬롯 목록도 센다(번호는 1 부터)
     assert not [p for p in empty if not p.startswith('cell.')]
 

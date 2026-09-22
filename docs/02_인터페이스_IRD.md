@@ -36,7 +36,7 @@
 ## 3. F1 파지·이송·적재 (IR-01) · 한석형 · 모듈 `f1_handling.handling`
 | 함수 | 인자 | 반환 | 비고 |
 |---|---|---|---|
-| `pick(zone_id, kind)` | `RET_B`/`RET_C`/`SPONGE_BED_*`, `BOWL`/`CUP` | `PickResult`: `ok, code, width_mm, attempts, offset_x_mm, offset_y_mm` | **고정 슬롯 파지**: 구역의 슬롯을 정해진 순서로 — 슬롯 상공 → 힘 상한 감시 하강 → 파지 → 폭 판정. 폭 범위 밖(빈 슬롯·헛잡음)이면 놓고 다음 슬롯. 슬롯을 다 돌면 `EMPTY_ZONE`. `attempts` = 시도한 슬롯 수, `offset_*` = 집은 슬롯의 오프셋. **그릇은 옆면(벽)을 세로로 파지**, 컵은 **몸통을 통째로 파지**(지름 방향 — 벽을 집지 않는다, 폭 ≈ 컵 지름이라 빈손·그릇과 간격이 충분). `SPONGE_BED_*`면 고정 위치 재파지(슬롯 1개) |
+| `pick(zone_id, kind)` | `RET_B`/`RET_C`/`SPONGE_BED_*`, `BOWL`/`CUP` | `PickResult`: `ok, code, width_mm, attempts, offset_x_mm, offset_y_mm` (🔄 PR #74: 재파지가 빈손이면 `GRIP_FAIL` — 구역 건너뛰기(EMPTY_ZONE)면 홈의 용기를 잃어서) | **고정 슬롯 파지**: 구역의 슬롯을 정해진 순서로 — 슬롯 상공 → 힘 상한 감시 하강 → 파지 → 폭 판정. 폭 범위 밖(빈 슬롯·헛잡음)이면 놓고 다음 슬롯. 슬롯을 다 돌면 `EMPTY_ZONE`. `attempts` = 시도한 슬롯 수, `offset_*` = 집은 슬롯의 오프셋. **그릇은 옆면(벽)을 세로로 파지**, 컵은 **몸통을 통째로 파지**(지름 방향 — 벽을 집지 않는다, 폭 ≈ 컵 지름이라 빈손·그릇과 간격이 충분). `SPONGE_BED_*`면 고정 위치 재파지(슬롯 1개) |
 | `place(station, kind=None)` | 스테이션, (선택) `BOWL`/`CUP` | `PlaceResult`: `ok, code, offset_mm` | 상공 → 하강 → 놓기 → 후퇴. **항상 놓기(release)까지 한다.** **`SPONGE_BED_B/C`면 안착 놓기**: 쥔 채 순응 하강 → 깊이+힘으로 홈에 들어갔는지 판정 → 안 들어가면 Move Periodic 탐색 → 들어가면 놓기 / 한도 초과 → 들고 후퇴 + `SEAT_FAIL` · ✅ 9/20 추가: **`kind`** = 종류별 자리(`ISOLATE` 등)에 놓을 때 준다(좌표가 종류별이 됐다, #36). 스펀지 홈처럼 이름에 종류가 들어 있는 자리는 생략 |
 | `move_to(station, carrying, kind=None)` | 스테이션, `bool`, (선택) `BOWL`/`CUP` | `Result` | 티칭한 자세로 이동, 들고 있으면 저속. 안전 자세 복귀 = `move_to('HOME', False)`. ✅ 9/20 추가: **`kind`** = 종류별 자리(`WEIGH`·`WASTE`·`SOAP`·`RINSE`·`ISOLATE`)로 갈 때 준다 — 그릇은 위에서·컵은 옆에서 잡아 같은 자리라도 자세가 다르다(#36). `HOME` 은 생략. ("안전 높이 경유"는 9/20 결정 E7 로 삭제) |
 | `tool(tool, action)` | `SPONGE`/`BRUSH`, `PICK`/`RETURN` | `ToolResult`: `ok, code, width_mm` | 홀더에서 툴 픽업·반납. 폭 범위 밖 → `TOOL_FAIL` |
@@ -58,7 +58,7 @@
 ## 5. F3 접촉 닦기 (IR-03) · 박진용 · 모듈 `f3_wipe.wipe`
 | 함수 | 인자 | 반환 | 비고 |
 |---|---|---|---|
-| `soap(count, kind=None)` | 횟수, (선택) `BOWL`/`CUP` | `Result` | 툴 든 채 세제 담금(🔄 9/21 E18: 세제 수조를 따로 두지 않고 **툴 홀더의 비눗물 컵**에서 담근다 — 서명·반환은 그대로). ✅ 9/20 추가: **`kind`** — `SOAP` 이 종류별 자리가 됐다(`BOWL` = 수세미를 쥔 자세 · `CUP` = 솔을 쥔 자세, #36) |
+| `soap(count, kind=None)` | 횟수(🔄 PR #72: 지금은 **무시** — 횟수는 `f3.soap` 설정), (선택) `BOWL`/`CUP` | `Result` | 툴 든 채 세제 담금(🔄 9/21 E18: 세제 수조를 따로 두지 않고 **툴 홀더의 비눗물 컵**에서 담근다 — 서명·반환은 그대로). ✅ 9/20 추가: **`kind`** — `SOAP` 이 종류별 자리가 됐다(`BOWL` = 수세미를 쥔 자세 · `CUP` = 솔을 쥔 자세, #36) |
 | `wipe_bowl()` | — | `WipeBowlResult`: `ok, code, force_log_path, duration_s, force_mean_n` | **그릇**: 수세미 툴로 힘제어(목표 힘 유지) 나선 닦기. 상한 초과 → `FORCE_LIMIT` |
 | `wipe_cup()` | — | `WipeCupResult`: `ok, code, force_log_path, duration_s, insert_depth_mm` | **컵**: 수세미 솔을 컵 안에 삽입(힘 감시) → J6 회전 + Z 상하 스트로크. 동작이 그릇과 달라 함수를 분리(9/18 팀 결정) |
 

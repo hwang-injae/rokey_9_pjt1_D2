@@ -45,9 +45,26 @@ import time
 #    `from .weigh import *` 가 함수를 패키지에 올려 **모듈 이름을 가린다.**
 #    `from cobot_common import weigh` 는 함수를, 모듈이 필요하면
 #    `importlib.import_module('cobot_common.weigh')` 를 쓴다(시험 코드 참고).
-__all__ = ['weigh']
+__all__ = ['weigh', 'weigh_last']
 
 _MIN_SAMPLES = 1
+_last = {}                                 # 마지막 weigh() 의 {'median_g', 'spread_g', 'n'} — 케이블 장력 경고·기록용 (weigh_last)
+
+
+def weigh_last():
+    """마지막 weigh() 의 요약 {'median_g', 'spread_g'(10~90 % 폭), 'n'} — 부르는 쪽(rig · flow)이 기록에 쓴다. 없으면 {}."""
+    return dict(_last)
+
+
+def _spread(values):
+    """튄 값을 뺀 폭 = 10 % ~ 90 % 분위 차이(g). 표본이 적으면 그냥 최대−최소."""
+    s = sorted(values)
+    n = len(s)
+    if n < 5:
+        return s[-1] - s[0]
+    return s[int(0.9 * (n - 1))] - s[int(0.1 * (n - 1))]
+
+
 KG_TO_G = 1000.0                           # ⑤ get_workpiece_weight 는 kg (지금은 안 쓴다 — ⑥)
 N_TO_G = 101.97                            # ⑥ 1 N ≈ 101.97 g (g = 9.807)
 _FZ = 2                                    # get_tool_force → [fx, fy, fz, mx, my, mz] 의 fz
@@ -94,8 +111,17 @@ def weigh(n, reset=False):
         _log().warn(f'하중 {n}회 중 {len(samples)}회만 읽었다')
 
     g = _median(samples)
+    spread = _spread(samples)
+    _last.clear()
+    _last.update(median_g=g, spread_g=spread, n=len(samples))
     # 개별 값도 남긴다 — V-02 에서 회차 값을 안 남겨 평균·표준편차를 못 냈다(그 기록 §2)
-    _log().info(f'weigh n={n} → {g:.1f} (읽음: {", ".join(f"{s:.1f}" for s in samples)})')
+    _log().info(f'weigh n={n} → {g:.1f} · 퍼짐 {spread:.0f} g (읽음: {", ".join(f"{s:.1f}" for s in samples)})')
+    # 🔗 케이블 장력 경고 (9/22 황인재 V-02): 그리퍼 케이블이 팽팽하면 같은 자세에서도 값이 ±25 g 넘게 오르내리고(정리 뒤 ±12),
+    #    방문마다 45 g 씩 달라진다. 무게를 재는 김에 퍼짐만 보면 **추가 시간 없이** 알 수 있다 → 넘으면 경고만(공정은 계속).
+    limit = ((conf.get('f2') or {}).get('limits') or {}).get('max_weigh_spread_g')
+    if limit is not None and spread > float(limit):
+        _log().warn(f'🔗 무게 표본 퍼짐 {spread:.0f} g > {float(limit):.0f} g — 그리퍼 **케이블 장력** 의심. '
+                    '케이블 여유 길이를 확인한다(9/22 V-02 · 리마인드 §6). 이 값은 참고만')
     return g
 
 

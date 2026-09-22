@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v16.0'
+VERSION = 'v18.1'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -2029,6 +2029,269 @@ for _tid, _e in P1700.items():
 HISTORY110 = ['v16.0', '인계·완료', 'V-07, F2-02, V-16, INT-F2', '민범진 인계 메시지(9/22 17:00): 헹굼 담금 컵 · 잔반 버리기 임팩트 · 물 털기 값 셋을 황인재(F4)에게 — 범위는 황인재 결정 대기(결정은 물 털기만이었음). V-16 은 35 N 낙하 0 으로 완료. 민범진은 저녁을 아직 시험대 방식으로 알고 있어 18:20 공지로 INT-F2 안내', '황인재 9/22 17:00', 'M,H']
 
 
+# ---------------------------------------------------------------- 9/22 17:20 황인재 — V-07 셋 다 민범진 · INT-ALL/NEW-01 추후 · 뼈대 함수화는 F4(SKEL-01)
+NEW.append(
+ ('SKEL-01', 'F1-01', 'F1-01', '개발', '뼈대 코드 정리 — 한석형 그릇 한 바퀴 시나리오 스크립트(rig_bowl_scenario_real.py)를 함수화·코드화해 통합 뼈대로 만든다',
+  'H(S)', '시작 전', S('9/22 저녁'), '함수화된 뼈대(브랜치 · PR) — 단계별 함수 + 한 바퀴 실행 진입점 · 실기 1회 완주 기록',
+  '한석형 스크립트가 실기로 완주한 경로·좌표를 그대로 지키면서 단계(집기 → 저울 → 잔반통 → 홈 → 툴 → 헹굼 → 팔레트)가 함수로 나뉜다 · 민범진(F2)·박진용(F3)이 자기 함수를 끼울 자리가 분명하다 · 실기 그릇 1회 완주(경로 바뀌지 않음 확인)',
+  '황인재 9/22 17:20: 뼈대 = 한석형 시나리오 스크립트가 맞는데 함수화·코드화가 안 돼 있어 **F4(황인재)가 맡는다**. INT-F2·INT-F3 의 전제. 🟡 함수화 결과를 handling.py(pick·rack_place)로 넣으면 F1-02·F1-04 제품 코드가 되는데 그 파일은 한석형 담당 — 어디에 둘지 황인재 확인'))
+EASY['SKEL-01'] = '한석형이 실기로 완주시킨 "그릇 한 바퀴" 시험 스크립트를 단계별 함수로 나눠, 민범진·박진용이 자기 기능을 끼워 넣을 수 있는 뼈대 프로그램으로 만든다'
+H1720 = '🔄 9/22 17:20 황인재'
+P1720 = {
+ 'V-07':   dict(owner='M', note_add=H1720 + ': **셋 다 민범진이 그대로 담당**(어느 정도 구현돼 있어서) — 헹굼 담금 컵 · 잔반 버리기 임팩트 · 물 털기 값. F4 인계 취소'),
+ 'INT-F2': dict(note_add=H1720 + ': 전제 = **SKEL-01**(F4 뼈대 함수화) — 뼈대가 함수로 나뉜 뒤 F2 함수를 끼운다'),
+ 'INT-F3': dict(note_add=H1720 + ': 전제 = **SKEL-01**(F4 뼈대 함수화)'),
+ 'INT-ALL': dict(note_add=H1720 + ': 담당은 **추후** 정한다'),
+ 'NEW-01': dict(note_add=H1720 + ': 내용은 **구상한 뒤** 넣는다'),
+ 'F1-02':  dict(note_add=H1720 + ': 뼈대 함수화(SKEL-01)는 F4 가 맡음 — 🟡 그 결과가 pick() 제품 코드를 대신하는지(파일은 한석형 담당) 확인 필요'),
+ 'F1-04':  dict(note_add=H1720 + ': 🟡 rack_place 도 같은 확인(SKEL-01)'),
+}
+for _tid, _e in P1720.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+_o = '🔄 16:50 통합 방식 변경(황인재): **① 민범진 INT-F2'
+assert _o in SLOT['9/22 화']['D']
+SLOT['9/22 화']['D'] = SLOT['9/22 화']['D'].replace(_o, '🔄 17:20: **⓪ 황인재 SKEL-01 — 한석형 시나리오 스크립트 함수화(로봇 불필요 · 끝나면 실기 1회 완주 15분)** → **① 민범진 INT-F2')
+SLOT['9/22 화']['D'] = SLOT['9/22 화']['D'].replace('로봇 불필요: 황인재 물 털기 값(V-07)은 로봇 빌 때 20분 · ', '민범진 V-07(헹굼 담금 컵 · 잔반 임팩트 · 물 털기 값 35분)은 INT-F2 앞뒤 로봇 빌 때 · ')
+HISTORY111 = ['v16.1', '분담', 'V-07, SKEL-01(신규), INT-F2, INT-F3, INT-ALL, NEW-01, F1-02, F1-04, 9/22 저녁 로봇 슬롯',
+              '황인재 9/22 17:20: ① 헹굼 담금 컵·잔반 임팩트·물 털기 값(V-07)은 민범진이 그대로(F4 인계 취소) ② INT-ALL 담당 추후 ③ 새 기능은 구상 뒤 ④ 뼈대 = 한석형 시나리오 스크립트, 함수화·코드화는 F4(SKEL-01 · 9/22 저녁 · INT-F2·F3 전제). 🟡 함수화 결과와 handling.py pick/rack_place(한석형 파일)의 관계 확인 필요',
+              '황인재 9/22 17:20', 'H,M,S,P']
+
+
+# ---------------------------------------------------------------- 9/22 17:45 PR #72 merge(박진용) — soap 속도 · 나선 재시도 · 실기 1차 통합 성공
+M72 = '✅ 9/22 PR #72 merge(박진용)'
+P1745 = {
+ 'F3-02':  dict(prog='0.95', note_add=M72 + ': wipe_bowl = rig_v03 순서 그대로(빠른 하강 140 · 공중 |Fz| > 3 N 중단 · 바닥 3 N · 40 s · 순응 유지 · 나선 최대 3회 재시도 · 힘제어 1.5 N · 벽면 · 120 s 상한 유지) · 🟢 실기 1차 통합(soap → 닦기 → 반납) 성공 1회(🟡 시각 확인 요청 — 툴·TCP 풀림 구간 여부). 병합본 386 통과. 남은 것: 재검증 3회 기록(UT-F3)'),
+ 'F3-03':  dict(prog='0.95', note_add=M72 + ': **soap 동작 변경** — SOAP 자리로 안 가고 툴 집은 자리에서 J6 ±20° 비틀기 3회 → Z ±5 mm 왕복 2회 → HOME(그릇·컵 공용 · count 무시 · 60 s 상한 · vel_scale 예외). 🟡 E18(홀더 컵에서 담금)과 다름 — F1-03 tool(PICK) 이 툴을 빼낸 뒤 부르면 세제가 안 묻을 수 있어 INT-F3 에서 F1-03(황인재)과 맞춘다. SDD §5.4 · IRD 갱신'),
+ 'UT-F3':  dict(note_add=M72 + ': 제품 코드로 soap → wipe_bowl 1회 성공 → TC-06 연속 3회 기록만 남음'),
+ 'INT-F3': dict(note_add=M72 + ': 박진용 뼈대 통합본 `src/f3_wipe/test/rig_bowl_scenario_wipe.py`(한석형 스크립트 + F3 삽입 · 수세미 목표 폭 22 mm 실측 · 반납은 집은 깊이 그대로)가 main 에 — SKEL-01 함수화의 참고. 🟡 soap 높이(컵 안/위)와 F1-03 툴 빼내기 순서 확인'),
+ 'F1-03':  dict(note_add='🔔 9/22 PR #72(박진용): 반납은 집을 때 잰 posx 를 z 포함 그대로 써서 release 해도 된다(실기로 안 눌림 확인 · +10 mm 여유 불필요) · soap 이 "툴 집은 자리에서 비틀기" 로 바뀌어 tool(PICK) 이 툴을 빼내는 높이와 맞춰야 한다'),
+ 'INF-02b': dict(note_add=M72 + ': force.py 에 move_pose · move_joints · move_line_rel · wait_done 추가(닦기 전용 · motion.py 와 역할 겹침 — 동결 뒤 정리 후보) · contact_down(timeout_s, keep_compliance) 인자'),
+ 'CELL-04': dict(note_add=M72 + ': cell.yaml stations.HOME 에 posx_z_mm 215.11 추가(박진용 · soap 상승 계산용) — HOME posj 파생값이라 HOME 이 바뀌면 같이(E17 로 안 바꿈)'),
+}
+for _tid, _e in P1745.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY112 = ['v16.2', '진척', 'F3-02, F3-03, UT-F3, INT-F3, F1-03, INF-02b, CELL-04', 'PR #72 merge(박진용 9/22 17:45): 실기 1차 통합(soap → 닦기 → 반납) 성공 · wipe_bowl rig_v03 그대로(120 s 유지 · 나선 재시도) · soap 동작 변경(집은 자리에서 비틀기·왕복 · 🟡 E18 과 다름 → INT-F3 에서 F1-03 과 맞춤) · HOME posx_z_mm 키 추가', '황인재 9/22 17:45', 'P,H']
+
+
+# ---------------------------------------------------------------- 9/22 17:50 황인재 E27·E28 · F4 V-02 끝
+H1750 = '🔄 9/22 17:50 황인재'
+P1750 = {
+ 'SKEL-01': dict(note_add=H1750 + ' E27: 함수화한 코드는 **`f1_handling/handling.py` 에 넣는다**(pick · rack_place · 일반 place · move_to) — 한석형 파일이지만 예외 · 한석형은 같은 시간에 handling.py 를 고치지 않는다(18:20 공지). 좌표 정본 = cell.yaml(스크립트 리터럴과 다르면 cell.yaml 고치고 보고). 참고: 박진용 통합본 rig_bowl_scenario_wipe.py 도 main 에'),
+ 'F1-02':   dict(owner='H(S)', note_add=H1750 + ' E27: pick() 제품 코드는 **SKEL-01(F4)** 이 handling.py 에 넣는다 — 한석형은 참여(경로·좌표 확인)'),
+ 'F1-04':   dict(owner='H(S)', note_add=H1750 + ' E27: rack_place() 도 SKEL-01(F4) 로'),
+ 'INT-ALL': dict(crit='🔄 E28: **예외 처리 없이 정상 흐름대로 전체(그릇 2 · 컵 2)를 한 번 끝까지 시연** — 실패 정책·격리·재시도는 목표에서 제외. 합친 코드로 그릇 1개 → 컵 1개 → 4개 연속. 🟡 flow_node·HMI 와의 관계 · INT-4b 범위는 황인재 확인',
+                 note_add=H1750 + ' E28: 목표 = 정상 상황 플로우 전체 1회 시연(예외 제외). 담당은 추후'),
+ 'INT-4b':  dict(note_add='🟡 9/22 E28: 시연 목표가 "예외 처리 제외 · 정상 흐름" 이라 실패 주입 4종을 시연 범위에서 뺄지 황인재 확인(SDD §9.9 범위 방어)'),
+ 'V-02':    dict(prog='0.9', note_add='✅ 9/22 F4 V-02 끝(실기 · 케이블 정리 뒤 · 15:22~15:52): 빈 그릇 z158 기준값 **−12 g**(63 s 창 3개 −10/−15/−7) · 그릇+96 g 창 3개 +95/+80/+88 → 100 g 물건 오차 +3 g ✅ · 21 s 창 흔들림 ±12~17 g · HOME 다녀온 뒤 −5~−16 g → 한 번 재는 값 불확실성 약 ±20 g. '
+                          '황인재: **잔반 임계 50 g 유지**(후보 70 대신 · 최종은 INT-12a 같은 경로 재측정 뒤). params `f2.empty_weight_g.BOWL: -12` + 기록 `docs/test_logs/20260922_V-02_무게기준값_황인재.md` → 브랜치 injae/20260922-V-02-weigh-baseline(3643607) · PR 은 황인재 확인 뒤. 🟡 민범진 판단 요청: **min_net_g −60 은 그릇 놓침을 못 잡는다**(빈손 z158 −57 → 순무게 −45 > −60) → 놓침은 폭(pick 판정·slip_tol)으로, 또는 −35(빈 그릇과 여유 15 g)'),
+ 'F2-01':   dict(note_add='🔔 9/22 F4 V-02: 임계 50 유지(황인재) · min_net_g −60 으로는 그릇 놓침이 안 잡힘(−45) → 민범진 판단(−35 또는 폭으로) — 18:20 묶음'),
+}
+for _tid, _e in P1750.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY113 = ['v16.3', '결정 E27·E28 · V-02', 'SKEL-01, F1-02, F1-04, INT-ALL, INT-4b, V-02, F2-01', '황인재 9/22 17:50: E27 뼈대 함수화는 handling.py 에(F4 · pick/rack_place 가 이걸로 · 한석형 동시 수정 금지 · 좌표 정본 cell.yaml) · E28 시연 = 예외 처리 없이 정상 흐름 전체 1회(🟡 INT-4b·HMI 관계 확인). F4 V-02 끝: 기준값 −12 g · 100 g 오차 +3 g · 불확실성 ±20 g → 임계 50 유지 · min_net_g 는 민범진 판단', '황인재 9/22 17:50', 'H,S,M']
+
+
+# ---------------------------------------------------------------- 9/22 18:05 PR #73 merge(V-02 끝) · F4 실기 잔여 → 저녁 틈/9/23 오전 · SKEL-01 한석형 동의 뒤 PR
+P1805 = {
+ 'V-02':    dict(status='완료', prog='1.0', note_add='✅ 9/22 PR #73 merge — `f2.empty_weight_g.BOWL: −12`(황인재 실기 · 민범진 멘션) · 기록 `docs/test_logs/20260922_V-02_무게기준값_황인재.md` · rig_weigh_poses 옵션. 🟡 케이블 정리 뒤 재현성 1회 → INT-12a(같은 경로)에서 재확인 · 시연 날 아침 `rig_f2.py empty --kind BOWL -n 10` 재측정(REH-02 점검표)'),
+ 'REH-02':  dict(note_add='📋 9/22: 시연 날 아침 점검 — 케이블 여유 · 툴·TCP 이름 · 빈 그릇 기준값 재측정 `rig_f2.py empty --kind BOWL -n 10`(3.5 분 · 케이블·툴 무게·TCP·좌표가 바뀌었으면 필수)'),
+ 'SKEL-01': dict(note_add='🔄 9/22 18:00 황인재: **한석형 동의를 받고** handling.py 에 넣는다(18:20 묶음 ① 동의 요청) — 동의 전에는 F4 브랜치에서만 · PR 은 동의 뒤. 좌표는 cell.yaml 키로 읽고 스크립트 리터럴과 다른 곳은 PR 표로'),
+ 'V-24':    dict(slots=S('9/20 오후', '9/21 오전', '9/22 저녁', '9/23 오전'), note_add='🔄 9/22 18:00 F4: 오전 로봇이 없어 ②③④(그릇 2·3회차)는 미완 — 오늘 저녁은 INT-F2·F3 가 로봇을 쓰므로 SKEL-01 실기 완주(15분) 뒤 남는 틈 또는 **9/23 오전**'),
+ 'V-25':    dict(slots=S('9/21 저녁', '9/22 저녁', '9/23 오전'), note_add='🔄 9/22 18:00 F4: 미완 → 저녁 틈 또는 9/23 오전'),
+ 'V-08':    dict(slots=S('9/22 저녁', '9/23 오전'), note_add='🔄 9/22 18:00 F4: 오늘 오후 못 함 → 저녁 틈 또는 **9/23 오전**(툴 프리셋 측정 → 10회 → F1-03 PR). 오늘 저녁 INT-F3 는 박진용 통합본 스크립트의 툴 집기로 돈다'),
+ 'F1-03':   dict(slots=S('9/22 저녁', '9/23 오전'), note_add='🔄 9/22 18:00 F4: **오후 마감 못 지킴** — V-08 뒤 PR 은 9/23 오전. 오늘 저녁 INT-F3 는 뼈대 스크립트 방식이라 막히지 않음 · INT-ALL·L3(제품 tool()) 전제. 🔔 PR #72 로 soap 이 "집은 자리에서 비틀기" 가 됨 → tool(PICK) 끝 높이를 박진용 답에 맞춘다'),
+}
+for _tid, _e in P1805.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+SLOT['9/22 화']['D'] = SLOT['9/22 화']['D'].replace('민범진 V-07(헹굼 담금 컵 · 잔반 임팩트 · 물 털기 값 35분)은 INT-F2 앞뒤 로봇 빌 때 · ',
+                                                    '민범진 V-07(헹굼 담금 컵 · 잔반 임팩트 · 물 털기 값 35분)은 INT-F2 앞뒤 로봇 빌 때 · 황인재 V-24 ②③④ · V-25 · V-08 은 **로봇이 비면**(아니면 9/23 오전) · ')
+SLOT['9/23 수']['B'] = SLOT['9/23 수']['B'].replace('UT-F4·F4-05(H) — G3(L2)', '**황인재 V-08 → F1-03 PR · V-24 ②③④ · V-25(오전 첫 로봇 40분)** · UT-F4·F4-05(H) — G3(L2)')
+HISTORY114 = ['v16.4', '완료·재배치', 'V-02, REH-02, SKEL-01, V-24, V-25, V-08, F1-03, 9/22 저녁·9/23 오전 로봇 슬롯', 'PR #73 merge(9/22 18:05): V-02 완료 — 빈 그릇 기준값 −12 g. F4 실기 잔여(V-24 ②③④ · V-25 · V-08 → F1-03 PR)는 오늘 로봇이 없어 저녁 틈 또는 9/23 오전 첫 로봇 40분으로(F1-03 오후 마감 못 지킴 · 저녁 INT-F3 는 뼈대 스크립트라 막히지 않음). SKEL-01 은 한석형 동의 뒤 PR', '황인재 9/22 18:05', 'H,S']
+
+
+# ---------------------------------------------------------------- 9/22 18:30 민범진 PR #74(pick·rack_place 이식) — 코드 통과 · merge 는 황인재 결정 대기(E27 겹침)
+P74 = '🟡 9/22 18:30 PR #74(민범진 · 대기)'
+P1830 = {
+ 'F1-02':   dict(prog='0.8', note_add=P74 + ': 한석형 대본을 pick() 으로 이식(좌표는 cell.yaml · 그릇 폭 판정 E16 · 컵 E19 · 재파지 빈손 = GRIP_FAIL) · 자동 시험 404 통과 · 가상 12a 2/2 · 🔴 실기 미확인(V-14 · INT-12a 0.3). **handling.py 는 한석형 파일 — "PM 승인" 은 없었고 E27(F4 SKEL-01)과 겹침 → merge 는 황인재 결정 + 한석형 동의 뒤**'),
+ 'F1-04':   dict(prog='0.8', note_add=P74 + ': rack_place() 이식 — RINSE 위 → 경유점(RACK_B_VIA · RACK_B1_VIA J6 +180 · RACK_C_VIA) → 칸 위 → 마지막 30 mm 삽입력 감시(15 N) → RACK_JAM/FORCE_LIMIT/TIMEOUT 후퇴 → exit. 가상 12b 그릇 2/2 · 컵 1/1 · 🔴 실기 미확인(V-06 · INT-12b). cell.yaml RACK_B1 C +180 · RET_B 접근점 변경 — 한석형 확인 대기'),
+ 'SKEL-01': dict(note_add=P74 + ': 🚨 민범진이 같은 일(대본 → handling.py 함수)을 먼저 해서 PR #74 로 올림 — **F4 는 멈춤**(PM 18:25 통보). 황인재 결정: ① #74 를 뼈대로 받고 F4 는 tool()·컵·검토로 / ② F4 가 E27 대로 다시. 결정 전까지 handling.py 손대지 않음'),
+ 'INT-F2':  dict(note_add=P74 + ': #74 가 merge 되면 저녁 통합을 "뼈대 스크립트" 대신 **제품 함수(pick·rack_place) + rig_int12/flow** 로 갈 수 있다 — 방식은 황인재 결정'),
+}
+for _tid, _e in P1830.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY115 = ['v16.5', 'PR 대기', 'F1-02, F1-04, SKEL-01, INT-F2', '민범진 PR #74(9/22 18:30): 한석형 대본을 handling.py pick()/rack_place() 로 이식(가상 12a·12b 통과 · 404 통과) — 코드는 통과했으나 한석형 파일이고 "PM 승인" 이 없었으며 E27(F4 SKEL-01)과 겹쳐 **merge 보류 · 황인재 결정 + 한석형 동의 대기**. F4 SKEL-01 멈춤', '황인재 9/22 18:30', 'M,S,H']
+
+
+# ---------------------------------------------------------------- 9/22 18:40 F4 — V-08 1단계(툴 프리셋) · F1-03 브랜치도 handling.py · 순서 결정 요청
+F1840 = '📈 9/22 18:40 F4'
+P1840 = {
+ 'V-08':    dict(prog='0.5', status='진행', note_add=F1840 + ': 1단계 툴 프리셋 실측(E23) — 수세미 25.10 mm(영점 뺀 14.52 · 흔들림 0.20 · 40 N) · 솔 19.30(8.72 · 0.10 · 30 N) → cell.presets.SPONGE/BRUSH 채움(폭 판정 가능 · 빈손과 1.2 mm 차 · tol 0.6). 2단계 홀더 집기 → 반납 CYCLE ×10 실기 중(F1-03 브랜치) — 9/10 이상이면 황인재 승인 뒤 F1-03 PR'),
+ 'F1-03':   dict(note_add=F1840 + ': 브랜치가 handling.py 를 바꾼다(tool() +100/−7 · _TOOL_STATION) — **민범진 PR #74(pick·rack_place)와 같은 파일** → merge 순서 결정 필요(먼저 merge 되는 쪽에 다른 쪽이 rebase). PM 권고: #74 먼저(크고 이미 가상 검증) → F1-03 rebase(충돌 범위 작음)'),
+ 'SKEL-01': dict(note_add=F1840 + ': F4 는 handling.py 에 한 줄도 안 넣음(스크립트 읽기만) → 멈춤. F4 의견: #74 를 뼈대로 받고 F4 는 실기 1회 완주 검증 + place·move_to 정리 + F2/F3 끼울 자리 명시로(리터럴 좌표 없어야 · E14)'),
+}
+for _tid, _e in P1840.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY116 = ['v16.6', '진척', 'V-08, F1-03, SKEL-01', 'F4 9/22 18:40: V-08 1단계 툴 프리셋 실측(수세미 25.10 · 솔 19.30 → cell.presets) · 2단계 CYCLE ×10 실기 중. F1-03 브랜치도 handling.py 를 바꿔 PR #74 와 순서 결정 필요(PM 권고 #74 먼저). SKEL-01 은 시작 전 멈춤 — #74 를 뼈대로 받는 안', '황인재 9/22 18:40', 'H,M']
+
+
+# ---------------------------------------------------------------- 9/22 18:50 황인재 결정(E27 갱신) — PR #74 merge · 뼈대 = 민범진 이식 · F4 손 뗌
+M74 = '✅ 9/22 PR #74 merge(민범진 · 황인재 결정 E27 갱신)'
+P1850 = {
+ 'F1-02':   dict(owner='S', prog='0.85', note_add=M74 + ': pick() 제품 코드 main 에(대본 이식 · 좌표 cell.yaml · 가상 12a 2/2). 🔴 실기 미확인 → 오늘 저녁 INT-12a 첫 실기 0.3(V-14 겸). 이후 수정은 한석형. 한석형 확인 2건: RACK_B1 C +180 · HOME J6 0(케이블)'),
+ 'F1-04':   dict(owner='S', prog='0.85', note_add=M74 + ': rack_place() main 에(경유점 3개 · 삽입력 감시 15 N · RACK_JAM/FORCE_LIMIT/TIMEOUT). 🔴 실기 미확인 → INT-12b(V-06 겸)'),
+ 'SKEL-01': dict(status='완료', prog='1.0', note_add='✅ 9/22 18:2x 황인재: **뼈대 = 민범진 PR #74** — F4 는 손 뗌(E27 갱신). 이 행은 #74 로 갈음'),
+ 'INT-F2':  dict(note_add='🔄 9/22 18:50: #74 merge → 저녁 통합은 **제품 함수(pick·rack_place·F2) + rig_int12(또는 flow)** 로 — 뼈대 스크립트 대신. 첫 실기 0.3 · 한석형 참여'),
+ 'INT-F3':  dict(note_add='🔄 9/22 18:50: F1-03 tool() 은 아직 브랜치(V-08 2단계 뒤 PR · #74 위 rebase) → 박진용 통합은 오늘 밤엔 통합본 스크립트(rig_bowl_scenario_wipe.py) 방식 유지, tool() merge 뒤 제품 함수로'),
+ 'F1-03':   dict(note_add='🔄 9/22 18:50: 순서 확정 — **#74 먼저 merge 됨 → F1-03 은 그 위에 rebase**(F4 동의)'),
+ 'V-25':    dict(note_add='9/22 18:50 F4 순서: V-08 2단계 → F1-03 PR → V-25 → V-24 → HMI E25 · init 툴/TCP 확인 PR'),
+}
+for _tid, _e in P1850.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY117 = ['v16.7', '결정 E27 갱신·merge', 'F1-02, F1-04, SKEL-01, INT-F2, INT-F3, F1-03, V-25', '황인재 9/22 18:2x(F4 전달): 민범진 PR #74(대본 → pick·rack_place 이식)를 뼈대로 받는다 → merge · SKEL-01 완료(갈음) · F4 는 V-08 → F1-03 PR(#74 위 rebase) → V-25 → V-24. 저녁 INT-F2 는 제품 함수 + rig_int12/flow 로 · 🔴 pick/rack_place 실기 미확인(첫 실기 0.3)', '황인재 9/22 18:50', 'M,S,H']
+
+
+# ---------------------------------------------------------------- 9/22 19:00 PR #74 추가 커밋(rig_flow_once) 사후 검토 — INT-F2 = FLOW-04 도구
+P1900 = {
+ 'INT-F2':  dict(note_add='🔧 9/22 PR #74 추가 커밋(15c6570 · PM 사후 검토 OK): `src/f2_sense_flow/test/rig_flow_once.py` — flow.process_one 을 용기 1개에 실기로(HMI 없이 · PAUSED 면 사람이 Enter/a/q · 문지기 통과 뒤 · `--mock f3` 기본). 민범진: "뼈대는 따로 만들지 않는다 — 제품 경로(flow.py)가 뼈대" → 오늘 저녁 INT-F2 = 이 도구로 그릇 1개(진짜 f1·f2 · F3 가짜) = **FLOW-04 와 같은 것**'),
+ 'FLOW-04': dict(note_add='🔄 9/22 19:00: rig_flow_once(#74)로 오늘 저녁 INT-F2 에서 사실상 수행 — process_one 을 진짜 f1·f2 로(F3 가짜). flow_node + HMI 로 같은 것을 다시 돌리면 L3(INT-3a)'),
+}
+for _tid, _e in P1900.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY118 = ['v16.8', '도구', 'INT-F2, FLOW-04', 'PR #74 에 merge 직전 올라온 rig_flow_once.py(시험 도구 · PM 사후 검토 OK · 404 통과): flow.process_one 을 용기 1개에 실기로 — 오늘 저녁 INT-F2 가 이 도구로 진행되며 FLOW-04 를 겸한다', '황인재 9/22 19:00', 'M']
+
+
+# ---------------------------------------------------------------- 9/22 19:40 PR #75 merge(민범진) — 케이블 장력 경고
+P1940 = {
+ 'F2-01':   dict(note_add='✅ 9/22 PR #75 merge(민범진): 🔗 **케이블 장력 경고** — weigh() 표본 30개의 10~90 % 폭 > `f2.limits.max_weigh_spread_g`(50) 이면 경고(추가 시간 0 s) · 시작 전 문지기 뒤 HOME 정지 Fz 8회 폭 > `flow.preflight.cable.max_spread_g`(60) 이면 경고(약 5 s · samples 0 이면 끔). 경고만 · 멈추지 않음 · Virtual 건너뜀. 🟡 기준값 2개는 임시 → 저녁 INT-F2 로그의 "퍼짐 NN g" 로 조정(params 한 줄 PR)'),
+ 'INF-02c': dict(note_add='✅ 9/22 PR #75: weigh() 에 퍼짐 계산·경고 · `weigh_last()`(기록용 요약)'),
+ 'F4-03':   dict(note_add='🔔 9/22 PR #75: 케이블 경고는 지금 flow_node 로그(PC-A 터미널)에만 — HMI 표시는 F4 몫(합의 뒤 · /flow/state.message 에 섞지 않기로)'),
+}
+for _tid, _e in P1940.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY119 = ['v16.9', '진척', 'F2-01, INF-02c, F4-03', 'PR #75 merge(민범진 9/22 19:40): 케이블 장력 경고 — 무게 잴 때 표본 퍼짐(0 s) + 시작 전 정지 흔들림(5 s) · 경고만 · 기준값 임시(저녁 실기로 조정) · 410 통과. HMI 표시는 F4 몫', '황인재 9/22 19:40', 'M,H']
+
+
+# ---------------------------------------------------------------- 9/22 20:00 PR #76 merge(F4 F1-03) — V-08 완료 · f1 세 함수 전부 main
+M76 = '✅ 9/22 PR #76 merge(황인재 F4)'
+P2000 = {
+ 'F1-03':  dict(status='완료', prog='1.0', note_add=M76 + ': tool(PICK/RETURN) 제품 코드 main 에 — PICK 폭 판정(E16) → 100 mm 빼냄 · RETURN contact_down 8 N · 깊이 ≤ 20 mm · 바닥 못 찾으면 놓지 않음 · 후퇴. 🟢 V-08 실기 10/10 · 10/10. 🟡 tool(PICK) 끝 높이 ↔ soap(#72) 는 INT-F3 에서(박진용 답 뒤)'),
+ 'V-08':   dict(status='완료', prog='1.0', note_add=M76 + ': 실기(18:08~18:35 · vel 0.3) 수세미 10/10(폭 25.60) · 솔 1차 8/10 → 기준값 8.72 → 8.3 뒤 2차 10/10(18.6~19.1) · 손목 −220° 풀림·툴 밀림·반납 바닥 찾기 이상 없음. 프리셋 SPONGE 15.0·40 N / BRUSH 8.3·30 N(E23). 기록 `docs/test_logs/20260922_V-08_툴집기반납_황인재.md`'),
+ 'INT-13': dict(note_add=M76 + ': 전제였던 f1.tool 이 main 에 — 이제 제품 함수(tool → soap → wipe → tool RETURN)로 돌릴 수 있다. 🟡 soap 높이(#72) ↔ tool(PICK) 끝 높이 확인이 먼저'),
+ 'INT-F3': dict(note_add=M76 + ': f1 세 함수 전부 main → 박진용 통합도 뼈대 스크립트 대신 **제품 함수 + rig_flow_once(--mock 없이)** 로 갈 수 있다 — 단 soap ↔ tool(PICK) 높이 먼저 맞춘다'),
+ 'FLOW-04': dict(note_add=M76 + ': pick · rack_place · tool 전부 main → rig_flow_once 를 `--mock` 없이(진짜 f1·f2·f3) 돌릴 수 있는 상태. 🟡 soap ↔ tool 높이 확인 뒤'),
+ 'F1-02':  dict(note_add=M76 + ': handling.py 머리(import · _TOOL_STATION · _retreat) 합침 · pick/rack_place 는 #74 그대로'),
+}
+for _tid, _e in P2000.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY120 = ['v17.0', '완료', 'F1-03, V-08, INT-13, INT-F3, FLOW-04, F1-02', 'PR #76 merge(황인재 F4 9/22 20:00): F1-03 tool() 완료 · V-08 완료(수세미·솔 각 10/10 · 프리셋 확정) → **f1 세 함수(pick · rack_place · tool) 전부 main** — 저녁 INT-F3·INT-13·flow_node 실기 전제 해소. 🟡 soap(#72) ↔ tool(PICK) 끝 높이는 INT-F3 에서 박진용 답 뒤', '황인재 9/22 20:00', 'H,P,M']
+
+
+# ---------------------------------------------------------------- 9/22 20:30 황인재 — 저녁 진행 상황(한석형 새 기능 · 민범진·박진용 뼈대 통합 중)
+H2030 = '🔄 9/22 20:30 황인재'
+P2030 = {
+ 'NEW-01': dict(status='진행 중', prog='0.1', owner='S', slots=S('9/22 저녁', '9/23 오전', '9/23 오후'), note_add=H2030 + ': **한석형이 새 기능을 구상하면서 구현 중**(오늘 저녁부터). 내용은 정해지는 대로 이 행에 적는다 · 9/23 저녁 동결 전 범위로'),
+ 'INT-F2': dict(status='진행 중', prog='0.2', note_add=H2030 + ': **민범진 — 한석형 뼈대 코드와 통합 시도 중**(오늘 저녁). 도구: rig_flow_once(제품 함수 pick·rack_place·F2 · F3 가짜) 또는 뼈대 스크립트 — 결과·막힌 곳은 저녁 보고로'),
+ 'INT-F3': dict(status='진행 중', prog='0.2', note_add=H2030 + ': **박진용 — 한석형 뼈대 코드와 통합 시도 중**(오늘 저녁). soap ↔ tool(PICK) 높이 정합이 먼저(PR #76 코멘트 답)'),
+}
+for _tid, _e in P2030.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY121 = ['v17.1', '진척', 'NEW-01, INT-F2, INT-F3', '황인재 9/22 20:30: 한석형은 새 기능 구상·구현 중(NEW-01 진행 · 내용 미정) · 민범진(INT-F2)·박진용(INT-F3)은 한석형 뼈대 코드와 통합 시도 중', '황인재 9/22 20:30', 'S,M,P']
+
+
+
+# ---------------------------------------------------------------- 9/22 17:20 시각 정정 — v15.1~v17.1 의 시각을 추정으로 적었던 것을 커밋 시각으로 바로잡는다
+FIX_TIMES = {'v15.1': '14:09', 'v15.2': '14:29', 'v15.3': '14:33', 'v15.4': '14:35', 'v15.5': '14:49', 'v15.6': '14:53', 'v15.7': '14:59', 'v15.8': '15:22',
+             'v15.9': '15:38', 'v16.0': '15:40', 'v16.1': '15:59', 'v16.2': '16:05', 'v16.3': '16:05', 'v16.4': '16:09', 'v16.5': '16:25', 'v16.6': '16:26',
+             'v16.7': '16:30', 'v16.8': '16:31', 'v16.9': '16:52', 'v17.0': '16:57', 'v17.1': '17:15'}
+HISTORY122 = ['v17.2', '시각 정정', '변경이력 v15.1~v17.1 · 비고', 'PM 정정(9/22 17:20): v15.1~v17.1 의 변경이력 시각과 비고 안의 "15:00~20:30" 표기는 PM 이 시계를 보지 않고 추정한 값이었다(실제보다 20~200분 뒤). 변경이력 시각은 커밋 시각으로 고쳤다 — 비고 안의 시각은 이 표로 읽는다: '
+              + ' · '.join(f'{k}={v}' for k, v in FIX_TIMES.items()) + '. 순서·내용은 그대로', '황인재 9/22 17:20', 'H']
+
+
+
+# ---------------------------------------------------------------- 9/22 17:40 GitHub 대조(변화 없음) · README 정리
+EDIT.setdefault('DOC-05', {}).update(dict(prog='0.2', status='진행 중', note_add='📝 9/22 17:40 README 정리(PM): 강사가 보고 이해하게 — 시나리오 · 구조 · 지금까지 된 것(검증 수준 표) · 직접 확인하는 명령(로봇 없이/가상/실기) · 문서 지도. as-built 갱신은 동결 뒤'))
+HISTORY123 = ['v17.3', '최신화', 'DOC-05', 'GitHub 대조(9/22 17:20~17:40): 열린 PR 없음 · 17:15 이후 merge·push 없음 → 진척 변화 없음. README 를 강사용으로 정리(지금까지 된 것 + 확인 명령만)', '황인재 9/22 17:40', 'H']
+
+
+# ---------------------------------------------------------------- 9/22 17:55 F4 V-25 컵 실기 — 컵 안 잡혔는데 ok=True (E19 판정 없음 · 그리퍼 힘 계단 가설)
+F1755 = '🚨 9/22 17:55 F4(V-25 컵 실기 17:31)'
+P1755 = {
+ 'V-25':    dict(prog='0.6', status='진행', note_add=F1755 + ': 그릇 pick(#74) 첫 실기 OK(17:11 · 폭 2.32 · 홈 B 놓기 OK — 안전 정지 2회는 손으로 잘못 물린 그릇 탓, 로봇 집기로 바꾼 뒤 재발 없음). **컵 1차: grip 목표 76 · 5 N → 실제 107.8 mm(거의 열림) 인데 PickResult ok=True** — E19(컵 폭 판정 없음)라 성공으로 넘어감 · 컵은 안 잡힘. 2차(25 s 뒤) 76.2 정상. 기록은 V-24 결과까지 모아 문서 PR'),
+ 'F1-02':   dict(note_add=F1755 + ': 🔴 컵 pick 이 **"안 닫힘"을 못 잡는다**(실제 107.8 인데 ok) → 제안 ① 컵도 최소 판정: 실제 폭 > 목표 + 10 mm 면 GRIP_FAIL(빈손 구분은 못 해도 "손가락이 안 닫힘"은 잡는다) — 민범진 판단(#74 pick · gripper.py) · 저녁 INT-12b 컵 1회차 폭 확인'),
+ 'INF-02d': dict(note_add=F1755 + ': 가설 — gripper.py `_set_force` 가 "마지막으로 읽은 힘"에서 2.5 N 계단 수로 맞추는데, 직전 그릇 집기(20 N 목표 → 27.5 N "정확히 못 맞춤")로 기억값과 실제가 어긋난 채 5 N 로 내리면 실제 힘이 유효 범위(3~40 N) 아래로 떨어져 **손가락이 안 움직인다**(오전 rig_tool_width 솔 3회차 "그리퍼가 전혀 움직이지 않았다" 경고도 같은 계통 의심). 제안 ② set 뒤 읽은 힘이 목표와 2.5 N 넘게 다르면 다시 맞추거나 grip 전에 오류 — 민범진 판단 · TS 기록 후보'),
+ 'INT-12b': dict(note_add=F1755 + ': 🔴 **컵 1회차 집기 폭을 꼭 확인**(76 근처인지 · 107 이면 안 잡힌 것) — E25 로 컵은 무게도 안 재니 안 잡힌 채 끝까지 갈 수 있다'),
+}
+for _tid, _e in P1755.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY124 = ['v17.4', '🚨 발견', 'V-25, F1-02, INF-02d, INT-12b', 'F4 V-25 컵 실기(9/22 17:31): 컵 pick 이 실제 폭 107.8(거의 열림)인데 ok=True — E19 로 폭 판정이 없어 안 잡힌 채 성공 처리. 가설 = gripper.py 힘 계단(_set_force)이 기억값과 어긋나 손가락이 안 움직임. 제안: 컵도 "안 닫힘" 최소 판정(목표 +10 mm 초과 → GRIP_FAIL) · 힘 set 확인 — 민범진 판단(18:20 묶음 맨 앞). 그릇 pick 첫 실기는 OK', '황인재 9/22 17:55', 'H,M']
+
+
+# ---------------------------------------------------------------- 9/22 17:35 F4 정정 — 컵 107.8 은 배치 문제(힘 가설 철회) · 홈 C 놓기 좌표 의심
+FIX_TIMES['v17.4'] = '17:34'
+F1735 = '🔄 9/22 17:35 F4 정정'
+P1735 = {
+ 'V-25':    dict(note_add=F1735 + ': 컵 1차 107.8 mm 는 **컵이 집는 자리에 딱 붙어 배치돼 손가락이 못 닫힌 것**(황인재 확인) — 힘 계단 가설 철회. "안 닫혀도 ok=True" 맹점은 그대로 → 민범진 판단 요청 유지. 🆕 **홈 C 놓기(place SPONGE_BED_C) 좌표가 안 맞는다**(17:33 관찰 · PlaceResult 는 OK 인데 컵이 홈에 제대로 안 앉음) — 방향·양 재실행 확인 중, 재현되면 F4 가 cell.yaml 고쳐 PR(E14)'),
+ 'INF-02d': dict(note_add=F1735 + ': 힘 계단(_set_force) 가설은 **철회**(컵 배치 문제였음) — ② 제안은 참고만'),
+ 'CELL-04': dict(note_add=F1735 + ': 🟡 `beds.SPONGE_BED_C.place`(#69 한석형: 접근 z 300 → 삽입 z 110 → +140) 로 놓으면 컵이 홈에 제대로 안 앉는다(황인재 17:33) — F4 재실행 확인 → 재현되면 좌표 수정 PR'),
+ 'INT-12b': dict(note_add=F1735 + ': 🟡 홈 C 놓기 좌표 의심 — 컵 재파지(regrip) 전 홈에 앉은 상태를 눈으로 확인 · F4 수정 PR 이 오면 그 좌표로'),
+}
+for _tid, _e in P1735.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY125 = ['v17.5', '정정·발견', 'V-25, INF-02d, CELL-04, INT-12b', 'F4 정정(9/22 17:35): 컵 1차 107.8 mm 는 컵이 집는 자리에 딱 붙어 배치된 탓(힘 가설 철회) · "안 닫혀도 ok" 맹점은 유지(민범진 판단). 🆕 홈 C 놓기 좌표(beds.SPONGE_BED_C.place)가 안 맞는 의심 — F4 확인 중 · 저녁 INT-12b 컵 주의. (v17.4 비고의 17:55 표기는 17:34)', '황인재 9/22 17:35', 'H,M']
+
+
+# ---------------------------------------------------------------- 9/22 17:44 F4 — 🚨 툴·TCP 선택 두 번째 풀림(17:37~17:39 · 프로그램 안 돌던 틈) → 외부 요인 의심
+T1744 = '🚨 9/22 17:44 F4'
+P1744 = {
+ 'ENV-05':  dict(note_add=T1744 + ': **툴·TCP 선택이 오늘 두 번째로 풀렸다**(17:3x 확인 · get_current_tool/tcp 빈 값). 창 17:37:49(홈 C 놓기 posx 정상 완료 = TCP 살아 있음) ~ 17:39:07(다음 pick 부터 전혀 다른 좌표 · 17:40:39 move_stop 응답 없음). 그 사이 우리 프로그램은 안 돌았다 — 아침(11:10~11:17)도 rig_v03 종료 뒤 빈 틈 → **외부 요인(펜던트 조작 · 다른 PC 브링업/접속 · 컨트롤러) 의심**. 조치: 황인재가 펜던트에서 다시 선택(브링업 끄고 → 선택 → Dart 닫고 → 브링업 → 이름 확인) · 복구 전 로봇 이동 금지 · rig_f1 에 문지기 없어 못 막음 → F4 가 넣는다. 팀 질문: 17:37~17:40 펜던트·다른 PC 브링업/접속 여부(전원 · 즉시)'),
+ 'INT-F2':  dict(note_add=T1744 + ': 🚨 시작 전 **툴·TCP 두 이름 확인 필수**(17:3x 두 번째 풀림 · 복구 뒤) · 저녁 통합 준비로 다른 PC 에서 브링업·접속했는지 확인'),
+ 'INT-F3':  dict(note_add=T1744 + ': 🚨 시작 전 툴·TCP 두 이름 확인 필수 · rig_v03·rig_v10 은 아직 set/모드 전환 코드가 남아 있음(E26 수정 PR 전) — 실행 전 이름부터'),
+ 'V-25':    dict(note_add=T1744 + ': 상태 — 이동 3 · 빈손 놓기 · 그릇 pick→place 1(+손 1) · 컵 pick→홈 C 놓기 2회(좌표 어긋남 관찰 — 🟡 TCP 풀림 시각과의 관계 확인 필요: 17:33 관찰은 풀림(17:38) 전) · V-24 미실행 → 로봇을 통합 팀에 넘기면 V-24 는 9/23 아침'),
+ 'CELL-04': dict(note_add=T1744 + ': 홈 C 놓기 좌표 의심(17:33)은 TCP 풀림(17:37~) **전** 관찰이라 별개일 가능성 — F4 재실행으로 가린다'),
+}
+for _tid, _e in P1744.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY126 = ['v17.6', '🚨 사고 2', 'ENV-05, INT-F2, INT-F3, V-25, CELL-04', 'F4 9/22 17:44: 툴·TCP 선택이 두 번째로 풀림(17:37~17:39 · 우리 프로그램 안 돌던 틈 · 아침과 같은 양상) → 외부 요인 의심 · 황인재 펜던트 재선택 · 복구 전 이동 금지 · 저녁 통합 시작 전 두 이름 확인 필수 · 전원에게 "17:37~17:40 펜던트·다른 PC 브링업/접속 여부" 즉시 질문 · rig_f1 문지기 추가(F4)', '황인재 9/22 17:44', '전원']
+
+
+
+# ---------------------------------------------------------------- 9/22 17:46 F4 — TCP 풀림 확정 · 15:19 브링업 재시작 때는 이름 유지 · 재현 계획
+EDIT.setdefault('ENV-05', {}).update(dict(note_add='🔎 9/22 17:46 F4: **TCP 풀림 확정** — HOME posj 인데 posx z 422.98(플랜지) · robot_state 1 · 알람 기록 없음. 참고: 15:19 브링업 껐다 켰을 때는 이름이 살아 있었음(rig_f2 문지기 통과) → "브링업 재시작이 항상 비운다" 는 아님. 두 창 공통점 = 우리 프로그램이 안 도는 빈 틈 → 외부 조작·다른 PC 의심. 복구 뒤 ① ros2 node list(낯선 노드) ② 브링업만 껐다 켜기 재현 ③ 두 이름 확인 → 결과 대기'))
+HISTORY127 = ['v17.7', '확인', 'ENV-05', 'F4 9/22 17:46: TCP 풀림 확정(HOME z 422.98 = 플랜지 · 알람 없음) · 15:19 브링업 재시작 때는 이름 유지 → 외부 요인 쪽 · 복구 뒤 재현 3단계 · 로봇은 복구·확인 뒤 통합 팀에 · V-24 는 9/23 아침', '황인재 9/22 17:46', 'H']
+
+
+
+# ---------------------------------------------------------------- 9/22 17:55 🚨 실기 충돌(TS-08) · PR #77 merge
+EDIT.setdefault('INT-F2', {}).update(dict(note_add='🚨 9/22 17:27 실기 충돌(민범진 세션 · 30 %): rig_f2 dip 3회 뒤 rig_shake_tune 시작 → 수조 안 자세(z −13.6)에서 HOME 관절 이동이 테이블을 가로질러 그리퍼가 상판을 쓸고 비상정지 · 툴 전원 끊겨 그리퍼 드라이버 종료(sendCommand 안 보임) · 피해 없음 · 슬롯 ~15분. → PR #77 merge(17:55): f2 시험대 6곳 + flow.abort_container 가 HOME 앞에 곧게 위로(safe_retreat · 새 설정 없음) · TS-08 문서. 🟡 실기 재확인 = 오늘 저녁 헹굼→물털기 순서 · 그 전에 툴·TCP 두 이름 확인(비상정지 뒤)'))
+EDIT.setdefault('ENV-05', {}).update(dict(note_add='🔎 17:55 실마리: 민범진 세션이 17:27 충돌 전후 실기 사용(dip 3회 → 충돌 → 복구·브링업 재시작) → 17:37~39 TCP 풀림 창과 재시작 시각 대조 — 민범진 PC 의 sodreal 브링업 시각을 확인(다른 PC 연결이 이름을 비우는지)'))
+EDIT.setdefault('CELL-04', {}).update(dict(note_add='🟡 17:55 황인재 결정 대기: rig_f1·rig_f3·rig_weigh_* 도 시작 때 "낮으면 곧게 위로" 보호 필요(직전 프로세스가 수조 안에서 끝날 수 있음) → go_home_safely 를 cobot_common.motion 으로 올릴지'))
+HISTORY128 = ['v17.8', '🚨사고', 'INT-F2', '9/22 17:27 실기 충돌(TS-08): 수조 안에서 HOME 관절 이동 → 그리퍼가 테이블 쓸고 비상정지 · 피해 없음 · PR #77(민범진) 승인·merge 17:55 — f2 시험대·abort 가 HOME 앞에 곧게 위로 · 자동 시험 444 · 실기 재확인 🟡 저녁', '황인재 9/22 17:55', 'H']
+
+
+
+# ---------------------------------------------------------------- 9/22 17:58 F4 원인 분석 — 두 PC 동시 접속
+EDIT.setdefault('ENV-05', {}).update(dict(note_add='🎯 17:58 F4 분석(원인 거의 확정): 황인재 V-25 16:57~17:45 실기 중에 민범진이 17:3x 다른 PC 에서 sodreal 접속 → ① 17:37~39 툴·TCP 빔 ② 17:39 황인재 명령에 로봇이 엉뚱한 좌표로(다른 PC 명령 실행) ③ 17:40:39 move_stop 무응답. 아침 11:1x = 박진용 rig_v03 다른 PC 접속과 겹침. 가설 "다른 PC 에서 sodreal 을 켜면 현재 툴·TCP 선택이 빈다" → 민범진 sodreal 시각으로 확정 대기. 🟡 규칙 제안 3개(선언 뒤 사용·접속 PC 1대 / 새 브링업은 두 이름 확인 / 펜던트 재선택 황인재) → 황인재 결정'))
+EDIT.setdefault('V-25', {}).update(dict(note_add='⚠ 17:58: 17:33~17:38 컵 홈 C 놓기 어긋남 관찰은 민범진 접속과 겹친 시각일 수 있음 → cell.yaml 수정 보류 · 재확인은 9/23 아침 V-24 와 함께(로봇 확실히 빈 때)'))
+EDIT.setdefault('CELL-04', {}).update(dict(note_add='17:58: F4 소유 시험대(rig_weigh_poses 등)에 go_home_safely 보호는 9/23 F4 가 넣음'))
+HISTORY129 = ['v17.9', '원인', 'ENV-05', 'F4 9/22 17:58: 툴·TCP 풀림 2건 원인 = 다른 PC 의 sodreal 동시 접속(17:3x 민범진 · 11:1x 박진용)이 유력 — 접속이 넘어가며 선택이 비고 남의 명령이 실행됨 · 규칙 3개 제안(황인재 결정) · V-25 컵 홈 C 관찰 보류', '황인재 9/22 17:58', 'H']
+
+
+
+# ---------------------------------------------------------------- 9/22 18:02 🔴 F4 시각 정정(로그 epoch→date) — 위 9/22 오후 F4 블록의 16:xx 는 전부 +47분으로 고쳐 넣었다
+EDIT.setdefault('ENV-05', {}).update(dict(note_add='🔴 18:02 시각 정정(F4 로그 date 값 · 앞 기록의 16:xx 는 환산 오류라 고침): 황인재 V-25 **16:57~17:45** · 17:03:47·17:08:43 황인재 쪽 SAFE_STOP 2회(HOME 이동 거부) — 민범진 충돌 17:27 과 겹침 → **17:07:5x 황인재 리셋(set_robot_control 2 ×2)이 남의 비상정지를 푼 것일 수 있음(매우 위험)** · 17:37:49 놓기 정상(TCP 살아 있음) → **풀린 창 17:37:49~17:39:07**(민범진 복구 뒤 브링업 재시작 시각과 대조) → 17:39:07 엉뚱한 좌표 → Ctrl+C · 17:40:39 move_stop 무응답 · 17:45:31 --where z 422.98. 민범진에게 date 기준 ①sodreal ②dip 3회 ③충돌 ④재시작 시각 요청. 규칙 제안 ㉣ 비상정지 해제·리셋은 자기 세션 것만 추가(황인재 결정)'))
+EDIT.setdefault('V-25', {}).update(dict(note_add='🔴 18:02 시각 정정: 컵 pick·홈 C 놓기 17:31~17:38(3회 OK · 폭 76.2/76.9/76.7) · 안전 정지 2회(17:03:47 · 17:08:43)는 "손으로 잘못 물린 그릇 탓" 으로 봤으나 민범진 충돌 17:27 과 겹쳐 재해석 필요 · 표는 F4 가 test_logs V-25 기록에 넣음'))
+EDIT.setdefault('INT-F2', {}).update(dict(note_add='⚠ 18:02: 충돌 17:27 시각에 황인재 V-25 세션도 같은 컨트롤러 접속 중(두 PC 명령 섞임) → TS-08 원인("수조 안→HOME")은 민범진 date 시각으로 재확인 · PR #77 보호는 그대로 유효'))
+HISTORY130 = ['v18.0', '🔴 정정', 'ENV-05, V-25, INT-F2', 'F4 9/22 18:02: 오후 시각 전부 정정(+47분) — 황인재 V-25 16:57~17:45 가 민범진 실기(17:27 충돌)와 겹침 · 황인재 SAFE_STOP 17:03·17:08 · 17:07:5x 리셋이 남의 비상정지 푼 셈일 수 있음 · TCP 풀린 창 17:37:49~17:39:07 · 규칙 ㉣ 제안', '황인재 9/22 18:02', 'H']
+
+
+
+# ---------------------------------------------------------------- 9/22 20:03 🔴 민범진 PR #78 — 충돌 시각 17:07→17:27 정정 · 18:11 무게 영점 이동 · 폭 판정
+EDIT.setdefault('INT-F2', {}).update(dict(note_add='🔴 20:03 정정(민범진 PR #78 · 로그 epoch): 충돌은 **17:27:10~17:27:18**(리모컨 시작→HOME 도착 8초) · 그리퍼 드라이버 사망 17:27:51 — 앞의 17:07 은 변환 착오. 황인재 세션이 쉬던 17:12~17:31 틈이라 명령이 섞인 건 아니고 원인은 "수조 안→HOME 관절 이동" 확정. 🚨 18:11 무게 −117.5 g(15:22 기준값 −12 → 105 g 영점 이동) → GRIP_FAIL 로 통합 막힘 → PR #78: 하한 미달이면 **그리퍼 폭으로 파지 재확인**(빈손만 GRIP_FAIL · 쥐고 있으면 경고+통과) + weigh 흐름/떨림 분리(📉 max_weigh_drift_g 20 🟡). PR #78 은 #77 브랜치 재사용으로 main 과 충돌 4파일 → 재푸시 대기'))
+EDIT.setdefault('ENV-05', {}).update(dict(note_add='🔴 20:03 재해석(충돌 17:27 정정): 황인재 SAFE_STOP 17:03·17:08·리셋 17:07:5x 는 **자기 세션 것** — "남의 비상정지 푼 셈" 철회. 풀린 창 17:37:49~17:39:07 은 충돌 **10분 뒤** = 민범진 복구(비상정지 해제·서보 온·브링업 재시작) 직후로 보임. 17:31~17:37 황인재 컵 작업은 TCP 살아 있었음 → 민범진 첫 접속(17:2x)은 안 비웠고 **복구 절차 또는 재시작 접속**이 비운 것. 가설 2개: ⓐ 다른 PC 새 브링업 접속 ⓑ 비상정지 복구 절차 → 민범진 시각(①sodreal ②비상정지 해제·서보 온 ③재시작)으로 가른다'))
+EDIT.setdefault('V-02', {}).update(dict(note_add='🚨 20:03: 18:11 실기(민범진) 빈 그릇 자리 −117.5 g — 15:22 기준값 −12 대비 **105 g 영점 이동**(툴·TCP 재선택 17:4x 가 사이에 있음 · 재는 21 s 안에도 −26 g 흐름). 🟡 황인재 결정: 자동 영점(실행 시작 때 빈손으로 저울 1회 · 40 s) vs 시연 아침 사람이 다시 재기. F4: 펜던트 재선택 뒤 툴 무게 값(1.440 kg) 확인'))
+HISTORY131 = ['v18.1', '🔴 정정', 'INT-F2, ENV-05, V-02', '민범진 PR #78 9/22 20:03: 충돌 17:07→17:27 정정(황인재 리셋과 무관) · 풀린 창은 충돌 10분 뒤(복구 절차·재시작 의심) · 18:11 영점 105 g 이동 → 폭으로 파지 재확인·흐름/떨림 분리 · PR 은 충돌 4파일로 재푸시 요청 · 🟡 자동 영점 결정', '황인재 9/22 20:03', 'H']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -2117,11 +2380,16 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113, HISTORY114, HISTORY115, HISTORY116, HISTORY117, HISTORY118, HISTORY119, HISTORY120, HISTORY121, HISTORY122, HISTORY123, HISTORY124, HISTORY125, HISTORY126, HISTORY127, HISTORY128, HISTORY129, HISTORY130, HISTORY131):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
             h.rows[k] = n
+    # 7-1) 변경이력 시각 정정 (9/22 17:20 — 추정으로 적은 시각을 커밋 시각으로)
+    for r in h.rows:
+        v = h.text(r, 'A').strip()
+        if v in FIX_TIMES:
+            r.set('E', f'황인재 9/22 {FIX_TIMES[v]}')
     # 8) 고친 Time Line 을 다시 읽어 완료 목록·할일 시트를 채운다
     tmp = os.path.join(tempfile.mkdtemp(), 'stage.xlsx'); b.save(tmp)
     rows, det = timeline(load(tmp))
