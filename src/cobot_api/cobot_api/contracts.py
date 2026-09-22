@@ -137,7 +137,7 @@ class F2Api(Protocol):
         """판정→털기→재측정 반복. 초과 지속이면 LEFTOVER_REMAIN"""
 
     def shake(self, mode: str, count: int, kind: str) -> Result:
-        """털기(WASTE)·물 털기(RINSE). 시작 HOLD, 끝 NORMAL. 미끄러지면 GRIP_FAIL"""
+        """잔반 버리기(WASTE)·물 털기(RINSE) — mode 마다 다른 동작(E24 · 서명 같음). 시작 HOLD, 끝 NORMAL. 미끄러지면 GRIP_FAIL"""
 
     def dip(self, station: str, count: int, kind: str) -> Result:
         """헹굼 수조 담금(HOLD)"""
