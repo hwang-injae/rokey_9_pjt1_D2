@@ -441,7 +441,7 @@ def main():
             print("\n" + "=" * 74)
             print("CUP REAL route verification")
             print("PICK → BED → (세척 인계) → REGRIP → RINSE → RACK")
-            print("CUP은 WEIGH/WASTE와 RINSE SHAKE를 수행하지 않는다")
+            print("[동선 시험 한정] CUP WEIGH/WASTE와 RINSE SHAKE를 생략한다")
             print("=" * 74)
 
             cup = cell["presets"]["CUP"]
