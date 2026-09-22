@@ -2529,6 +2529,7 @@ HISTORY145 = ['v19.5', 'PR·결정', 'CELL-05, F1-03, F1-04, INT-ONE-B/C', 'PR #
 def main(out):
     gen_todo.EASY.update(EASY)
     for _t in DELETE: EDIT.pop(_t, None); MOVE.pop(_t, None)
+    NEW[:] = [_n for _n in NEW if _n[0] not in DELETE]                 # 지운 행은 새 행 목록에서도 뺀다(다시 만들지 않게)
     b = Book.from_live(SID)
     tl = b.sheet('Time Line'); d = b.sheet('상세(산출물·완료기준)')
 
