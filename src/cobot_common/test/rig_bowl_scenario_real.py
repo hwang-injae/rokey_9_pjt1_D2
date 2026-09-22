@@ -226,22 +226,35 @@ def main():
         stations = cell["stations"]
 
         tcp = d.get_tcp()
+        tool_setting = d.get_tool()
+        vel_scale = float(cfg["run"]["vel_scale"])
 
         print("\n" + "=" * 74)
-        print("BOWL REAL route verification")
+        print(f"{args.kind} REAL route verification")
         print("=" * 74)
         print("TCP =", repr(tcp))
-        print("vel_scale =", cfg["run"]["vel_scale"])
-        print("BOWL raw grip target =", round(BOWL_CMD_MM, 2), "mm")
-        print("BOWL force =", BOWL_FORCE_N, "N")
+        print("TOOL =", repr(tool_setting))
+        print("vel_scale =", vel_scale)
+        if args.kind == "BOWL":
+            print("BOWL raw grip target =", round(BOWL_CMD_MM, 2), "mm")
+            print("BOWL force =", BOWL_FORCE_N, "N")
+        else:
+            cup_preset = cell["presets"]["CUP"]
+            print("CUP grip target =", cup_preset["grip_target_mm"], "mm")
+            print("CUP force =", cup_preset["grip_force_n"], "N")
         print("TOOL_VIA = NOT USED")
         print("F3 wash pose = NOT USED")
-        print("RACK via =", RACK_B_VIA_J)
+        print("RACK via =", RACK_B_VIA_J if args.kind == "BOWL" else cell["rack"]["cup_via"])
         print("=" * 74)
 
-        if not tcp:
+        if tcp != "GripperDA_v1" or tool_setting != "Tool Weight":
             raise RuntimeError(
-                "현재 TCP가 비어 있음 — DART에서 RG2 TCP 선택 후 재실행"
+                "TCP/TOOL 설정 불일치 — DART에서 GripperDA_v1 / Tool Weight를 "
+                "선택하고 브링업을 다시 시작한 뒤 재실행"
+            )
+        if vel_scale > 0.3:
+            raise RuntimeError(
+                f"실기 동선 검증은 vel_scale 0.3 이하만 허용한다 (현재 {vel_scale})"
             )
 
         step = 0
@@ -426,32 +439,92 @@ def main():
 
         if args.kind == "CUP":
             print("\n" + "=" * 74)
-            print("[CUP / TOOL_BRUSH] F1 공용 함수: pick + grip only")
-            print("F3: 꺼내기 → CUP WASH → HOME 복귀")
-            print("F1: HOME에서 XY → orientation → Z down → release → Z up → HOME orientation → HOME XY")
+            print("CUP REAL route verification")
+            print("PICK → BED → (세척 인계) → REGRIP → RINSE → RACK")
+            print("CUP은 WEIGH/WASTE와 RINSE SHAKE를 수행하지 않는다")
             print("=" * 74)
 
-            ask("BRUSH PICK 준비")
-            brush_pick_x = f1_tool_pick(
-                "TOOL_BRUSH",
-                BRUSH_WIDTH_MM,
-                BRUSH_FORCE_N,
-                "BRUSH",
+            cup = cell["presets"]["CUP"]
+            cup_width = float(cup["grip_target_mm"])
+            cup_force = float(cup["grip_force_n"])
+            bed = cell["beds"]["SPONGE_BED_C"]["place"]
+            rack_cfg = cell["rack"]
+
+            pick_up = move(
+                "RET_C",
+                False,
+                point=1,
+                label="HOME → CUP PICK X/Y+방향 동시 이동",
+            )
+            rel(0.0, 0.0, -pick_up, f"CUP PICK: Z -{pick_up:.2f}")
+            grip(cup_width, cup_force, f"CUP GRIP {cup_width:.1f} mm / {cup_force:.0f} N")
+
+            now_z = float(cc.where()[2])
+            travel_z = float(bed["approach_posx"][2])
+            rel(0.0, 0.0, travel_z - now_z, f"CUP PICK EXIT: Z {travel_z:.1f}")
+
+            bed_up = move(
+                "SPONGE_BED_C",
+                True,
+                point="place",
+                label="CUP → BED X/Y+방향 동시 이동",
+            )
+            rel(0.0, 0.0, -bed_up, f"CUP BED: Z -{bed_up:.2f}")
+            release("CUP BED RELEASE")
+            for i, xyz in enumerate(bed.get("exit_rel_mm") or [], start=1):
+                rel(xyz[0], xyz[1], xyz[2], f"CUP BED EXIT {i}: {xyz}")
+
+            print("\n[F3 세척 구간 인계]")
+            print("컵 세척이 끝나고 컵이 BED에 있으면 계속한다.")
+            ask("F3 세척 완료 · 컵이 BED에 있음")
+
+            move(
+                "SPONGE_BED_C",
+                False,
+                point="regrip",
+                label="CUP BED REGRIP",
+            )
+            grip(cup_width, cup_force, f"CUP REGRIP {cup_width:.1f} mm / {cup_force:.0f} N")
+
+            entry_z = float(rack_cfg["cup_entry_z_mm"])
+            now_z = float(cc.where()[2])
+            if abs(now_z - entry_z) > 1e-6:
+                rel(0.0, 0.0, entry_z - now_z, f"CUP REGRIP EXIT: Z {entry_z:.1f}")
+
+            rinse_up = move(
+                "RINSE",
+                True,
+                kind="CUP",
+                label="CUP → RINSE 접근",
+            )
+            print(f"[F2 RINSE/DIP 인계] 수직 하강 가능량 = {rinse_up:.1f} mm")
+            ask("F2 DIP 완료 · RINSE 접근점(z=150) 복귀")
+            print("[CUP RINSE SHAKE 생략]")
+
+            now_z = float(cc.where()[2])
+            rel(0.0, 0.0, entry_z - now_z, f"RINSE EXIT: Z {entry_z:.1f}")
+
+            stations["RACK_C_VIA_TEST"] = dict(rack_cfg["cup_via"])
+            move(
+                "RACK_C_VIA_TEST",
+                True,
+                label="RINSE EXIT → RACK CUP VIA",
             )
 
-            print()
-            print("=" * 74)
-            print("[F3 CUP 담당]")
-            print("BRUSH 꺼내기 → CUP WASH → HOME 복귀")
-            print("=" * 74)
-            input("F3가 BRUSH 들고 HOME 복귀했으면 Enter > ")
+            rack_up = move(
+                slot,
+                True,
+                label=f"RACK CUP VIA → {slot} 접근",
+            )
+            rel(0.0, 0.0, -rack_up, f"{slot}: Z -{rack_up:.2f}")
+            release(f"{slot} CUP RELEASE")
+            for i, xyz in enumerate(rack_cfg["slots"][slot].get("exit_rel_mm") or [], start=1):
+                rel(xyz[0], xyz[1], xyz[2], f"{slot} EXIT {i}: {xyz}")
 
-            # F1: HOME 에서 반납 순서
-            # XY 이동 → orientation 맞춤 → Z 하강 → release → Z 상승 → HOME orientation → HOME XY
-            f1_tool_return(brush_pick_x, "BRUSH")
+            move("HOME", False, label="RACK EXIT → HOME")
 
-            print("\n" + "=" * 74)
-            print("CUP TOOL_BRUSH 동선 시험 완료")
+            print("=" * 74)
+            print("REAL CUP 동선 시험 완료")
             print("=" * 74)
             return 0
 
