@@ -26,9 +26,9 @@ CFG = {'f2': {
     'limits': {'max_amp_deg': 45.0, 'max_depth_mm': 150.0, 'max_hold_s': 5.0,
                'max_settle_s': 5.0, 'min_net_g': -30.0},
     'shake': {'WASTE': {'joint': 5, 'amp_deg': 15.0, 'cycles': 4, 'period_s': 0.6},
-              'RINSE': {'joint': 4, 'amp_deg': 20.0, 'period_s': 0.8, 'at': 'approach', 'fast': True}},   # 🔄 9/23 E36
+              'RINSE': {'joint': 4, 'amp_deg': 30.0, 'period_s': 1.2, 'at': 'RINSE_SHAKE', 'fast': True}},   # 🔄 9/23 E36
     'dip': {'RINSE': {'depth_mm': 60.0, 'hold_s': 0.2}},
-}}
+}, 'cell': {'stations': {'RINSE': {}, 'RINSE_SHAKE': {}, 'WASTE': {}, 'WEIGH': {}, 'HOME': {}}}}   # 🆕 shake at=<스테이션> 검사용
 
 
 class Rec:
@@ -436,33 +436,49 @@ def test_shake_rinse_uses_its_own_preset(monkeypatch):
     s = _sense(monkeypatch, r)
     s.shake('RINSE', 1, 'CUP')
     first = r.of('move_joint_rel')[0]
-    assert first[1] == (4, +20.0, 0.2)         # 🔄 E36 RINSE: J4 · amp 20 · period 0.8 → 0.2
+    assert first[1] == (4, +30.0, 0.3)         # 🔄 E36 RINSE: J4 · amp 30 · period 1.2 → 0.3
     assert first[2] == {'scale': False}        # fast → vel_scale 예외
 
 
 # ────────────────────────────────── 🆕 9/23 E36 물 털기 재설계 — 접근 높이에서 J4 좌우 · 빠르게
-def test_shake_rinse_at_approach_does_not_descend(monkeypatch):
-    """E36: 담금 뒤 수조 안(접근점보다 248.6 아래)에서 부르면 move_to(RINSE) 가 접근점(같은 x·y)까지 = 곧게 위로.
-    **내려가지 않는다**(move_rel 없음) · 끝나도 그 높이 · HOLD → 흔들기 → NORMAL."""
+def test_shake_rinse_rises_then_goes_to_shake_station(monkeypatch):
+    """E36(황인재 9/23): 담금 뒤 수조 안에서 부르면 ① move_to(RINSE) = 접근점(같은 x·y)까지 곧게 위로 ② move_to(RINSE_SHAKE) 관절 이동으로 털기 자세.
+    **내려가지 않는다**(move_rel 없음) · 끝나도 거기 · HOLD → 흔들기 → NORMAL."""
     r = Rec(up=248.6)
     s = _sense(monkeypatch, r)
     assert s.shake('RINSE', 3, 'BOWL').ok
     names = r.names()
-    assert ('move_to', ('RINSE', True, 'BOWL'), {}) in r.calls
-    assert not r.of('move_rel'), '접근점에서 턴다 — 티칭 자세로 내려가지 않는다'
+    tos = [c[1] for c in r.of('move_to')]
+    assert tos == [('RINSE', True, 'BOWL'), ('RINSE_SHAKE', True, 'BOWL')], '접근점 먼저 · 그다음 털기 자세'
+    assert not r.of('move_rel'), '티칭 자세로 내려가지 않는다'
     assert names.index('force_off') < names.index('move_to') < names.index('move_joint_rel')
     levels = [c[1][1] for c in r.of('grip_level')]
     assert levels[0] == 'HOLD' and levels[-1] == 'NORMAL'
 
 
+def test_shake_rinse_at_approach_variant(monkeypatch):
+    """at: approach 도 남아 있다 — 접근점까지만 가고(move_to 1번) 내려가지 않는다."""
+    import copy
+    cfg = copy.deepcopy(CFG)
+    cfg['f2']['shake']['RINSE'] = {'joint': 4, 'amp_deg': 20.0, 'period_s': 0.8, 'at': 'approach', 'fast': True}
+
+    class R2(Rec):
+        def cfg(self):
+            return cfg
+    r = R2(up=248.6)
+    s = _sense(monkeypatch, r)
+    assert s.shake('RINSE', 1, 'BOWL').ok
+    assert [c[1] for c in r.of('move_to')] == [('RINSE', True, 'BOWL')] and not r.of('move_rel')
+
+
 def test_shake_rinse_joint4_fast_three_cycles(monkeypatch):
-    """E36: 4번 관절 ±20° 를 3회 — 구간 시간 0.2/0.4/0.2(주기 0.8) · 모든 구간 scale=False(vel_scale 예외) · 합 0."""
+    """E36: 4번 관절 ±30° 를 3회 — 구간 시간 0.3/0.6/0.3(주기 1.2) · 모든 구간 scale=False(vel_scale 예외) · 합 0."""
     r = Rec()
     s = _sense(monkeypatch, r)
     assert s.shake('RINSE', 3, 'BOWL').ok
     moves = r.of('move_joint_rel')
     assert len(moves) == 9 and {c[1][0] for c in moves} == {4}
-    assert [(c[1][1], c[1][2]) for c in moves[:3]] == [(20.0, 0.2), (-40.0, 0.4), (20.0, 0.2)]
+    assert [(c[1][1], c[1][2]) for c in moves[:3]] == [(30.0, 0.3), (-60.0, 0.6), (30.0, 0.3)]
     assert all(c[2] == {'scale': False} for c in moves)
     assert sum(c[1][1] for c in moves) == pytest.approx(0.0)
 
@@ -471,7 +487,7 @@ def test_shake_fast_is_joint_only_and_at_is_validated(monkeypatch):
     """직선 왕복에 fast 를 주거나 at 이 이상하면 **움직이기 전에** 거절(ROBOT_ERROR)."""
     import copy
     for bad in ({'axis': 'x', 'amp_mm': 20.0, 'period_s': 0.5, 'fast': True},
-                {'joint': 4, 'amp_deg': 20.0, 'period_s': 0.8, 'at': 'nowhere'}):
+                {'joint': 4, 'amp_deg': 20.0, 'period_s': 0.8, 'at': 'NOWHERE_STATION'}):
         cfg = copy.deepcopy(CFG)
         cfg['f2']['shake']['RINSE'] = bad
         cfg['f2']['limits']['max_amp_mm'] = 60.0

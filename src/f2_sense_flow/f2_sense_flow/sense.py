@@ -414,6 +414,8 @@ def shake(mode: str, count: int, kind: str) -> Result:
     🆕 9/23 결정 E36(황인재) — **물 털기(RINSE) 재설계**: 담금 뒤 수조 안에서 까딱이지 않고
        ① `at: approach` — 스테이션의 **접근점(수조 위 · z 235)까지만** 간다. 수조 안 자세에서 부르면 접근점이 같은 x·y 라
           **곧게 위로 빠져나오는 것**이 되고, 내려가지 않는다. 끝나도 그 높이에 남는다(헹굼 뒤 로봇이 높은 자세 → TS-08 위험 감소).
+          `at: RINSE_SHAKE`(스테이션 이름) — 위처럼 접근점까지 곧게 올라온 **다음** 관절 이동으로 그 털기 자세(cell.stations · posj · 황인재 티칭)로 가서 턴다
+          (9/23 07:5x 황인재: 접근 높이에서의 J4 흔들기는 밋밋함 → 툴이 옆으로 누운 높은 자세에서 잔반 버리기처럼 크게). 끝나도 거기 남는다.
        ② `joint: 4` — 4번 관절을 좌우로 왕복(잔반 버리기 J5 와 비슷한 모양 · 기울이기 없음).
        ③ `fast: true` — **vel_scale 예외**(cc.move_joint_rel(scale=False) · E17 취지): 배속을 낮춰도 설정한 주기대로 턴다.
           상한은 100 % 기준(cell.motion.vel_joint_max_deg_s · 100 °/s)이 그대로 걸린다. 관절 왕복에만 쓸 수 있다.
@@ -422,9 +424,11 @@ def shake(mode: str, count: int, kind: str) -> Result:
     conf = _f2()
     lim = _limits(conf)
     p = shake_params(conf, mode, kind)                       # 🆕 종류별(BOWL/CUP) 묶음이 있으면 그것
-    at = str(p.get('at') or 'teach').lower()                 # 🆕 E36: 'approach' = 접근점(수조 위)에서 턴다 · 'teach' = 티칭 자세(예전)
-    if at not in ('teach', 'approach'):
-        raise ValueError(f'f2.shake.{mode}.at = {p.get("at")!r} — teach·approach 중 하나')
+    at = str(p.get('at') or 'teach')                         # 🆕 E36: 'teach' = 티칭 자세(예전) · 'approach' = 접근점(수조 위) · 그 밖 = **털기 자세 스테이션 이름**(cell.stations · posj)
+    if at.lower() in ('teach', 'approach'):
+        at = at.lower()
+    elif at not in ((cc.cfg().get('cell') or {}).get('stations') or {}):
+        raise ValueError(f'f2.shake.{mode}.at = {p.get("at")!r} — teach·approach 또는 cell.stations 의 이름(예: RINSE_SHAKE)')
     fast = bool(p.get('fast', False))                        # 🆕 E36: vel_scale 예외(관절 왕복만)
     linear = p.get('axis') is not None                       # 🆕 직선 왕복(axis·amp_mm) 인가, 관절 왕복(joint·amp_deg) 인가
     if linear:
@@ -459,6 +463,11 @@ def shake(mode: str, count: int, kind: str) -> Result:
         cc.force_off()
         cc.move_to(mode, True, kind)
         _log().info(f'shake({mode}) — 접근 높이(수조 위)에서 턴다 · 내려가지 않는다(E36)')
+    elif at != 'teach':                         # 🆕 E36(황인재 9/23): 털기 자세 스테이션 — 먼저 접근점까지 **곧게 위로**(수조 안에서 관절 이동 금지 · TS-08) → 관절 이동으로 털기 자세
+        cc.force_off()
+        cc.move_to(mode, True, kind)
+        cc.move_to(at, True, kind)
+        _log().info(f'shake({mode}) — 접근점(수조 위)으로 올라온 뒤 털기 자세 {at} 에서 턴다(E36) · 끝나도 거기 남는다')
     else:
         _goto(mode, carrying=True, kind=kind)   # force_off 는 _goto 안에서 먼저 부른다
 
@@ -484,7 +493,7 @@ def shake(mode: str, count: int, kind: str) -> Result:
 
         def _step(d, t=None):
             cc.move_joint_rel(joint, d, time_s=t, carrying=True, **_fast_kw)
-        what = f'J{joint} ±{amp:.0f}°' + (' · 빠름(vel_scale 예외)' if fast else '') + (' · 접근 높이' if at == 'approach' else '')
+        what = f'J{joint} ±{amp:.0f}°' + (' · 빠름(vel_scale 예외)' if fast else '') + (' · 접근 높이' if at == 'approach' else (f' · {at}' if at != 'teach' else ''))
 
     moved = 0.0                                 # 가운데에서 얼마나 벗어나 있나 (실패 복구용)
     _hold(kind, HOLD)                           # 흔들 때는 더 꽉 잡는다 (IRD §4)

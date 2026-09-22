@@ -40,7 +40,8 @@ def test_repo_cell_skeleton_uses_ird_ids():
                                   'retreat_vel_mm_s', 'retreat_acc_mm_s2', 'force_max_n', 'search_y_period_ratio'}   # 이슈 #7 ①
     beds = {'SPONGE_BED_B', 'SPONGE_BED_C'}
     vias = {'RACK_B_VIA', 'RACK_B1_VIA', 'RACK_C_VIA'}           # 🆕 9/22 팔레트 경유점(f1.rack_place · 리마인드 §7 "stations 아래에") — IRD 자리는 아니다
-    assert set(cell['stations']) == (set(STATIONS) - beds) | vias   # 스펀지 홈은 beds 에 있다
+    extra = vias | {'RINSE_SHAKE'}                                # 🆕 9/23 E36 물 털기 자세(f2.shake at:) — IRD 스테이션이 아니라 f2 내부 자세(경유점과 같은 취급)
+    assert set(cell['stations']) == (set(STATIONS) - beds) | extra   # 스펀지 홈은 beds 에 있다
     assert set(cell['beds']) == beds
     assert set(cell['zones']) == {RET_B, RET_C}
     assert set(cell['rack']['slots']) == set(RACK_SLOTS)
