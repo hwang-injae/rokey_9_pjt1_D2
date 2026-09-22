@@ -277,6 +277,46 @@ def test_shake_linear_axis_moves_with_move_rel(monkeypatch):
     assert sum(m[0] for m in moves) == pytest.approx(0.0)
 
 
+def test_shake_params_per_kind(monkeypatch):
+    """🆕 f2.shake.<mode> 에 BOWL/CUP 묶음이 있으면 kind 것을 쓴다 · 없으면 공용 · 한쪽만 있으면 KeyError(조용히 안 돈다)."""
+    import copy
+    cfg = copy.deepcopy(CFG)
+    cfg['f2']['shake']['RINSE'] = {'BOWL': {'joint': 5, 'amp_deg': 10.0, 'period_s': 0.5},
+                                   'CUP': {'joint': 5, 'amp_deg': 6.0, 'period_s': 0.6}}
+
+    class R2(Rec):
+        def cfg(self):
+            return cfg
+    r = R2()
+    s = _sense(monkeypatch, r)
+    assert s.shake('RINSE', 1, 'CUP').ok
+    assert [c[1][1] for c in r.of('move_joint_rel')] == [6.0, -12.0, 6.0]        # 컵 값
+    r2 = R2(); s = _sense(monkeypatch, r2)
+    assert s.shake('RINSE', 1, 'BOWL').ok
+    assert [c[1][1] for c in r2.of('move_joint_rel')] == [10.0, -20.0, 10.0]     # 그릇 값
+    assert s.shake_params(cfg['f2'], 'WASTE', 'CUP') is cfg['f2']['shake']['WASTE']   # 공용 묶음은 그대로
+    del cfg['f2']['shake']['RINSE']['CUP']
+    r3 = R2(); s = _sense(monkeypatch, r3)
+    out = s.shake('RINSE', 1, 'CUP')
+    assert not out.ok and not r3.of('move_joint_rel'), '한쪽만 있으면 움직이기 전에 거절'
+
+
+def test_shake_linear_passes_acc(monkeypatch):
+    """🆕 acc_mm_s2 — 있으면 move_rel 에 그대로, 없으면 None(기본)."""
+    import copy
+    cfg = copy.deepcopy(CFG)
+    cfg['f2']['shake']['RINSE'] = {'axis': 'x', 'amp_mm': 20.0, 'period_s': 0.5, 'acc_mm_s2': 800.0}
+    cfg['f2']['limits']['max_amp_mm'] = 60.0
+
+    class R2(Rec):
+        def cfg(self):
+            return cfg
+    r = R2()
+    s = _sense(monkeypatch, r)
+    assert s.shake('RINSE', 1, 'BOWL').ok
+    assert {c[2].get('acc_mm_s2') for c in r.of('move_rel')} == {800.0}
+
+
 def test_shake_linear_returns_to_center_when_motion_fails(monkeypatch):
     import copy
     cfg = copy.deepcopy(CFG)
