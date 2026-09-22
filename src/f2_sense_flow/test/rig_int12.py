@@ -52,15 +52,22 @@ def steps_for(which, kind, cfg, zone=None, slot=None):
     which : 'a' = INT-12a  pick → move_to(WEIGH) → leftover_loop
             'b' = INT-12b  pick(BED) → dip → shake → rack_place → move_to(HOME)
     zone·slot : 비우면 params.yaml 의 flow.plan · flow.rack_order 첫 값.
+
+    🆕 9/22 FLOW-05(결정 E25) — flow.weigh_kinds 에 없는 종류는 WEIGH 두 단계를 뺀다(flow.py process_one 과 같게).
+       지금 설정은 [BOWL] 이라 **컵의 12a 는 pick 하나만 남는다** → 컵은 12a 를 돌리지 않는다(INT-12a 는 그릇만).
     """
     flow = cfg['flow']
     bowl = kind == 'BOWL'
     if which == 'a':
         if zone is None:
             zone = next(p['zone'] for p in flow['plan'] if p['kind'] == kind)
-        return [('PICK', 'f1', 'pick', (zone, kind)),
-                ('WEIGH', 'f1', 'move_to', ('WEIGH', True, kind)),
-                ('WEIGH', 'f2', 'leftover_loop', (kind, int(flow['leftover_max_rounds'])))]
+        steps = [('PICK', 'f1', 'pick', (zone, kind)),
+                 ('WEIGH', 'f1', 'move_to', ('WEIGH', True, kind)),
+                 ('WEIGH', 'f2', 'leftover_loop', (kind, int(flow['leftover_max_rounds'])))]
+        weigh_kinds = flow.get('weigh_kinds')
+        if weigh_kinds is not None and kind not in [str(k).upper() for k in weigh_kinds]:
+            steps = [st for st in steps if st[0] != 'WEIGH']
+        return steps
     if which == 'b':
         bed = 'SPONGE_BED_B' if bowl else 'SPONGE_BED_C'
         n = flow['counts']

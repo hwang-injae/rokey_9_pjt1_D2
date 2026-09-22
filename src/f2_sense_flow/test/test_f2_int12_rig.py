@@ -46,6 +46,35 @@ def test_steps_b_is_regrip_dip_shake_rack_home(rig, cfg):
                    ('RACK', 'f1', 'move_to', ('HOME', False))]
 
 
+def test_steps_a_respects_weigh_kinds(rig, cfg):
+    """🆕 FLOW-05 — flow.weigh_kinds 에 없는 종류는 WEIGH 두 단계를 뺀다(flow.py process_one 과 같아야 한다)."""
+    import copy
+    c = copy.deepcopy(cfg)
+    c['flow']['weigh_kinds'] = ['BOWL']
+    assert [st[0] for st in rig.steps_for('a', 'BOWL', c)] == ['PICK', 'WEIGH', 'WEIGH']
+    assert [st[0] for st in rig.steps_for('a', 'CUP', c)] == ['PICK']        # 컵은 12a 가 pick 뿐 → 안 돌린다
+    c['flow']['weigh_kinds'] = ['BOWL', 'CUP']
+    assert [st[0] for st in rig.steps_for('a', 'CUP', c)] == ['PICK', 'WEIGH', 'WEIGH']
+    del c['flow']['weigh_kinds']
+    assert [st[0] for st in rig.steps_for('a', 'CUP', c)] == ['PICK', 'WEIGH', 'WEIGH']   # 키 없으면 예전대로
+
+
+def test_steps_a_matches_flow_process_one(rig, cfg):
+    """🚨 rig 의 순서가 flow.py 의 steps 와 실제로 같은지 — 설정을 그대로 쓴 Flow 로 비교한다."""
+    from f2_sense_flow.flow import Flow
+
+    class Q:
+        def info(self, m): pass
+        def warn(self, m): pass
+        def error(self, m): pass
+    f = Flow(cfg, Q())
+    f.kind, f.zone_id = 'BOWL', 'RET_B'
+    assert f.weigh_kinds == [str(k).upper() for k in (cfg['flow'].get('weigh_kinds') or ['BOWL', 'CUP'])]
+    rig_a = rig.steps_for('a', 'BOWL', cfg)
+    assert rig_a[1][3] == ('WEIGH', True, 'BOWL')                       # flow.py 와 같은 인자(kind 포함 · E8)
+    assert rig_a[2][3] == ('BOWL', f.rounds)
+
+
 def test_steps_zone_slot_override(rig, cfg):
     assert rig.steps_for('a', 'CUP', cfg, zone='RET_X')[0] == ('PICK', 'f1', 'pick', ('RET_X', 'CUP'))
     assert rig.steps_for('b', 'BOWL', cfg, slot='RACK_B2')[3] == ('RACK', 'f1', 'rack_place', ('RACK_B2', 'BOWL'))
