@@ -102,6 +102,12 @@ def grip(width, force):
     _send(str(int(round(_clamp_width(width) * 10))))       # 0.1 mm 단위
     after = _wait_done()
     _warn_if_stuck(before, after, f'폭 {float(width):.1f} mm 로 잡기')
+    with _lock:
+        held_force = _force_n
+    # 🔄 9/23 08:5x(황인재): 힘 계단('i'/'d')은 그리퍼가 **열려 있을 때** 보내면 읽는 값(effort)이 갱신되지 않아 "못 맞춘다 → 20 N" 경고가 나온다.
+    #    실제로 어떤 힘으로 쥐었는지는 **닫힌 뒤** 읽어야 안다 → 여기서 남긴다(컵 옆면 5 N 이 약해 이송 중 돌아간 실기의 근거).
+    _log().info(f'grip 완료 — 폭 {after:.2f} mm · 쥔 뒤 읽은 힘 ' + (f'{held_force:.1f} N' if held_force is not None else '없음')
+                + f' (명령 {float(force):.1f} N)')
     return grip_width()
 
 
