@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v16.1'
+VERSION = 'v16.2'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -2057,6 +2057,22 @@ HISTORY111 = ['v16.1', '분담', 'V-07, SKEL-01(신규), INT-F2, INT-F3, INT-ALL
               '황인재 9/22 17:20', 'H,M,S,P']
 
 
+# ---------------------------------------------------------------- 9/22 17:45 PR #72 merge(박진용) — soap 속도 · 나선 재시도 · 실기 1차 통합 성공
+M72 = '✅ 9/22 PR #72 merge(박진용)'
+P1745 = {
+ 'F3-02':  dict(prog='0.95', note_add=M72 + ': wipe_bowl = rig_v03 순서 그대로(빠른 하강 140 · 공중 |Fz| > 3 N 중단 · 바닥 3 N · 40 s · 순응 유지 · 나선 최대 3회 재시도 · 힘제어 1.5 N · 벽면 · 120 s 상한 유지) · 🟢 실기 1차 통합(soap → 닦기 → 반납) 성공 1회(🟡 시각 확인 요청 — 툴·TCP 풀림 구간 여부). 병합본 386 통과. 남은 것: 재검증 3회 기록(UT-F3)'),
+ 'F3-03':  dict(prog='0.95', note_add=M72 + ': **soap 동작 변경** — SOAP 자리로 안 가고 툴 집은 자리에서 J6 ±20° 비틀기 3회 → Z ±5 mm 왕복 2회 → HOME(그릇·컵 공용 · count 무시 · 60 s 상한 · vel_scale 예외). 🟡 E18(홀더 컵에서 담금)과 다름 — F1-03 tool(PICK) 이 툴을 빼낸 뒤 부르면 세제가 안 묻을 수 있어 INT-F3 에서 F1-03(황인재)과 맞춘다. SDD §5.4 · IRD 갱신'),
+ 'UT-F3':  dict(note_add=M72 + ': 제품 코드로 soap → wipe_bowl 1회 성공 → TC-06 연속 3회 기록만 남음'),
+ 'INT-F3': dict(note_add=M72 + ': 박진용 뼈대 통합본 `src/f3_wipe/test/rig_bowl_scenario_wipe.py`(한석형 스크립트 + F3 삽입 · 수세미 목표 폭 22 mm 실측 · 반납은 집은 깊이 그대로)가 main 에 — SKEL-01 함수화의 참고. 🟡 soap 높이(컵 안/위)와 F1-03 툴 빼내기 순서 확인'),
+ 'F1-03':  dict(note_add='🔔 9/22 PR #72(박진용): 반납은 집을 때 잰 posx 를 z 포함 그대로 써서 release 해도 된다(실기로 안 눌림 확인 · +10 mm 여유 불필요) · soap 이 "툴 집은 자리에서 비틀기" 로 바뀌어 tool(PICK) 이 툴을 빼내는 높이와 맞춰야 한다'),
+ 'INF-02b': dict(note_add=M72 + ': force.py 에 move_pose · move_joints · move_line_rel · wait_done 추가(닦기 전용 · motion.py 와 역할 겹침 — 동결 뒤 정리 후보) · contact_down(timeout_s, keep_compliance) 인자'),
+ 'CELL-04': dict(note_add=M72 + ': cell.yaml stations.HOME 에 posx_z_mm 215.11 추가(박진용 · soap 상승 계산용) — HOME posj 파생값이라 HOME 이 바뀌면 같이(E17 로 안 바꿈)'),
+}
+for _tid, _e in P1745.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY112 = ['v16.2', '진척', 'F3-02, F3-03, UT-F3, INT-F3, F1-03, INF-02b, CELL-04', 'PR #72 merge(박진용 9/22 17:45): 실기 1차 통합(soap → 닦기 → 반납) 성공 · wipe_bowl rig_v03 그대로(120 s 유지 · 나선 재시도) · soap 동작 변경(집은 자리에서 비틀기·왕복 · 🟡 E18 과 다름 → INT-F3 에서 F1-03 과 맞춤) · HOME posx_z_mm 키 추가', '황인재 9/22 17:45', 'P,H']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -2145,7 +2161,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)

@@ -58,7 +58,7 @@
 ## 5. F3 접촉 닦기 (IR-03) · 박진용 · 모듈 `f3_wipe.wipe`
 | 함수 | 인자 | 반환 | 비고 |
 |---|---|---|---|
-| `soap(count, kind=None)` | 횟수, (선택) `BOWL`/`CUP` | `Result` | 툴 든 채 세제 담금(🔄 9/21 E18: 세제 수조를 따로 두지 않고 **툴 홀더의 비눗물 컵**에서 담근다 — 서명·반환은 그대로). ✅ 9/20 추가: **`kind`** — `SOAP` 이 종류별 자리가 됐다(`BOWL` = 수세미를 쥔 자세 · `CUP` = 솔을 쥔 자세, #36) |
+| `soap(count, kind=None)` | 횟수(🔄 PR #72: 지금은 **무시** — 횟수는 `f3.soap` 설정), (선택) `BOWL`/`CUP` | `Result` | 툴 든 채 세제 담금(🔄 9/21 E18: 세제 수조를 따로 두지 않고 **툴 홀더의 비눗물 컵**에서 담근다 — 서명·반환은 그대로). ✅ 9/20 추가: **`kind`** — `SOAP` 이 종류별 자리가 됐다(`BOWL` = 수세미를 쥔 자세 · `CUP` = 솔을 쥔 자세, #36) |
 | `wipe_bowl()` | — | `WipeBowlResult`: `ok, code, force_log_path, duration_s, force_mean_n` | **그릇**: 수세미 툴로 힘제어(목표 힘 유지) 나선 닦기. 상한 초과 → `FORCE_LIMIT` |
 | `wipe_cup()` | — | `WipeCupResult`: `ok, code, force_log_path, duration_s, insert_depth_mm` | **컵**: 수세미 솔을 컵 안에 삽입(힘 감시) → J6 회전 + Z 상하 스트로크. 동작이 그릇과 달라 함수를 분리(9/18 팀 결정) |
 
