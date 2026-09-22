@@ -81,11 +81,14 @@ f2:                                   # ── f2 절 (민범진) ── 값은 
                                       #   ✅ 9/22 12:45 rig_jog 실기(민범진): J5 90 → 0 (−90°)에서 입이 잔반통 쪽 · 쏟아지는 각도.
                                       #      그때 posj [-180, 0, 90, 0, 0, 180] · posx z 544 (그릇이 잔반통 위 높이). 상한 limits.max_tilt_deg
                                       #   ±30°·1.0 s 로 키워 봤던 것은 되돌림(똑바로 든 채라 의미 없었다)
-    RINSE:                            # 물 털기 — 그리퍼를 **까딱까딱**(5번 관절 왕복 · 기울이기 없음 · 입은 위)
-                                      # 🆕 9/22 **종류별**(민범진): 컵과 그릇의 까딱임을 다르게 한다. 둘 다 채워야 한다(하나만 있으면 KeyError)
-      BOWL: {joint: 5, amp_deg: 10, period_s: 0.5}             # 🟡 rig_shake_tune 으로 수조 자세에서 정한다 (9/22 J5 확인)
-      CUP:  {joint: 5, amp_deg: 6, period_s: 0.6}              # 🟡 시작값 — 컵은 HOLD 가 안 돼(E19) 약하게 시작해 놓치는지 본다
-                                      #   직선 왕복이 필요하면 {axis: x, amp_mm: 20, period_s: 0.5, acc_mm_s2: 800} (코드 있음 · 상한 max_amp_mm)
+    RINSE:                            # 물 털기 — 🔄 9/23 결정 E36(황인재): 담금 2회 뒤 **위로 곧게 빼서(접근점 z 235) 4번 관절 좌우 왕복** · 수조 안 J5 까딱(#71)은 폐기
+                                      #   at: approach → 접근점(수조 위)에서 턴다 — 내려가지 않고, 수조 안이면 곧게 올라와서 · 끝나도 높은 자세(TS-08 위험 감소)
+                                      #   fast: true → vel_scale 예외(E17 취지 · cc.move_joint_rel scale=False) — 배속을 낮춰도 설정한 주기로 턴다. 상한 100 °/s(cell.motion) 그대로
+                                      #   🟡 값은 9/23 첫 실기(황인재)로 조정 — rig_shake_tune --mode RINSE 로 a/A(진폭) p/P(주기) 바꿔 보고 w 로 찍는다
+                                      #   period_s = 한 주기(가운데→끝 period/4 · 끝→반대끝 period/2). amp 20°·0.8 s = 평균 100 °/s(상한 딱) — 더 짧게 주면 상한으로 늘어난다
+      BOWL: {joint: 4, amp_deg: 20, period_s: 0.8, at: approach, fast: true}   # 그릇 — 잔반 버리기(J5 ±15 · 0.6 s)와 비슷한 모양, 축은 J4 · 더 빠르게
+      CUP:  {joint: 4, amp_deg: 15, period_s: 0.6, at: approach, fast: true}   # 컵 — 벽 집기(E29)라 HOLD 됨 · 조금 작게 시작해 놓치는지 본다
+                                      #   직선 왕복이 필요하면 {axis: x, amp_mm: 20, period_s: 0.5, acc_mm_s2: 800} (코드 있음 · 상한 max_amp_mm · fast 불가)
   dip:                                # depth_mm = **티칭 자세에서** 내려가는 거리 (SDD §5.3)
     RINSE: {depth_mm: 60, hold_s: 1.0}                # 헹굼 담금, 60 확인은 V-07
 

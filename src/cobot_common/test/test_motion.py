@@ -271,6 +271,19 @@ def test_move_joint_rel_time_within_cap_is_untouched(robot, monkeypatch):
     assert robot.calls[-1][2]['time'] == pytest.approx(0.3)
 
 
+def test_move_joint_rel_scale_false_ignores_vel_scale_but_keeps_the_cap(robot, monkeypatch):
+    """🆕 9/23 E36 scale=False — 물 털기(fast): 배속을 낮춰도 시간을 늘리지 않는다. 상한은 100 % 기준(100 deg/s) 그대로."""
+    warned = []
+    monkeypatch.setattr(motion, '_warn', warned.append)
+    robot.cfg['run']['vel_scale'] = 0.3
+    motion.move_joint_rel(4, 20, time_s=0.2, scale=False)           # 100 deg/s = 상한 딱 → 그대로 0.2 s
+    assert robot.calls[-1][2] == {'mod': robot.DR_MV_MOD_REL, 'time': pytest.approx(0.2)} and warned == []
+    motion.move_joint_rel(4, 20, time_s=0.1, scale=False)           # 200 deg/s 요구 → 상한 100 으로 0.2 s
+    assert robot.calls[-1][2]['time'] == pytest.approx(0.2) and len(warned) == 1 and 'vel_scale 예외' in warned[0]
+    motion.move_joint_rel(4, 20, time_s=0.2)                        # 기본(scale=True)은 예전대로 0.2/0.3 = 0.667 s
+    assert robot.calls[-1][2]['time'] == pytest.approx(0.2 / 0.3)
+
+
 def test_move_joint_rel_time_needs_the_cap_value(robot):
     robot.cfg['cell']['motion']['vel_joint_max_deg_s'] = None       # 기준값이 비어 있으면 움직이지 않는다
     with pytest.raises(KeyError, match='cell.motion.vel_joint_max_deg_s'):

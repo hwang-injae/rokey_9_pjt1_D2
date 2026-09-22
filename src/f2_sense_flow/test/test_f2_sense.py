@@ -26,7 +26,7 @@ CFG = {'f2': {
     'limits': {'max_amp_deg': 45.0, 'max_depth_mm': 150.0, 'max_hold_s': 5.0,
                'max_settle_s': 5.0, 'min_net_g': -30.0},
     'shake': {'WASTE': {'joint': 5, 'amp_deg': 15.0, 'cycles': 4, 'period_s': 0.6},
-              'RINSE': {'joint': 5, 'amp_deg': 10.0, 'period_s': 0.5}},
+              'RINSE': {'joint': 4, 'amp_deg': 20.0, 'period_s': 0.8, 'at': 'approach', 'fast': True}},   # 🔄 9/23 E36
     'dip': {'RINSE': {'depth_mm': 60.0, 'hold_s': 0.2}},
 }}
 
@@ -69,8 +69,8 @@ class Rec:
     def move_rel(self, dx, dy, dz, frame, **kw):
         self._note('move_rel', dx, dy, dz, frame, **kw)      # 🆕 vel_mm_s 등 키워드도 기록(직선 왕복 시험)
 
-    def move_joint_rel(self, joint, delta_deg, *, time_s=None, carrying=True):
-        self._note('move_joint_rel', joint, delta_deg, time_s)
+    def move_joint_rel(self, joint, delta_deg, *, time_s=None, carrying=True, **kw):
+        self._note('move_joint_rel', joint, delta_deg, time_s, **kw)          # 🆕 scale=False(E36 fast) 도 기록
 
     def force_off(self):
         self._note('force_off')
@@ -435,8 +435,64 @@ def test_shake_rinse_uses_its_own_preset(monkeypatch):
     r = Rec()
     s = _sense(monkeypatch, r)
     s.shake('RINSE', 1, 'CUP')
-    first = r.of('move_joint_rel')[0][1]
-    assert first == (5, +10.0, 0.125)          # RINSE: amp 10, period 0.5 → 0.125
+    first = r.of('move_joint_rel')[0]
+    assert first[1] == (4, +20.0, 0.2)         # 🔄 E36 RINSE: J4 · amp 20 · period 0.8 → 0.2
+    assert first[2] == {'scale': False}        # fast → vel_scale 예외
+
+
+# ────────────────────────────────── 🆕 9/23 E36 물 털기 재설계 — 접근 높이에서 J4 좌우 · 빠르게
+def test_shake_rinse_at_approach_does_not_descend(monkeypatch):
+    """E36: 담금 뒤 수조 안(접근점보다 248.6 아래)에서 부르면 move_to(RINSE) 가 접근점(같은 x·y)까지 = 곧게 위로.
+    **내려가지 않는다**(move_rel 없음) · 끝나도 그 높이 · HOLD → 흔들기 → NORMAL."""
+    r = Rec(up=248.6)
+    s = _sense(monkeypatch, r)
+    assert s.shake('RINSE', 3, 'BOWL').ok
+    names = r.names()
+    assert ('move_to', ('RINSE', True, 'BOWL'), {}) in r.calls
+    assert not r.of('move_rel'), '접근점에서 턴다 — 티칭 자세로 내려가지 않는다'
+    assert names.index('force_off') < names.index('move_to') < names.index('move_joint_rel')
+    levels = [c[1][1] for c in r.of('grip_level')]
+    assert levels[0] == 'HOLD' and levels[-1] == 'NORMAL'
+
+
+def test_shake_rinse_joint4_fast_three_cycles(monkeypatch):
+    """E36: 4번 관절 ±20° 를 3회 — 구간 시간 0.2/0.4/0.2(주기 0.8) · 모든 구간 scale=False(vel_scale 예외) · 합 0."""
+    r = Rec()
+    s = _sense(monkeypatch, r)
+    assert s.shake('RINSE', 3, 'BOWL').ok
+    moves = r.of('move_joint_rel')
+    assert len(moves) == 9 and {c[1][0] for c in moves} == {4}
+    assert [(c[1][1], c[1][2]) for c in moves[:3]] == [(20.0, 0.2), (-40.0, 0.4), (20.0, 0.2)]
+    assert all(c[2] == {'scale': False} for c in moves)
+    assert sum(c[1][1] for c in moves) == pytest.approx(0.0)
+
+
+def test_shake_fast_is_joint_only_and_at_is_validated(monkeypatch):
+    """직선 왕복에 fast 를 주거나 at 이 이상하면 **움직이기 전에** 거절(ROBOT_ERROR)."""
+    import copy
+    for bad in ({'axis': 'x', 'amp_mm': 20.0, 'period_s': 0.5, 'fast': True},
+                {'joint': 4, 'amp_deg': 20.0, 'period_s': 0.8, 'at': 'nowhere'}):
+        cfg = copy.deepcopy(CFG)
+        cfg['f2']['shake']['RINSE'] = bad
+        cfg['f2']['limits']['max_amp_mm'] = 60.0
+
+        class R2(Rec):
+            def cfg(self):
+                return cfg
+        r = R2()
+        s = _sense(monkeypatch, r)
+        out = s.shake('RINSE', 1, 'BOWL')
+        assert not out.ok and out.code == ROBOT_ERROR
+        assert not r.of('move_to') and not r.of('move_joint_rel') and not r.of('move_rel')
+
+
+def test_shake_waste_unchanged_by_e36(monkeypatch):
+    """잔반 털기(WASTE)는 그대로 — 티칭 자세까지 가고(_goto) J5 · vel_scale 적용(scale 키워드 없음)."""
+    r = Rec(up=30.0)
+    s = _sense(monkeypatch, r)
+    assert s.shake('WASTE', 1, 'BOWL').ok
+    assert r.of('move_rel')[0][1][2] == pytest.approx(-30.0), '접근점이 있으면 티칭 자세까지 내려간다'
+    assert all(c[1][0] == 5 and c[2] == {} for c in r.of('move_joint_rel'))
 
 
 def test_shake_unknown_mode_is_robot_error(monkeypatch):

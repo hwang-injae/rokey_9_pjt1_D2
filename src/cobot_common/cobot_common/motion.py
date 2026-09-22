@@ -134,8 +134,12 @@ def move_rel(dx, dy, dz, frame, *, vel_mm_s=None, acc_mm_s2=None):
          lambda: d.amovel(step, vel=vel, acc=acc, ref=ref, mod=d.DR_MV_MOD_REL))
 
 
-def move_joint_rel(joint, delta_deg, *, time_s=None, carrying=True):
+def move_joint_rel(joint, delta_deg, *, time_s=None, carrying=True, scale=True):
     """관절 하나(joint = 1~6)를 지금 각도에서 delta_deg 만큼 돌린다. 나머지 관절은 그대로. (DSN-03 B11 — 털기·물 털기의 J5/J6 왕복)
+
+    🆕 9/23 E36 scale=False — **vel_scale 예외**(결정 E17 과 같은 취지: 물 털기처럼 빠르기 자체가 기능인 왕복).
+       time_s 를 vel_scale 로 늘리지 않고, 상한도 100 % 기준(cell.motion.vel_joint_max_deg_s)만 건다.
+       time_s 없이 부르면 scale 은 무시된다(속도 지정 이동은 언제나 vel_scale 적용).
 
     time_s 를 주면 그 시간에 맞춰 움직인다(왕복 주기를 맞출 때) — vel_scale < 1 이면 시간을 그만큼 늘린다.
       🚨 그래도 **평균 속도(|delta_deg| / 시간)가 100 % 기준 × vel_scale 을 넘지 못한다** — 넘으면 시간을 늘리고 경고를 남긴다
@@ -148,12 +152,13 @@ def move_joint_rel(joint, delta_deg, *, time_s=None, carrying=True):
     delta = [0.0] * 6
     delta[joint - 1] = float(delta_deg)
     if time_s is not None:
-        move_time = _positive('time_s', time_s) / _vel_scale()
-        top_v, _ = _joint_speed(100)
+        k = _vel_scale() if scale else 1.0                  # 🆕 scale=False: vel_scale 예외(E36)
+        move_time = _positive('time_s', time_s) / k
+        top_v = _joint_speed(100)[0] / _vel_scale() * k     # 100 % 기준 속도 × (vel_scale 또는 1)
         shortest = abs(float(delta_deg)) / top_v            # 상한 속도로 갈 때 걸리는 시간
         if move_time < shortest:
             _warn(f'move_joint_rel J{joint} {delta_deg:+g}° 를 {move_time:.2f} s 에 가면 평균 {abs(delta_deg) / move_time:.0f} deg/s — '
-                  f'상한 {top_v:g} deg/s(cell.motion.vel_joint_max_deg_s × vel_scale)를 넘어 {shortest:.2f} s 로 늘린다')
+                  f'상한 {top_v:g} deg/s(cell.motion.vel_joint_max_deg_s{" × vel_scale" if scale else " · vel_scale 예외"})를 넘어 {shortest:.2f} s 로 늘린다')
             move_time = shortest
         kwargs = {'time': move_time}
     else:
