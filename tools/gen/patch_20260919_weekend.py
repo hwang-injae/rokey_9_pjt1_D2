@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v18.0'
+VERSION = 'v18.1'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -2262,10 +2262,10 @@ HISTORY127 = ['v17.7', '확인', 'ENV-05', 'F4 9/22 17:46: TCP 풀림 확정(HOM
 
 
 # ---------------------------------------------------------------- 9/22 17:55 🚨 실기 충돌(TS-08) · PR #77 merge
-EDIT.setdefault('INT-F2', {}).update(dict(note_add='🚨 9/22 17:07 실기 충돌(민범진 세션 · 30 %): rig_f2 dip 3회 뒤 rig_shake_tune 시작 → 수조 안 자세(z −13.6)에서 HOME 관절 이동이 테이블을 가로질러 그리퍼가 상판을 쓸고 비상정지 · 툴 전원 끊겨 그리퍼 드라이버 종료(sendCommand 안 보임) · 피해 없음 · 슬롯 ~15분. → PR #77 merge(17:55): f2 시험대 6곳 + flow.abort_container 가 HOME 앞에 곧게 위로(safe_retreat · 새 설정 없음) · TS-08 문서. 🟡 실기 재확인 = 오늘 저녁 헹굼→물털기 순서 · 그 전에 툴·TCP 두 이름 확인(비상정지 뒤)'))
-EDIT.setdefault('ENV-05', {}).update(dict(note_add='🔎 17:55 실마리: 민범진 세션이 17:07 충돌 전후 실기 사용(dip 3회 → 충돌 → 복구·브링업 재시작) → 17:37~39 TCP 풀림 창과 재시작 시각 대조 — 민범진 PC 의 sodreal 브링업 시각을 확인(다른 PC 연결이 이름을 비우는지)'))
+EDIT.setdefault('INT-F2', {}).update(dict(note_add='🚨 9/22 17:27 실기 충돌(민범진 세션 · 30 %): rig_f2 dip 3회 뒤 rig_shake_tune 시작 → 수조 안 자세(z −13.6)에서 HOME 관절 이동이 테이블을 가로질러 그리퍼가 상판을 쓸고 비상정지 · 툴 전원 끊겨 그리퍼 드라이버 종료(sendCommand 안 보임) · 피해 없음 · 슬롯 ~15분. → PR #77 merge(17:55): f2 시험대 6곳 + flow.abort_container 가 HOME 앞에 곧게 위로(safe_retreat · 새 설정 없음) · TS-08 문서. 🟡 실기 재확인 = 오늘 저녁 헹굼→물털기 순서 · 그 전에 툴·TCP 두 이름 확인(비상정지 뒤)'))
+EDIT.setdefault('ENV-05', {}).update(dict(note_add='🔎 17:55 실마리: 민범진 세션이 17:27 충돌 전후 실기 사용(dip 3회 → 충돌 → 복구·브링업 재시작) → 17:37~39 TCP 풀림 창과 재시작 시각 대조 — 민범진 PC 의 sodreal 브링업 시각을 확인(다른 PC 연결이 이름을 비우는지)'))
 EDIT.setdefault('CELL-04', {}).update(dict(note_add='🟡 17:55 황인재 결정 대기: rig_f1·rig_f3·rig_weigh_* 도 시작 때 "낮으면 곧게 위로" 보호 필요(직전 프로세스가 수조 안에서 끝날 수 있음) → go_home_safely 를 cobot_common.motion 으로 올릴지'))
-HISTORY128 = ['v17.8', '🚨사고', 'INT-F2', '9/22 17:07 실기 충돌(TS-08): 수조 안에서 HOME 관절 이동 → 그리퍼가 테이블 쓸고 비상정지 · 피해 없음 · PR #77(민범진) 승인·merge 17:55 — f2 시험대·abort 가 HOME 앞에 곧게 위로 · 자동 시험 444 · 실기 재확인 🟡 저녁', '황인재 9/22 17:55', 'H']
+HISTORY128 = ['v17.8', '🚨사고', 'INT-F2', '9/22 17:27 실기 충돌(TS-08): 수조 안에서 HOME 관절 이동 → 그리퍼가 테이블 쓸고 비상정지 · 피해 없음 · PR #77(민범진) 승인·merge 17:55 — f2 시험대·abort 가 HOME 앞에 곧게 위로 · 자동 시험 444 · 실기 재확인 🟡 저녁', '황인재 9/22 17:55', 'H']
 
 
 
@@ -2278,10 +2278,18 @@ HISTORY129 = ['v17.9', '원인', 'ENV-05', 'F4 9/22 17:58: 툴·TCP 풀림 2건 
 
 
 # ---------------------------------------------------------------- 9/22 18:02 🔴 F4 시각 정정(로그 epoch→date) — 위 9/22 오후 F4 블록의 16:xx 는 전부 +47분으로 고쳐 넣었다
-EDIT.setdefault('ENV-05', {}).update(dict(note_add='🔴 18:02 시각 정정(F4 로그 date 값 · 앞 기록의 16:xx 는 환산 오류라 고침): 황인재 V-25 **16:57~17:45** · 17:03:47·17:08:43 황인재 쪽 SAFE_STOP 2회(HOME 이동 거부) — 민범진 충돌 17:07 과 겹침 → **17:07:5x 황인재 리셋(set_robot_control 2 ×2)이 남의 비상정지를 푼 것일 수 있음(매우 위험)** · 17:37:49 놓기 정상(TCP 살아 있음) → **풀린 창 17:37:49~17:39:07**(민범진 복구 뒤 브링업 재시작 시각과 대조) → 17:39:07 엉뚱한 좌표 → Ctrl+C · 17:40:39 move_stop 무응답 · 17:45:31 --where z 422.98. 민범진에게 date 기준 ①sodreal ②dip 3회 ③충돌 ④재시작 시각 요청. 규칙 제안 ㉣ 비상정지 해제·리셋은 자기 세션 것만 추가(황인재 결정)'))
-EDIT.setdefault('V-25', {}).update(dict(note_add='🔴 18:02 시각 정정: 컵 pick·홈 C 놓기 17:31~17:38(3회 OK · 폭 76.2/76.9/76.7) · 안전 정지 2회(17:03:47 · 17:08:43)는 "손으로 잘못 물린 그릇 탓" 으로 봤으나 민범진 충돌 17:07 과 겹쳐 재해석 필요 · 표는 F4 가 test_logs V-25 기록에 넣음'))
-EDIT.setdefault('INT-F2', {}).update(dict(note_add='⚠ 18:02: 충돌 17:07 시각에 황인재 V-25 세션도 같은 컨트롤러 접속 중(두 PC 명령 섞임) → TS-08 원인("수조 안→HOME")은 민범진 date 시각으로 재확인 · PR #77 보호는 그대로 유효'))
-HISTORY130 = ['v18.0', '🔴 정정', 'ENV-05, V-25, INT-F2', 'F4 9/22 18:02: 오후 시각 전부 정정(+47분) — 황인재 V-25 16:57~17:45 가 민범진 실기(17:07 충돌)와 겹침 · 황인재 SAFE_STOP 17:03·17:08 · 17:07:5x 리셋이 남의 비상정지 푼 셈일 수 있음 · TCP 풀린 창 17:37:49~17:39:07 · 규칙 ㉣ 제안', '황인재 9/22 18:02', 'H']
+EDIT.setdefault('ENV-05', {}).update(dict(note_add='🔴 18:02 시각 정정(F4 로그 date 값 · 앞 기록의 16:xx 는 환산 오류라 고침): 황인재 V-25 **16:57~17:45** · 17:03:47·17:08:43 황인재 쪽 SAFE_STOP 2회(HOME 이동 거부) — 민범진 충돌 17:27 과 겹침 → **17:07:5x 황인재 리셋(set_robot_control 2 ×2)이 남의 비상정지를 푼 것일 수 있음(매우 위험)** · 17:37:49 놓기 정상(TCP 살아 있음) → **풀린 창 17:37:49~17:39:07**(민범진 복구 뒤 브링업 재시작 시각과 대조) → 17:39:07 엉뚱한 좌표 → Ctrl+C · 17:40:39 move_stop 무응답 · 17:45:31 --where z 422.98. 민범진에게 date 기준 ①sodreal ②dip 3회 ③충돌 ④재시작 시각 요청. 규칙 제안 ㉣ 비상정지 해제·리셋은 자기 세션 것만 추가(황인재 결정)'))
+EDIT.setdefault('V-25', {}).update(dict(note_add='🔴 18:02 시각 정정: 컵 pick·홈 C 놓기 17:31~17:38(3회 OK · 폭 76.2/76.9/76.7) · 안전 정지 2회(17:03:47 · 17:08:43)는 "손으로 잘못 물린 그릇 탓" 으로 봤으나 민범진 충돌 17:27 과 겹쳐 재해석 필요 · 표는 F4 가 test_logs V-25 기록에 넣음'))
+EDIT.setdefault('INT-F2', {}).update(dict(note_add='⚠ 18:02: 충돌 17:27 시각에 황인재 V-25 세션도 같은 컨트롤러 접속 중(두 PC 명령 섞임) → TS-08 원인("수조 안→HOME")은 민범진 date 시각으로 재확인 · PR #77 보호는 그대로 유효'))
+HISTORY130 = ['v18.0', '🔴 정정', 'ENV-05, V-25, INT-F2', 'F4 9/22 18:02: 오후 시각 전부 정정(+47분) — 황인재 V-25 16:57~17:45 가 민범진 실기(17:27 충돌)와 겹침 · 황인재 SAFE_STOP 17:03·17:08 · 17:07:5x 리셋이 남의 비상정지 푼 셈일 수 있음 · TCP 풀린 창 17:37:49~17:39:07 · 규칙 ㉣ 제안', '황인재 9/22 18:02', 'H']
+
+
+
+# ---------------------------------------------------------------- 9/22 20:03 🔴 민범진 PR #78 — 충돌 시각 17:07→17:27 정정 · 18:11 무게 영점 이동 · 폭 판정
+EDIT.setdefault('INT-F2', {}).update(dict(note_add='🔴 20:03 정정(민범진 PR #78 · 로그 epoch): 충돌은 **17:27:10~17:27:18**(리모컨 시작→HOME 도착 8초) · 그리퍼 드라이버 사망 17:27:51 — 앞의 17:07 은 변환 착오. 황인재 세션이 쉬던 17:12~17:31 틈이라 명령이 섞인 건 아니고 원인은 "수조 안→HOME 관절 이동" 확정. 🚨 18:11 무게 −117.5 g(15:22 기준값 −12 → 105 g 영점 이동) → GRIP_FAIL 로 통합 막힘 → PR #78: 하한 미달이면 **그리퍼 폭으로 파지 재확인**(빈손만 GRIP_FAIL · 쥐고 있으면 경고+통과) + weigh 흐름/떨림 분리(📉 max_weigh_drift_g 20 🟡). PR #78 은 #77 브랜치 재사용으로 main 과 충돌 4파일 → 재푸시 대기'))
+EDIT.setdefault('ENV-05', {}).update(dict(note_add='🔴 20:03 재해석(충돌 17:27 정정): 황인재 SAFE_STOP 17:03·17:08·리셋 17:07:5x 는 **자기 세션 것** — "남의 비상정지 푼 셈" 철회. 풀린 창 17:37:49~17:39:07 은 충돌 **10분 뒤** = 민범진 복구(비상정지 해제·서보 온·브링업 재시작) 직후로 보임. 17:31~17:37 황인재 컵 작업은 TCP 살아 있었음 → 민범진 첫 접속(17:2x)은 안 비웠고 **복구 절차 또는 재시작 접속**이 비운 것. 가설 2개: ⓐ 다른 PC 새 브링업 접속 ⓑ 비상정지 복구 절차 → 민범진 시각(①sodreal ②비상정지 해제·서보 온 ③재시작)으로 가른다'))
+EDIT.setdefault('V-02', {}).update(dict(note_add='🚨 20:03: 18:11 실기(민범진) 빈 그릇 자리 −117.5 g — 15:22 기준값 −12 대비 **105 g 영점 이동**(툴·TCP 재선택 17:4x 가 사이에 있음 · 재는 21 s 안에도 −26 g 흐름). 🟡 황인재 결정: 자동 영점(실행 시작 때 빈손으로 저울 1회 · 40 s) vs 시연 아침 사람이 다시 재기. F4: 펜던트 재선택 뒤 툴 무게 값(1.440 kg) 확인'))
+HISTORY131 = ['v18.1', '🔴 정정', 'INT-F2, ENV-05, V-02', '민범진 PR #78 9/22 20:03: 충돌 17:07→17:27 정정(황인재 리셋과 무관) · 풀린 창은 충돌 10분 뒤(복구 절차·재시작 의심) · 18:11 영점 105 g 이동 → 폭으로 파지 재확인·흐름/떨림 분리 · PR 은 충돌 4파일로 재푸시 요청 · 🟡 자동 영점 결정', '황인재 9/22 20:03', 'H']
 
 
 def main(out):
@@ -2372,7 +2380,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113, HISTORY114, HISTORY115, HISTORY116, HISTORY117, HISTORY118, HISTORY119, HISTORY120, HISTORY121, HISTORY122, HISTORY123, HISTORY124, HISTORY125, HISTORY126, HISTORY127, HISTORY128, HISTORY129, HISTORY130):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113, HISTORY114, HISTORY115, HISTORY116, HISTORY117, HISTORY118, HISTORY119, HISTORY120, HISTORY121, HISTORY122, HISTORY123, HISTORY124, HISTORY125, HISTORY126, HISTORY127, HISTORY128, HISTORY129, HISTORY130, HISTORY131):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
