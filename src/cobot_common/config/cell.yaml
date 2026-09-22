@@ -121,8 +121,9 @@ cell:
   #   → 접근점과 끝점은 **수직(같은 x·y·방향)** 이어야 곧게 내려간 자리가 끝점이 된다(test_config.py 가 검사한다).
   # 참고(한석형 스크립트가 쓴 속도 — 위 motion 절과 뜻이 다르다, 옮기지 않았다): 관절 20 deg/s·40 deg/s² / 직선 60 mm/s·120 mm/s²
   stations:                       # 작업대 위 고정 위치 (IRD §2 station). 스펀지 홈은 아래 beds
-    HOME: {posj: [0.0, 0.0, 90.0, 0.0, 90.0, 0.0], posx_z_mm: 215.11}       # 안전 자세 — 모든 이동의 시작·끝 (HOME_J) · posx_z_mm = 아래 실측 posx 의 z
-                                                                            #   (박진용 9/22: soap 뒤 상승을 이 z 에 맞춰 곧장 계산 — f3_wipe/wipe.py _soap_twist_updown)
+    HOME: {posj: [0.0, 0.0, 90.0, 0.0, 90.0, 0.0], posx_z_mm: 215.11, posx_x_mm: 367.48, posx_y_mm: 8.09}  # 안전 자세 (HOME_J)
+                                                                            #   posx_x/y/z_mm = 아래 실측 posx (박진용 9/22 3차: soap이 movej 없이
+                                                                            #   x/y/z 좌표로 직접 수세미=HOME/컵솔=HOME+z40+y140 까지 데려간다 — f3_wipe/wipe.py soap())
                                                                             # 🚨 **바꾸지 않는다**(9/21 결정 E17): F3 닦기가 HOME 에서 시작해 **HOME 기준 상대 이동**으로
                                                                             #   닦는 자리까지 간다(그릇: 바로 아래 135 mm / 컵: z +40 → y +140 → z −40 → 80 mm).
                                                                             #   HOME 을 바꾸면 닦는 자리가 통째로 움직인다. rack.via 도 HOME 실측값에서 계산했다.
