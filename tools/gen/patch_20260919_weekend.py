@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v15.8'
+VERSION = 'v15.9'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1971,6 +1971,51 @@ for _tid, _e in P1630.items():
 HISTORY108 = ['v15.8', '진척', 'F2-02, V-07, UT-F2', 'PR #71 merge(민범진 9/22 16:30): 물 털기 J5 왕복 · 그릇·컵 종류별(🟡 시작값) · 튜닝 시험대 · 인계 절차서. 민범진이 RINSE 값 정하기를 PM(황인재)에게 인계 요청 → 황인재 확인 대기(11:40 분담은 무게만)', '황인재 9/22 16:30', 'M,H']
 
 
+# ---------------------------------------------------------------- 9/22 16:50 황인재 — ① 물 털기 값 = F4 ② GitHub 대조 ③ 뼈대 통합 계획(INT-F2 · INT-F3 · INT-ALL · NEW-01)
+NEW.append(
+ ('INT-F2', 'INT-12a', 'INT-12a', '통합', '민범진 F2 기능(무게·잔반 버리기·헹굼·물 털기)을 한석형 뼈대 코드(그릇 한 바퀴 시나리오)에 통합 — 실기로 한 바퀴',
+  'M(S)', '시작 전', S('9/22 저녁'), '뼈대 + F2 통합본(브랜치 · PR) · 실기 기록(한 바퀴 몇 회 · 막힌 곳)',
+  '한석형 뼈대(집기 → … → 적재)에 F2 함수(leftover_loop · dip · shake)가 진짜로 들어가 그릇 1개가 실기로 끝까지 돈다(F3 구간은 손·가짜) · INT-12a·12b(5회)는 이 안에서 같이 센다',
+  '황인재 9/22 16:50 통합 방식: 민범진·박진용이 각자 자기 기능을 한석형 뼈대에 넣는다 → 둘 다 끝나면 한 사람이 두 통합본을 합쳐 전체 통합 코드 → 한석형 + 나머지 1명은 새 기능 구현. 🟡 뼈대 = `rig_bowl_scenario_real.py`(한석형 9/21~22 실기 완주본)으로 이해 — 확인 필요'))
+NEW.append(
+ ('INT-F3', 'INT-13', 'INT-13', '통합', '박진용 F3 기능(세제·닦기 + 안착 놓기)을 한석형 뼈대 코드에 통합 — 실기로 한 바퀴',
+  'P(S)', '시작 전', S('9/22 저녁'), '뼈대 + F3 통합본(브랜치 · PR) · 실기 기록',
+  '한석형 뼈대에 F3 함수(soap · wipe_bowl · wipe_cup)와 안착 놓기(F1-05)가 진짜로 들어가 그릇 1개가 실기로 끝까지 돈다(F2 구간은 손·가짜) · INT-13(5회)은 이 안에서 같이 센다',
+  '황인재 9/22 16:50 통합 방식(INT-F2 와 같음). 박진용은 9/21 밤 이미 "한석형 경로 + 9/20 닦기" 로 한 바퀴 1회 성공 — 그 판을 main 코드(wipe.py)로 바꿔 잇는다'))
+NEW.append(
+ ('INT-ALL', 'SAFE-01', 'INT-3a', '통합', '전체 통합 코드 — INT-F2 통합본 + INT-F3 통합본을 한 사람이 합친다(뼈대 1개 · 기능 3개 · 그릇 한 바퀴 실기)',
+  '🟡 M 또는 P (황인재 지정)', '시작 전', S('9/23 오전'), '전체 통합본(브랜치 · PR) · 실기 기록(그릇 한 바퀴 · 컵 한 바퀴)',
+  '두 통합본을 합친 코드로 그릇 1개가 실기로 끝까지 돈다(손·가짜 없음) · 컵도 같은 코드로(E25: 무게 없음) · 🟡 flow_node·HMI 와의 관계는 황인재 확인',
+  '황인재 9/22 16:50: INT-F2·INT-F3 가 둘 다 끝나면 한 사람이 합친다. 🟡 누가 합칠지 미정 · 🟡 이 전체 통합 코드가 flow_node(제품 메인 프로그램 · HMI 연결)를 대신하는지, flow_node 안으로 넣는 것인지 확인 필요 — L3(INT-3a·3b · flow + HMI)와 시연 구성이 달라진다'))
+NEW.append(
+ ('NEW-01', 'INT-ALL', 'INT-3a', '개발', '새 기능 구현 — 한석형 + 나머지 1명 (내용 🟡 황인재 지정)',
+  '🟡 S + (M 또는 P)', '시작 전', S('9/23 오전', '9/23 오후'), '🟡 황인재 지정',
+  '🟡 황인재 지정 — INT-ALL 을 맡지 않는 사람이 한석형과 함께 한다. 9/23 저녁 동결 전에 끝나는 범위로',
+  '황인재 9/22 16:50: 통합을 한 사람에게 맡기고 한석형 + 나머지 1명은 새 기능을 만든다. 내용·담당은 황인재가 정한다(후보: 실패 주입 대응 · 컵 팔레트 2번째 칸 · HMI 연동 등 — PM 추정 아님, 미정)'))
+EASY['INT-F2'] = '민범진이 자기가 만든 무게·털기·헹굼 함수를 한석형이 만든 "그릇 한 바퀴" 뼈대 프로그램에 끼워 넣고, 실제 로봇으로 한 바퀴 돌려 본다'
+EASY['INT-F3'] = '박진용이 자기가 만든 세제·닦기·안착 함수를 한석형 뼈대 프로그램에 끼워 넣고, 실제 로봇으로 한 바퀴 돌려 본다'
+EASY['INT-ALL'] = '민범진 통합본과 박진용 통합본을 한 사람이 하나로 합쳐 "전체가 다 들어간" 프로그램을 만들고 실기로 확인한다'
+EASY['NEW-01'] = '통합을 맡지 않은 사람이 한석형과 함께 새 기능을 만든다(무엇을 만들지는 황인재가 정한다)'
+H1650 = '🔄 9/22 16:50 황인재'
+P1650 = {
+ 'V-07':    dict(owner='H(M)', note_add=H1650 + ': **물 털기 값 정하기(그릇·컵)는 F4(황인재)가 맡는다** — 민범진 인계 수락. 시험대 rig_shake_tune · 절차서(main `docs/test_logs/20260922_RINSE_물털기_튜닝_인계_민범진.md` · 🔔 15:34 개정판은 브랜치 `beomjin/20260922-F2-02-rinse-per-kind` 에만) · 처음 PREWASH_VEL_SCALE=0.3. 잔반 버리기(그릇)는 민범진이 이미 🟢'),
+ 'INT-12a': dict(note_add=H1650 + ': 통합 방식 변경 — 시험대(rig_int12) 대신 **INT-F2(한석형 뼈대에 F2 통합)** 안에서 5회를 센다. 이 행은 기록용'),
+ 'INT-12b': dict(note_add=H1650 + ': **INT-F2** 안에서 같이(재파지 → 헹굼 → 물 털기 → 적재)'),
+ 'INT-13':  dict(note_add=H1650 + ': **INT-F3** 안에서 같이(안착 → 툴 → 세제 → 닦기 → 반납)'),
+ 'FLOW-04': dict(note_add=H1650 + ': 🟡 통합 방식이 "한석형 뼈대에 기능 통합 → 전체 통합 코드" 로 바뀜 — flow_node 첫 실기를 언제·어떻게 할지는 INT-ALL 과 flow_node 의 관계가 정해진 뒤(황인재)'),
+ 'F1-02':   dict(note_add=H1650 + ': 저녁 통합(INT-F2·F3)이 한석형 뼈대(시나리오 스크립트)를 쓰므로 **pick() 제품 코드가 저녁 전제에서 빠짐** — 그래도 L3·flow_node 에는 필요'),
+}
+for _tid, _e in P1650.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+SLOT['9/22 화']['D'] = ('🔄 16:50 통합 방식 변경(황인재): **① 민범진 INT-F2 — F2 기능을 한석형 뼈대에 통합해 그릇 한 바퀴(M·S · 60분)** → **② 박진용 INT-F3 — F3 기능 + 안착을 한석형 뼈대에 통합해 그릇 한 바퀴(P·S · 60분)** · '
+                        'INT-12a·12b·13 의 5회는 이 안에서 센다 · 로봇 불필요: 황인재 물 털기 값(V-07)은 로봇 빌 때 20분 · UT-FLOW(M) · NOTE-02 gif(H)')
+SLOT['9/23 수']['B'] = ('🔄 통합 계획(황인재 9/22): **INT-ALL — 두 통합본을 한 사람이 합쳐 전체 통합 코드(🟡 담당 미정 · 그릇·컵 한 바퀴 실기)** · **NEW-01 새 기능 — 한석형 + 나머지 1명(🟡 내용 미정)** · '
+                        'UT-F4·F4-05(H) — G3(L2) · 🛡 L1 잔여가 있으면 여기서 닫는다')
+HISTORY109 = ['v15.9', '분담·통합 계획', 'V-07, INT-F2(신규), INT-F3(신규), INT-ALL(신규), NEW-01(신규), INT-12a·12b·13, FLOW-04, F1-02, 9/22 저녁·9/23 오전 로봇 슬롯',
+              '황인재 9/22 16:50: ① 물 털기 값 정하기(V-07)는 F4(황인재) — 민범진 인계 수락 ② GitHub 대조(PR #65~#71 전부 반영 · 누락 없음 · 민범진 15:34 인계 문서 개정판은 브랜치에만) ③ 통합 방식: 민범진·박진용이 각자 기능을 한석형 뼈대에 통합(INT-F2·INT-F3 · 9/22 저녁) → 한 사람이 합쳐 전체 통합 코드(INT-ALL · 9/23 오전 · 🟡 담당 미정) → 한석형 + 1명 새 기능(NEW-01 · 🟡 내용 미정). 🟡 전체 통합 코드와 flow_node·HMI 의 관계 확인 필요',
+              '황인재 9/22 16:50', 'S,M,P,H']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -2059,7 +2104,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
