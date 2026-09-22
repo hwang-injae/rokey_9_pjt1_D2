@@ -140,6 +140,11 @@ def main():
             log.info('시작 자세 HOME 으로 — 공정은 HOME 에서 시작한다(켠 직후의 곧게 편 자세는 특이점이라 직선 이동이 안 먹는다)')
             cc.move_to('HOME', False)
         if cycle:                                           # V-08 — 같은 함수 n 번이 아니라 집기 → 반납 한 쌍 n 번
+            # 🚨 그리퍼 힘은 **움직이거나 닫혀 있을 때만** 읽힌다(gripper.py) → 새 프로그램에서 첫 grip 전에 release 로 한 번 움직여야 한다.
+            #    9/22 18:14 실기: 이게 없어서 tool(PICK) 이 홀더 위까지 간 뒤 grip 첫 줄에서 RuntimeError 로 죽었다.
+            #    실제 공정(flow_node)에서는 앞 단계(pick·place)가 이미 그리퍼를 움직였으므로 tool() 안에는 넣지 않는다 — 빈손 HOME 에서 한 번.
+            log.info('빈손 HOME 에서 release 한 번 — 그리퍼 힘 읽기 준비(새 프로그램)')
+            cc.release()
             ok, rounds = tool_cycle(a.tool, a.n, log)
             preset = ((cc.cfg().get('cell') or {}).get('presets') or {}).get(a.tool) or {}
             _summary(log, a.tool, a.n, ok, rounds, preset.get('grip_zero_mm'))
