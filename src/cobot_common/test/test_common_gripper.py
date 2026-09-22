@@ -259,6 +259,16 @@ def test_grip_level_without_anchor_refuses(fake, monkeypatch):
 
 
 
+def test_grip_level_refuses_when_gripper_is_open(fake, monkeypatch):
+    """🆕 9/23: 폭이 100 mm 넘게 열려 있으면(빈손) 힘 전환도 탐색 'i' 도 보내지 않는다(08:4x 실기: 탐색이 빈손을 닫아 버림)."""
+    monkeypatch.setattr(G, '_force_n', None)
+    monkeypatch.setattr(G, '_joint_angle', float(G._width_to_angle(110.6)) if hasattr(G, '_width_to_angle') else G._joint_angle)
+    monkeypatch.setattr(G, 'grip_width', lambda: 110.6)
+    with pytest.raises(RuntimeError, match='열려 있다'):
+        G.grip_level('CUP', 'HOLD')
+    assert fake.client.sent == []
+
+
 def test_grip_level_bad_level(fake):
     with pytest.raises(ValueError, match='NORMAL'):
         G.grip_level('BOWL', '세게')

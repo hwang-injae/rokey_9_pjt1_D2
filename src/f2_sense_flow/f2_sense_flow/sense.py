@@ -250,6 +250,21 @@ def _slipped(label, w_before, w_after, tol):
     return False
 
 
+def _require_holding(label):
+    """🆕 9/23: 움직이기 **전에** 그리퍼가 열려 있으면(빈손 · 폭 > f2.limits.open_width_mm 기본 100) GRIP_FAIL — 빈손으로 수조·털기 자세까지 가지 않는다.
+    (08:4x 실기: 명령이 섞여 열린 채 담금이 시작됨 → 수조까지 가서야 폭 110 → 10.5 로 잡혔다). 폭을 못 읽으면 통과(예전 동작)."""
+    try:
+        w = float(cc.grip_width())
+    except Exception:                                 # noqa: BLE001 — 못 읽으면 판정하지 않는다
+        return None
+    lim = (_f2().get('limits') or {})
+    open_w = float(lim.get('open_width_mm', 100.0))
+    if w > open_w:
+        _log().warn(f'{label} — 그리퍼가 열려 있다(폭 {w:.1f} mm > {open_w:g}) · 빈손이라 움직이지 않는다')
+        return w
+    return None
+
+
 def _held_by_width(kind):
     """폭으로 **지금 용기를 쥐고 있나** 를 본다 → True / False / None(판정 불가).
 
@@ -463,6 +478,8 @@ def shake(mode: str, count: int, kind: str) -> Result:
     if n <= 0:
         _log().warn(f'shake({mode}) — count={count} 라 아무것도 안 한다')
         return Result()
+    if _require_holding(f'shake({mode})') is not None:   # 🆕 9/23 빈손이면 움직이기 전에 끝
+        return _fail(Result, GRIP_FAIL)
 
     if at == 'approach':                        # 🆕 E36: 접근점까지만 — 수조 안이면 곧게 위로 빠져나온다(같은 x·y) · 내려가지 않는다
         cc.force_off()
@@ -582,6 +599,8 @@ def dip(station: str, count: int, kind: str) -> Result:
     if n <= 0:
         _log().warn(f'dip({station}) — count={count} 라 아무것도 안 한다')
         return Result()
+    if _require_holding(f'dip({station})') is not None:  # 🆕 9/23 빈손이면 움직이기 전에 끝
+        return _fail(Result, GRIP_FAIL)
 
     _goto(station, carrying=True, kind=kind)    # force_off 는 _goto 안에서 먼저 부른다
 

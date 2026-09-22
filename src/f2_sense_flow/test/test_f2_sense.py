@@ -526,6 +526,16 @@ def test_shake_fast_is_joint_only_and_at_is_validated(monkeypatch):
         assert not r.of('move_to') and not r.of('move_joint_rel') and not r.of('move_rel')
 
 
+def test_shake_and_dip_refuse_to_move_when_gripper_is_open(monkeypatch):
+    """🆕 9/23: 첫 폭이 100 mm 넘게 열려 있으면(빈손) shake·dip 은 **움직이기 전에** GRIP_FAIL — 08:4x 실기(열린 채 담금 시작)."""
+    for call in (lambda s: s.shake('RINSE', 3, 'CUP'), lambda s: s.dip('RINSE', 2, 'CUP')):
+        r = Rec(widths=[110.6])
+        s = _sense(monkeypatch, r)
+        out = call(s)
+        assert not out.ok and out.code == GRIP_FAIL
+        assert not r.of('move_to') and not r.of('move_rel') and not r.of('move_joints_via') and not r.of('grip_level')
+
+
 def test_shake_waste_unchanged_by_e36(monkeypatch):
     """잔반 털기(WASTE)는 그대로 — 티칭 자세까지 가고(_goto) J5 · vel_scale 적용(scale 키워드 없음)."""
     r = Rec(up=30.0)

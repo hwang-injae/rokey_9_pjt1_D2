@@ -38,6 +38,7 @@ __all__ = ['grip', 'grip_level', 'release', 'grip_width']
 _L1, _L3 = 0.108505, 0.055
 _THETA1, _THETA3, _DY = 1.41371, 0.76794, -0.0144
 _MAX_FORCE_N = 40.0                  # max_force 400 (0.1 N 단위)
+_OPEN_WIDTH_MM = 100.0               # 🆕 9/23 이 폭보다 넓으면 '열려 있다(빈손)' — grip_level 이 힘 전환·탐색을 거부한다(RG2 최대 110)
 _MAX_WIDTH_MM = 110.0                # max_width 1100 (0.1 mm 단위)
 _FORCE_STEP_N = 2.5                  # 'i'/'d' 한 계단
 _FINGER_JOINT = 'finger_joint'       # mimic 비율 1 → position 이 곧 관절각
@@ -115,6 +116,11 @@ def grip_level(kind, level):
     key = 'grip_force_n' if level == 'NORMAL' else 'hold_force_n'
     if key not in preset:
         raise KeyError(f'cell.presets.{kind}.{key} 가 없다 — 프리셋을 확인한다')
+    w_now = _width_or_none()
+    if w_now is not None and w_now > _OPEN_WIDTH_MM:
+        # 🚨 9/23 08:4x 실기: 명령이 섞여 그리퍼가 **열린 채**(110.6) 담금이 시작됐고, 아래 탐색 'i' 가 빈손을 꽉 닫아 버렸다
+        #    → 쥐고 있지 않으면 힘 전환도 탐색도 하지 않는다(부르는 쪽이 GRIP_FAIL 로 처리)
+        raise RuntimeError(f'grip_level: 그리퍼가 열려 있다(폭 {w_now:.1f} mm > {_OPEN_WIDTH_MM:g}) — 쥐고 있을 때만 힘을 바꾼다')
     with _lock:
         known = _force_n is not None
     if not known:
