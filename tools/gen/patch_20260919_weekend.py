@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v15.2'
+VERSION = 'v15.3'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1901,6 +1901,22 @@ for _tid, _e in P1450.items():
 HISTORY102 = ['v15.2', '보고 반영', 'CELL-04, F1-02, F1-04, V-14, V-06, UT-F1, V-19', '한석형 9/22 14:50: CELL-04 완료 확인(컵 동선 좌표 · PR #69) · 경로만 검증했고 pick()·rack_place() 제품 코드 · V-14 · V-06 · UT-F1 은 남음 → 다음 작업 = handling.py 반영 + 단위시험', '황인재 9/22 14:50', 'S']
 
 
+# ---------------------------------------------------------------- 9/22 15:00 PR #70 merge(민범진) — FLOW-05 · 물 털기 직선 왕복 · V-02 값
+M70 = '✅ 9/22 PR #70 merge(민범진)'
+P1500 = {
+ 'FLOW-05': dict(status='완료', prog='1.0', note_add=M70 + ': `flow.weigh_kinds: [BOWL]` — 목록에 없는 종류는 WEIGH 두 단계를 뺀다(컵 = PICK → SEAT). 자동 시험 3건(컵 plan 에서 두 함수 0회 · step 에 WEIGH 없음 · 그릇 그대로) · 병합본 388 통과. 🟡 실기 확인은 FLOW-04 · INT-3b. 🔔 주석에 "임시 건너뛰기" 라 적혀 있으나 E25 는 시나리오 결정 — 문구 수정은 다음 PR'),
+ 'F2-02':   dict(prog='0.85', note_add=M70 + ': **물 털기 = BASE X 축 직선 왕복 ±20 mm · 주기 0.5 s**(관절 회전 → 직선 · 상한 max_amp_mm 60 · tilt 불가). 🟡 실기 전 — amp 20 은 시작값, rig_jog 로 수조 벽 폭 재고 저속부터(V-07 물 털기 그릇·컵)'),
+ 'V-07':    dict(note_add=M70 + ': 물 털기가 새 동작(BASE X 직선)이 됨 → V-07 물 털기(그릇·컵)는 이 동작으로 · 저속부터'),
+ 'V-02':    dict(note_add=M70 + '(F4 1차 반영 · 민범진 결정): weigh_samples 10 → 30(창 21 s — 흔들림 주기 ≤ 20 s 보다 길게) · min_net_g −30 → −60 · 임계 50 은 **보류**(INT-12a 에서 같은 경로로 빈 그릇·대용품 재서 결정 · 후보 70). 기준값 BOWL 은 아직 임시 180 → F4 PR 로'),
+ 'F2-01':   dict(note_add=M70 + ': 무게 1회 ≈ 5 + 21 s · 잔반이면 최대 3회 ≈ 80 s(정확도 우선 · 시연 그릇 2개 감수)'),
+ 'INT-4c':  dict(note_add='🔔 9/22 PR #70: 무게 표본 창 21 s 로 그릇 1개 사이클이 +25~75 s 늘어난다(무게 1~3회) — 사이클 타임 측정 때 감안'),
+ 'INT-3b':  dict(note_add=M70 + ': 컵은 flow 에서 WEIGH 를 건너뛴다(weigh_kinds) — 여기서 실기 확인'),
+}
+for _tid, _e in P1500.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY103 = ['v15.3', '진척', 'FLOW-05, F2-02, V-07, V-02, F2-01, INT-4c, INT-3b', 'PR #70 merge(민범진 9/22 15:00): FLOW-05 완료(flow.weigh_kinds · 컵은 무게 단계 건너뜀 · 🟡 FLOW-04/INT-3b 실기) · 물 털기 = BASE X 직선 왕복(🟡 V-07) · 무게 표본 창 21 s · min_net_g −60 · 임계 50 보류(INT-12a 에서 결정). 사이클 +25~75 s', '황인재 9/22 15:00', 'M,H']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -1989,7 +2005,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
