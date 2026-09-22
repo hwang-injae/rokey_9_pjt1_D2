@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v18.8'
+VERSION = 'v18.9'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -2407,6 +2407,38 @@ EDIT.update({
 HISTORY138 = ['v18.8', '🔄 재분담', 'NEW-01a/b, NEW-02a/b, INT-F2, INT-F3, INT-ALL, INT-3a/3b/4a/4b, FLOW-04, REH-02, ZERO-01, INT-12a/b, UT-F2, F2-01/02, INF-02c, V-07, CELL-03, V-24, INT-4, DOC-03', '황인재 9/22 20:57 E33: 민범진 에이전트 토큰 소진 → F4 총괄 통합(f2·flow 임시 주인) · 한석형 새 기능 격리 이송·거품 펌프 + 영상 · 박진용 넛지 재개 2종 · INT-4b 를 새 기능 시연으로 재정의 · 0.9 행 4개·CELL-03 마감', '황인재 9/22 20:57', 'H']
 
 
+
+# ---------------------------------------------------------------- 9/22 21:04 황인재 결정 E34 — 9/23 통합 축소(혼자 · 필수 검증만) · HMI 는 추석
+H2110 = '황인재 9/22 21:04(E34 통합 축소)'
+NEW.append(
+ ('INT-ONE-B', 'INT-ALL', 'INT-ALL', '통합', 'INT-ONE-B 그릇 1개 한 바퀴 — rig_flow_once(실제 f1/f2/f3 · mock 없음 · 0.3): 빈 그릇 1회 완주 → 잔반 96 g 넣고 1회(잔반 버리기 포함)',
+  'H', '시작 전', S('9/23 오전'), '완주 기록(단계별 시간·코드) · 막힌 단계 수정 PR', '2회 완주(빈 그릇 · 잔반) · 실패 정책 없이 정상 흐름만(E28)',
+  H2110 + ': INT-F2·INT-F3·INT-ALL·INT-12a/b 를 이 한 줄로 갈음 — 09:30~11:30 로봇'))
+NEW.append(
+ ('INT-ONE-C', 'INT-ONE-B', 'INT-ALL', '통합', 'INT-ONE-C 컵 1개 한 바퀴 — rig_flow_once(실제 f1/f2/f3 · 0.3 · E29 벽 집기 · E30 무게): 빈 컵 1회 → 잔반 1회',
+  'H', '시작 전', S('9/23 오후'), '완주 기록 · 수정 PR', '2회 완주',
+  H2110 + ': INT-3b 대체 — 13:30~15:00 로봇'))
+EASY['INT-ONE-B'] = '그릇 하나를 집어서 무게 재고 잔반 버리고 닦고 헹궈서 팔레트에 넣기까지, 진짜 기능 함수로 처음부터 끝까지 두 번 돌려 본다'
+EASY['INT-ONE-C'] = '컵 하나로 같은 한 바퀴를 두 번 돌려 본다'
+for _t in ('INT-F2', 'INT-F3', 'INT-ALL', 'INT-12a', 'INT-12b', 'INT-3a', 'INT-3b', 'FLOW-04'):
+    EDIT.setdefault(_t, {}).update(dict(status='취소', note_add=H2110 + ': **대체** — INT-ONE-B/C(한 바퀴 실기) + INT-4a(시연 실행)로 갈음. 별도 검증 안 함'))
+EDIT.update({
+ 'INT-4a':  dict(task='INT-4a 시연 실행 — flow_node(PC-A) 시작 1회 → 그릇 2·컵 2 연속(E28 정상 흐름) · 시작은 서비스 호출(HMI 는 추석) · 녹화(영상 원본) · 사이클 타임 1회', owner='H(S 촬영)', note_add=H2110 + ': 15:00~17:00 로봇 · 이 1회 완주 + 녹화가 9/23 의 통과선. FLOW-04·INT-3a/3b·INT-4c 를 여기서 한 번에'),
+ 'INT-4c':  dict(task='INT-4c 사이클 타임 1회 — INT-4a 녹화에서 읽는다(성공률·잔반 검출률 표는 1회 값)', owner='H', note_add=H2110 + ': ×3 → 1회'),
+ 'INT-4d':  dict(owner='H(S 촬영)', note_add=H2110 + ': INT-4a 와 같은 시간에 원본 녹화 · 저녁 v1.0-demo 태그 · 동결'),
+ 'INT-4':   dict(status='보류', note_add=H2110 + ': **HMI 는 추석(9/24~28) 집에서** — 9/29 아침 REH-02 에서 실기 연결(시작 버튼 = /flow/start 서비스 그대로)'),
+ 'V-24':    dict(status='보류', note_add=H2110 + ': 시간 남으면 9/23 17시 예비 슬롯 · 아니면 추석 후(시연은 정상 흐름만 · 정지는 Ctrl+C V-26 5/5 · 펜던트)'),
+ 'ZERO-01': dict(note_add=H2110 + ': 🟡 조건부 — 9/23 17시 예비 슬롯에 시간 남으면. 못 하면 **대안 = 시연 아침(REH-02) 수동 영점**(빈 그릇·컵 기준값 재측정) 체크리스트 · #78 폭 재확인이 놓침 오판은 막는다'),
+ 'REH-02':  dict(note_add=H2110 + ': 체크리스트 — ① 두 이름 확인 ② 빈 그릇·컵 기준값 재측정(수동 영점 · ZERO-01 못 했으면 필수) ③ HMI 시작 버튼 → /flow/start 연결 확인 ④ 시연 1회 완주'),
+ 'NEW-01a': dict(note_add=H2110 + ': 로봇 슬롯 9/23 11:30~12:30(NEW-01b 와 같이)'),
+ 'NEW-01b': dict(note_add=H2110 + ': 로봇 슬롯 9/23 11:30~12:30'),
+ 'NEW-02a': dict(note_add=H2110 + ': 로봇 슬롯 9/23 12:30~13:30(NEW-02b 와 같이)'),
+ 'NEW-02b': dict(note_add=H2110 + ': 로봇 슬롯 9/23 12:30~13:30'),
+ 'V-07':    dict(status='완료', prog='1.0', note_add=H2110 + ': 남은 3회는 INT-ONE-B/C 완주에 포함 — 마감'),
+})
+HISTORY139 = ['v18.9', '🔄 축소', 'INT-ONE-B/C, INT-4a/4c/4d, INT-F2/F3/ALL, INT-12a/b, INT-3a/3b, FLOW-04, INT-4, V-24, ZERO-01, REH-02, NEW-01a/b, NEW-02a/b, V-07', '황인재 9/22 21:04 E34: 9/23 은 혼자 통합 → 필수 검증만 — 그릇 1개 한 바퀴 2회 · 컵 1개 한 바퀴 2회 · flow_node 시작 1회로 그릇2·컵2 연속 1회+녹화. 8행 취소(대체) · HMI 추석 · V-24 보류 · ZERO-01 조건부(대안 수동 영점) · 새 기능 로봇 슬롯 11:30~13:30', '황인재 9/22 21:04', 'H']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -2495,7 +2527,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113, HISTORY114, HISTORY115, HISTORY116, HISTORY117, HISTORY118, HISTORY119, HISTORY120, HISTORY121, HISTORY122, HISTORY123, HISTORY124, HISTORY125, HISTORY126, HISTORY127, HISTORY128, HISTORY129, HISTORY130, HISTORY131, HISTORY132, HISTORY133, HISTORY134, HISTORY135, HISTORY136, HISTORY137, HISTORY138):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113, HISTORY114, HISTORY115, HISTORY116, HISTORY117, HISTORY118, HISTORY119, HISTORY120, HISTORY121, HISTORY122, HISTORY123, HISTORY124, HISTORY125, HISTORY126, HISTORY127, HISTORY128, HISTORY129, HISTORY130, HISTORY131, HISTORY132, HISTORY133, HISTORY134, HISTORY135, HISTORY136, HISTORY137, HISTORY138, HISTORY139):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
