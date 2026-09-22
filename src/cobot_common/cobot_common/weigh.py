@@ -68,7 +68,7 @@ def _spread(values):
 def _drift_and_jitter(values):
     """표본을 **흐름(drift)** 과 **떨림(jitter)** 으로 나눈다 → (창 전체의 흐름 g, 추세를 뺀 퍼짐 g).
 
-    🚨 왜 나누나 (9/22 20:0x 실기): 30 표본이 −96 → −123 으로 **한 방향으로 미끄러졌다**(창 전체 −26 g).
+    🚨 왜 나누나 (9/22 18:11 실기): 30 표본이 −96 → −123 으로 **한 방향으로 미끄러졌다**(창 전체 −26 g).
        떨림이 아니라 **영점이 움직이는 것**인데, 그냥 퍼짐(23 g)으로 보면 둘이 섞여
        ① 케이블 장력 경고가 거짓으로 뜨고(추세를 빼면 떨림은 12 g 뿐이었다)
        ② 정작 중요한 "기준값이 낡았다" 는 신호를 놓친다.
@@ -141,7 +141,7 @@ def weigh(n, reset=False):
     _log().info(f'weigh n={n} → {g:.1f} · 흐름 {drift:+.0f} g · 떨림 {jitter:.0f} g '
                 f'(읽음: {", ".join(f"{s:.1f}" for s in samples)})')
     lim = (conf.get('f2') or {}).get('limits') or {}
-    # 🔗 케이블 장력 = **떨림**(추세를 뺀 퍼짐). 흐름을 섞어 보면 거짓 경보가 난다(9/22 20:0x: 퍼짐 52 → 떨림 12)
+    # 🔗 케이블 장력 = **떨림**(추세를 뺀 퍼짐). 흐름을 섞어 보면 거짓 경보가 난다(9/22 18:11: 퍼짐 52 → 떨림 12)
     limit = lim.get('max_weigh_spread_g')
     if limit is not None and jitter > float(limit):
         _log().warn(f'🔗 무게 떨림 {jitter:.0f} g > {float(limit):.0f} g — 그리퍼 **케이블 장력** 의심. '
@@ -151,7 +151,7 @@ def weigh(n, reset=False):
     if dlimit is not None and abs(drift) > float(dlimit):
         _log().warn(f'📉 재는 동안 값이 {drift:+.0f} g 흘렀다 (상한 {float(dlimit):.0f} g) — **영점이 움직이고 있다.** '
                     '빈 용기 기준값(f2.empty_weight_g)을 방금 재지 않았다면 **잔반 판정을 믿지 않는다** '
-                    '(rig_f2.py empty --kind BOWL 로 다시 잰다 · 9/22 20:0x)')
+                    '(rig_f2.py empty --kind BOWL 로 다시 잰다 · 9/22 18:11)')
     return g
 
 
