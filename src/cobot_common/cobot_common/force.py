@@ -36,11 +36,12 @@ from .motion import is_paused, move_rel
 
 __all__ = ['force_on', 'force_off', 'force_release', 'force_reached', 'force_check', 'compliance_on', 'compliance_off',
            'contact_down', 'periodic_search', 'safe_retreat', 'read_force',
-           'where', 'joints', 'stop_now', 'motion_done', 'wait_done', 'start_line_rel', 'move_joints', 'move_spiral', 'move_arc', 'move_pose', 'move_periodic',
+           'where', 'joints', 'stop_now', 'motion_done', 'wait_done', 'move_joints', 'move_line_rel', 'move_spiral', 'move_arc', 'move_pose', 'move_periodic',
            'ForceLimitError', 'MotionTimeout']
 
 _AXES = ('x', 'y', 'z')
-_START_WAIT_S = 2.0                                     # 비동기 모션이 시작하기를 기다리는 한도 (9/20 V-03 rig 와 같다)
+_START_WAIT_S = 5.0                                     # 비동기 모션이 시작하기를 기다리는 한도 — 2.0(9/20 V-03 rig 와 같음)이던 것을
+                                                        #   9/22 나선 재실패(soap 뒤 spiral, 알람 없이 2s 안에 시작 안 함)로 늘림
 _state = {'compliance': False, 'force': False, 'limit': None}   # 지금 켜져 있는 것 (safe_retreat 가 본다)
 
 
@@ -161,14 +162,16 @@ def read_force():
     return [float(x) for x in f]
 
 
-def contact_down(max_depth, limit, timeout_s=None):
+def contact_down(max_depth, limit, timeout_s=None, keep_compliance=False):
     """순응 ON 상태로 contact_step_mm 씩 내려가며 Z 힘이 limit 에 닿을 때까지 → (depth_mm, force_n).
 
     멈추는 조건: **시작할 때보다 Z 힘이 limit 만큼 커짐**(접촉) · 깊이 ≥ max_depth(바닥 못 찾음) —
     둘을 가르는 건 부르는 쪽(depth < max_depth 면 접촉). 돌려주는 force_n 도 시작 대비 변화량이다.
     🚨 절대값으로 보면 안 된다: 툴 무게 설정에 없는 무게(솔·수세미)가 있으면 공중에서도 Fz 가 2 N 쯤 나와서
     내려가기도 전에 "바닥"이 된다(9/20 실기: 깊이 0.1 mm 에서 접촉 오판).
-    순응을 켜 두어 단단한 작업대에 닿아도 한 단계만큼의 힘만 걸린다. 끝나면 순응을 끄고 그 자리에 선다.
+    순응을 켜 두어 단단한 작업대에 닿아도 한 단계만큼의 힘만 걸린다. 끝나면 순응을 끄고 그 자리에 선다 —
+    단 `keep_compliance=True`면 끄지 않는다(바로 이어서 순응 상태로 다른 동작을 할 때, 박진용 9/22:
+    그릇 나선 진입 직전에 순응을 껐다 바로 다시 켜는 게 비동기 나선이 시작 안 하는 것과 관련 있어 보여서 없앰).
     힘이 cell.force.force_max_n 을 넘으면 ForceLimitError, cell.limits.timeout_s 를 넘으면 MotionTimeout.
     """
     if max_depth <= 0:
@@ -206,7 +209,8 @@ def contact_down(max_depth, limit, timeout_s=None):
             dz = min(step, max_depth - depth)
             move_rel(0.0, 0.0, -dz, 'BASE', vel_mm_s=vel, acc_mm_s2=acc)
     finally:
-        force_off()
+        if not keep_compliance:
+            force_off()
 
 
 def force_check(axis='z', baseline=None):
@@ -315,16 +319,26 @@ def move_spiral(rev, rmax_mm, time_s, axis='z', ref='TOOL'):
     켤 때는 도는 중이 아니어야 한다(2.1903) → 여기서 먼저 mwait 한다.
     🔸 시간은 **vel_scale 로 나누지 않는다**(9/21 박진용): 9/20 실기(V-03)에서 돈 호출은 3 s 그대로였고,
        ÷ 0.3 = 10 s 로 준 제품 호출은 9/21 실기에서 **명령은 받고 움직이지 않았다**(알람 없음, 2회).
+    🔧 9/22 박진용: 접수는 되는데 조용히 실행 큐에 안 들어갈 때가 있다(알람 없음·check_motion 계속 0).
+       원인을 컨트롤러 밖에서 못 찾아서, 시작을 못 잡으면 **같은 명령을 최대 3번까지 다시 보낸다**.
     """
     if rev <= 0 or rmax_mm <= 0 or time_s <= 0:
         raise ValueError(f'move_spiral: rev={rev} · rmax={rmax_mm} mm · time={time_s} s — 모두 0 보다 커야 한다')
     d = dsr()
     axis_c = _axis_const(d, axis)
     ref_c = {'BASE': d.DR_BASE, 'TOOL': d.DR_TOOL}[ref]
-    d.mwait()
-    _ok(d.amove_spiral(rev=float(rev), rmax=float(rmax_mm), lmax=0.0, vel=[0.0, 0.0], acc=[0.0, 0.0],
-                       time=float(time_s), axis=axis_c, ref=ref_c), 'amove_spiral')          # 🔸 vel_scale 로 나누지 않는다(위 설명)
-    _wait_start(d, 'amove_spiral')
+    max_tries = 3
+    for attempt in range(1, max_tries + 1):
+        d.mwait()
+        _ok(d.amove_spiral(rev=float(rev), rmax=float(rmax_mm), lmax=0.0, vel=[0.0, 0.0], acc=[0.0, 0.0],
+                           time=float(time_s), axis=axis_c, ref=ref_c), 'amove_spiral')       # 🔸 vel_scale 로 나누지 않는다(위 설명)
+        try:
+            _wait_start(d, 'amove_spiral')
+            return
+        except RuntimeError:
+            if attempt == max_tries:
+                raise
+            d.mwait()                                                    # 안 돈 채로 그 자리 — 다음 시도 전에 한 번 더 확인
 
 
 def move_periodic(amp, period, repeat, ref='TOOL', atime=None, scale=True):
@@ -390,17 +404,14 @@ def move_joints(q, vel_deg_s, acc_deg_s2):
                 acc=_positive('acc_deg_s2', acc_deg_s2)), 'movej')
 
 
-def start_line_rel(dx, dy, dz, vel_mm_s, acc_mm_s2):
-    """직선 상대 이동(Move L, BASE)을 **비동기로 시작만** 한다 — 끝을 기다리지 않는다.
-    부르는 쪽이 도는 동안 힘을 보다가 stop_now() 로 멈춘다(그릇 바닥 찾기 — 박진용 9/21). 속도 × vel_scale · 가속도 그대로.
-    속도는 cell.motion 100 % 기준 × vel_scale 을 넘지 못한다."""
+def move_line_rel(dx, dy, dz, vel_mm_s, acc_mm_s2):
+    """직선 상대 이동(Move L, BASE) — **끝날 때까지 기다리는 동기 movel**. 속도 × vel_scale · 가속도 그대로.
+    그릇 닦기를 9/20 실기 rig_v03 과 같은 명령(d.movel 동기)으로 하려고 둔다(박진용 9/21). 속도는 cell.motion 100 % × vel_scale 까지만."""
     d = dsr()
     top_v = float(_cell_key('motion', 'vel_tcp_max_mm_s')) * _vel_scale()
-    vel = min(_positive('vel_mm_s', vel_mm_s) * _vel_scale(), top_v)
-    d.mwait()
-    _ok(d.amovel([float(dx), float(dy), float(dz), 0.0, 0.0, 0.0], vel=vel, acc=_positive('acc_mm_s2', acc_mm_s2),
-                 ref=d.DR_BASE, mod=d.DR_MV_MOD_REL), 'amovel')
-    _wait_start(d, 'amovel')                                # 출발 전에 motion_done() 이 '끝남' 으로 읽히지 않게
+    _ok(d.movel([float(dx), float(dy), float(dz), 0.0, 0.0, 0.0],
+                vel=min(_positive('vel_mm_s', vel_mm_s) * _vel_scale(), top_v), acc=_positive('acc_mm_s2', acc_mm_s2),
+                ref=d.DR_BASE, mod=d.DR_MV_MOD_REL), 'movel')
 
 
 def wait_done():
@@ -432,7 +443,24 @@ def _wait_start(d, what, limit_s=None):
         if d.check_motion() != 0:
             return
         time.sleep(0.02)
-    raise RuntimeError(f'{what}: 명령은 받았는데 {limit_s:g} s 안에 움직이지 않았다 — 설정(회전 수·반경·시간)을 확인')
+    raise RuntimeError(f'{what}: 명령은 받았는데 {limit_s:g} s 안에 움직이지 않았다 — 설정(회전 수·반경·시간)을 확인 '
+                       f'· 그때 컨트롤러 {_controller_snapshot(d)}')
+
+
+def _controller_snapshot(d):
+    """출발을 안 했을 때 원인을 보려고 그 순간의 컨트롤러 상태를 글로 — 읽다 실패해도 멈추지 않는다(9/21 박진용)."""
+    out = []
+    for name, fn in (('check_motion', 'check_motion'), ('robot_state', 'get_robot_state'),
+                     ('robot_mode', 'get_robot_mode'), ('last_alarm', 'get_last_alarm')):
+        try:
+            out.append(f'{name}={getattr(d, fn)()!r}')
+        except Exception as e:                                  # noqa: BLE001 — 진단만
+            out.append(f'{name}=읽기 실패({type(e).__name__})')
+    try:
+        out.append(f'z={float(d.get_current_posx(ref=d.DR_BASE)[0][2]):.2f}')
+    except Exception:                                           # noqa: BLE001
+        pass
+    return ' · '.join(out)
 
 
 def _ok(ret, what):

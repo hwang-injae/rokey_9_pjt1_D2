@@ -16,9 +16,17 @@ from f3_wipe import wipe
 
 CFG = {
     'run': {'vel_scale': 0.3},
-    'cell': {'limits': {'insert_limit_n': 15.0, 'timeout_s': 30.0}},     # main 값 — 컵은 이것을 쓰지 않는다
+    'cell': {'limits': {'insert_limit_n': 15.0, 'timeout_s': 30.0},      # main 값 — 컵은 이것을 쓰지 않는다
+             'stations': {'HOME': {'posj': [0.0, 0.0, 90.0, 0.0, 90.0, 0.0], 'posx_z_mm': 215.11}},
+             'motion': {'vel_joint_max_deg_s': 100.0, 'acc_joint_max_deg_s2': 200.0}},
     'f3': {
-        'soap': {'depth_mm': 40.0, 'hold_s': 0.0, 'vel_mm_s': 80.0, 'log_dir': 'logs/f3'},
+        'soap': {'depth_mm': 40.0, 'hold_s': 0.0, 'vel_mm_s': 80.0, 'log_dir': 'logs/f3',
+                 'twist_deg': 20.0, 'twist_cycles': 3, 'twist_period_s': 1.0,
+                 'updown_mm': 5.0, 'updown_cycles': 2, 'updown_period_s': 0.3,
+                 'ramp_s': 0.2, 'rot_vel_limit_deg_s': 225.0,
+                 'duration_s': 60},
+        'wipe_bowl': {'fast_vel_mm_s': 220.0, 'fast_acc_mm_s2': 440.0,    # soap 의 상승·HOME 복귀 속도가 이 값을 그대로 읽는다
+                      'home_vel_deg_s': 40.0, 'home_acc_deg_s2': 40.0},
         'wipe_cup': {
             'tool': {'clean_h_mm': 95, 'd_mm': 55},
             'over_cup_up_mm': 40.0, 'over_cup_dy_mm': 140.0, 'find_limit_n': 5.0,
@@ -32,7 +40,7 @@ CFG = {
         },
     },
 }
-POSE0 = [400.0, 100.0, 235.0, 45.0, 180.0, 45.0]
+POSE0 = [400.0, 100.0, 200.0, 45.0, 180.0, 45.0]                          # z 200 < HOME posx_z_mm 215.11 → soap 상승이 dz > 0
 
 
 class _Logger:
@@ -74,6 +82,15 @@ class FakeCell:
     def move_rel(self, dx, dy, dz, frame, **kw):
         self.calls.append(('move_rel', round(dz, 1), round(kw.get('vel_mm_s') or 0.0, 1), round(dy, 1)))
         self.pose = [self.pose[0] + dx, self.pose[1] + dy, self.pose[2] + dz] + self.pose[3:]
+
+    def move_joint_rel(self, joint, delta_deg, *, time_s=None, carrying=True):
+        self.calls.append(('move_joint_rel', joint, round(delta_deg, 1), time_s))
+        if joint == 6:
+            self.j6 += delta_deg
+
+    def move_joints(self, q, vel_deg_s, acc_deg_s2):
+        self.calls.append(('move_joints', list(q), vel_deg_s, acc_deg_s2))
+        self.j6 = q[5]
 
     def move_periodic(self, amp, period, repeat, ref='TOOL', atime=None, scale=True):
         self.calls.append(('periodic', list(amp), list(period), repeat, ref, scale))
@@ -128,8 +145,9 @@ class FakeCell:
 def cell(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     c = FakeCell()
-    for name in ('cfg', 'move_to', 'move_rel', 'move_periodic', 'motion_done', 'stop_now', 'contact_down',
-                 'read_force', 'force_off', 'safe_retreat', 'io_node', 'is_halted', 'where', 'joints'):
+    for name in ('cfg', 'move_to', 'move_rel', 'move_joint_rel', 'move_joints', 'move_periodic', 'motion_done',
+                 'stop_now', 'contact_down', 'read_force', 'force_off', 'safe_retreat', 'io_node', 'is_halted',
+                 'where', 'joints'):
         monkeypatch.setattr(wipe.cc, name, getattr(c, name), raising=False)
     return c
 
@@ -140,20 +158,39 @@ def _dips(cell):
     return [c for c in cell.calls if c[0] == 'move_rel' and c[2] > 0]
 
 
-def test_soap_dips_count_times(cell):
+def test_soap_bowl_twists_then_updowns_then_home(cell):
+    """BOWL soap(9/22): SOAP 자리로 안 가고 그 자리에서 비틀기 3회 → 왕복 2회(둘 다 move_periodic·scale=False) → 상승 → HOME."""
     r = wipe.soap(3, 'BOWL')
     assert r.ok and r.code == OK
-    downs = [c for c in _dips(cell) if c[1] < 0]
-    ups = [c for c in _dips(cell) if c[1] > 0]
-    assert len(downs) == len(ups) == 3                                     # 넣은 만큼 뺀다
-    assert downs[0][1] == pytest.approx(-40.0) and ups[0][1] == pytest.approx(40.0)
-    assert downs[0][2] == pytest.approx(80.0 * 0.3)                        # 담금 속도 × vel_scale
+    assert ('move_to', 'SOAP', 'BOWL', None) not in cell.calls             # SOAP 자리로 안 간다
+
+    periodics = [c for c in cell.calls if c[0] == 'periodic']
+    assert len(periodics) == 2                                            # 비틀기 1번 + 왕복 1번(각각 move_periodic 한 번)
+
+    twist = periodics[0]
+    assert twist[1] == [0.0, 0.0, 0.0, 0.0, 0.0, 20.0]                    # amp — 6번 관절(rz)만
+    assert twist[2] == [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]                     # period
+    assert twist[3] == 3 and twist[4] == 'TOOL' and twist[5] is False      # repeat · ref · scale=False
+
+    updown = periodics[1]
+    assert updown[1] == [0.0, 0.0, 5.0, 0.0, 0.0, 0.0]                    # amp — Z만
+    assert updown[2] == [0.0, 0.0, 0.3, 0.0, 0.0, 0.0]                    # period
+    assert updown[3] == 2 and updown[4] == 'TOOL' and updown[5] is False   # repeat · ref · scale=False
+
+    rise = [c for c in cell.calls if c[0] == 'move_rel' and c[1] == pytest.approx(15.1)]
+    assert len(rise) == 1                                                  # 마지막 곧게 상승 — HOME posx_z_mm(215.11) − 지금 z(200.0)
+
+    homes = [c for c in cell.calls if c[0] == 'move_joints']
+    assert homes and homes[-1][1] == [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]      # 관절 이동으로 HOME 마무리(wipe_bowl 과 같은 속도)
 
 
-def test_soap_passes_kind_to_move_to(cell):
-    """SOAP 은 종류별 자리다 — kind 를 그대로 넘긴다(결정 E8)."""
-    wipe.soap(1, 'CUP')
-    assert ('move_to', 'SOAP', 'CUP', None) in cell.calls
+def test_soap_cup_also_twists_then_updowns(cell):
+    """9/22: kind 로 갈리지 않는다 — CUP 도 그릇과 똑같이 비틀기·왕복(공용 함수)."""
+    r = wipe.soap(3, 'CUP')
+    assert r.ok and r.code == OK
+    assert ('move_to', 'SOAP', 'CUP', None) not in cell.calls              # SOAP 자리로 안 간다(그릇과 동일)
+    periodics = [c for c in cell.calls if c[0] == 'periodic']
+    assert len(periodics) == 2                                             # 비틀기 + 왕복
 
 
 def test_soap_is_not_a_contact_motion(cell):
@@ -161,25 +198,26 @@ def test_soap_is_not_a_contact_motion(cell):
     wipe.soap(2)
     names = [c[0] for c in cell.calls]
     assert 'contact_down' not in names and 'force_on' not in names and 'compliance_on' not in names
-    assert names[-2:] == ['force_off', 'safe_retreat']                     # 정리는 그대로 한다
+    assert names[-1] == 'force_off' and 'safe_retreat' not in names        # 성공했으면 이미 HOME — 더 안 올린다(9/22 2차)
 
 
-def test_soap_zero_count_is_ok(cell):
+def test_soap_count_is_ignored(cell):
+    """9/22: count 는 이제 안 쓴다(횟수는 config 의 twist_cycles·updown_cycles) — 0 이어도 그대로 돈다."""
     r = wipe.soap(0)
-    assert r.ok and not _dips(cell)                                        # 담그지 않는다(자리로는 간다)
-
-
-def test_soap_negative_count_is_error(cell):
-    assert wipe.soap(-1).code == ROBOT_ERROR
+    assert r.ok and len([c for c in cell.calls if c[0] == 'periodic']) == 2
 
 
 def test_soap_timeout(cell):
-    CFG['cell']['limits']['timeout_s'] = -1
+    CFG['f3']['soap']['duration_s'] = -1
     try:
         r = wipe.soap(3)
     finally:
-        CFG['cell']['limits']['timeout_s'] = 30.0
+        CFG['f3']['soap']['duration_s'] = 60
     assert not r.ok and r.code == TIMEOUT
+    names = [c[0] for c in cell.calls]
+    assert 'safe_retreat' not in names                                    # 9/22 2차: safe_z_mm 대신 HOME 높이로 후퇴
+    rise = [c for c in cell.calls if c[0] == 'move_rel']
+    assert rise and rise[-1][1] == pytest.approx(15.1)                     # HOME posx_z_mm(215.11) − 실패 시점 z(200.0)
 
 
 def test_soap_halt_does_not_auto_move(cell):
@@ -283,17 +321,6 @@ def test_spin_speed_over_robot_limit_stops_before_moving(cell):
     assert [c[0] for c in cell.calls if c[0] in ('move_to', 'move_rel', 'periodic')] == []
 
 
-def test_fast_z_same_for_bowl_and_cup():
-    """빠른 하강 · 곧게 올라오기 속도·가속도는 그릇과 컵이 **같아야** 한다(박진용 9/21) — 실제 params.yaml 로 본다."""
-    import os
-    import yaml
-    here = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(here, '..', '..', 'cobot_common', 'config', 'params.yaml'), encoding='utf-8') as f:
-        f3 = yaml.safe_load(f)['f3']
-    for key in ('fast_vel_mm_s', 'fast_acc_mm_s2'):
-        assert f3['wipe_bowl'][key] == f3['wipe_cup'][key], key
-
-
 def test_cup_fast_moves_use_fast_speed(cell):
     """빠른 하강(−80)과 곧게 뽑기가 fast_vel_mm_s × vel_scale(0.3) = 54 mm/s 로 간다."""
     wipe.wipe_cup()
@@ -318,16 +345,16 @@ def test_cup_no_room_to_spin_is_error_and_retreats(cell):
     assert _periodic(cell) == [] and cell.calls[-1][:2] == ('move_to', 'HOME')
 
 
-def test_cup_stops_now_if_j4_moves_and_does_not_auto_move(cell):
-    """🚨 세척 도는 중 4번 조인트가 1° 넘게 움직이면 **즉시 정지** → ROBOT_ERROR → **힘만 끄고 움직이지 않는다**
-    (손목이 꺾였을 수 있어 곧게 뽑으면 컵을 끌고 올라온다 — PR #56 리뷰)."""
+def test_cup_stops_now_then_goes_home_if_j4_moves(cell):
+    """🚨 세척 도는 중 4번 조인트가 1° 넘게 움직이면 **즉시 정지** → ROBOT_ERROR → 그릇과 같게 곧게 뽑아 HOME 복귀
+    (수세미·솔 둘 다 물러서 그릇처럼 자동 복귀해도 된다 — 박진용 9/22, PR #56 리뷰 대체)."""
     cell.j4_during = 5.0
     r = wipe.wipe_cup()
     assert not r.ok and r.code == ROBOT_ERROR
     names = [c[0] for c in cell.calls]
     i = names.index('stop_now')
     assert names.index('periodic') < i
-    assert names[i + 1:] == ['force_off']                                  # 정지 뒤에는 힘만 끈다 — 이동 없음
+    assert names[i + 1] == 'force_off' and 'move_to' in names[i + 1:]      # 정지 뒤에도 힘 끄고 그대로 HOME 까지 복귀
 
 
 def test_cup_stroke_shrinks_so_brush_stays_in(cell):
