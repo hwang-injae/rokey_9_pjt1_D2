@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v18.7'
+VERSION = 'v18.8'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -2353,6 +2353,60 @@ EDIT.setdefault('V-02', {}).update(dict(note_add='✅ 20:40 PR #82 merge(황인�
 HISTORY137 = ['v18.7', 'PR', 'V-02', 'PR #82 merge 20:40: 빈 컵 기준값 −20(실측 3회) · presets.CUP 주석 시각 20:18 — 448 passed · 🟡 9/23 10회 재확인', '황인재 9/22 20:40', 'H']
 
 
+
+# ---------------------------------------------------------------- 9/22 20:57 황인재 결정 E33 — 재분담: 민범진 에이전트 토큰 소진 → F4 총괄 통합 · 한석형·박진용 새 기능
+H2055 = '황인재 9/22 20:57(E33)'
+NEW.append(
+ ('NEW-01a', 'NEW-01', 'NEW-01', '개발', '새 기능 ① 격리 이송 — 잔반 과다·실패 용기를 격리 구역으로 옮기는 동작(그릇·컵) + 격리 구역 좌표',
+  'S', '시작 전', S('9/23 오전', '9/23 오후'), 'cell.yaml 격리 구역 좌표 · f1 격리 놓기 함수 · rig 실기 3회 · PR',
+  '격리 구역 좌표 티칭 · 그릇·컵 각 3회 놓기 실기 OK · flow 실패 정책(잔반 초과 지속 → 격리 · IRD)에서 부르는 자리 확인 · 🚨 9/23 저녁 동결 전 PR',
+  H2055 + ': 한석형 새 기능 ①. 격리는 IRD 실패 정책에 이미 있는 단계 — 좌표·동작을 구현한다. flow 연결은 F4(총괄 통합)와 맞춘다'))
+NEW.append(
+ ('NEW-01b', 'NEW-01a', 'NEW-01', '개발', '새 기능 ② 거품 펌프 — 솔·수세미 근처에 펌프를 두고 일정 사용 횟수마다 펌프질 동작(소모품 카운트 연동)',
+  'S', '시작 전', S('9/23 오전', '9/23 오후'), '펌프 위치 cell.yaml · 펌프질 동작 함수 · 사용 횟수 카운트 → 펌프질 · 실기 3회 · PR',
+  '펌프질 동작 실기 3회 · 횟수 카운트가 params flow.consumables(soap_max_dips 등)와 연동 · 동결 전 PR',
+  H2055 + ': 한석형 새 기능 ②. 🟡 카운트를 어디서 세는지(flow vs f3 soap) F4 와 맞춘다'))
+NEW.append(
+ ('NEW-02a', 'NEW-01b', 'NEW-01', '개발', '새 기능 ③ 넛지 재개 ① — 툴(수세미·솔) 파지 실패 → "툴 없음" 판단 → 사람 호출 → 사람이 채우고 로봇을 툭 치면(힘센서 넛지) 재개',
+  'P', '시작 전', S('9/23 오전', '9/23 오후'), 'cobot_common force 넛지 감지 함수 · f1.tool TOOL_FAIL → 대기 → 넛지 → 재개 흐름 · 실기 3회 · PR',
+  '넛지 임계(힘 · 지속 시간) params · 오검출 0/3 · 대기 중 로봇 정지 상태 유지 · 동결 전 PR',
+  H2055 + ': 박진용 새 기능 ①. 🚨 접촉 감지는 힘 상한·타임아웃 규칙(AGENTS §3-2) · 대기 상태와 flow 정책(PAUSED/재개)의 관계는 F4 와 맞춘다'))
+NEW.append(
+ ('NEW-02b', 'NEW-02a', 'NEW-01', '개발', '새 기능 ④ 넛지 재개 ② — 케이블 꼬임·장력으로 무게 떨림이 커지면 사람 호출 → 케이블 풀고 툭 치면 재측정·재개',
+  'P', '시작 전', S('9/23 오전', '9/23 오후'), '떨림(🔗 jitter) 경고 → 대기 → 넛지 → 재측정 흐름 · 실기 · PR',
+  'weigh 의 🔗 떨림 경고(f2.limits.max_weigh_spread_g)를 신호로 · 넛지 뒤 재측정 정상 · 오검출 없음',
+  H2055 + ': 박진용 새 기능 ②. PR #78 의 흐름/떨림 분리 결과(케이블 = 떨림)를 신호로 쓴다 · 넛지 감지 함수는 ①과 공용'))
+EASY['NEW-01a'] = '잔반이 계속 남거나 실패한 그릇·컵을 따로 모아 두는 격리 자리로 로봇이 옮겨 놓는 동작을 만든다'
+EASY['NEW-01b'] = '솔·수세미 옆에 거품 펌프를 두고, 몇 번 쓸 때마다 로봇이 펌프를 눌러 거품을 보충하는 동작을 만든다'
+EASY['NEW-02a'] = '수세미·솔을 집으려다 못 집으면 "없다" 고 보고 사람을 부른 뒤, 사람이 채워 놓고 로봇을 톡 치면 힘센서가 그것을 알아채 이어서 일한다'
+EASY['NEW-02b'] = '케이블이 꼬여 무게가 심하게 떨리면 사람을 불러 풀게 하고, 톡 치면 다시 재서 이어서 일한다'
+EDIT.update({
+ 'NEW-01':  dict(owner='S', status='진행 중', prog='0.2', note_add=H2055 + ': 내용 확정 — NEW-01a 격리 이송 · NEW-01b 거품 펌프(한석형) + 발표용 영상(DOC-03). 나머지 1명 = 박진용(NEW-02a/b 넛지)'),
+ 'INT-F2':  dict(owner='H(M)', note_add=H2055 + ': **F4(황인재) 총괄 통합으로 이관** — 민범진 에이전트 토큰 소진. 민범진은 코드 없이 실기 실행·기록 보조(🟡). 그릇 한 바퀴 실기는 9/23 아침 첫 순서'),
+ 'INT-F3':  dict(owner='H(P)', note_add=H2055 + ': 박진용은 새 기능(NEW-02a/b)으로 → 남은 통합은 F4 총괄. 박진용은 F3 함수 질문 대응'),
+ 'INT-ALL': dict(owner='H', status='시작 전', note_add=H2055 + ': 주인 확정 = **황인재(F4 총괄 통합)**'),
+ 'INT-3a':  dict(owner='H(전원)', note_add=H2055 + ': 주도 M → H(총괄 통합)'),
+ 'INT-3b':  dict(owner='H(전원)', note_add=H2055 + ': 주도 M → H'),
+ 'INT-4a':  dict(owner='H(전원)', note_add=H2055 + ': 주도 M → H'),
+ 'INT-4b':  dict(task='INT-4b 새 기능 시연 시나리오 — 툴 없음→사람 호출→넛지 재개(NEW-02a) · 케이블 장력→넛지 재개(NEW-02b) · 잔반 과다→격리(NEW-01a) · 거품 펌프(NEW-01b) 각 1회 실기', owner='S,P(H)', note_add=H2055 + ': "실패 주입 4종" 을 새 기능 시연으로 재정의(E28 정상 흐름 + 새 기능 4개). 팔레트 걸림·빈 구역 주입은 뺀다'),
+ 'FLOW-04': dict(owner='H(S)', note_add=H2055 + ': M → H(총괄 통합)'),
+ 'REH-02':  dict(owner='전원(H 실행)', note_add=H2055 + ': 실행 M → H'),
+ 'ZERO-01': dict(owner='H', note_add=H2055 + ': 구현 M → **H(F4)** — f2·flow·weigh 파일 임시 주인 = 황인재'),
+ 'INT-12a': dict(task='INT-12a F1+F2 — 집기→무게→잔반 버리기 5회 · 그릇·컵(🔄 E30) · 시험대 rig_int12(flow_node 없이)', owner='H(M)', prog='0.3', note_add=H2055 + ': 주도 M → H · 컵은 20:31 3회 통과(V-07) · 그릇 5회 남음'),
+ 'INT-12b': dict(owner='H(M)', note_add=H2055 + ': 주도 M → H · 컵은 새 방식(E29·E30)'),
+ 'UT-F2':   dict(status='완료', prog='1.0', note_add=H2055 + ': 9/22 실기 rig_f2 dip·shake·loop 각 3회 이상(V-07 · 20:31 컵 · TS-08 세션)으로 갈음 — 정리'),
+ 'F2-01':   dict(status='완료', prog='1.0', note_add=H2055 + ': 잔여 0.1 은 문서 — 9/22 실기 통과(그릇 12:20 · 컵 20:31)로 마감. 이후 수정은 F4(임시 주인)'),
+ 'F2-02':   dict(status='완료', prog='1.0', note_add=H2055 + ': 잔여 0.1 은 문서 — 9/22 dip 3회·RINSE 실기(#71)로 마감'),
+ 'INF-02c': dict(status='완료', prog='1.0', note_add=H2055 + ': weigh.py 는 #68·#73·#78 로 완성 — 마감'),
+ 'V-07':    dict(owner='H(M)', prog='0.8', note_add=H2055 + ': 컵 잔반 버리기 3회 통과(20:31) · 그릇 12:20 저속 1회 → 남은 것 = 그릇 통상 속도·물 털기 그릇/컵 3회 — INT-12b 에서 같이'),
+ 'CELL-03': dict(status='완료', prog='1.0', note_add=H2055 + ': 잔반통·수조 배치는 실기가 도는 상태 · 잔반 대용품 96 g 사용 중 — 마감'),
+ 'V-24':    dict(owner='H(P)'),
+ 'INT-4':   dict(owner='H'),
+ 'DOC-03':  dict(owner='S(H)', status='진행 중', prog='0.2', note_add=H2055 + ': 발표용 영상 제작 = **한석형**(진행 중) · 편집 최종 확인 H'),
+})
+HISTORY138 = ['v18.8', '🔄 재분담', 'NEW-01a/b, NEW-02a/b, INT-F2, INT-F3, INT-ALL, INT-3a/3b/4a/4b, FLOW-04, REH-02, ZERO-01, INT-12a/b, UT-F2, F2-01/02, INF-02c, V-07, CELL-03, V-24, INT-4, DOC-03', '황인재 9/22 20:57 E33: 민범진 에이전트 토큰 소진 → F4 총괄 통합(f2·flow 임시 주인) · 한석형 새 기능 격리 이송·거품 펌프 + 영상 · 박진용 넛지 재개 2종 · INT-4b 를 새 기능 시연으로 재정의 · 0.9 행 4개·CELL-03 마감', '황인재 9/22 20:57', 'H']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -2441,7 +2495,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113, HISTORY114, HISTORY115, HISTORY116, HISTORY117, HISTORY118, HISTORY119, HISTORY120, HISTORY121, HISTORY122, HISTORY123, HISTORY124, HISTORY125, HISTORY126, HISTORY127, HISTORY128, HISTORY129, HISTORY130, HISTORY131, HISTORY132, HISTORY133, HISTORY134, HISTORY135, HISTORY136, HISTORY137):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113, HISTORY114, HISTORY115, HISTORY116, HISTORY117, HISTORY118, HISTORY119, HISTORY120, HISTORY121, HISTORY122, HISTORY123, HISTORY124, HISTORY125, HISTORY126, HISTORY127, HISTORY128, HISTORY129, HISTORY130, HISTORY131, HISTORY132, HISTORY133, HISTORY134, HISTORY135, HISTORY136, HISTORY137, HISTORY138):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
