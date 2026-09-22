@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v14.3'
+VERSION = 'v14.4'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1769,6 +1769,22 @@ HISTORY93 = ['v14.3', '규칙', '규칙 시트',
              '황인재 9/22 12:25', '전원']
 
 
+# ---------------------------------------------------------------- 9/22 12:40 F4 R2 그릇 결과
+R2B = ('📈 9/22 F4 R2 그릇(실기 · 툴·TCP 복구 뒤 · vel 0.3 · 도착 뒤 5 s · 10회 · −Fz 중앙값): z 158 빈손 −34.0 · 그릇 쥠 +8.3 → **그릇 42.3 g · 흔들림 9.5 g** / z 235 빈손 +1.3 · 그릇 쥠 +50.1 → 48.8 g · 🔴 흔들림 60 g(77 → 17 로 떨어지는 추세). '
+       '9/21 민범진 값(≈ 44.5 g)과 맞다. 높이마다 오차는 더해지는 옵셋 → 같은 자세 빈 값을 빼면 지워진다 → **WEIGH 좌표는 z 158 그대로**(z 235 는 그릇을 쥐면 불안정). '
+       '9/21 "0 에 잘림" = 하중 API 절댓값 탓(옵셋 −34 + 그릇 42 ≈ +8 g). 🔴 V-02 전제: 민범진 Fz 부호 방식(d4d44bc) push — main weigh.py 는 아직 절댓값. 컵 R2 진행 중')
+P1240 = {
+ 'V-02':    dict(prog='0.3', status='진행 중', note_add=R2B),
+ 'INF-02c': dict(note_add='🔎 9/22 F4 R2: 무게는 **Fz 부호 방식이어야** 판정이 된다(절댓값이면 옵셋 −34 g 자리에서 부호가 떨어진다) → d4d44bc merge 가 V-02 전제'),
+ 'F2-01':   dict(note_add='🔔 9/22 F4 참고: 그릇 놓침 판정 min_net_g −30 g 의 여유가 얇다 — 그릇 ≈ 42 g 라 놓치면 −42 g · 문턱까지 12 g 인데 흔들림 10~15 g → V-02 반복 값을 보고 민범진 절에 제안(지금은 안 바꿈 · 민범진 브랜치는 −60 제안)'),
+}
+for _tid, _e in P1240.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY94 = ['v14.4', '실기 결과', 'V-02, INF-02c, F2-01',
+             'F4 R2 그릇(9/22 · 툴 복구 뒤): WEIGH z 158 그대로 — 그릇 42.3 g · 흔들림 9.5 g(9/21 값과 맞음) · z 235 는 쥐면 불안정. 9/21 "0 에 잘림" 은 하중 API 절댓값 탓 → Fz 부호 방식(민범진 d4d44bc · push 전)이 V-02 전제. 놓침 문턱 −30 g 여유가 얇다(참고). 컵 R2 진행 중',
+             '황인재 9/22 12:40', 'H,M']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -1857,7 +1873,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
