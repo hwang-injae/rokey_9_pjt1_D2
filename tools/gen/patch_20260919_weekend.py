@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v18.5'
+VERSION = 'v18.7'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -2326,15 +2326,31 @@ HISTORY134 = ['v18.4', 'PR', 'INT-F2', 'PR #78(민범진) 승인·merge 20:23: �
 # ---------------------------------------------------------------- 9/22 20:26 PR #81 merge · 황인재 결정(F4 창 20:3x): 자동 영점 채택(E31) · 규칙 ①~④ 미채택(E32)
 NEW.append(
  ('ZERO-01', 'F2-01', 'F2-01', '개발', '자동 영점 — 실행 시작 때 빈손으로 WEIGH 자세 1회 → 그날의 힘센서 0 (E31)',
-  'M', '시작 전', S('9/23'), 'f2(sense/flow) 시작 단계 + 단위 시험 · PR', '시작 때 빈손 영점 1회(약 40 s) · 그 뒤 잔반 판정이 그날 영점 기준 · 단위 시험 통과 · 🟡 실기 1회(9/23)',
-  '황인재 9/22 20:3x 채택(F4 창 · PR #78 결정 대기 항목). 근거: 18:11 빈 그릇 자리 −117.5 g(기준값 −12 → 105 g 이동) · Tool Weight 그대로 → 영점 흐름. 동결 9/23 저녁 안에'))
+  'M', '시작 전', S('9/23 오전'), 'f2(sense/flow) 시작 단계 + 단위 시험 · PR', '시작 때 빈손 영점 1회(약 40 s) · 그 뒤 잔반 판정이 그날 영점 기준 · 단위 시험 통과 · 🟡 실기 1회(9/23)',
+  '황인재 9/22 20:3x 채택(F4 창) · PM 창 20:28 확인(민범진 제안 · 무게 측정에서 중요하면 한다). 근거: 18:11 빈 그릇 자리 −117.5 g(기준값 −12 → 105 g 이동) · Tool Weight 그대로 → 영점 흐름. 동결 9/23 저녁 안에'))
 EASY['ZERO-01'] = '주방 저울의 0 맞춤처럼, 한 바퀴를 시작할 때마다 로봇이 빈손으로 저울 자세에 한 번 들러 그날의 0 을 스스로 잡는다 — 오후에 맞춘 0 이 저녁에 밀려 잔반 판정이 틀리는 것을 막는다'
 H2030 = '황인재 9/22 20:26'
 EDIT.setdefault('CELL-05', {}).update(dict(prog='0.8', note_add=H2030 + ': ✅ 첫 벽 집기 실기 20:18 — 집기(벽 1.82 mm)·홈 C 삽입 정확히 맞음 → PR #81 merge(폭 1.8 · WASTE.CUP J6 180). 진행 중: rig_f2 empty CUP(새 WEIGH.CUP 기준값) → 96 g 넣고 loop CUP · V-25 기록 PR 은 그 뒤'))
 EDIT.setdefault('V-02', {}).update(dict(note_add=H2030 + ': 컵 기준값 재측정 **진행 중**(황인재 · WEIGH.CUP 새 자세)'))
 EDIT.setdefault('V-07', {}).update(dict(note_add=H2030 + ': 컵 잔반 버리기 loop(96 g) 실기 진행 중(황인재) · WASTE.CUP J6 180 첫 확인'))
-EDIT.setdefault('ENV-05', {}).update(dict(note_add=H2030 + ': 규칙 제안 ①~④ **채택 안 함**(황인재 · F4 창 · E32) — 기존 🚨 실기 시작 두 이름 확인(E26) · 🔌 실기 끝 그대로. 🟡 PM 창에서 재확인'))
+EDIT.setdefault('ENV-05', {}).update(dict(note_add=H2030 + ': 규칙 제안 ①~④ **채택 안 함**(황인재 · F4 창 · E32) — 기존 🚨 실기 시작 두 이름 확인(E26) · 🔌 실기 끝 그대로. 황인재 PM 창 20:28: 두 PC 동시 접속 문제는 **팀 회의로 함께 전파함**'))
 HISTORY135 = ['v18.5', '결정·PR', 'ZERO-01, CELL-05, V-02, V-07, ENV-05', '황인재 9/22 20:3x: 자동 영점 채택(E31 · 민범진 · 9/23) · 규칙 ①~④ 미채택(E32) · PR #81 merge 20:26(컵 벽 폭 1.8 · WASTE.CUP 180 · 실기 정확히 맞음)', '황인재 9/22 20:26', 'H']
+
+
+
+# ---------------------------------------------------------------- 9/22 20:37 F4 — 컵 E30 흐름 실기(20:31~20:35) 결과
+F2035 = 'F4 9/22 20:37(실기 20:31~20:35 · date 값)'
+EDIT.setdefault('V-07', {}).update(dict(note_add=F2035 + ': ✅ **컵 잔반 버리기 실기 통과** — rig_f2 loop CUP(96 g · 0.3 · max-rounds 2) 3회: 1회차 98.7 g − 기준 −20 → 잔반 118.7 ≥ 50 → HOLD(12.4→12.0) → WASTE(J6 180) 기울기 −90° · 4회 → 재측정 24.1 → 잔반 44.1 → 1회 만에 통과 · 2회차 16.8 · 3회차 −3.8 통과. 자세(뒤쪽 이동·기울임·복귀) 문제없음(황인재). 🟡 민범진 참고: ① 털고 온 직후 재측정 44 g 은 가라앉는 중 값(임계 50 과 6 g 차) → 불필요한 2차 털기 가능 · 털기 뒤 settle 늘리거나 자동 영점(E31)과 같이 ② HOLD 35 N 컵 벽 폭 12.4→12.0→11.5(0.9 mm) — slip_tol 1.0 과 0.1 차 · 눌림/미끄러짐 확인 ③ WASTE.CUP J6 180 입 방향·떨어짐 확인 중'))
+EDIT.setdefault('V-02', {}).update(dict(note_add=F2035 + ': 빈 컵 기준값 **−20 g**(3회 · 폭 20.2 · 3회차 위로 흐름) → 브랜치 injae/20260922-V-02-cup-baseline 으로 PR 예정. 📉 도착 직후 21 s 창 −38 g 흐름 경고(#78) 정상 작동'))
+EDIT.setdefault('CELL-05', {}).update(dict(prog='0.9', note_add=F2035 + ': WEIGH.CUP·WASTE.CUP(J6 180) 실기 OK — 컵 벽 집기 흐름(집기→무게→잔반 버리기→재측정) 1바퀴 통과. 남은 것: 재파지·헹굼·팔레트 C(INT-12b) · V-25 기록 PR'))
+EDIT.setdefault('INT-12b', {}).update(dict(note_add=F2035 + ': 컵 무게·잔반 버리기까지 실기 OK(황인재) → 민범진 컵 통합은 이제 가능(main #78·#79·#81 · 기준값 PR 곧). 🟡 slip_tol 여유 0.1 · 재측정 settle 참고'))
+HISTORY136 = ['v18.6', '✅ 실기', 'V-07, V-02, CELL-05, INT-12b', 'F4 9/22 20:37: 컵 E30 흐름 실기 3회 통과(잔반 118.7 → 털기 → 44.1 · 자세 OK) · 빈 컵 기준값 −20(PR 예정) · 🟡 민범진 참고 3(settle · slip_tol · 입 방향)', '황인재 9/22 20:37', 'H']
+
+
+
+# ---------------------------------------------------------------- 9/22 20:40 PR #82 merge — 빈 컵 기준값 −20
+EDIT.setdefault('V-02', {}).update(dict(note_add='✅ 20:40 PR #82 merge(황인재): f2.empty_weight_g.CUP 120(임시) → **−20**(20:26~20:28 3회 · 중앙값 · 민범진 절 멘션). 🟡 9/23 아침 V-02 컵 10회·추 재확인'))
+HISTORY137 = ['v18.7', 'PR', 'V-02', 'PR #82 merge 20:40: 빈 컵 기준값 −20(실측 3회) · presets.CUP 주석 시각 20:18 — 448 passed · 🟡 9/23 10회 재확인', '황인재 9/22 20:40', 'H']
 
 
 def main(out):
@@ -2425,7 +2441,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113, HISTORY114, HISTORY115, HISTORY116, HISTORY117, HISTORY118, HISTORY119, HISTORY120, HISTORY121, HISTORY122, HISTORY123, HISTORY124, HISTORY125, HISTORY126, HISTORY127, HISTORY128, HISTORY129, HISTORY130, HISTORY131, HISTORY132, HISTORY133, HISTORY134, HISTORY135):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113, HISTORY114, HISTORY115, HISTORY116, HISTORY117, HISTORY118, HISTORY119, HISTORY120, HISTORY121, HISTORY122, HISTORY123, HISTORY124, HISTORY125, HISTORY126, HISTORY127, HISTORY128, HISTORY129, HISTORY130, HISTORY131, HISTORY132, HISTORY133, HISTORY134, HISTORY135, HISTORY136, HISTORY137):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
