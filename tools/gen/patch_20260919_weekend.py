@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v16.3'
+VERSION = 'v16.4'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -2091,6 +2091,24 @@ for _tid, _e in P1750.items():
 HISTORY113 = ['v16.3', '결정 E27·E28 · V-02', 'SKEL-01, F1-02, F1-04, INT-ALL, INT-4b, V-02, F2-01', '황인재 9/22 17:50: E27 뼈대 함수화는 handling.py 에(F4 · pick/rack_place 가 이걸로 · 한석형 동시 수정 금지 · 좌표 정본 cell.yaml) · E28 시연 = 예외 처리 없이 정상 흐름 전체 1회(🟡 INT-4b·HMI 관계 확인). F4 V-02 끝: 기준값 −12 g · 100 g 오차 +3 g · 불확실성 ±20 g → 임계 50 유지 · min_net_g 는 민범진 판단', '황인재 9/22 17:50', 'H,S,M']
 
 
+# ---------------------------------------------------------------- 9/22 18:05 PR #73 merge(V-02 끝) · F4 실기 잔여 → 저녁 틈/9/23 오전 · SKEL-01 한석형 동의 뒤 PR
+P1805 = {
+ 'V-02':    dict(status='완료', prog='1.0', note_add='✅ 9/22 PR #73 merge — `f2.empty_weight_g.BOWL: −12`(황인재 실기 · 민범진 멘션) · 기록 `docs/test_logs/20260922_V-02_무게기준값_황인재.md` · rig_weigh_poses 옵션. 🟡 케이블 정리 뒤 재현성 1회 → INT-12a(같은 경로)에서 재확인 · 시연 날 아침 `rig_f2.py empty --kind BOWL -n 10` 재측정(REH-02 점검표)'),
+ 'REH-02':  dict(note_add='📋 9/22: 시연 날 아침 점검 — 케이블 여유 · 툴·TCP 이름 · 빈 그릇 기준값 재측정 `rig_f2.py empty --kind BOWL -n 10`(3.5 분 · 케이블·툴 무게·TCP·좌표가 바뀌었으면 필수)'),
+ 'SKEL-01': dict(note_add='🔄 9/22 18:00 황인재: **한석형 동의를 받고** handling.py 에 넣는다(18:20 묶음 ① 동의 요청) — 동의 전에는 F4 브랜치에서만 · PR 은 동의 뒤. 좌표는 cell.yaml 키로 읽고 스크립트 리터럴과 다른 곳은 PR 표로'),
+ 'V-24':    dict(slots=S('9/20 오후', '9/21 오전', '9/22 저녁', '9/23 오전'), note_add='🔄 9/22 18:00 F4: 오전 로봇이 없어 ②③④(그릇 2·3회차)는 미완 — 오늘 저녁은 INT-F2·F3 가 로봇을 쓰므로 SKEL-01 실기 완주(15분) 뒤 남는 틈 또는 **9/23 오전**'),
+ 'V-25':    dict(slots=S('9/21 저녁', '9/22 저녁', '9/23 오전'), note_add='🔄 9/22 18:00 F4: 미완 → 저녁 틈 또는 9/23 오전'),
+ 'V-08':    dict(slots=S('9/22 저녁', '9/23 오전'), note_add='🔄 9/22 18:00 F4: 오늘 오후 못 함 → 저녁 틈 또는 **9/23 오전**(툴 프리셋 측정 → 10회 → F1-03 PR). 오늘 저녁 INT-F3 는 박진용 통합본 스크립트의 툴 집기로 돈다'),
+ 'F1-03':   dict(slots=S('9/22 저녁', '9/23 오전'), note_add='🔄 9/22 18:00 F4: **오후 마감 못 지킴** — V-08 뒤 PR 은 9/23 오전. 오늘 저녁 INT-F3 는 뼈대 스크립트 방식이라 막히지 않음 · INT-ALL·L3(제품 tool()) 전제. 🔔 PR #72 로 soap 이 "집은 자리에서 비틀기" 가 됨 → tool(PICK) 끝 높이를 박진용 답에 맞춘다'),
+}
+for _tid, _e in P1805.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+SLOT['9/22 화']['D'] = SLOT['9/22 화']['D'].replace('민범진 V-07(헹굼 담금 컵 · 잔반 임팩트 · 물 털기 값 35분)은 INT-F2 앞뒤 로봇 빌 때 · ',
+                                                    '민범진 V-07(헹굼 담금 컵 · 잔반 임팩트 · 물 털기 값 35분)은 INT-F2 앞뒤 로봇 빌 때 · 황인재 V-24 ②③④ · V-25 · V-08 은 **로봇이 비면**(아니면 9/23 오전) · ')
+SLOT['9/23 수']['B'] = SLOT['9/23 수']['B'].replace('UT-F4·F4-05(H) — G3(L2)', '**황인재 V-08 → F1-03 PR · V-24 ②③④ · V-25(오전 첫 로봇 40분)** · UT-F4·F4-05(H) — G3(L2)')
+HISTORY114 = ['v16.4', '완료·재배치', 'V-02, REH-02, SKEL-01, V-24, V-25, V-08, F1-03, 9/22 저녁·9/23 오전 로봇 슬롯', 'PR #73 merge(9/22 18:05): V-02 완료 — 빈 그릇 기준값 −12 g. F4 실기 잔여(V-24 ②③④ · V-25 · V-08 → F1-03 PR)는 오늘 로봇이 없어 저녁 틈 또는 9/23 오전 첫 로봇 40분으로(F1-03 오후 마감 못 지킴 · 저녁 INT-F3 는 뼈대 스크립트라 막히지 않음). SKEL-01 은 한석형 동의 뒤 PR', '황인재 9/22 18:05', 'H,S']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -2179,7 +2197,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113, HISTORY114):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
