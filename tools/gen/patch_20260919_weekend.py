@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v15.5'
+VERSION = 'v15.6'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1933,6 +1933,19 @@ for _tid, _e in P1525.items():
 HISTORY105 = ['v15.5', '보고 반영', 'F3-02, ENV-05, SAFE-01', '박진용 9/22 15:25: 그릇 닦기 재검증 11:10 실행은 툴·TCP 풀림 구간 → 다시 잰다(복구 뒤 12:18·12:54 결과 대기) · moved=False 갈래 3함수 모두 남아 있음 · 펜던트 안 만짐 · 11:10 rig_v03 실행이 풀림 원인 단서(F4 확인)', '황인재 9/22 15:25', 'P,H']
 
 
+# ---------------------------------------------------------------- 9/22 15:45 F4 — 무게 흔들림 원인 = 그리퍼 케이블 장력 · 툴·TCP 풀림 시점 분석
+C1545 = '🔑 9/22 15:45 F4(황인재 관찰): **무게 오르내림의 원인 = 그리퍼 케이블 장력·흔들림** — 전선을 늘려 주니 ±10 g 안팎(숫자는 결정 시험으로 기록)'
+P1545 = {
+ 'V-02':    dict(note_add=C1545 + '. 오후 자세별 결과(HOME −153 출렁 · z235 +230 튐)도 케이블로 설명될 가능성 → 케이블 느슨하게 고정한 뒤 그릇 쥔 채 결정 시험 → V-02 기록·PR'),
+ 'INT-12a': dict(note_add='🔗 9/22 전제 추가: **그리퍼 케이블 상태(느슨하게 · 자세마다 당기지 않게)를 먼저 맞춘다** — 무게 흔들림의 원인(케이블 장력)이 시험 중 바뀌면 기준값이 흔들린다'),
+ 'F3-02':   dict(note_add='🔗 9/22 15:45 F4 분석: 11:10 실행은 툴·TCP 가 **정상**이었다(공중 Fz 1.77 N — 풀렸으면 약 14 N 이라 rig_v03 이 거부했을 것) → 11:10 값이 무효가 아닐 수 있음. 다만 공중 1.77 N(≈180 g)은 케이블 장력일 수 있다 → 케이블 정리 뒤 재실행이 맞다'),
+ 'ENV-05':  dict(note_add='🔎 9/22 15:45 F4 분석: rig_v03 은 이름이 다를 때만 MANUAL 로 바꿔 set_tool/set_tcp 하고 AUTONOMOUS 로 되돌린다 · 11:10 실행은 정상이었다 → **풀린 시점 = 11:10 실행 뒤 ~ 11:17**. 12시 ROS set 실패는 AUTONOMOUS 모드라 거부된 것(펜던트가 필요했던 이유). rig_v03 주석 "브링업을 새로 켜면 툴·TCP 가 비어 있다(9/19)" → 그 사이 브링업 재시작(killdrcf 포함) 여부·9/19 관찰 조건을 박진용에게 확인. F4 의견: 시험 도구가 ROS 로 set 하고 모드를 오가는 것은 위험 → "확인만 · 다르면 거부 + 펜던트 안내" 로(황인재 결정 · 박진용 파일)'),
+}
+for _tid, _e in P1545.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY106 = ['v15.6', '원인·분석', 'V-02, INT-12a, F3-02, ENV-05', '황인재 9/22 15:45(F4 전달): 무게 흔들림 원인 = 그리퍼 케이블 장력(늘리니 ±10 g) → INT-12a 전제로 케이블 상태 고정 · 리마인드 §6. 툴·TCP 풀림 시점은 11:10 실행 뒤~11:17(11:10 은 정상) → 브링업 재시작 여부를 박진용에게. 시험 도구의 ROS set·모드 전환을 "확인만" 으로 바꿀지는 황인재 결정', '황인재 9/22 15:45', 'H,P,M']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -2021,7 +2034,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
