@@ -62,6 +62,12 @@ class FakeDsr:
             time.sleep(self._reset_delay)
 
 
+@pytest.fixture(autouse=True)
+def _no_sleep(monkeypatch):
+    """읽기 간격(weigh_sample_gap_s)의 sleep 을 없앤다 — 시험은 시간을 기다리지 않는다. 간격 자체는 아래 시험이 따로 본다."""
+    monkeypatch.setattr(W.time, 'sleep', lambda s: None)
+
+
 @pytest.fixture
 def fake(monkeypatch):
     """bootstrap 의 dsr·cfg·io_node 를 가짜로 바꾼다."""
@@ -96,6 +102,23 @@ def test_negative_weight_is_kept(fake):
     """⑥ 편향이 음수면 무게도 음수다 — 이건 실패가 아니다(실패 신호는 -1 **리스트가 아닌 것**)."""
     fake(FakeDsr([-40.0, -42.0, -41.0]))
     assert W.weigh(3) == pytest.approx(-41.0)
+
+
+# ────────────────────────────────── 🚨 읽기 간격 — 갱신 전에 다시 읽으면 같은 값 (9/22 12:12)
+def test_sleeps_between_samples_not_before_first(fake, monkeypatch):
+    slept = []
+    monkeypatch.setattr(W.time, 'sleep', lambda s: slept.append(s))
+    fake(FakeDsr([10.0, 11.0, 12.0]), {'f2': {'weigh_sample_gap_s': 0.7}})
+    W.weigh(3)
+    assert slept == [0.7, 0.7]                      # n−1 번, 첫 읽기 앞에는 안 기다린다
+
+
+def test_no_gap_when_unset(fake, monkeypatch):
+    slept = []
+    monkeypatch.setattr(W.time, 'sleep', lambda s: slept.append(s))
+    fake(FakeDsr([10.0, 11.0]))
+    W.weigh(2)
+    assert slept == []
 
 
 # ────────────────────────────────── 중앙값

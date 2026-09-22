@@ -33,6 +33,9 @@
    게다가 **이동 속도·이력에 따라 수십 g 씩 달라진다**(빈손 빠른 이동 −89 · 그릇 느린 이동 −5).
    잔반 판정은 `측정값 − 빈 용기 기준값` 이라 **두 값을 같은 경로·같은 자세·같은 속도로 재면 상쇄된다.**
    🚨 흔들림: 정지해 있어도 ±25 g 가 10~20 s 주기로 오르내린다(9/22) → 표본을 10 개(≈ 7 s) 이상 잡아 중앙값.
+   🚨 읽기 **사이에 간격**(f2.weigh_sample_gap_s)을 둔다 — 9/22 12:12 실기: 간격 없이 50 회를 0.03 s 에 읽으니
+      **50 개가 전부 −48.7** 이었다. get_tool_force 는 컨트롤러가 주기적으로 갱신하는 값을 돌려주므로 갱신 전에
+      다시 읽으면 같은 값이다. 표본이 "10 개" 이려면 시간으로도 퍼져 있어야 한다.
    그래서 `params.yaml` 의 `f2.empty_weight_g` 는 **저울 무게가 아니라 이 함수로 읽은 값**이어야 한다.
    저울로 잰 진짜 무게를 넣으면 빈 용기가 잔반 24 g 으로 보인다.
 """
@@ -65,12 +68,16 @@ def weigh(n, reset=False):
 
     d = dsr()                              # init() 전이거나 메인 스레드가 아니면 여기서 막는다
     n = max(_MIN_SAMPLES, int(n))
+    conf = cfg()
+    gap = float(((conf.get('f2') or {}).get('weigh_sample_gap_s')) or 0.0)   # 읽기 사이 간격(s) — 위 머리말
 
     if reset:
-        _try_reset(d, cfg())
+        _try_reset(d, conf)
 
     samples = []
-    for _ in range(n):
+    for i in range(n):
+        if i and gap > 0.0:
+            time.sleep(gap)                            # 🚨 갱신 전에 다시 읽으면 같은 값 (9/22)
         try:
             f = d.get_tool_force(ref=d.DR_BASE)        # ⑥ 부호 있는 Fz — |Fz| 인 get_workpiece_weight 는 안 쓴다
         except Exception as e:             # noqa: BLE001 — 한 번 실패해도 나머지로 이어 간다
