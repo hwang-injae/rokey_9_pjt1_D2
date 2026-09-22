@@ -67,7 +67,7 @@ class Rec:
         return self._up
 
     def move_rel(self, dx, dy, dz, frame, **kw):
-        self._note('move_rel', dx, dy, dz, frame)
+        self._note('move_rel', dx, dy, dz, frame, **kw)      # 🆕 vel_mm_s 등 키워드도 기록(직선 왕복 시험)
 
     def move_joint_rel(self, joint, delta_deg, *, time_s=None, carrying=True):
         self._note('move_joint_rel', joint, delta_deg, time_s)
@@ -255,6 +255,63 @@ def test_shake_tilts_first_then_returns(monkeypatch):
     assert names.index('grip_level') < names.index('move_joint_rel'), '기울이기 전에 꽉 쥔다'
     assert [c for c in r.calls if c[0] == 'grip_level'][-1][1][1] == 'NORMAL'
     assert names.index('move_joint_rel') < len(names) - 1 - names[::-1].index('grip_level'), '되돌린 뒤에 힘을 푼다'
+
+
+def test_shake_linear_axis_moves_with_move_rel(monkeypatch):
+    """🆕 axis·amp_mm — BASE X 로 +amp → −2amp → +amp (mm) · 속도 = amp ÷ (period/4) · 관절은 안 돈다."""
+    import copy
+    cfg = copy.deepcopy(CFG)
+    cfg['f2']['shake']['RINSE'] = {'axis': 'x', 'amp_mm': 20.0, 'period_s': 0.5}
+    cfg['f2']['limits']['max_amp_mm'] = 60.0
+
+    class R2(Rec):
+        def cfg(self):
+            return cfg
+    r = R2()
+    s = _sense(monkeypatch, r)
+    assert s.shake('RINSE', 2, 'BOWL').ok
+    assert not r.of('move_joint_rel')
+    moves = [(c[1][0], c[1][1], c[1][2], c[1][3], c[2].get('vel_mm_s')) for c in r.of('move_rel')]
+    # _goto 의 하강(up=0 이라 없음) 뒤 왕복만 — 2 주기 × 3 구간
+    assert moves == [(20.0, 0.0, 0.0, 'BASE', 160.0), (-40.0, 0.0, 0.0, 'BASE', 160.0), (20.0, 0.0, 0.0, 'BASE', 160.0)] * 2
+    assert sum(m[0] for m in moves) == pytest.approx(0.0)
+
+
+def test_shake_linear_returns_to_center_when_motion_fails(monkeypatch):
+    import copy
+    cfg = copy.deepcopy(CFG)
+    cfg['f2']['shake']['RINSE'] = {'axis': 'y', 'amp_mm': 15.0, 'period_s': 0.5}
+    cfg['f2']['limits']['max_amp_mm'] = 60.0
+    calls = {'n': 0}
+
+    class R2(Rec):
+        def cfg(self):
+            return cfg
+
+        def move_rel(self, dx, dy, dz, frame, **kw):
+            calls['n'] += 1
+            if calls['n'] == 2:
+                raise RuntimeError('두 번째 구간 일부러 실패')
+            self._note('move_rel', dx, dy, dz, frame, **kw)
+    r = R2()
+    s = _sense(monkeypatch, r)
+    assert not s.shake('RINSE', 1, 'BOWL').ok
+    assert sum(c[1][1] for c in r.of('move_rel')) == pytest.approx(0.0), 'Y 가 밀린 채 끝났다'
+
+
+def test_shake_linear_amp_over_limit_is_refused(monkeypatch):
+    import copy
+    cfg = copy.deepcopy(CFG)
+    cfg['f2']['shake']['RINSE'] = {'axis': 'x', 'amp_mm': 80.0, 'period_s': 0.5}
+    cfg['f2']['limits']['max_amp_mm'] = 60.0
+
+    class R2(Rec):
+        def cfg(self):
+            return cfg
+    r = R2()
+    s = _sense(monkeypatch, r)
+    out = s.shake('RINSE', 1, 'BOWL')
+    assert not out.ok and not r.of('move_rel') and not r.of('move_joint_rel')
 
 
 def test_shake_tilt_over_limit_is_refused(monkeypatch):
