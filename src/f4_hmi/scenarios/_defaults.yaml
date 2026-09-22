@@ -27,6 +27,7 @@ gripping:                   # 단계별 /cell/gripping 값 (true = 무언가 쥐
   ISOLATE: true
   DONE: false
 counts: {soap_dips: 3, rinse_dips: 2}                       # 용기 1개마다 늘어나는 소모품 횟수 (실제 flow: flow.counts)
-force: {target_n: 6.0, ripple_n: 1.5, period_s: 1.0}        # 닦는 동안의 /cell/force 흉내: 목표 힘 ± 출렁임
+force: {target_n: 1.5, ripple_n: 0.4, period_s: 1.0}        # 닦는 동안의 /cell/force 흉내: 목표 힘 ± 출렁임
+                                                             #   9/21: params.yaml f3.wipe_bowl.target_force_n(1.5 N · V-03 실기)에 맞췄다 — 6 N 이면 화면 그래프가 목표선보다 늘 4배 높았다
 weight_g: {BOWL: [310.0, 182.0], CUP: [165.0, 121.0]}       # 이벤트의 무게 [털기 전, 털기 후]
 rates: {state_hz: 2.0, gripping_hz: 2.0, force_hz: 10.0}    # 발행 주기 (IRD §6)

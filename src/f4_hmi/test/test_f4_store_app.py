@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """보관함(StateStore)과 웹 응답(GET /api/state). ROS 불필요. 웹 부품(fastapi)이 없는 PC 에서는 app 시험만 건너뛴다."""
+from pathlib import Path
+
 import pytest
 
 from f4_hmi.state_store import FORCE_FRESH_S, RECENT_EVENTS, StateStore
@@ -50,14 +52,14 @@ def test_store_keeps_recent_events_newest_first_and_copies():
     assert store.snapshot()['gripping'] is True
 
 
-def test_api_state_and_test_page():
+def test_api_state_and_test_page(tmp_path):
     pytest.importorskip('fastapi', reason='웹 부품은 HMI 전용 상자(~/venvs/hmi)에만 있다 — 그 상자의 파이썬으로 돌리면 실행된다')
     from fastapi.testclient import TestClient
     from f4_hmi.app import create_app
     store = StateStore(2.0)
     cfg = {'flow': {'plan': [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 2}], 'rack_order': {'BOWL': ['RACK_B1', 'RACK_B2']},
                     'consumables': {'sponge_max_uses': 20}}}
-    client = TestClient(create_app(store, cfg))
+    client = TestClient(create_app(store, cfg, web_dir=tmp_path))      # 운영 화면이 없는 PC → / 에 시험 페이지
     body = client.get('/api/state').json()
     assert body['connected'] is False and body['state'] is None and body['plan']['rack_order'] == {'BOWL': ['RACK_B1', 'RACK_B2']}
     store.put_state({'step': 'WIPE', 'kind': 'BOWL', 'done_bowl': 1})
@@ -66,6 +68,43 @@ def test_api_state_and_test_page():
     assert body['connected'] is True and body['state']['step'] == 'WIPE' and body['gripping'] is True
     page = client.get('/')
     assert page.status_code == 200 and '/api/state' in page.text
+    assert client.get('/test').text == page.text                   # /test 는 언제나 시험 페이지
+
+
+def test_operator_screen_is_served_without_hiding_the_api(tmp_path):
+    """F4-03: web/out/ 이 있으면 / 는 운영 화면. 그래도 /api · /ws · /test 는 그대로 살아 있어야 한다(가려지면 화면이 값을 못 받는다)."""
+    pytest.importorskip('fastapi', reason='웹 부품은 HMI 전용 상자(~/venvs/hmi)에만 있다')
+    from fastapi.testclient import TestClient
+    from f4_hmi.app import create_app
+    (tmp_path / 'index.html').write_text('<html>operator screen</html>', encoding='utf-8')
+    (tmp_path / '_next').mkdir()
+    (tmp_path / '_next' / 'app.js').write_text('console.log(1)', encoding='utf-8')
+    store = StateStore(2.0)
+    app = create_app(store, {'flow': {}}, web_dir=tmp_path)
+    assert app.state.web is True
+    client = TestClient(app)
+    assert 'operator screen' in client.get('/').text               # 운영 화면
+    assert client.get('/_next/app.js').status_code == 200          # 화면이 쓰는 파일들
+    assert '/api/state' in client.get('/test').text                # 시험 페이지는 /test 로
+    assert client.get('/api/state').json()['connected'] is False   # API 는 가려지지 않는다
+    assert client.post('/api/start').json()['ok'] is False         # 버튼도(시험 모드라 flow 없음 대답)
+    with client.websocket_connect('/ws/state') as ws:              # WebSocket 도
+        assert ws.receive_json()['type'] == 'state'
+
+
+def test_get_never_presses_a_button_even_with_the_operator_screen(tmp_path):
+    """화면을 / 에 붙이면 나머지 주소를 화면 쪽이 받아 가서, 버튼 주소에 GET 으로 오면 405 대신 404 가 난다.
+    어느 쪽이든 중요한 것은 하나 — **GET 으로는 버튼이 눌리지 않는다**(링크·주소창·미리보기가 로봇을 움직이면 안 된다)."""
+    pytest.importorskip('fastapi', reason='웹 부품은 HMI 전용 상자(~/venvs/hmi)에만 있다')
+    from fastapi.testclient import TestClient
+    from f4_hmi.app import create_app, COMMANDS
+    (tmp_path / 'index.html').write_text('<html>operator screen</html>', encoding='utf-8')
+    pressed = []
+    client = TestClient(create_app(StateStore(2.0), {'flow': {}}, lambda n: pressed.append(n) or {'ok': True}, web_dir=tmp_path))
+    for name in COMMANDS:
+        assert client.get(f'/api/{name}').status_code in (404, 405), name
+    assert pressed == []                                             # 하나도 안 눌렸다
+    assert client.post('/api/stop').json()['ok'] is True and pressed == ['stop']   # POST 는 그대로 전달
 
 
 # ------------------------------------------------------------------ F4-02: 구독 · 버튼 · WebSocket
@@ -91,7 +130,8 @@ def _client(command=None):
     from fastapi.testclient import TestClient
     from f4_hmi.app import create_app
     store = StateStore(2.0)
-    return store, TestClient(create_app(store, {'flow': {}}, command))
+    no_web = Path(__file__).resolve().parent / '_no_web_build'          # 없는 폴더 — 이 PC 에 화면을 빌드했든 안 했든 같은 결과가 나오게
+    return store, TestClient(create_app(store, {'flow': {}}, command, web_dir=no_web))
 
 
 def test_buttons_pass_the_flow_answer_through():
@@ -168,3 +208,22 @@ def test_hub_drops_oldest_when_a_browser_is_slow():
         assert h.clients == 0
         h.from_ros('state', {})                                             # 붙은 브라우저가 없으면 아무 일도 없다
     asyncio.run(scenario())
+
+
+def test_store_counts_runs_and_full_pallets_when_flow_reaches_done():
+    """flow 가 계획을 마치고 DONE 으로 넘어가는 순간 = 한 회차. 칸을 다 채우고 끝났으면 팔레트 1장 완료(9/21 황인재)."""
+    store = StateStore(2.0, Clock(), rack_slots=4)
+    run = lambda b, c, iso=0: [{'step': 'RACK', 'done_bowl': b, 'done_cup': c, 'isolated': iso},
+                               {'step': 'DONE', 'done_bowl': b, 'done_cup': c, 'isolated': iso},
+                               {'step': 'DONE', 'done_bowl': b, 'done_cup': c, 'isolated': iso},   # DONE 이 1초 동안 여러 번 와도 한 번만
+                               {'step': 'IDLE', 'done_bowl': b, 'done_cup': c, 'isolated': iso}]
+    for s in run(2, 2) + run(1, 2, 1) + run(2, 2):
+        store.put_state(s)
+    assert store.snapshot()['totals'] == {'runs': 3, 'pallets': 2, 'bowls': 5, 'cups': 6, 'isolated': 1, 'rack_slots': 4}
+
+
+def test_store_does_not_count_a_run_it_did_not_see_start():
+    store = StateStore(2.0, Clock(), rack_slots=4)
+    store.put_state({'step': 'DONE', 'done_bowl': 2, 'done_cup': 2})       # HMI 를 켰더니 이미 DONE — 이 회차는 못 봤다
+    store.put_state({'step': 'IDLE', 'done_bowl': 2, 'done_cup': 2})
+    assert store.snapshot()['totals']['runs'] == 0

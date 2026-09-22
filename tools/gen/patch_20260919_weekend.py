@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v13.3'
+VERSION = 'v13.8'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -1604,6 +1604,81 @@ HISTORY83 = ['v13.3', '결정·확인', 'F3-02, V-24, V-25, V-26, 9/22 오후 �
              '황인재 9/22 08:15', 'P,H']
 
 
+# ---------------------------------------------------------------- 9/22 08:40 F4 보고 — ENV-05 툴 무게 등록 끝 · 황인재가 시트에서 MID-01·02 행 삭제
+for _k in ('MID-01', 'MID-02'):          # 황인재 9/22 시트에서 행 삭제(해당 없음) — 없는 행을 고치려 하지 않게
+    EDIT.pop(_k, None)
+TW = '✅ 9/22 08시대 F4 보고(황인재 실기 · Dart 자동 측정 2회)'
+P0840 = {
+ 'ENV-05': dict(status='완료', prog='1.0', note_add=TW + ': 툴 무게 **1.400 → 1.440 kg** · 무게중심 (0.17, 4.85, 10.91) → **(3.98, −3.21, 2.45) mm** — 1·2회 차이 10 g · 3.5 mm(흔들림), 실습 때 값과 40 g · 12 mm 달라 실습값이 틀렸다고 보고 2회 값을 **기존 `Tool Weight` 항목에** 저장. '
+                          'TCP `GripperDA_v1`(Z 208 mm)은 확인만 → cell.yaml 좌표 전부 그대로. 이름을 안 바꾼 이유: 박진용 rig_v03·rig_v10 이 툴 이름 `Tool Weight`·TCP `GripperDA_v1` 이 아니면 실행을 거부한다. '
+                          '수세미 툴 쥔 상태(2종째)는 등록 안 함(코드가 안 씀). 남은 것: R2 재측정은 민범진(V-02) · R3 cell.yaml 주석 + 기록 `docs/test_logs/20260922_ENV-05_툴무게등록_황인재.md` 는 F4 작은 PR(황인재 확인 뒤)'),
+ 'V-02':   dict(note_add='🔔 9/22 08시대 ENV-05 끝(툴 1.440 kg) → R2·V-02 는 **새 설정으로** 잰다. 9/21 값(z 158 그릇 9 g · z 235 68 g/24 g)은 "등록 전" 비교용으로만 — 기준값으로 쓰지 않는다. R2 의 핵심 = 자세 사이 차이가 줄었는가. params.yaml empty_weight_g(BOWL 180 · CUP 120)는 아직 임시값이라 버릴 실측값 없음'),
+ 'F3-02':  dict(note_add='🔔 9/22 08시대 툴 무게 변경(1.400 → 1.440 kg): 닿음 찾기·힘 상한·옆 힘 감시·벽면 목표 1.5 N 은 전부 "공중 기준 대비 변화량"이라 누르는 힘은 그대로여야 정상(F4 코드 확인). 공중 기준값(9/19 V-03 1.9~2.3 N)이 0 쪽으로 줄었으면 오히려 맞게 된 신호 — 값을 다시 맞추지 않는다'),
+}
+for _tid, _e in P0840.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+_o = ('🥇 **① 황인재 ENV-05 툴 무게·무게중심 등록(20분 · Dart · 브링업 내림)** — 무게·힘 판정이 전부 이 위에서 돈다, 그래서 맨 앞(브리핑 전 09:00 에 시작하면 여유) → ')
+assert _o in SLOT['9/22 화']['B']
+SLOT['9/22 화']['B'] = SLOT['9/22 화']['B'].replace(_o, '✅ **① ENV-05 툴 무게 등록 끝(08시대 · 1.400 → 1.440 kg · TCP 그대로 — 오늘 평소와 다른 충돌 알람이 나면 이것부터 떠올린다)** → ')
+HISTORY84 = ['v13.4', '완료', 'ENV-05, V-02, F3-02, MID-01·02(행 삭제 보존)',
+             'F4 보고(9/22 08:40): ENV-05 툴 무게·무게중심 등록 끝 — 1.400 → 1.440 kg · 무게중심 (3.98, −3.21, 2.45) mm · TCP 그대로(좌표 영향 없음) · 기존 항목 이름 유지(박진용 시험대가 이름을 확인). '
+             '민범진 R2·V-02 는 새 설정으로(9/21 값은 비교용만) · 박진용 힘 판정은 변화량이라 영향 없음이 정상. 황인재가 시트에서 지운 MID-01·02 행은 패치가 되살리지 않게 함',
+             '황인재 9/22 08:45', 'M,P,H']
+
+
+# ---------------------------------------------------------------- 9/22 09:50 PR #66 merge(F4-03 운영 화면) · F4 보고 V-26 통과 · V-24 ① 끝
+P0950 = {
+ 'F4-03':   dict(status='완료', prog='1.0', note_add='✅ 9/22 PR #66 merge(황인재 직접 실행 확인·승인): 운영 화면 — `/` = Next.js 정적 화면(web/out) · `/test` = 시험 페이지 · 단계 그림 카드 · 팔레트 입체 그림 · 숫자 패널 · 이력 · 누적. '
+                          '검증: 병합본 370 통과(두 환경) · f4_hmi 29+1 · 가짜 flow 대본 5개 · 🟡 실제 flow_node 연결은 INT-4 · L3. 🔔 후속(막는 사유 아님): ① 연결 끊김이면 일시 정지 버튼이 꺼진다 → 켜 두는 쪽 권장 ② 화면 PC(PC-B)에서 `npm install && npm run build` 필요(안 하면 / 가 시험 페이지)'),
+ 'V-13':    dict(status='완료', prog='1.0', note_add='✅ 9/22 PR #66: 운영 화면에서 가짜 flow 대본 5개(정상 · 일시 정지 · 격리 · 오류 · 빈 구역)로 PAUSED·재개 반영 확인(황인재 직접). 버튼 → 실제 flow 반응은 INT-4'),
+ 'V-26':    dict(status='진행', prog='0.9', note_add='✅ 9/22 오전 F4 보고: Ctrl+C 정지 실기 **5/5 통과**(0.47~0.50 s). 기록 PR 은 황인재 확인 뒤 → merge 되면 완료'),
+ 'V-24':    dict(note_add='📈 9/22 오전 F4 보고: 실기 ① 관절 이동 일시 정지 → 재개 2회 OK. ②③④ 는 로봇이 빌 때 다시(움직이는 중 누른 q 가 다음 입력으로 들어가 시험 도구가 일찍 끝났다 — 결함 아님)'),
+ 'NOTE-02': dict(note_add='9/22: 운영 화면이 main 에 들어왔다(PR #66) → 가짜 flow 대본으로 gif 를 찍으면 된다'),
+ 'INT-4':   dict(note_add='9/22 PR #66 뒤: 화면 PC(PC-B)에서 `cd src/f4_hmi/web && npm install && npm run build` 먼저 — 안 하면 / 가 시험 페이지'),
+}
+for _tid, _e in P0950.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+_o = 'V-24·V-25·V-26(H · 30분 — 셋 다 9/21 실기 안 함 · F4 확인)'
+assert _o in SLOT['9/22 화']['C']
+SLOT['9/22 화']['C'] = SLOT['9/22 화']['C'].replace(_o, 'V-25 · V-24 ②③④(H · 25분 — V-26 은 오전에 5/5 통과 · V-24 ① 끝)')
+HISTORY85 = ['v13.5', '완료·진척', 'F4-03, V-13, V-26, V-24, NOTE-02, INT-4, 9/22 오후 로봇 슬롯',
+             'PR #66 merge(9/22 · 황인재 확인·승인): F4-03 운영 화면 완료 · V-13 완료(가짜 flow 대본 5개로 PAUSED·재개 반영). F4 보고: V-26 Ctrl+C 정지 실기 5/5 통과(0.47~0.50 s · 기록 PR 대기) · V-24 ① 관절 일시 정지→재개 OK(②③④ 남음). 오후 황인재 칸 = V-25 + V-24 ②③④',
+             '황인재 9/22 09:50', 'H']
+
+
+# ---------------------------------------------------------------- 9/22 10:10 박진용 · 한석형 아침 답 반영
+P1010 = {
+ 'F3-03':   dict(note_add='📥 9/22 박진용: soap 실기는 **아직 안 했다**(구현만 · 실기 기록 없음) → 오늘 오후 F1-05 슬롯에 20분'),
+ 'F1-05':   dict(note_add='📥 9/22 박진용: 오후 가능 — 저녁 INT-13 전에'),
+ 'F3-02':   dict(note_add='📥 9/22 박진용: 120 s 상한 **PR 에서 삭제 뺐다(남김)** · 오전 재검증 3회에서 공중 기준 Fz 를 9/19(1.9~2.3 N)와 비교해 보고. wipe_bowl 은 9/20 확정본(rig_v03) 명령·순서 그대로(두산 호출은 force.py 안에서만) + 바꾼 것 3가지: 빠른 하강 135 → 140 mm · 바닥 판정 힘 2 → 3 N(그릇) · 올라오는 속도 = 빠른 하강 속도(200 mm/s · 스케일 미적용 — 컵 1.5 배와 다름). '
+                          '실패 시 "곧게 올라와 HOME" 은 지금 main 과 같은 규칙(위치를 아는 실패만 · 강제정지·MoveIncomplete 는 안 움직임) — PR 에서 그 갈래가 남았는지 본다'),
+ 'F1-02':   dict(note_add='📥 9/22 한석형: ① 들여쓰기 오류 → 10:05 고침(`1644620` · 실행 가능 PM 확인) ② 잔반통 → HOME 은 관절 이동(J6 유지) — 오전 재검증에서 그 구간 충돌부터 본다 ③ 수세미 폭은 V-08 값 ④ pick() PR + 좌표 cell.yaml 은 오후'),
+}
+for _tid, _e in P1010.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY86 = ['v13.6', '답 반영', 'F3-03, F1-05, F3-02, F1-02',
+             '9/22 아침 묶음 답: 박진용 — 안착 놓기(F1-05·V-04) 오후 가능 · soap 실기 안 했음 → 오후 20분 · 120 s 상한은 PR 에서 삭제 뺌(남김) · wipe_bowl 은 9/20 rig_v03 그대로 + 3가지 변경. 한석형 — 들여쓰기 오류 고침(10:05 · 실행 가능) · 잔반통 → HOME 구간을 오전 재검증에서 먼저 확인 · 수세미 폭은 V-08 값 · pick() PR 오후',
+             '황인재 9/22 10:10', 'P,S']
+
+
+# ---------------------------------------------------------------- 9/22 10:30 황인재 결정 — PR #66 후속 ①·② (F4 전달)
+P1030 = {
+ 'F4-03': dict(note_add='🔒 9/22 황인재: 후속 ① "연결 끊기면 일시 정지 버튼 꺼짐" 은 **그대로 둔다**("크게 상관있는 기능은 아니다") — 제안 닫음'),
+ 'INT-4': dict(note_add='🖥 9/22 황인재: 시연 PC 2대 — **화면(hmi_bridge + web) = PC-B 황인재**(npm build 끝남 · 화면 고치면 PC-B 에서만 다시) · **flow_node = PC-A 한석형** → PC-A 는 `git pull` + `cbc` 만(npm 불필요). '
+                        '두 PC 가 통신할 때만(INT-4 · L3 · 리허설 · 시연) 두 터미널에서 `team60`, 끝나면 `solo`(AGENTS 규칙 13) — 그동안 다른 PC 는 team60 을 켜지 않는다'),
+}
+for _tid, _e in P1030.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY87 = ['v13.7', '결정', 'F4-03, INT-4',
+             '황인재 9/22(F4 전달): PR #66 후속 ① 연결 끊김 때 일시 정지 버튼이 꺼지는 것은 그대로 둔다 ② 시연 PC 2대 — 화면 = PC-B(황인재) · flow_node = PC-A(한석형, git pull + cbc 만 · npm 불필요) · 두 PC 통신 때만 team60 → 끝나면 solo',
+             '황인재 9/22 10:30', 'H,S']
+
+
+# ---------------------------------------------------------------- 9/22 10:45 PR #67 merge — V-26 기록
+EDIT.setdefault('V-26', {}).update(dict(status='완료', prog='1.0', note_add='✅ 9/22 PR #67 merge — 기록 `docs/test_logs/20260922_V-26_CtrlC정지_실기_황인재.md`: 허리 180° 회전 도중 Ctrl+C **5/5 즉시 정지** · 정지 완료까지 0.47~0.50 s · 멈춘 뒤 스스로 안 움직임 · 브링업 유지. 한계: 정지까지 움직인 각도는 계산 상한(9°)만 · 용기 든 이동·직선 이동은 V-24 에서'))
+HISTORY88 = ['v13.8', '완료', 'V-26', 'PR #67 merge(9/22): V-26 Ctrl+C 정지 실기 완료 — 5/5 즉시 정지 · 0.47~0.50 s · 브링업 유지(황인재 9/22 09:05~09:10)', '황인재 9/22 10:45', 'H,P']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -1692,7 +1767,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)

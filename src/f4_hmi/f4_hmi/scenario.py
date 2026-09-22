@@ -154,8 +154,9 @@ def build(scn: dict) -> list:
             elif step == 'RINSE':
                 st['rinse_dips'] += int(counts['rinse_dips'])
         else:                                                       # 끝까지 갔다 → 완료
+            # 진짜 flow(flow.py process_one)처럼 적재(RACK)까지 **다 끝난 뒤에** 센다 — 늘어난 수는 다음 장면부터 보인다.
+            # 9/21 황인재: 적재 장면에서 먼저 세었더니 화면이 '다음 칸'을 적재 중으로 보였다가 비워 버렸다.
             st['done_bowl' if kind == 'BOWL' else 'done_cup'] += 1
-            scenes[-1].state = dict(st)
             scenes[-1].event = event('DONE', OK, item.get('rack_slot', ''))
         if halted:
             break
