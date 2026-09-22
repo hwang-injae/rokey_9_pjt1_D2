@@ -1,201 +1,27 @@
 #!/usr/bin/env python3
-"""그릇 한 바퀴 실기 — 한석형 동선(rig_bowl_scenario_real.py BOWL 분기, main 최신) + F3 자리에 soap·wipe_bowl (박진용 9/22).
+"""그릇 한 바퀴 실기 — F1 실제 제품 함수(f1_handling.pick·place·tool·rack_place) + F3 자리에 soap·wipe_bowl (박진용 9/22 5차).
 
     cd ~/cobot1/rokey_9_pjt1_D2 && soc && PREWASH_VEL_SCALE=0.3 python3 src/f3_wipe/test/rig_bowl_scenario_wipe.py
-    cd ~/cobot1/rokey_9_pjt1_D2 && soc && PREWASH_VEL_SCALE=0.3 python3 src/f3_wipe/test/rig_bowl_scenario_wipe.py --step     # 구간마다 Enter
+    cd ~/cobot1/rokey_9_pjt1_D2 && soc && PREWASH_VEL_SCALE=0.3 python3 src/f3_wipe/test/rig_bowl_scenario_wipe.py --step
 
-🔸 컵은 `rig_cup_scenario_wipe.py`로 완전히 분리했다(박진용 9/22 3차 — 공용 함수를 같이 쓰다 그릇·컵이
-   서로 영향받는 걸 피한다). F1(한석형) 쪽은 확정됐다(더 이상 안 바뀐다) — 두 파일 다 그 확정본에서
-   각자 종류만 떼어 우리(F3) 코드와 연동 시험하는 용도다.
-
-한석형 파일에서 바꾼 곳(값·좌표·속도·순서는 전부 그대로):
-  ① 구간마다 Enter — --step 을 줄 때만 묻는다(기본은 한 번에)
-  ② 수세미 집기 다음 자리 = F3: soap('BOWL') → wipe_bowl() → 실패면 여기서 멈춘다
-  ③ 수세미를 쥔 폭이 목표 폭(22 mm, 9/22 실측 15mm 반영)까지 닫혔으면 빈손 → 멈춘다
-  ④ 툴 반납은 잡을 때와 완전히 같은 깊이로(+10mm 여유 제거, 9/22 실기로 안 눌리는 거 확인)
+🔧 9/22 5차: 예전엔 F1 파지·이송 로직을 이 파일에 손으로 베껴 뒀는데, F1 쪽(한석형·황인재·민범진) 좌표·방식이
+   바뀔 때마다(9/22 하루에만 세 번) 여기도 매번 다시 맞춰야 했다. `f1_handling.pick()`·`place()`·`tool()`·
+   `rack_place()`가 이미 **cell.yaml 만 보고 동작하는 진짜 제품 함수**(PR #74)라, 이제 그걸 그대로 부른다 —
+   F1 쪽 설정이 바뀌어도 이 파일은 안 바꿔도 된다. 좌표·자리 이름은 전부 cell.yaml 에 있다(patch 없음).
 """
 import argparse
 import sys
 
 import cobot_common as cc
 from cobot_common.bootstrap import dsr
+from cobot_api import BOWL, PICK, RETURN, SPONGE
+from f1_handling import handling as f1
 from f3_wipe import wipe
-
-HOME_J = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
-WASTE_J = [-180.0, 0.0, 90.0, 0.0, 90.0, 0.0]
-
-RET_B_APPROACH_J = [0.0, 23.0, 68.4, 0.0, 88.3, 0.0]
-RET_B_GRIP_J = [0.0, 26.5, 81.6, 0.0, 72.0, 0.0]
-
-BED_B_APPROACH_X = [419.7, 17.5, 202.1, 128.2, 180.0, -52.0]
-BED_B_PLACE_X = [419.7, 17.5, 54.4, 128.0, 180.0, -52.2]
-
-TOOL_SPONGE_PICK_J = [-40.45, 2.5, 111.5, 0.0, 66.06, -220.37]
-
-RINSE_B_APPROACH_X = [205.8, -445.7, 150.0, 123.2, 180.0, 123.0]
-
-RACK_B_VIA_J = [-8.0, 0.0, 107.8, 86.2, 101.5, -108.0]
-
-RACKS = {
-    "RACK_B1": {
-        "approach_posx": [301.4, 606.2, 407.8, 92.76, 95.0, 7.4],
-        "posx": [301.4, 606.2, 307.8, 92.76, 95.0, 7.4],
-        "exit_rel_mm": [[0.0, -25.0, 0.0], [0.0, 0.0, 100.0]],
-    },
-    "RACK_B2": {
-        "approach_posx": [303.24, 549.1, 399.3, 93.8, 96.4, 6.0],
-        "posx": [303.24, 549.1, 299.3, 93.8, 96.4, 6.0],
-        "exit_rel_mm": [[0.0, -25.0, 0.0], [0.0, 0.0, 100.0]],
-    },
-}
-
-BOWL_EXPECTED_MM = 2.15
-BOWL_ZERO_MM = 10.58
-BOWL_TOL_MM = 0.6
-BOWL_FORCE_N = 20.0
-BOWL_CMD_MM = BOWL_ZERO_MM + max(
-    0.0,
-    BOWL_EXPECTED_MM - 2.0 * BOWL_TOL_MM
-)
-
-SPONGE_WIDTH_MM = 22.0                # 🔧 9/22 박진용: 손잡이 실측 15mm 반영(30 → 22) — 빈손 판정 부등호도 뒤집었다(아래 F3 구간)
-SPONGE_FORCE_N = 40.0
-
-
-def f1_tool_pick(station, width_mm, force_n, label):
-    """F1: 툴 홀더에서 꽂는 위치까지 이동해 실제 pick_x를 읽고 grip까지 수행.
-
-    - F1 은 grip 까지만 한다.
-    - Z 상승 / HOME 복귀는 여기서 하지 않는다.
-    - SPONGE 는 검증값을 그대로 유지한다.
-    """
-    d = dsr()
-    station_name = str(station)
-    width_value = float(width_mm)
-    force_value = float(force_n)
-
-    print(f"\n[F1 {label}] {station_name} PICK")
-    cc.move_to(station_name, False, point="pick")
-    pick_x = [float(v) for v in d.get_current_posx(ref=d.DR_BASE)[0]]
-    print(f"[F1 {label}] 실제 PICK posx = {pick_x}")
-    actual = cc.grip(width_value, force_value)
-    print(f"[F1 {label}] grip 실제 폭 = {actual} mm")
-    return pick_x
-
-
-def f1_tool_return(pick_x, label):
-    """F3가 들고 HOME로 복귀한 뒤, 반납 위치를 X/Y → orientation → Z 순으로 정리한다.
-
-    반드시 HOME에서 바로 return_x 전체 POSX로 이동하지 않고,
-    X/Y only → 높은 위치에서 반납 orientation 맞춤 → Z만 하강
-    → RELEASE → Z만 상승 → HOME orientation 복원 → HOME X/Y 순서를 따른다.
-    """
-    d = dsr()
-    current = [float(v) for v in d.get_current_posx(ref=d.DR_BASE)[0]]
-    pick = [float(v) for v in pick_x]
-    return_x = pick.copy()               # 🔧 9/22 박진용: 잡을 때와 완전히 같은 깊이 — 실기로 눌리지 않는 걸 확인, +10mm 여유 없앰
-
-    print(f"\n[F1 {label}] 반납 준비: return_x = {return_x}")
-    dx = return_x[0] - current[0]
-    dy = return_x[1] - current[1]
-    if abs(dx) > 1e-6 or abs(dy) > 1e-6:
-        cc.move_rel(dx, dy, 0.0, "BASE")
-        current = [float(v) for v in d.get_current_posx(ref=d.DR_BASE)[0]]
-
-    high_z = max(current[2], return_x[2] + 60.0)
-    orient_high = [return_x[0], return_x[1], high_z, return_x[3], return_x[4], return_x[5]]
-    d.amovel(
-        orient_high,
-        vel=200.0,
-        acc=400.0,
-        ref=d.DR_BASE,
-        mod=d.DR_MV_MOD_ABS,
-    )
-
-    dz_down = return_x[2] - high_z
-    if abs(dz_down) > 1e-6:
-        cc.move_rel(0.0, 0.0, dz_down, "BASE")
-
-    cc.release()
-    print(f"[F1 {label}] RELEASE 완료")
-
-    dz_up = abs(high_z - return_x[2])
-    if dz_up > 1e-6:
-        cc.move_rel(0.0, 0.0, dz_up, "BASE")
-
-    home_ori = [current[0], current[1], high_z, 0.0, 90.0, 0.0]
-    d.amovel(
-        home_ori,
-        vel=200.0,
-        acc=400.0,
-        ref=d.DR_BASE,
-        mod=d.DR_MV_MOD_ABS,
-    )
-
-    current_after = [float(v) for v in d.get_current_posx(ref=d.DR_BASE)[0]]
-    home_dx = 0.0 - current_after[0]
-    home_dy = 0.0 - current_after[1]
-    if abs(home_dx) > 1e-6 or abs(home_dy) > 1e-6:
-        cc.move_rel(home_dx, home_dy, 0.0, "BASE")
-
-    print(f"[F1 {label}] 반납 완료: HOME X/Y 복귀")
-
-
-def patch_runtime_config(cfg):
-    cell = cfg.setdefault("cell", {})
-    limits = cell.setdefault("limits", {})
-    motion = cell.setdefault("motion", {})
-    stations = cell.setdefault("stations", {})
-    beds = cell.setdefault("beds", {})
-    rack = cell.setdefault("rack", {})
-    rack_slots = rack.setdefault("slots", {})
-
-    limits.update({
-        "vel_free_pct": 60,
-        "vel_carry_pct": 30,
-        "safe_z_mm": 235,
-        "contact_limit_n": 2.0,
-        "insert_limit_n": 15.0,
-        "timeout_s": 10.0,
-    })
-
-    motion.update({
-        "vel_tcp_max_mm_s": 400.0,
-        "acc_tcp_max_mm_s2": 800.0,
-        "vel_joint_max_deg_s": 100.0,
-        "acc_joint_max_deg_s2": 200.0,
-        "move_timeout_s": 30.0,
-    })
-
-    stations["HOME"] = {"posj": HOME_J, "posx_z_mm": 215.11, "posx_x_mm": 367.48, "posx_y_mm": 8.09}  # cell.yaml 실측(9/21 --where)
-    stations["WASTE"] = {"BOWL": {"posj": WASTE_J}}
-    stations["RET_B_APPROACH_TEST"] = {"posj": RET_B_APPROACH_J}
-    stations["RET_B_GRIP_TEST"] = {"posj": RET_B_GRIP_J}
-    stations["TOOL_SPONGE"] = {
-        "pick": {"posj": TOOL_SPONGE_PICK_J}
-    }
-    stations["RACK_B_VIA_TEST"] = {"posj": RACK_B_VIA_J}
-
-    beds["SPONGE_BED_B"] = {
-        "place": {
-            "approach_posx": BED_B_APPROACH_X,
-            "posx": BED_B_PLACE_X,
-        }
-    }
-
-    for name, spec in RACKS.items():
-        rack_slots[name] = dict(spec)
-
-    return cell
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument(
-        "--slot",
-        choices=("RACK_B1", "RACK_B2"),
-        default="RACK_B1",
-    )
+    ap.add_argument("--slot", choices=("RACK_B1", "RACK_B2"), default="RACK_B1")
     ap.add_argument("--step", action="store_true", help="구간마다 Enter 로 확인 (기본: 한 번에)")
     args = ap.parse_args()
     slot = args.slot
@@ -205,24 +31,16 @@ def main():
     try:
         d = dsr()
         cfg = cc.cfg()
-        cell = patch_runtime_config(cfg)
-        stations = cell["stations"]
-
         tcp = d.get_tcp()
         tool_setting = d.get_tool()
         vel_scale = float(cfg["run"]["vel_scale"])
 
         print("\n" + "=" * 74)
-        print("BOWL REAL route verification")
+        print("BOWL REAL route verification (F1 제품 함수 · 9/22 5차)")
         print("=" * 74)
         print("TCP =", repr(tcp))
         print("TOOL =", repr(tool_setting))
         print("vel_scale =", vel_scale)
-        print("BOWL raw grip target =", round(BOWL_CMD_MM, 2), "mm")
-        print("BOWL force =", BOWL_FORCE_N, "N")
-        print("TOOL_VIA = NOT USED")
-        print("F3 wash pose = NOT USED")
-        print("RACK via =", RACK_B_VIA_J)
         print("=" * 74)
 
         if tcp != "GripperDA_v1" or tool_setting != "Tool Weight":
@@ -238,14 +56,8 @@ def main():
         step = 0
 
         def pose():
-            j = [
-                round(float(v), 2)
-                for v in d.get_current_posj()
-            ]
-            x = [
-                round(float(v), 2)
-                for v in d.get_current_posx(ref=d.DR_BASE)[0]
-            ]
+            j = [round(float(v), 2) for v in d.get_current_posj()]
+            x = [round(float(v), 2) for v in d.get_current_posx(ref=d.DR_BASE)[0]]
             print("현재 J =", j)
             print("현재 X =", x)
             return j, x
@@ -255,615 +67,112 @@ def main():
             step += 1
             print("\n" + "=" * 74)
             print(f"[STEP {step}] {label}")
-            if not args.step:                                              # 🔧 박진용: 기본은 한 번에 — --step 줄 때만 Enter로 확인
+            if not args.step:
                 return
-            cmd = input(
-                "Enter = 실행 / q = 종료 > "
-            ).strip().lower()
+            cmd = input("Enter = 실행 / q = 종료 > ").strip().lower()
             if cmd == "q":
                 raise KeyboardInterrupt
 
-        def move(name, carrying, *, kind=None, point=None, label=None):
-            ask(label or f"MOVE → {name}")
-            up = cc.move_to(
-                name,
-                carrying,
-                kind=kind,
-                point=point,
-            )
-            pose()
-            return float(up or 0.0)
+        ask("시작 HOME")
+        cc.move_to("HOME", False)
+        pose()
 
-        def move_fast(
-            name,
-            carrying,
-            *,
-            kind=None,
-            point=None,
-            label=None,
-        ):
-            """
-            넓은 공간에서 이미 확인한 이동만 빠르게.
-            global vel_scale=0.3은 유지하고,
-            이 이동 동안만 해당 pct를 100으로 올린다.
-            """
-            limits = cell["limits"]
-            key = "vel_carry_pct" if carrying else "vel_free_pct"
-            old_pct = limits[key]
-
-            try:
-                limits[key] = 100
-                print(
-                    f"[FAST] {key}: {old_pct} → 100 "
-                    f"(vel_scale={cfg['run']['vel_scale']})"
-                )
-
-                return move(
-                    name,
-                    carrying,
-                    kind=kind,
-                    point=point,
-                    label=label,
-                )
-
-            finally:
-                limits[key] = old_pct
-
-        def rel(dx, dy, dz, label):
-            ask(label)
-            cc.move_rel(
-                float(dx),
-                float(dy),
-                float(dz),
-                "BASE",
-            )
-            pose()
-
-        def rel_fast(dx, dy, dz, label):
-            """
-            이미 확인한 자유공간 상대이동만 FAST.
-            PREWASH_VEL_SCALE=0.3은 그대로 유지하고,
-            이 이동 동안 vel_carry_pct만 100으로 올린다.
-            """
-            limits = cell["limits"]
-            old_pct = limits["vel_carry_pct"]
-
-            try:
-                limits["vel_carry_pct"] = 100
-
-                print(
-                    f"[FAST] vel_carry_pct: "
-                    f"{old_pct} → 100 "
-                    f"(vel_scale={cfg['run']['vel_scale']})"
-                )
-
-                ask(label)
-
-                cc.move_rel(
-                    float(dx),
-                    float(dy),
-                    float(dz),
-                    "BASE",
-                )
-
-                pose()
-
-            finally:
-                limits["vel_carry_pct"] = old_pct
-
-        def release(label):
-            ask(label)
-            cc.release()
-            print("RG2 RELEASE 완료")
-            pose()
-
-        def grip(width, force, label):
-            ask(label)
-            got = cc.grip(
-                float(width),
-                float(force),
-            )
-            print("RG2 실제 폭 =", got)
-            pose()
-            return got
-
-        def home_keep_j6(carrying, label, fast=False):
-            """
-            기존 HOME 이동 경로는 그대로 사용한다.
-
-            HOME_J:
-                J1~J5 = 기존 HOME 값
-                J6    = 현재 값 유지
-
-            즉 HOME XYZ 직선이동으로 바꾸지 않는다.
-            """
-            j_now = [
-                float(v)
-                for v in d.get_current_posj()
-            ]
-
-            home_j = [
-                float(v)
-                for v in HOME_J
-            ]
-
-            # J6만 현재 자세 유지
-            home_j[5] = j_now[5]
-
-            stations["HOME_KEEP_J6_TEST"] = {
-                "posj": home_j
-            }
-
-            print(
-                f"[HOME] J1~J5 HOME / "
-                f"J6 유지 = {j_now[5]:.2f}°"
-            )
-
-            if fast:
-                return move_fast(
-                    "HOME_KEEP_J6_TEST",
-                    carrying,
-                    label=label,
-                )
-
-            return move(
-                "HOME_KEEP_J6_TEST",
-                carrying,
-                label=label,
-            )
-
-        move("HOME", False, label="시작 HOME")
-        _, home_x = pose()
-
-        release("초기 빈손 RELEASE")
-
-        move(
-            "RET_B_APPROACH_TEST",
-            False,
-            label="RET_B 접근",
-        )
-
-        move(
-            "RET_B_GRIP_TEST",
-            False,
-            label="RET_B 실제 GRIP 위치",
-        )
-
-        grip(
-            BOWL_CMD_MM,
-            BOWL_FORCE_N,
-            f"BOWL GRIP raw={BOWL_CMD_MM:.2f}mm / 20N",
-        )
-
-        # BOWL PICK 높이에서 WEIGH.BOWL의 실제 Z까지만 이동한다.
-        # 고정 +100을 쓰지 않는다.
-        now_x = [
-            float(v)
-            for v in d.get_current_posx(ref=d.DR_BASE)[0]
-        ]
-        weigh_x = stations["WEIGH"]["BOWL"]["posx"]
-        weigh_dz = float(weigh_x[2]) - now_x[2]
-
-        rel(
-            0.0,
-            0.0,
-            weigh_dz,
-            f"BOWL → WEIGH: Z {weigh_dz:+.1f} "
-            f"(target z={float(weigh_x[2]):.1f})",
-        )
-
-        home_keep_j6(
-            True,
-            label="WEIGH → HOME",
-        )
-
-        move_fast(
-            "WASTE",
-            True,
-            kind="BOWL",
-            label="HOME → WASTE BOWL [FAST]",
-        )
-
-        print("[F2 SHAKE 구간 생략]")
-
-        move_fast(
-            "HOME",
-            True,
-            label=(
-                "WASTE → HOME [FAST] "
-                "/ J6도 HOME 값으로 같이 맞춤"
-            ),
-        )
-
-        bed_up = move(
-            "SPONGE_BED_B",
-            True,
-            point="place",
-            label="HOME → SPONGE_BED_B 접근",
-        )
-
-        print(
-            f"BED 수직 하강량 = {bed_up:.1f} mm "
-            "(예상 147.7)"
-        )
-
-        rel(
-            0, 0, -bed_up,
-            f"BED Z -{bed_up:.1f}",
-        )
-
-        release("BOWL BED RELEASE")
-
-        rel(
-            0, 0, bed_up,
-            f"BED Z +{bed_up:.1f} 퇴피",
-        )
+        ask("초기 빈손 RELEASE")
+        cc.release()
+        pose()
 
         # ==================================================
-        # F1 : SPONGE PICK + GRIP 까지
+        # F1 (한석형/민범진 제품 함수): 반납 구역 그릇 집기
         # ==================================================
-        # ==================================================
-        # F1: SPONGE PICK + GRIP 까지
-        # ==================================================
-        sponge_pick_x = f1_tool_pick(
-            "TOOL_SPONGE",
-            SPONGE_WIDTH_MM,
-            SPONGE_FORCE_N,
-            "SPONGE",
-        )
+        ask("F1: pick(RET_B, BOWL)")
+        r = f1.pick("RET_B", BOWL)
+        print(f"[F1] pick: {r.code} · attempts={r.attempts} · 폭={r.width_mm:.2f}mm")
+        pose()
+        if not r.ok:
+            raise RuntimeError(f"pick {r.code} — 여기서 멈춘다")
 
+        # F2 WEIGH/WASTE(E30 · 잔반 버리기)는 생략 — F1+F3 연동만 본다
+        print("[F2 WEIGH/WASTE 구간 생략 — F1+F3 연동만 본다]")
+
+        ask("F1: place(SPONGE_BED_B, BOWL)")
+        rp = f1.place("SPONGE_BED_B", BOWL)
+        print(f"[F1] place: {rp.code}")
+        pose()
+        if not rp.ok:
+            raise RuntimeError(f"place {rp.code} — 여기서 멈춘다")
+
+        # ==================================================
+        # F1: 수세미 픽업
+        # ==================================================
+        ask("F1: tool(SPONGE, PICK)")
+        rt = f1.tool(SPONGE, PICK)
+        print(f"[F1] tool PICK: {rt.code} · 폭={rt.width_mm:.2f}mm")
+        pose()
+        if not rt.ok:
+            raise RuntimeError(f"tool PICK {rt.code} — 여기서 멈춘다")
+
+        # ==================================================
+        # F3 (박진용): soap → wipe_bowl
+        # ==================================================
         print()
         print("=" * 74)
-        print("[F3 BOWL 담당]")
-        print("SPONGE 꺼내기 → soap(비틀기·왕복) → BOWL WASH → SPONGE 들고 HOME 복귀")
+        print("[F3 BOWL 담당] soap(비틀기·왕복) → BOWL WASH")
         print("=" * 74)
 
-        # ==================================================
-        # F3 (박진용): 수세미 꺼내기 → soap → wipe_bowl → 수세미 들고 HOME
-        # ==================================================
-        got = cc.grip_width()
-        if got <= SPONGE_WIDTH_MM + 0.3:
-            # 목표 폭(SPONGE_WIDTH_MM)이 손잡이 raw 굵기(≈25.6mm)보다 타이트해서(박진용 9/22),
-            # 잡았으면 손잡이에 막혀 목표보다 훨씬 큰 값에서 멈춘다 — 목표 근처(±0.3mm)면 막힌 것 없이
-            # 그대로 닫힌 것 = 빈손.
-            raise RuntimeError(
-                f"수세미를 못 잡았다(폭 {got:.1f} mm = 목표 {SPONGE_WIDTH_MM:g} mm 까지 그대로 닫힘) — 멈춘다"
-            )
-
         ask("F3: soap (그 자리에서 좌우 비틀기 3회 → Z 왕복 2회 → HOME)")
-        r_soap = wipe.soap(3, 'BOWL')
+        r_soap = wipe.soap(3, "BOWL")
         print(f"[F3] soap: {r_soap.code}")
         pose()
         if not r_soap.ok:
             raise RuntimeError(f"soap {r_soap.code} — 여기서 멈춘다")
 
         ask("F3: wipe_bowl (HOME → 그릇 닦기 → HOME)")
-        r = wipe.wipe_bowl()
+        r_wipe = wipe.wipe_bowl()
         print(
-            f"[F3] wipe_bowl: {r.code} · {r.duration_s:.1f} s · "
-            f"평균 힘 {r.force_mean_n:.1f} N · 힘 로그 {r.force_log_path}"
+            f"[F3] wipe_bowl: {r_wipe.code} · {r_wipe.duration_s:.1f} s · "
+            f"평균 힘 {r_wipe.force_mean_n:.1f} N · 힘 로그 {r_wipe.force_log_path}"
         )
         pose()
-        if not r.ok:
-            raise RuntimeError(f"wipe_bowl {r.code} — 여기서 멈춘다")
+        if not r_wipe.ok:
+            raise RuntimeError(f"wipe_bowl {r_wipe.code} — 여기서 멈춘다")
 
         # ==================================================
-        # F1: HOME에서 SPONGE 반납
-        # XY → 방향 → Z↓ → RELEASE → Z↑ → 방향 → HOME XY
+        # F1: 수세미 반납 → 그릇 재파지 → 랙 적재
         # ==================================================
-        f1_tool_return(
-            sponge_pick_x,
-            "SPONGE",
-        )
-
-        bed_up = move(
-            "SPONGE_BED_B",
-            False,
-            point="place",
-            label="HOME → BOWL REGRIP 접근",
-        )
-
-        rel(
-            0, 0, -bed_up,
-            f"BOWL REGRIP Z -{bed_up:.1f}",
-        )
-
-        grip(
-            BOWL_CMD_MM,
-            BOWL_FORCE_N,
-            "BOWL REGRIP",
-        )
-
-        rel(
-            0, 0, bed_up,
-            f"BOWL REGRIP 후 Z +{bed_up:.1f}",
-        )
-
-        home_keep_j6(
-            True,
-            label="BED → HOME [FAST]",
-            fast=True,
-        )
-
-        _, home_x = pose()
-
-        rinse = RINSE_B_APPROACH_X
-
-        # --------------------------------------------------
-        # RINSE 진입
-        #
-        # 기존 STEP19:
-        # HOME 높이를 유지한 채 X/Y만 이동.
-        # 이 자유공간 이동만 FAST.
-        #
-        # 방향/J6 조정은 여기서 하지 않는다.
-        # RINSE 기능 담당(F2)이 실제 헹굼 동작에서 맡는다.
-        # --------------------------------------------------
-        rel_fast(
-            rinse[0] - home_x[0],
-            rinse[1] - home_x[1],
-            0,
-            "RINSE: HOME 높이 유지 → X/Y만 이동 [FAST]",
-        )
-
-        now_x = [
-            float(v)
-            for v in d.get_current_posx(ref=d.DR_BASE)[0]
-        ]
-
-        dz = rinse[2] - now_x[2]
-
-        rel(
-            0,
-            0,
-            dz,
-            "RINSE: Z만 하강",
-        )
-
-        print("[F2 RINSE/DIP 구간 생략]")
-
-        # --------------------------------------------------
-        # RINSE EXIT
-        #
-        # Z 먼저 올라온 뒤,
-        # 높은 상태에서 HOME X/Y로 복귀.
-        #
-        # 기존 '높은 곳에서 HOME 방향 복원' STEP 삭제.
-        # --------------------------------------------------
-        rel(
-            0,
-            0,
-            -dz,
-            "RINSE EXIT: Z 먼저 상승",
-        )
-
-        now_x = [
-            float(v)
-            for v in d.get_current_posx(ref=d.DR_BASE)[0]
-        ]
-
-        rel(
-            home_x[0] - now_x[0],
-            home_x[1] - now_x[1],
-            0,
-            "RINSE EXIT: HOME X/Y로 복귀",
-        )
-
-        # --------------------------------------------------
-        # RINSE EXIT → HOME 경유 → RACK 접근
-        #
-        # HOME은 별도 STEP이 아니라 '경유점'.
-        #
-        # Enter 한 번으로:
-        #
-        # 현재 높은 자세
-        #   → HOME(J1~J5, 현재 J6 유지)
-        #   → RACK_B_VIA
-        #   → RACK_B1 접근
-        #
-        # RACK_B1일 때는 기존의
-        #
-        #   접근 완료
-        #   → J6만 180° 회전
-        #
-        # 을 하지 않는다.
-        #
-        # 대신:
-        #
-        #   RACK_B_VIA_J 의 J6 자체를 +180° 한 값으로 이동하고
-        #   RACK_B1 접근 POSX의 C도 +180° 한 자세로 들어간다.
-        #
-        # 따라서 손목 회전이 이동 중에 같이 일어나며,
-        # 접근 후 단독 J6 회전 STEP은 없다.
-        # --------------------------------------------------
-        ask(
-            "RINSE EXIT → HOME 경유 → "
-            f"RACK_B_VIA → {slot} 접근 "
-            "/ J6 회전은 이동 중 반영"
-        )
-
-        j_now = [
-            float(v)
-            for v in d.get_current_posj()
-        ]
-
-        # HOME은 정지 STEP이 아니라 경유점.
-        # J1~J5만 HOME, J6는 현재값 유지.
-        home_via_j = [
-            float(v)
-            for v in HOME_J
-        ]
-        home_via_j[5] = j_now[5]
-
-        stations["HOME_RACK_VIA_TEST"] = {
-            "posj": home_via_j
-        }
-
-        print(
-            f"[RACK ROUTE] HOME 경유 "
-            f"J6 유지 = {j_now[5]:.2f}°"
-        )
-
-        cc.move_to(
-            "HOME_RACK_VIA_TEST",
-            True,
-        )
+        ask("F1: tool(SPONGE, RETURN)")
+        rr = f1.tool(SPONGE, RETURN)
+        print(f"[F1] tool RETURN: {rr.code}")
         pose()
+        if not rr.ok:
+            raise RuntimeError(f"tool RETURN {rr.code} — 여기서 멈춘다")
 
-        if slot == "RACK_B1":
+        ask("F1: pick(SPONGE_BED_B, BOWL) — 그릇 재파지")
+        r2 = f1.pick("SPONGE_BED_B", BOWL)
+        print(f"[F1] regrip: {r2.code} · 폭={r2.width_mm:.2f}mm")
+        pose()
+        if not r2.ok:
+            raise RuntimeError(f"regrip {r2.code} — 여기서 멈춘다")
 
-            # ----------------------------------------------
-            # 기존 VIA J6 = -108°
-            #
-            # 여기에 +180°를 반영:
-            #   -108 + 180 = +72°
-            #
-            # 즉 VIA로 이동하는 동안
-            # 손목도 함께 뒤집힌다.
-            # ----------------------------------------------
-            rack_via_flipped_j = [
-                float(v)
-                for v in RACK_B_VIA_J
-            ]
+        print("[F2 RINSE 담금 구간 생략 — F1+F3 연동만 본다]")
 
-            rack_via_flipped_j[5] += 180.0
+        ask(f"F1: rack_place({slot}, BOWL)")
+        r3 = f1.rack_place(slot, BOWL)
+        print(f"[F1] rack_place: {r3.code}")
+        pose()
+        if not r3.ok:
+            raise RuntimeError(f"rack_place {r3.code} — 여기서 멈춘다")
 
-            stations["RACK_B_VIA_FLIPPED_TEST"] = {
-                "posj": rack_via_flipped_j
-            }
-
-            print(
-                "[RACK ROUTE] "
-                f"RACK_B_VIA J6 "
-                f"{RACK_B_VIA_J[5]:.2f}° "
-                f"→ {rack_via_flipped_j[5]:.2f}° "
-                "(+180°, 이동 중)"
-            )
-
-            cc.move_to(
-                "RACK_B_VIA_FLIPPED_TEST",
-                True,
-            )
-            pose()
-
-            # ----------------------------------------------
-            # 기존 RACK_B1 접근 후 J6 +180°를 했으므로,
-            # 그 결과와 같은 TOOL-Z 회전을
-            # POSX의 마지막 C에 +180°로 반영한다.
-            #
-            # ZYZ:
-            # R = Rz(A) Ry(B) Rz(C)
-            # 이므로 C +180°는 TOOL Z축 180° 회전.
-            # ----------------------------------------------
-            rack_spec = RACKS[slot]
-
-            approach = [
-                float(v)
-                for v in rack_spec["approach_posx"]
-            ]
-
-            end = [
-                float(v)
-                for v in rack_spec["posx"]
-            ]
-
-            def wrap_deg(v):
-                return (
-                    (float(v) + 180.0)
-                    % 360.0
-                    - 180.0
-                )
-
-            approach[5] = wrap_deg(
-                approach[5] + 180.0
-            )
-
-            end[5] = wrap_deg(
-                end[5] + 180.0
-            )
-
-            stations["RACK_B1_FLIPPED_TEST"] = {
-                "approach_posx": approach,
-                "posx": end,
-            }
-
-            print(
-                "[RACK ROUTE] "
-                "RACK_B1 접근 방향 C "
-                f"{rack_spec['approach_posx'][5]:.2f}° "
-                f"→ {approach[5]:.2f}°"
-            )
-
-            rack_up = float(
-                cc.move_to(
-                    "RACK_B1_FLIPPED_TEST",
-                    True,
-                )
-                or 0.0
-            )
-
-            pose()
-
-        else:
-            # B2는 기존에 단독 J6 180° 회전을 하지 않았으므로
-            # 기존 경로 그대로 둔다.
-            cc.move_to(
-                "RACK_B_VIA_TEST",
-                True,
-            )
-            pose()
-
-            rack_up = float(
-                cc.move_to(
-                    slot,
-                    True,
-                )
-                or 0.0
-            )
-
-            pose()
-
-        print(
-            f"{slot} 수직 하강량 = "
-            f"{rack_up:.1f} mm"
-        )
-
-        rel(
-            0, 0, -rack_up,
-            f"{slot}: Z -{rack_up:.1f}",
-        )
-
-        release(
-            f"{slot} BOWL RELEASE"
-        )
-
-        for i, xyz in enumerate(
-            RACKS[slot]["exit_rel_mm"],
-            start=1,
-        ):
-            rel(
-                xyz[0],
-                xyz[1],
-                xyz[2],
-                f"{slot} EXIT {i}: {xyz}",
-            )
-
-        move(
-            "HOME",
-            False,
-            label="RACK EXIT → HOME",
-        )
+        ask("HOME 복귀")
+        cc.move_to("HOME", False)
+        pose()
 
         print("\n" + "=" * 74)
         print("REAL BOWL 동선 시험 완료")
         print("=" * 74)
-
         return 0
 
     except KeyboardInterrupt:
-        print(
-            "\n사용자 중단 — 자동 HOME/RELEASE 하지 않음."
-        )
+        print("\n사용자 중단 — 자동 HOME/RELEASE 하지 않음.")
         return 130
 
     finally:
