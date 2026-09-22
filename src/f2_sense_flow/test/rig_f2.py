@@ -47,6 +47,11 @@ def main():
                     help='두산 드라이버 없이 (브링업 없이 함수 반환만 확인)')
     ap.add_argument('--no-home', action='store_true',
                     help='🚨 shake·dip·loop 앞의 HOME 경유를 끈다 (E15 — 이미 HOME 에 있을 때만)')
+    # 🆕 9/22 — 값 찾기용 덮어쓰기: 설정 파일을 안 고치고 이번 실행에서만 f2.shake.<mode> 를 바꾼다(메모리에서). 찾은 값은 params.yaml 에 적는다
+    ap.add_argument('--amp', type=float, help='shake 진폭 덮어쓰기 — 직선이면 mm(amp_mm) · 관절이면 °(amp_deg)')
+    ap.add_argument('--period', type=float, help='shake 주기(s) 덮어쓰기')
+    ap.add_argument('--acc', type=float, help='shake 직선 왕복 가속도(mm/s²) 덮어쓰기 — 상한은 cell.motion.acc_tcp_max × vel_scale')
+    ap.add_argument('--tilt', type=float, help='shake 기울이기(°) 덮어쓰기 (관절 왕복만)')
     a = ap.parse_args()
 
     if a.which in ('grip', 'release'):
@@ -77,6 +82,8 @@ def main():
         log.warn('--no-robot — 두산 드라이버 없이 함수 반환만 확인한다')
     else:
         require_controller(cc.io_node(), cc.cfg(), log)   # 🆕 TS-07 — 다르면 PreflightError 로 여기서 끝
+    if a.which == 'shake':
+        _override_shake(a, log)                          # 🆕 --amp/--period/--acc/--tilt (이번 실행만)
     try:
         # 🚨 9/21 결정 E15 — 잔반통(로봇 **뒤**) ↔ 저울·수조·반납 구역(**앞**) 사이는 HOME 을 거친다.
         #    앞뒤로 곧장 가면 로봇 몸통을 가로지르고(E7 로 안전 높이 경유가 없다) 6번 관절이 163°
@@ -96,6 +103,23 @@ def main():
             log.info(f'{i + 1}/{a.n} {a.which} → {fn()}')
     finally:
         cc.shutdown()                                # ③ 끝낼 때 (Ctrl+C 포함)
+
+
+def _override_shake(a, log):
+    """--amp · --period · --acc · --tilt 를 이번 실행의 설정(메모리)에 덮어쓴다. 상한 검사는 sense.shake 가 그대로 한다."""
+    p = sense.shake_params(cc.cfg()['f2'], a.mode, a.kind)   # 종류별 묶음이면 그 종류 것
+    changed = {}
+    if a.amp is not None:
+        key = 'amp_mm' if p.get('axis') is not None else 'amp_deg'
+        p[key] = a.amp; changed[key] = a.amp
+    if a.period is not None:
+        p['period_s'] = a.period; changed['period_s'] = a.period
+    if a.acc is not None:
+        p['acc_mm_s2'] = a.acc; changed['acc_mm_s2'] = a.acc
+    if a.tilt is not None:
+        p['tilt_deg'] = a.tilt; changed['tilt_deg'] = a.tilt
+    if changed:
+        log.warn(f'🔧 shake.{a.mode} 덮어씀 (이번 실행만 · 파일엔 안 적힘): {changed} → 지금 값 {p}')
 
 
 def _close_target(kind, preset):
