@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v16.2'
+VERSION = 'v16.3'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -2073,6 +2073,24 @@ for _tid, _e in P1745.items():
 HISTORY112 = ['v16.2', '진척', 'F3-02, F3-03, UT-F3, INT-F3, F1-03, INF-02b, CELL-04', 'PR #72 merge(박진용 9/22 17:45): 실기 1차 통합(soap → 닦기 → 반납) 성공 · wipe_bowl rig_v03 그대로(120 s 유지 · 나선 재시도) · soap 동작 변경(집은 자리에서 비틀기·왕복 · 🟡 E18 과 다름 → INT-F3 에서 F1-03 과 맞춤) · HOME posx_z_mm 키 추가', '황인재 9/22 17:45', 'P,H']
 
 
+# ---------------------------------------------------------------- 9/22 17:50 황인재 E27·E28 · F4 V-02 끝
+H1750 = '🔄 9/22 17:50 황인재'
+P1750 = {
+ 'SKEL-01': dict(note_add=H1750 + ' E27: 함수화한 코드는 **`f1_handling/handling.py` 에 넣는다**(pick · rack_place · 일반 place · move_to) — 한석형 파일이지만 예외 · 한석형은 같은 시간에 handling.py 를 고치지 않는다(18:20 공지). 좌표 정본 = cell.yaml(스크립트 리터럴과 다르면 cell.yaml 고치고 보고). 참고: 박진용 통합본 rig_bowl_scenario_wipe.py 도 main 에'),
+ 'F1-02':   dict(owner='H(S)', note_add=H1750 + ' E27: pick() 제품 코드는 **SKEL-01(F4)** 이 handling.py 에 넣는다 — 한석형은 참여(경로·좌표 확인)'),
+ 'F1-04':   dict(owner='H(S)', note_add=H1750 + ' E27: rack_place() 도 SKEL-01(F4) 로'),
+ 'INT-ALL': dict(crit='🔄 E28: **예외 처리 없이 정상 흐름대로 전체(그릇 2 · 컵 2)를 한 번 끝까지 시연** — 실패 정책·격리·재시도는 목표에서 제외. 합친 코드로 그릇 1개 → 컵 1개 → 4개 연속. 🟡 flow_node·HMI 와의 관계 · INT-4b 범위는 황인재 확인',
+                 note_add=H1750 + ' E28: 목표 = 정상 상황 플로우 전체 1회 시연(예외 제외). 담당은 추후'),
+ 'INT-4b':  dict(note_add='🟡 9/22 E28: 시연 목표가 "예외 처리 제외 · 정상 흐름" 이라 실패 주입 4종을 시연 범위에서 뺄지 황인재 확인(SDD §9.9 범위 방어)'),
+ 'V-02':    dict(prog='0.9', note_add='✅ 9/22 F4 V-02 끝(실기 · 케이블 정리 뒤 · 15:22~15:52): 빈 그릇 z158 기준값 **−12 g**(63 s 창 3개 −10/−15/−7) · 그릇+96 g 창 3개 +95/+80/+88 → 100 g 물건 오차 +3 g ✅ · 21 s 창 흔들림 ±12~17 g · HOME 다녀온 뒤 −5~−16 g → 한 번 재는 값 불확실성 약 ±20 g. '
+                          '황인재: **잔반 임계 50 g 유지**(후보 70 대신 · 최종은 INT-12a 같은 경로 재측정 뒤). params `f2.empty_weight_g.BOWL: -12` + 기록 `docs/test_logs/20260922_V-02_무게기준값_황인재.md` → 브랜치 injae/20260922-V-02-weigh-baseline(3643607) · PR 은 황인재 확인 뒤. 🟡 민범진 판단 요청: **min_net_g −60 은 그릇 놓침을 못 잡는다**(빈손 z158 −57 → 순무게 −45 > −60) → 놓침은 폭(pick 판정·slip_tol)으로, 또는 −35(빈 그릇과 여유 15 g)'),
+ 'F2-01':   dict(note_add='🔔 9/22 F4 V-02: 임계 50 유지(황인재) · min_net_g −60 으로는 그릇 놓침이 안 잡힘(−45) → 민범진 판단(−35 또는 폭으로) — 18:20 묶음'),
+}
+for _tid, _e in P1750.items():
+    EDIT.setdefault(_tid, {}).update(_e)
+HISTORY113 = ['v16.3', '결정 E27·E28 · V-02', 'SKEL-01, F1-02, F1-04, INT-ALL, INT-4b, V-02, F2-01', '황인재 9/22 17:50: E27 뼈대 함수화는 handling.py 에(F4 · pick/rack_place 가 이걸로 · 한석형 동시 수정 금지 · 좌표 정본 cell.yaml) · E28 시연 = 예외 처리 없이 정상 흐름 전체 1회(🟡 INT-4b·HMI 관계 확인). F4 V-02 끝: 기준값 −12 g · 100 g 오차 +3 g · 불확실성 ±20 g → 임계 50 유지 · min_net_g 는 민범진 판단', '황인재 9/22 17:50', 'H,S,M']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     b = Book.from_live(SID)
@@ -2161,7 +2179,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
