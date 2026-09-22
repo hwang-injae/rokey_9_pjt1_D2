@@ -71,9 +71,10 @@ def _angle_between(p, q):
     return math.degrees(math.acos(max(-1.0, min(1.0, (trace - 1.0) / 2.0))))
 
 
-# ⚠ 접근점 → 끝점이 수직이 아닌 채로 옮겨 온 자세. 한석형이 다시 찍으면 여기서 지운다(9/20 CELL-04: RACK_C2 는 수평 2.4 mm · 방향 3.8°)
+# ⚠ 접근점 → 끝점이 수직이 아닌 채로 옮겨 온 자세. 한석형이 다시 찍으면 여기서 지운다.
 #   · 9/20 저녁: RET_B 슬롯 1 은 접근(잡기1) → 그립(잡기2)이 수평 2.8 mm
-KNOWN_TILTED = {'cell.rack.slots.RACK_C2', 'cell.zones.RET_B.slots[1]'}
+#   · RACK_C2 는 9/22 실기 좌표로 수직 정렬해 목록에서 제거했다.
+KNOWN_TILTED = {'cell.zones.RET_B.slots[1]'}
 
 
 def test_repo_approach_points_are_straight_above_end_points():
