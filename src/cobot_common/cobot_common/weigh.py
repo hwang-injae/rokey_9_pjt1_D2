@@ -16,12 +16,23 @@
 
 ⑤ 🚨 **단위는 kg 이다** — 9/21 첫 실기(이 경로로 읽은 첫 값)에서 그릇을 쥔 채 0.0684,
    빈손 0.0239 가 읽혔다. g 로 보면 "0.1 g" 이라 말이 안 되고, kg 으로 보면 68.4 g · 23.9 g
-   (그릇 ≈ 44.5 g)으로 딱 맞는다. 이 함수는 **g 로 바꿔서** 돌려준다(× 1000).
-   9/18 V-02 는 펜던트 화면(N)을 손으로 읽은 것이라 이 경로의 단위를 몰랐다.
+   (그릇 ≈ 44.5 g)으로 딱 맞는다. 9/18 V-02 는 펜던트 화면(N)을 손으로 읽은 것이라 이 경로의 단위를 몰랐다.
 
-🚨 옵셋에 대해: 빈손에서도 **약 24 g** 이 읽힌다(9/21 실기 · 9/18 펜던트 판독은 +42~45 g —
-   경로가 달라 값이 다르다). 잔반 판정은 `측정값 − 빈 용기 기준값` 이라
-   **두 값을 같은 경로·같은 자세로 재면 옵셋이 상쇄된다.**
+⑥ 🚨 **get_workpiece_weight 는 |Fz| 다 — 부호를 버린다.** 그래서 안 쓴다 (9/22 실기 · 민범진 R2).
+   툴 힘센서 Fz(get_tool_force · BASE)와 나란히 읽어 보니 하중 추정치 = |Fz| / g 였다:
+     빈손 Fz +0.87 N → 하중 89 g · 그릇 +0.05 → 10 g · 그릇+43 g −0.10 → 13 g · 그릇+107 g −0.79 → 80 g
+   무게가 늘수록 Fz 는 **마이너스**로 가는데(중력 = −Z) 절댓값이라 0 근처에서 거울처럼 되튄다 —
+   9/21 "0 에 잘린다" 고 본 것이 이것이었다. 등록된 툴 무게가 실제보다 무거워 빈손이 +0.87 N 인 것도
+   (편향 — 기준값 빼기로 상쇄) 절댓값 때문에 "그릇을 쥐면 가벼워지는" 것처럼 보였다.
+   → 이 함수는 **−Fz × 101.97 (g/N)** 을 돌려준다. 부호가 있어 편향이 음수여도 상쇄가 된다.
+   같은 자세·같은 이동 속도에서 그릇+107 g 이 +86 g 으로 읽혔다(폭 29 g) — 잔반 대용품 ≥100 g(CELL-03)은 잡는다.
+   43 g 은 +15~26 g 으로 반쯤 묻힌다(흔들림 ±25 g) — 임계 50 g 밑이라 어차피 잔반이 아니다.
+   API 는 BR-SR §5.2 "사용 로봇 기능" 에 있는 get_tool_force (force.read_force 와 같은 호출).
+
+🚨 옵셋에 대해: 값에 편향이 있다 — 빈손 −89 g(9/22 · 툴 무게 등록 뒤) 처럼 **음수**일 수도 있다.
+   게다가 **이동 속도·이력에 따라 수십 g 씩 달라진다**(빈손 빠른 이동 −89 · 그릇 느린 이동 −5).
+   잔반 판정은 `측정값 − 빈 용기 기준값` 이라 **두 값을 같은 경로·같은 자세·같은 속도로 재면 상쇄된다.**
+   🚨 흔들림: 정지해 있어도 ±25 g 가 10~20 s 주기로 오르내린다(9/22) → 표본을 10 개(≈ 7 s) 이상 잡아 중앙값.
    그래서 `params.yaml` 의 `f2.empty_weight_g` 는 **저울 무게가 아니라 이 함수로 읽은 값**이어야 한다.
    저울로 잰 진짜 무게를 넣으면 빈 용기가 잔반 24 g 으로 보인다.
 """
@@ -34,7 +45,9 @@ import time
 __all__ = ['weigh']
 
 _MIN_SAMPLES = 1
-KG_TO_G = 1000.0                           # ⑤ API 는 kg, 우리는 g (9/21 실기)
+KG_TO_G = 1000.0                           # ⑤ get_workpiece_weight 는 kg (지금은 안 쓴다 — ⑥)
+N_TO_G = 101.97                            # ⑥ 1 N ≈ 101.97 g (g = 9.807)
+_FZ = 2                                    # get_tool_force → [fx, fy, fz, mx, my, mz] 의 fz
 
 
 def weigh(n, reset=False):
@@ -42,7 +55,7 @@ def weigh(n, reset=False):
 
     n     : 잴 횟수 (params.yaml 의 f2.weigh_samples)
     reset : 0점 재설정을 먼저 할지 — **기본 끔**. TS-03 참고
-    반환  : 무게(g) — API 의 kg 값에 × 1000 (⑤)
+    반환  : 무게(g) = −Fz × 101.97 — 툴 힘센서 Z(BASE) 를 부호 그대로 (⑥). 편향이 있어 음수일 수 있다
 
     🚨 잴 수 없으면 **예외를 던진다.** 숫자 하나로는 "0 g" 과 "실패" 를 구분할 수 없기 때문이다.
        부르는 쪽(flow 의 Flow.call)이 잡아서 ROBOT_ERROR 로 바꾼다.
@@ -59,14 +72,14 @@ def weigh(n, reset=False):
     samples = []
     for _ in range(n):
         try:
-            v = d.get_workpiece_weight()
+            f = d.get_tool_force(ref=d.DR_BASE)        # ⑥ 부호 있는 Fz — |Fz| 인 get_workpiece_weight 는 안 쓴다
         except Exception as e:             # noqa: BLE001 — 한 번 실패해도 나머지로 이어 간다
-            _log().warn(f'get_workpiece_weight 실패 — {e!r}')
+            _log().warn(f'get_tool_force 실패 — {e!r}')
             continue
-        if v is None or v < 0:             # 🚨 API 는 실패를 음수(-1)로 알려 준다
-            _log().warn(f'하중 읽기 실패값 {v} — 버린다')
+        if not isinstance(f, (list, tuple)) or len(f) != 6:   # 🚨 API 는 실패를 -1 하나로 알려 준다
+            _log().warn(f'툴 힘 읽기 실패값 {f!r} — 버린다')
             continue
-        samples.append(float(v) * KG_TO_G)  # ⑤ kg → g
+        samples.append(-float(f[_FZ]) * N_TO_G)       # ⑥ 중력은 −Z → 무게 = −Fz
 
     if not samples:
         raise RuntimeError(f'하중을 {n}회 모두 읽지 못했다 — 브링업·제어권을 확인한다')

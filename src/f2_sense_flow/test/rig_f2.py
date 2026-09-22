@@ -208,6 +208,11 @@ def _measure_empty(a):
         if up > 0.0:
             cc.move_rel(0.0, 0.0, -up, 'BASE')
         samples = cc.cfg()['f2']['weigh_samples']
+        settle = float(cc.cfg()['f2'].get('weigh_settle_s') or 0.0)
+        # 🔄 9/22 발견: 여기는 cc.weigh 를 직접 불러 sense.weigh 의 정지 대기(weigh_settle_s)를 건너뛰었다
+        #    → 도착 직후 5 s 동안 +30 g 높게 읽히는 구간을 그대로 기준값에 넣고 있었다. 실제 운전과 같게 기다린다
+        log.info(f'도착 — {settle:.1f} s 정지 뒤 잰다 (f2.weigh_settle_s · 실제 운전과 같게)')
+        time.sleep(settle)
         log.info(f'빈 {a.kind} 을(를) 그리퍼에 물린 상태에서 {a.n}회 잰다 (회당 {samples} 표본)')
         got = []
         for i in range(a.n):

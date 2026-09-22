@@ -30,10 +30,12 @@ class FakeLog:
 
 
 class FakeDsr:
-    """get_workpiece_weight 가 미리 정한 값을 차례로 돌려준다.
+    """get_tool_force 가 미리 정한 값을 차례로 돌려준다.
 
-    🚨 값은 **g 로 적고** API 처럼 kg 으로 돌려준다(÷ 1000) — 시험이 g 로 읽히게. 음수·예외는 그대로.
+    🚨 값은 **g 로 적고** API 처럼 [fx, fy, fz, mx, my, mz] 로 돌려준다 — fz = −g / 101.97 (중력은 −Z, ⑥).
+       실패 신호는 API 그대로 -1 (리스트가 아님). 예외는 그대로 던진다.
     """
+    DR_BASE = 0
 
     def __init__(self, values, reset_raises=False, reset_delay=0.0):
         self.values = list(values)
@@ -41,13 +43,15 @@ class FakeDsr:
         self._reset_raises = reset_raises
         self._reset_delay = reset_delay
 
-    def get_workpiece_weight(self):
+    def get_tool_force(self, ref=None):
         if not self.values:
             raise RuntimeError('값이 더 없다')
         v = self.values.pop(0)
         if isinstance(v, Exception):
             raise v
-        return v / 1000.0 if v >= 0 else v          # kg 으로 (실패 신호 -1 은 그대로)
+        if v == -1:                                   # 실패 신호 — API 는 리스트 대신 -1
+            return -1
+        return [0.0, 0.0, -float(v) / 101.97, 0.0, 0.0, 0.0]
 
     def reset_workpiece_weight(self):
         self.reset_calls += 1
@@ -76,13 +80,22 @@ def fake(monkeypatch):
     return install
 
 
-# ────────────────────────────────── 🚨 단위 — API 는 kg, 우리는 g (9/21 실기)
-def test_kg_from_api_becomes_g(fake):
-    """9/21 첫 실기: 그릇 쥔 채 0.0684 · 빈손 0.0239 (kg). g 로 안 바꾸면 '0 g' 으로 보여 GRIP_FAIL 이 난다."""
-    fake(FakeDsr([68.4]))                            # FakeDsr 이 0.0684 로 돌려준다
-    assert W.weigh(1) == pytest.approx(68.4)
-    fake(FakeDsr([23.9]))
-    assert W.weigh(1) == pytest.approx(23.9)
+# ────────────────────────────────── 🚨 부호 있는 Fz — 무게 = −Fz × 101.97 (9/22 실기 · ⑥)
+def test_fz_sign_and_unit(fake):
+    """9/22: 그릇+107 g 이 Fz −0.79 N → +80.6 g. 빈손 +0.87 N(편향) → −88.7 g. 부호를 버리면(|Fz|) 둘을 구분 못 한다."""
+    class Raw(FakeDsr):
+        def get_tool_force(self, ref=None):
+            return [0.1, -0.2, self.values.pop(0), 0.0, 0.0, 0.0]
+    fake(Raw([-0.79]))
+    assert W.weigh(1) == pytest.approx(80.6, abs=0.1)
+    fake(Raw([+0.87]))
+    assert W.weigh(1) == pytest.approx(-88.7, abs=0.1)      # 음수가 그대로 나온다 — 기준값 빼기가 상쇄한다
+
+
+def test_negative_weight_is_kept(fake):
+    """⑥ 편향이 음수면 무게도 음수다 — 이건 실패가 아니다(실패 신호는 -1 **리스트가 아닌 것**)."""
+    fake(FakeDsr([-40.0, -42.0, -41.0]))
+    assert W.weigh(3) == pytest.approx(-41.0)
 
 
 # ────────────────────────────────── 중앙값
@@ -108,11 +121,11 @@ def test_single_sample(fake):
 
 
 # ────────────────────────────────── 🚨 음수 = 실패 신호
-def test_negative_is_dropped(fake):
-    """API 는 실패를 음수(-1)로 알려 준다 — 계산에 섞이면 안 된다."""
-    log = fake(FakeDsr([220.0, -1.0, 222.0, -1.0, 224.0]))
+def test_failure_value_is_dropped(fake):
+    """API 는 실패를 -1(리스트가 아님)로 알려 준다 — 계산에 섞이면 안 된다."""
+    log = fake(FakeDsr([220.0, -1, 222.0, -1, 224.0]))
     g = W.weigh(5)
-    assert g == 222.0                       # 음수를 섞으면 133 쯤이 된다
+    assert g == pytest.approx(222.0)
     assert sum(1 for lv, _ in log.lines if lv == 'warn') >= 2
 
 
@@ -121,7 +134,7 @@ def test_all_failed_raises(fake):
 
     숫자 하나로는 '0 g' 과 '실패' 를 구분할 수 없다.
     """
-    fake(FakeDsr([-1.0, -1.0, -1.0]))
+    fake(FakeDsr([-1, -1, -1]))
     with pytest.raises(RuntimeError, match='읽지 못했다'):
         W.weigh(3)
 
