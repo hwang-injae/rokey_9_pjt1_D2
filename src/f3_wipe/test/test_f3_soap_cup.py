@@ -14,13 +14,14 @@ import math
 
 import pytest
 
-from cobot_api import FORCE_LIMIT, OK, ROBOT_ERROR, TIMEOUT
+from cobot_api import FORCE_LIMIT, OK, ROBOT_ERROR, TIMEOUT, TOOL_LOST
 from f3_wipe import wipe
 
 HOME_X, HOME_Y, HOME_Z = 367.48, 8.09, 215.11
 
 CFG = {
     'run': {'vel_scale': 0.3},
+    'f2': {'slip_tol_mm': 1.0},                                          # TOOL_LOST 판정 허용오차(재사용)
     'cell': {'limits': {'insert_limit_n': 15.0, 'timeout_s': 30.0},      # main 값 — 컵은 이것을 쓰지 않는다
              'stations': {'HOME': {'posj': [0.0, 0.0, 90.0, 0.0, 90.0, 0.0],
                                     'posx_x_mm': HOME_X, 'posx_y_mm': HOME_Y, 'posx_z_mm': HOME_Z}},
@@ -77,9 +78,13 @@ class FakeCell:
         self.periodic = 0
         self.j6_sign = 1                                 # 자세 c + → 6번 축 + (Virtual 기록). −1 이면 반대로 도는 로봇
         self.logger = _Logger()
+        self.width = 20.0                                # TOOL_LOST 시험용 — 기본은 안 변한다(안 놓침)
 
     def cfg(self):
         return CFG
+
+    def grip_width(self):
+        return self.width
 
     def move_to(self, station, carrying, kind=None, point=None):
         self.calls.append(('move_to', station, kind, point))
@@ -155,8 +160,9 @@ def cell(monkeypatch, tmp_path):
     c = FakeCell()
     for name in ('cfg', 'move_to', 'move_rel', 'move_joint_rel', 'move_joints', 'move_periodic', 'motion_done',
                  'stop_now', 'contact_down', 'read_force', 'force_off', 'safe_retreat', 'io_node', 'is_halted',
-                 'where', 'joints'):
+                 'where', 'joints', 'grip_width'):
         monkeypatch.setattr(wipe.cc, name, getattr(c, name), raising=False)
+    monkeypatch.setattr(wipe, '_tool_baseline_mm', None, raising=False)   # 다른 시험의 soap() 기준이 새지 않게
     return c
 
 
@@ -241,6 +247,19 @@ def test_soap_halt_does_not_auto_move(cell):
     with pytest.raises(wipe.cc.MotionHalted):
         wipe.soap(3)
     assert 'safe_retreat' not in [c[0] for c in cell.calls]
+
+
+def test_soap_detects_tool_lost_during_twist(cell, monkeypatch):
+    """9/23: 비틀기 도는 중 폭이 기준(soap 시작 때 잰 값)보다 크게 벗어나면 TOOL_LOST."""
+    def dropped():
+        cell.width = 20.0 + 5.0                      # slip_tol_mm(1.0)보다 훨씬 크게 벗어남 — 실기 재현 값 참고
+        if cell.periodic > 0:
+            cell.periodic -= 1
+            return False
+        return True
+    monkeypatch.setattr(wipe.cc, 'motion_done', dropped, raising=False)
+    r = wipe.soap(3)
+    assert not r.ok and r.code == TOOL_LOST
 
 
 # ------------------------------------------------------------------ wipe_cup
@@ -404,7 +423,7 @@ def test_cup_halt_does_not_auto_move(cell):
     cell.halted = True
     with pytest.raises(wipe.cc.MotionHalted):
         wipe.wipe_cup()
-    assert [c[0] for c in cell.calls] == ['force_off']                     # 끄기만 하고 움직이지 않는다
+    assert [c[0] for c in cell.calls] == ['stop_now', 'force_off']         # 즉시 정지 → 끄기만, 움직이지 않는다
 
 
 def test_cup_logs_depth_and_saves_force_log(cell):
