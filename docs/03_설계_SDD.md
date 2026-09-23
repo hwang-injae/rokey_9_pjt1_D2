@@ -299,7 +299,7 @@ f3:                                                                 # ── f3 
 flow:                                                               # ── flow 절 (민범진) ──
   plan: [{zone: RET_B, kind: BOWL, count: 2}, {zone: RET_C, kind: CUP, count: 2}]
   rack_order: {BOWL: [RACK_B1, RACK_B2], CUP: [RACK_C1, RACK_C2]}
-  policy: {EMPTY_ZONE: next_zone, LEFTOVER_REMAIN: isolate, SEAT_FAIL: isolate,
+  policy: {EMPTY_ZONE: next_zone, LEFTOVER_REMAIN: pause, SEAT_FAIL: isolate,
            FORCE_LIMIT: retry:1->isolate, TIMEOUT: retry:1->isolate, RACK_JAM: retry:1->isolate, TOOL_FAIL: retry:1->isolate,
            RACK_FULL: pause, ROBOT_ERROR: pause}
   consumables: {sponge_max_uses: 20, soap_max_dips: 60}
@@ -346,7 +346,7 @@ stateDiagram-v2
   WEIGH --> SHAKE: LEFTOVER
   WEIGH --> SEAT: ok
   SHAKE --> WEIGH: 재측정 (≤max_rounds)
-  SHAKE --> ISOLATE: LEFTOVER_REMAIN
+  SHAKE --> PAUSED: LEFTOVER_REMAIN (E42 · 사람이 재개 / 중단→격리)
   SEAT --> SOAP: ok
   SEAT --> ISOLATE: SEAT_FAIL
   SOAP --> WIPE
@@ -473,7 +473,7 @@ return EMPTY_ZONE (attempts = 슬롯 수)
 | 코드 | 발생 | 처리 | 표시 |
 |---|---|---|---|
 | `EMPTY_ZONE` | 탐색 최대 횟수까지 파지 실패 | 구역 종료, 다음 구역 (SKIPPED 기록) | 정보 |
-| `LEFTOVER_REMAIN` | 털기 후에도 임계 초과 | 격리 | 경고 |
+| `LEFTOVER_REMAIN` | 털기 후에도 임계 초과 | 🔄 E42(9/23): **멈춤(PAUSED)** → 사람이 재개(다시 잰다) / 중단(HOME → 격리) — 정책 isolate 갈래는 로봇을 옮기지 않아(기록만) 든 용기를 떨어뜨리므로 시연은 pause | 경고 |
 | `SEAT_FAIL` | 탐색 한도 초과 | 격리 | 경고 |
 | `TOOL_FAIL` | 툴 폭 범위 밖(툴 없음) | 재시도 1회 → 격리 | 경고 |
 | `GRIP_FAIL` | f2: 털기·담금 전후 그리퍼 폭이 `slip_tol_mm` 넘게 변함(미끄러짐) · 무게가 `min_net_g` 아래(빈손) | ✅ **PAUSED + 알림 → 사람이 확인**(황인재 9/20 — `params.yaml` `flow.policy.GRIP_FAIL: pause`). pick 안의 헛잡음은 지금처럼 F1 이 다음 시도로 소화 | 오류 |
