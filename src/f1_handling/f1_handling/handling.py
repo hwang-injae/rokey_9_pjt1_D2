@@ -104,7 +104,7 @@ def pick(zone_id: str, kind: str) -> PickResult:
     ✅ 9/22 구현(민범진 · PM 승인으로 이식 — 동작은 한석형 rig_bowl_scenario_real.py 실기 검증 경로 그대로, 좌표는 cell.yaml).
     절차(반납 구역 RET_*): 그리퍼 열기 → 슬롯 1번부터 —
       cc.move_to(zone_id, False, point=i) (접근점) → 남은 높이만큼 곧게 하강 → grip(프리셋)
-      → 그릇: 영점 뺀 폭이 기대 ± 허용오차면 성공 · 컵: 판정 없음(E19) → **접근 높이로 되올라와** PickResult(width_mm, attempts=i)
+      → 그릇·컵: 영점 뺀 폭이 기대 ± 허용오차면 성공(CUP_SIDE 고정폭 재파지는 별도) → **접근 높이로 되올라와** PickResult(width_mm, attempts=i)
       → 실패(빈손·헛잡음)면 release → 되올라와 → 다음 슬롯. 다 돌면 PickResult.fail(EMPTY_ZONE, attempts=슬롯 수).
     재파지(SPONGE_BED_*): 그릇 = point='place' 접근점 → 하강 → grip → 되올라옴 / 컵 = point='regrip'(posj) → grip
       → rack.cup_entry_z_mm 까지 올린다(한석형 9/22 경로 — 낮은 자세에서 곧장 다음 자리로 가지 않게).
