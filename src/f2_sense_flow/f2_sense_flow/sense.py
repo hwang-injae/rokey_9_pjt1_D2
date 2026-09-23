@@ -250,6 +250,29 @@ def _slipped(label, w_before, w_after, tol):
     return False
 
 
+def _require_holding(label, kind=None):
+    """🆕 9/23: 움직이기 **전에** 빈손이면 GRIP_FAIL — 빈손으로 수조·털기 자세까지 가지 않는다. 폭을 못 읽으면 통과(예전 동작).
+    빈손 = ① 폭이 열려 있다(> f2.limits.open_width_mm 기본 100) ② **꽉 닫혀 있다**(폭 판정 프리셋(grip_zero_mm·width_tol_mm)이 있는 종류에서
+    폭 ≤ 영점 + 허용오차 — 08:4x 실기: 열린 채 시작한 담금이 빈손을 10.5 로 닫아 버린 뒤 털기가 그 상태로 시작됐다).
+    고정 폭 프리셋(grip_target_mm · E19 옆면 컵)은 ②를 판정하지 않는다."""
+    try:
+        w = float(cc.grip_width())
+    except Exception:                                 # noqa: BLE001 — 못 읽으면 판정하지 않는다
+        return None
+    lim = (_f2().get('limits') or {})
+    open_w = float(lim.get('open_width_mm', 100.0))
+    if w > open_w:
+        _log().warn(f'{label} — 그리퍼가 열려 있다(폭 {w:.1f} mm > {open_w:g}) · 빈손이라 움직이지 않는다')
+        return w
+    if kind is not None:
+        preset = ((cc.cfg().get('cell') or {}).get('presets') or {}).get(kind) or {}
+        zero, tol = preset.get('grip_zero_mm'), preset.get('width_tol_mm')
+        if preset.get('grip_target_mm') is None and zero is not None and tol is not None and w <= float(zero) + float(tol):
+            _log().warn(f'{label} — 그리퍼가 꽉 닫혀 있다(폭 {w:.2f} ≤ 영점 {float(zero):.2f} + {float(tol):.2f}) · 빈손이라 움직이지 않는다')
+            return w
+    return None
+
+
 def _held_by_width(kind):
     """폭으로 **지금 용기를 쥐고 있나** 를 본다 → True / False / None(판정 불가).
 
@@ -417,10 +440,30 @@ def shake(mode: str, count: int, kind: str) -> Result:
        안 쏟아진다. f2.shake.<mode>.tilt_deg 가 있으면 흔들기 **전에** 같은 관절을 그만큼 기울여(입이 잔반통 쪽으로)
        그 자세를 가운데 삼아 흔들고, 끝나면 되돌린다. 없거나 0 이면 예전 그대로(RINSE 물 털기는 안 기울인다).
        부호는 실기에서 정한다(어느 쪽이 잔반통 쪽인지는 자세마다 다르다). 상한 f2.limits.max_tilt_deg.
+    🆕 9/23 결정 E36(황인재) — **물 털기(RINSE) 재설계**: 담금 뒤 수조 안에서 까딱이지 않고
+       ① `at: approach` — 스테이션의 **접근점(수조 위 · z 235)까지만** 간다. 수조 안 자세에서 부르면 접근점이 같은 x·y 라
+          **곧게 위로 빠져나오는 것**이 되고, 내려가지 않는다. 끝나도 그 높이에 남는다(헹굼 뒤 로봇이 높은 자세 → TS-08 위험 감소).
+          `at: RINSE_SHAKE`(스테이션 이름) — 위처럼 접근점까지 곧게 올라온 **다음** 관절 이동으로 그 털기 자세(cell.stations · posj · 황인재 티칭)로 가서 턴다
+          (9/23 07:5x 황인재: 접근 높이에서의 J4 흔들기는 밋밋함 → 툴이 옆으로 누운 높은 자세에서 잔반 버리기처럼 크게). 끝나도 거기 남는다.
+       ② `joint: 4` — 4번 관절을 좌우로 왕복(잔반 버리기 J5 와 비슷한 모양 · 기울이기 없음).
+       ③ `fast: true` — **vel_scale 예외**(cc.move_joint_rel(scale=False) · E17 취지): 배속을 낮춰도 설정한 주기대로 턴다.
+          상한은 100 % 기준(cell.motion.vel_joint_max_deg_s · 100 °/s)이 그대로 걸린다. 관절 왕복에만 쓸 수 있다.
+       ④ `smooth: true` — 왕복을 구간 3개(가운데→끝, 끝→반대끝, 끝→가운데 · 구간마다 정지)가 아니라 **관절 스플라인 한 번**
+          (cc.move_joints_via · amovesj)으로: 가운데 → +amp → −amp → +amp → … → 가운데를 정지 없이 한 곡선으로 지나간다
+          (황인재 9/23: \"3단계로 보인다 · 가장 큰 각도에서 가장 작은 각도까지 한 번에\"). 속도 = 4·amp/period(deg/s) · 가속도 acc_deg_s2(없으면 100 % 기준).
+          실패하면 시작 관절 자세(q0)로 되돌린다(cc.move_joints · 들고 가는 속도).
+       `at` 이 없으면 예전대로 티칭 자세까지 내려가 턴다(WASTE 는 접근점이 없어 그대로).
     """
     conf = _f2()
     lim = _limits(conf)
     p = shake_params(conf, mode, kind)                       # 🆕 종류별(BOWL/CUP) 묶음이 있으면 그것
+    at = str(p.get('at') or 'teach')                         # 🆕 E36: 'teach' = 티칭 자세(예전) · 'approach' = 접근점(수조 위) · 그 밖 = **털기 자세 스테이션 이름**(cell.stations · posj)
+    if at.lower() in ('teach', 'approach'):
+        at = at.lower()
+    elif at not in ((cc.cfg().get('cell') or {}).get('stations') or {}):
+        raise ValueError(f'f2.shake.{mode}.at = {p.get("at")!r} — teach·approach 또는 cell.stations 의 이름(예: RINSE_SHAKE)')
+    fast = bool(p.get('fast', False))                        # 🆕 E36: vel_scale 예외(관절 왕복만)
+    smooth = bool(p.get('smooth', False))                    # 🆕 E36(황인재 9/23): 관절 왕복을 구간 3개가 아니라 **스플라인 한 번**으로(정지 없이)
     linear = p.get('axis') is not None                       # 🆕 직선 왕복(axis·amp_mm) 인가, 관절 왕복(joint·amp_deg) 인가
     if linear:
         axis = str(p.get('axis')).lower()
@@ -430,6 +473,8 @@ def shake(mode: str, count: int, kind: str) -> Result:
                     where=f'f2.shake.{mode}')
         acc = _need(p, 'acc_mm_s2', lo=0.0, where=f'f2.shake.{mode}') if p.get('acc_mm_s2') is not None else None
         joint = None
+        if fast or smooth:
+            raise ValueError(f'f2.shake.{mode}: 직선 왕복(axis)에는 fast·smooth 를 쓸 수 없다 — 속도는 period_s·acc_mm_s2 로')
     else:
         joint = _need(p, 'joint', cast=int, lo=1, hi=6, where=f'f2.shake.{mode}')
         amp = _need(p, 'amp_deg', lo=0.0, hi=_need(lim, 'max_amp_deg', where='f2.limits'),
@@ -447,8 +492,20 @@ def shake(mode: str, count: int, kind: str) -> Result:
     if n <= 0:
         _log().warn(f'shake({mode}) — count={count} 라 아무것도 안 한다')
         return Result()
+    if _require_holding(f'shake({mode})', kind) is not None:   # 🆕 9/23 빈손(열림·꽉 닫힘)이면 움직이기 전에 끝
+        return _fail(Result, GRIP_FAIL)
 
-    _goto(mode, carrying=True, kind=kind)       # force_off 는 _goto 안에서 먼저 부른다
+    if at == 'approach':                        # 🆕 E36: 접근점까지만 — 수조 안이면 곧게 위로 빠져나온다(같은 x·y) · 내려가지 않는다
+        cc.force_off()
+        cc.move_to(mode, True, kind)
+        _log().info(f'shake({mode}) — 접근 높이(수조 위)에서 턴다 · 내려가지 않는다(E36)')
+    elif at != 'teach':                         # 🆕 E36(황인재 9/23): 털기 자세 스테이션 — 먼저 접근점까지 **곧게 위로**(수조 안에서 관절 이동 금지 · TS-08) → 관절 이동으로 털기 자세
+        cc.force_off()
+        cc.move_to(mode, True, kind)
+        cc.move_to(at, True, kind)
+        _log().info(f'shake({mode}) — 접근점(수조 위)으로 올라온 뒤 털기 자세 {at} 에서 턴다(E36) · 끝나도 거기 남는다')
+    else:
+        _goto(mode, carrying=True, kind=kind)   # force_off 는 _goto 안에서 먼저 부른다
 
     # 🚨 폭은 **HOLD 로 바꾸기 전**에 잰다 — 두 번의 힘 전환을 모두 검사 범위에 넣으려고(_slipped).
     w_before = float(cc.grip_width())
@@ -468,34 +525,51 @@ def shake(mode: str, count: int, kind: str) -> Result:
             cc.move_rel(vec[0] * d, vec[1] * d, vec[2] * d, 'BASE', vel_mm_s=vel, acc_mm_s2=acc)
         what = f'{axis.upper()} ±{amp:.0f} mm' + (f' · 가속 {acc:.0f}' if acc else '')
     else:
+        _fast_kw = {'scale': False} if fast else {}   # 🆕 E36: fast 면 vel_scale 예외(motion.move_joint_rel scale=False)
+
         def _step(d, t=None):
-            cc.move_joint_rel(joint, d, time_s=t, carrying=True)
-        what = f'J{joint} ±{amp:.0f}°'
+            cc.move_joint_rel(joint, d, time_s=t, carrying=True, **_fast_kw)
+        what = f'J{joint} ±{amp:.0f}°' + (' · 빠름(vel_scale 예외)' if fast else '') + (' · 접근 높이' if at == 'approach' else (f' · {at}' if at != 'teach' else ''))
 
     moved = 0.0                                 # 가운데에서 얼마나 벗어나 있나 (실패 복구용)
+    q0 = None                                   # 🆕 smooth: 시작 관절 자세(실패 복구용)
     _hold(kind, HOLD)                           # 흔들 때는 더 꽉 잡는다 (IRD §4)
     try:
         if tilt:                                # 🆕 기울이기 — 들고 가는 속도(시간 지정 없음), 흔들기의 새 가운데
             _log().info(f'shake({mode}) — J{joint} {tilt:+.0f}° 기울인다 (입이 잔반통 쪽으로)')
             cc.move_joint_rel(joint, tilt, carrying=True)
             moved += tilt
-        for i in range(1, n + 1):
+        if smooth:                              # 🆕 E36: 스플라인 한 번 — 가운데 → +amp → −amp → … → 가운데 (정지 없이)
+            q0 = [float(v) for v in cc.joints()]
+            pts = []
+            for _ in range(n):
+                for sign in (+1.0, -1.0):
+                    q = list(q0); q[joint - 1] = q0[joint - 1] + sign * amp; pts.append(q)
+            pts.append(list(q0))
+            vel = (4.0 * amp / period) if period > 0 else None       # 구간 평균 속도와 같은 값(deg/s)
+            acc = float(p['acc_deg_s2']) if p.get('acc_deg_s2') is not None else None
+            _log().info(f'shake({mode}) — {what} · {n}회를 스플라인 한 번으로(점 {len(pts)}개 · {vel:.0f} deg/s)')
+            cc.move_joints_via(pts, vel_deg_s=vel, acc_deg_s2=acc, scale=not fast)
+            q0 = None                           # 끝까지 갔다 = 가운데로 돌아왔다
+        for i in (range(1, n + 1) if not smooth else ()):
             if linear:
                 _step(+amp); moved += amp                                          # 가운데 → 끝
                 _step(-2 * amp); moved -= 2 * amp                                  # 끝 → 반대쪽 끝
                 _step(+amp); moved += amp                                          # 끝 → 가운데
             else:
-                cc.move_joint_rel(joint, +amp, time_s=t_quarter, carrying=True)   # 가운데 → 끝
-                moved += amp
-                cc.move_joint_rel(joint, -2 * amp, time_s=t_half, carrying=True)  # 끝 → 반대쪽 끝
-                moved -= 2 * amp
-                cc.move_joint_rel(joint, +amp, time_s=t_quarter, carrying=True)   # 끝 → 가운데
-                moved += amp
+                _step(+amp, t_quarter); moved += amp                              # 가운데 → 끝
+                _step(-2 * amp, t_half); moved -= 2 * amp                         # 끝 → 반대쪽 끝
+                _step(+amp, t_quarter); moved += amp                              # 끝 → 가운데
             _log().info(f'shake({mode}) {i}/{n} — {what} · 주기 {period:.2f} s')
         if tilt:                                # 🆕 아직 꽉 쥔 채 똑바로 되돌린다 (finally 는 실패용)
             cc.move_joint_rel(joint, -tilt, carrying=True)
             moved -= tilt
     finally:
+        if q0 is not None:                      # 🆕 smooth 도중 실패 — 시작 관절 자세로 되돌린다(들고 가는 속도)
+            m = (cc.cfg().get('cell') or {}).get('motion') or {}
+            lim_c = (cc.cfg().get('cell') or {}).get('limits') or {}
+            k = float(lim_c.get('vel_carry_pct', 30)) / 100.0
+            _quietly('가운데 복귀(스플라인)', cc.move_joints, q0, float(m.get('vel_joint_max_deg_s', 100)) * k, float(m.get('acc_joint_max_deg_s2', 200)) * k)
         if abs(moved) > 1e-9:                   # 🚨 도중에 실패했으면 가운데로 되돌린다
             if linear:
                 _quietly('가운데 복귀', cc.move_rel, -vec[0] * moved, -vec[1] * moved, -vec[2] * moved, 'BASE')
@@ -539,6 +613,8 @@ def dip(station: str, count: int, kind: str) -> Result:
     if n <= 0:
         _log().warn(f'dip({station}) — count={count} 라 아무것도 안 한다')
         return Result()
+    if _require_holding(f'dip({station})', kind) is not None:  # 🆕 9/23 빈손(열림·꽉 닫힘)이면 움직이기 전에 끝
+        return _fail(Result, GRIP_FAIL)
 
     _goto(station, carrying=True, kind=kind)    # force_off 는 _goto 안에서 먼저 부른다
 

@@ -44,7 +44,7 @@ import time
 
 from .bootstrap import cfg, dsr, io_node
 
-__all__ = ['move_to', 'move_rel', 'move_joint_rel',
+__all__ = ['move_to', 'move_rel', 'move_joint_rel', 'move_joints_via',
            'pause', 'resume', 'is_paused', 'halt', 'clear_halt', 'is_halted', 'stop',
            'MotionHalted', 'MoveTimeout', 'MoveIncomplete']
 
@@ -134,8 +134,12 @@ def move_rel(dx, dy, dz, frame, *, vel_mm_s=None, acc_mm_s2=None):
          lambda: d.amovel(step, vel=vel, acc=acc, ref=ref, mod=d.DR_MV_MOD_REL))
 
 
-def move_joint_rel(joint, delta_deg, *, time_s=None, carrying=True):
+def move_joint_rel(joint, delta_deg, *, time_s=None, carrying=True, scale=True):
     """관절 하나(joint = 1~6)를 지금 각도에서 delta_deg 만큼 돌린다. 나머지 관절은 그대로. (DSN-03 B11 — 털기·물 털기의 J5/J6 왕복)
+
+    🆕 9/23 E36 scale=False — **vel_scale 예외**(결정 E17 과 같은 취지: 물 털기처럼 빠르기 자체가 기능인 왕복).
+       time_s 를 vel_scale 로 늘리지 않고, 상한도 100 % 기준(cell.motion.vel_joint_max_deg_s)만 건다.
+       time_s 없이 부르면 scale 은 무시된다(속도 지정 이동은 언제나 vel_scale 적용).
 
     time_s 를 주면 그 시간에 맞춰 움직인다(왕복 주기를 맞출 때) — vel_scale < 1 이면 시간을 그만큼 늘린다.
       🚨 그래도 **평균 속도(|delta_deg| / 시간)가 100 % 기준 × vel_scale 을 넘지 못한다** — 넘으면 시간을 늘리고 경고를 남긴다
@@ -148,12 +152,13 @@ def move_joint_rel(joint, delta_deg, *, time_s=None, carrying=True):
     delta = [0.0] * 6
     delta[joint - 1] = float(delta_deg)
     if time_s is not None:
-        move_time = _positive('time_s', time_s) / _vel_scale()
-        top_v, _ = _joint_speed(100)
+        k = _vel_scale() if scale else 1.0                  # 🆕 scale=False: vel_scale 예외(E36)
+        move_time = _positive('time_s', time_s) / k
+        top_v = _joint_speed(100)[0] if scale else _joint_fast_cap()[0]   # 100 % 기준 × vel_scale · 예외면 물 털기 전용 상한
         shortest = abs(float(delta_deg)) / top_v            # 상한 속도로 갈 때 걸리는 시간
         if move_time < shortest:
             _warn(f'move_joint_rel J{joint} {delta_deg:+g}° 를 {move_time:.2f} s 에 가면 평균 {abs(delta_deg) / move_time:.0f} deg/s — '
-                  f'상한 {top_v:g} deg/s(cell.motion.vel_joint_max_deg_s × vel_scale)를 넘어 {shortest:.2f} s 로 늘린다')
+                  f'상한 {top_v:g} deg/s({"cell.motion.vel_joint_max_deg_s × vel_scale" if scale else "cell.motion.vel_joint_fast_max_deg_s · vel_scale 예외"})를 넘어 {shortest:.2f} s 로 늘린다')
             move_time = shortest
         kwargs = {'time': move_time}
     else:
@@ -162,6 +167,34 @@ def move_joint_rel(joint, delta_deg, *, time_s=None, carrying=True):
     timeout = _move_timeout()
     d = dsr()
     _run(f'amovej(move_joint_rel J{joint} {delta_deg:+g}°)', timeout, lambda: d.amovej(delta, mod=d.DR_MV_MOD_REL, **kwargs))
+
+
+def move_joints_via(q_list, *, vel_deg_s=None, acc_deg_s2=None, scale=True):
+    """관절 자세 여러 개를 **한 번의 연속 곡선(스플라인 · amovesj)** 으로 지나간다 — 점마다 멈추지 않는다.
+
+    🆕 9/23 E36(황인재): 물 털기가 "구간 3개(정지 포함)" 로 보여서 — 가장 큰 각도에서 가장 작은 각도까지 **한 번에** 움직이게.
+    q_list  : [[j1..j6], ...] 절대 관절 각도(deg). 마지막 점에서 끝난다(가운데로 돌아오려면 마지막에 시작 자세를 넣는다).
+    vel/acc : 관절 속도(deg/s)·가속도(deg/s²) — 안 주면 cell.limits.vel_carry_pct(들고 이동) × vel_scale.
+              주면 그 값 × vel_scale (scale=False 면 vel_scale 예외 · E17 취지 · 상한은 cell.motion.*_joint_fast_max — 물 털기 전용). 기본은 100 % 기준(cell.motion.*_joint_max)을 넘지 못한다.
+    🚨 순응·힘제어가 켜져 있으면 관절 이동이 안 된다(2.1903) → force_off() 뒤에. 일시정지·강제정지는 _run 이 본다.
+    """
+    d = dsr()
+    pts = []
+    for i, q in enumerate(q_list):
+        q = [float(v) for v in q]
+        if len(q) != 6:
+            raise ValueError(f'move_joints_via: {i}번째 점이 6개가 아니다 — {q}')
+        pts.append(d.posj(q))                                        # 🚨 두산 movesj 는 항목이 **posj 형**이어야 받는다(list 면 DR_Error 1000 · 9/23 08:1x 실기)
+    if len(pts) < 2:
+        raise ValueError('move_joints_via: 점이 2개 이상이어야 곡선이 된다')
+    k = _vel_scale() if scale else 1.0
+    top_v, top_a = _joint_speed(100) if scale else _joint_fast_cap()    # 100 % 기준 × vel_scale · 예외면 물 털기 전용 상한(E36)
+    if vel_deg_s is None:
+        vel, acc = _joint_speed(_limit('vel_carry_pct'))
+    else:
+        vel = min(_positive('vel_deg_s', vel_deg_s) * k, top_v)
+        acc = min(_positive('acc_deg_s2', acc_deg_s2) * k, top_a) if acc_deg_s2 is not None else top_a
+    _run(f'amovesj({len(pts)}점 · {vel:.0f} deg/s)', _move_timeout(), lambda: d.amovesj(pts, vel=vel, acc=acc, mod=d.DR_MV_MOD_ABS))
 
 
 # ------------------------------------------------------------------ 일시정지 · 재개 · 강제정지 (깃발만 — 어느 스레드에서 불러도 된다)
@@ -345,6 +378,15 @@ def _tcp_speed(pct):
     """직선 이동 (속도 mm/s, 가속도 mm/s²) = 100 % 기준 × pct × vel_scale."""
     k = float(pct) / 100.0 * _vel_scale()
     return float(_cell_key('motion', 'vel_tcp_max_mm_s')) * k, float(_cell_key('motion', 'acc_tcp_max_mm_s2')) * k
+
+
+def _joint_fast_cap():
+    """vel_scale 예외 이동(scale=False · E36 물 털기)의 상한 — cell.motion.vel_joint_fast_max_deg_s / acc_joint_fast_max_deg_s2.
+    없으면 100 % 기준(vel_joint_max · acc_joint_max)과 같다(예외를 줘도 더 빨라지지 않는다)."""
+    m = cfg().get('cell', {}).get('motion', {}) or {}
+    v = m.get('vel_joint_fast_max_deg_s'); a = m.get('acc_joint_fast_max_deg_s2')
+    base_v, base_a = float(_cell_key('motion', 'vel_joint_max_deg_s')), float(_cell_key('motion', 'acc_joint_max_deg_s2'))
+    return (float(v) if v is not None else base_v), (float(a) if a is not None else base_a)
 
 
 def _joint_speed(pct):

@@ -127,7 +127,7 @@ f1.pick('RET_B', 'BOWL') → f1.move_to('WEIGH', True, 'BOWL') → f2.leftover_l
 → f1.place('SPONGE_BED_B')                      # 안착 놓기(순응 하강·탐색, 실패 SEAT_FAIL)
 → f1.tool('SPONGE', 'PICK') → f3.soap(3, 'BOWL') → f3.wipe_bowl() → f1.tool('SPONGE', 'RETURN')
 → f1.pick('SPONGE_BED_B', 'BOWL')               # 홈에 놓인 그릇 재파지(고정 위치, 탐색점 1개)
-→ f2.dip('RINSE', 2, 'BOWL') → f2.shake('RINSE', 3, 'BOWL')   # 🔄 9/22 담금 1 → 2 (PR #68)
+→ f2.dip('RINSE', 2, 'BOWL') → f2.shake('RINSE', 3, 'BOWL')   # 🔄 9/22 담금 1 → 2 (PR #68) · 🔄 9/23 E36: shake(RINSE) 는 곧게 위로 빠져나와 **접근 높이(수조 위)에서 J4 좌우 3회** · 끝나면 높은 자세(dip 은 수조 안에서 끝)
 → f1.rack_place('RACK_Bn', 'BOWL') → f1.move_to('HOME', False)
 # CUP: 🔄 E30(9/22 19:0x · E25 되돌림) — **그릇과 같은 흐름**(move_to WEIGH · leftover_loop 도 한다 · `flow.weigh_kinds [BOWL, CUP]` PR #79) · 파지는 E29 벽 집기(폭 판정) · 나머지 동일, SPONGE_BED_C · tool('BRUSH') · wipe_cup() · dip·shake('RINSE') 는 한다 · RACK_Cn
 ```

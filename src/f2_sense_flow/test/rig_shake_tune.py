@@ -43,12 +43,13 @@ def _show(log, mode, p, count):
     if p.get('axis') is not None:
         body = f"axis {p['axis']} · amp {p.get('amp_mm')} mm · period {p.get('period_s')} s · acc {p.get('acc_mm_s2') or '기본'} mm/s²"
     else:
-        body = f"J{p.get('joint')} · amp {p.get('amp_deg')}° · period {p.get('period_s')} s · tilt {p.get('tilt_deg') or 0}°"
+        body = (f"J{p.get('joint')} · amp {p.get('amp_deg')}° · period {p.get('period_s')} s · tilt {p.get('tilt_deg') or 0}°"
+                + (f" · at {p.get('at')}" if p.get('at') else '') + (' · fast' if p.get('fast') else '') + (' · smooth' if p.get('smooth') else ''))
     log.info(f'[{mode}] {body} · 횟수 {count} · 속도 {vs * 100:.0f} %')
 
 
 def _yaml(mode, p, kind=''):
-    keys = [k for k in ('axis', 'joint', 'amp_mm', 'amp_deg', 'cycles', 'period_s', 'acc_mm_s2', 'tilt_deg') if p.get(k) is not None]
+    keys = [k for k in ('axis', 'joint', 'amp_mm', 'amp_deg', 'cycles', 'period_s', 'acc_mm_s2', 'tilt_deg', 'at', 'fast', 'smooth') if p.get(k) is not None]
     head = f'      {kind}:' if kind else f'    {mode}:'
     return f"{head} {{" + ', '.join(f'{k}: {p[k]}' for k in keys) + '}'
 
