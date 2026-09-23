@@ -248,6 +248,22 @@ def main() -> int:
             log.info(f'HOME 으로 간다 (관절 이동) · 지금 관절 [{", ".join(f"{v:.1f}" for v in posj())}]')
             if opt.step and input('    🚨 관절 이동이라 팔 전체가 휜다 — 갈 길에 걸릴 것이 없으면 Enter / q = 그만 > ').strip().lower() == 'q':
                 return 2
+            # 🔄 9/23(황인재): 낮은 자세(수조 안 z −14 등)에서 곧장 관절 이동하면 테이블을 가로지른다(9/22 17:27 충돌)
+            #    → 먼저 힘을 끄고 **Z 만 안전 높이(cell.limits.safe_z_mm)까지** 올린 뒤 HOME. 이미 위면 안 움직인다.
+            log.info('  먼저 곧게 위로 (safe_retreat · 이미 높으면 안 움직임)')
+            cc.safe_retreat()
+            # 🔄 9/23 09:39 실기(황인재): 팔레트 컵 칸(z 249)에서 --home 을 부르니 safe_z(235)보다 이미 높아 안 올라가고
+            #    관절 이동으로 곧장 가다 **팔레트에 걸렸다**. 팔레트는 HOME 보다 +200 높은 구조물 → 칸 근처(xy 200 mm 안)면 칸 위 높이(350)까지 먼저 올린다.
+            #    (공정 자체는 rack_place 가 놓은 뒤 위 100 → 옆으로 빠져나온 뒤 HOME 을 부르므로 해당 없음 — 이 도구만의 지름길 문제)
+            now = posx()
+            slots = ((cc.cfg().get('cell') or {}).get('rack') or {}).get('slots') or {}
+            tops = [sl['approach_posx'] for sl in slots.values() if sl.get('approach_posx')]
+            near = [t for t in tops if ((now[0] - t[0]) ** 2 + (now[1] - t[1]) ** 2) ** 0.5 < 200.0]
+            if near:
+                top_z = max(t[2] for t in near)
+                if now[2] < top_z:
+                    log.info(f'  팔레트 칸 근처(z {now[2]:.0f}) → 칸 위 높이 {top_z:.0f} 까지 곧게 올린 뒤 HOME')
+                    cc.move_rel(0.0, 0.0, top_z - now[2], 'BASE')
             cc.move_to('HOME', False)
             log.info('OK   HOME' + jinfo())
             return 0

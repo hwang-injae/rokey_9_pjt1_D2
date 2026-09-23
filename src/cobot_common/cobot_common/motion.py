@@ -277,7 +277,14 @@ def _make_client(name):
 
 
 def _move_timeout():
-    return float(_cell_key('motion', 'move_timeout_s'))
+    """이동 1번의 상한 시간 = cell.motion.move_timeout_s ÷ vel_scale (0.1~1 로 자른다).
+
+    🔄 9/23 08:41 실기(황인재): 0.3 배속 · 들고 이동(30 %)이면 관절 속도가 100 × 0.3 × 0.3 = 9 °/s 라
+       RINSE → RACK_C_VIA 처럼 손목이 200° 넘게 도는 관절 이동은 30 s 를 넘겨 **정상 이동을 시간 초과로 멈췄다**
+       (MoveTimeout · 정지 명령). 상한은 "멈춘 이동"을 잡는 것이니 느린 배속만큼 늘린다(_contact_timeout 과 같은 방식).
+    """
+    base = float(_cell_key('motion', 'move_timeout_s'))
+    return base / max(min(_vel_scale(), 1.0), 0.1)
 
 
 # 컨트롤러가 명령을 **받지도 않고** 거부할 때(반환 -1) 로봇이 어떤 상태였는지 — 오류 문구에 붙인다.
