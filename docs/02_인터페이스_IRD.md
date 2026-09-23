@@ -136,7 +136,8 @@ f1.pick('RET_B', 'BOWL') → f1.move_to('WEIGH', True, 'BOWL') → f2.leftover_l
 | 코드 | 처리 |
 |---|---|
 | `EMPTY_ZONE` | 구역 종료 → 다음 구역 (기록 SKIPPED) |
-| `LEFTOVER_REMAIN` `SEAT_FAIL` | ISOLATE 후 다음 용기 |
+| `LEFTOVER_REMAIN` | 🔄 E42(황인재 9/23): **PAUSED** → 사람이 resume(다시 잰다) / abort(HOME → ISOLATE → 다음 용기). 정책 isolate 는 이송 없이 기록만 남겨(flow.handle_failure) 든 용기를 떨어뜨린다 — 시연 뒤 물리 격리를 넣으면 isolate 로 |
+| `SEAT_FAIL` | ISOLATE 후 다음 용기 (🟡 위와 같은 빈틈 · 시연 범위 밖 E28) |
 | `FORCE_LIMIT` `TIMEOUT` `RACK_JAM` `TOOL_FAIL` | 후퇴 후 재시도 1회 → ISOLATE |
 | `TOOL_LOST` | 🆕 9/23 E37(9/22 회의 합의 · 황인재 승인): F3 가 닦는 중 폭 재확인으로 툴(수세미·솔) 놓침을 감지해 돌려준다 → flow 는 **정지(PAUSED)** → 사람이 홀더에 다시 넣고 재개 신호(넛지·HMI) → `f1.tool(kind, PICK)` 재호출 → F3 함수 재실행(GRIP_FAIL 정책 E12 와 같은 패턴 · 격리 아님) · 새 기능 NEW-02a 와 한 흐름 |
 | `GRIP_FAIL` (f2: 털기·담금 중 미끄러짐 · 무게로 본 빈손) | ✅ **PAUSED + HMI 알림 → 사람이 확인**(황인재 9/20 17:25). 놓쳤다면 용기가 손에 없을 수 있어 격리 동작이 의미 없고, 떨어진 용기를 다음 동작이 칠 수 있다. 확인 뒤 `resume` = 그 단계부터 다시 / `abort` = 그 용기를 접고 다음 용기 |
