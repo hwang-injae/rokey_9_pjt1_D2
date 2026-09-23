@@ -36,7 +36,7 @@ from .motion import is_paused, move_rel
 
 __all__ = ['force_on', 'force_off', 'force_release', 'force_reached', 'compliance_on', 'compliance_off',
            'contact_down', 'periodic_search', 'safe_retreat', 'read_force', 'start_nudge_watch', 'check_nudge',
-           'robot_state', 'wait_robot_ready',
+           'robot_state', 'wait_robot_ready', 'recover_robot_if_needed',
            'where', 'joints', 'stop_now', 'motion_done', 'wait_done', 'move_joints', 'move_line_rel', 'move_spiral', 'move_arc', 'move_pose', 'move_periodic',
            'ForceLimitError', 'MotionTimeout']
 
@@ -176,10 +176,62 @@ def wait_robot_ready(timeout_s):
     """robot_state() 가 STANDBY(1)가 될 때까지 기다린다 — 최대 timeout_s. 됐으면 True, 시간 초과면 False."""
     t0 = time.monotonic()
     while time.monotonic() - t0 < timeout_s:
-        if robot_state() == 1:
-            return True
+        try:
+            if robot_state() == 1:
+                return True
+        except Exception:
+            return False
         time.sleep(0.05)
     return False
+
+
+# 상태 번호 → set_robot_control 코드(dsr_msgs2/srv/SetRobotControl.srv) — motion.py 의 상태 번호와 같다
+_RECOVER_CODE = {5: 2, 3: 3, 9: 4, 10: 5, 8: 7}   # SAFE_STOP·SAFE_OFF·SAFE_STOP2·SAFE_OFF2·RECOVERY → STANDBY
+
+
+def recover_robot_if_needed(timeout_s=5.0):
+    """로봇 상태가 STANDBY(1)가 아니면 set_robot_control 서비스로 자동 복구를 시도한다 (박진용 PR #99 기반).
+
+    - SAFE_STOP(5) → robot_control=2
+    - SAFE_OFF(3) → robot_control=3
+    - SAFE_STOP2(9) → robot_control=4
+    - SAFE_OFF2(10) → robot_control=5
+    - RECOVERY(8) → robot_control=7
+
+    이미 STANDBY(1)이면 즉시 True.
+    Mock 환경이거나 DSR이 준비되지 않아 상태를 읽을 수 없으면 False 반환(예외 없이 안전 통과).
+    timeout_s 안에 STANDBY 로 복귀하면 True, 아니면 False.
+    """
+    try:
+        s = robot_state()
+    except Exception:
+        return False
+
+    if s == 1:
+        return True
+
+    code = _RECOVER_CODE.get(s)
+    if code is None:
+        return False
+
+    try:
+        from .bootstrap import ROBOT_ID, io_node
+        from dsr_msgs2.srv import SetRobotControl
+        node = io_node()
+        if node is None:
+            return False
+        client = node.create_client(SetRobotControl, f"/{ROBOT_ID}/dsr_controller2/system/set_robot_control")
+        if not client.wait_for_service(timeout_sec=1.0):
+            return False
+        req = SetRobotControl.Request()
+        req.robot_control = code
+        res = client.call(req)
+        if res is None or not res.success:
+            return False
+    except Exception:
+        return False
+
+    return wait_robot_ready(timeout_s)
 
 
 # ------------------------------------------------------------------ 넛지 감지 (NEW-02a·NEW-02b · E37 재개 신호)
