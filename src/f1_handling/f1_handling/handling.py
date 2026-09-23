@@ -145,7 +145,7 @@ def _regrip(bed: str, kind: str) -> PickResult:
     """
     bed_spec = ((_cell().get('beds') or {}).get(bed) or {})
     if bed_spec.get(_REGRIP_POINT):
-        # 🔄 9/23(황인재 · 결정 ㉡): 옆면 재파지는 **다른 프리셋**(beds.<bed>.regrip_preset · 컵은 CUP_SIDE 고정 폭 76 · 5 N)으로 잡는다 —
+        # 🔄 9/23(황인재 · 결정 ㉡): 옆면 재파지는 **다른 프리셋**(beds.<bed>.regrip_preset · 컵은 CUP_SIDE 고정 폭 70 · 10 N — 09:0x 실기: 76·5 N 은 폭에 닿자마자 위치로 멈춰 힘이 안 쓰여 이송 중 돌아감)으로 잡는다 —
         #    반납 자리 집기(벽 · CUP 1.7 mm · 20 N)와 같은 프리셋을 쓰면 몸통(≈78 mm)에서 "헛잡음" 판정이 난다.
         #    잡은 뒤 cc.set_grip_preset 으로 알려 주어 f2 의 HOLD/NORMAL 전환이 이 프리셋의 힘(5 N)을 쓰게 한다(35 N 이면 눌림 · E19).
         preset = bed_spec.get('regrip_preset') or kind
