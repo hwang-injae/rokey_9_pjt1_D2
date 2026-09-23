@@ -460,6 +460,15 @@ def _tool_return(station, f1, clear, tool=None) -> ToolResult:
         cc.move_pose(above, vel, 60.0, acc, 60.0)                   # 툴을 들고 집은 자리 위로(직선 · 자세 포함)
         watch = min(clear, float(_need(f1, 'tool_return_depth_mm', 'params.yaml 의 f1')))   # 마지막 구간은 힘 감시(AGENTS §3-2 · PM 9/22 밤)
         limit = float(_need(f1, 'tool_return_contact_n', 'params.yaml 의 f1'))
+        if watch <= 0.0:
+            # 🔄 9/23 15:5x 튜닝(황인재 #4·#7): 반납 자리 = **이 프로그램이 집은 바로 그 자리**(posx 기억)라 바닥을 찾을 필요가 없다 →
+            #    힘 감시 없이 곧게 내려가 놓는다(순응 걸음 ≈3 s × 7 = 20 s 절약 · 12:49·13:52 TIMEOUT 도 이 구간). 
+            #    tool_return_depth_mm 을 0 으로 두면 이 갈래, 양수면 예전처럼 마지막 그만큼을 힘 감시.
+            cc.move_rel(0.0, 0.0, -clear, 'BASE')
+            cc.release()
+            cc.move_rel(0.0, 0.0, clear, 'BASE')
+            _LAST_PICK.pop(tool, None)
+            return ToolResult()
         cc.move_rel(0.0, 0.0, -(clear - watch), 'BASE')             # 자유 하강
         try:
             depth, _force = cc.contact_down(watch, limit, timeout_s=_contact_timeout())   # 집은 z 까지 감시 하강 — 툴이 미끄러졌거나 홀더가 밀렸으면 여기서 멈춘다

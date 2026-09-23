@@ -32,7 +32,6 @@ def test_steps_a_is_pick_weigh_leftover(rig, cfg):
     got = rig.steps_for('a', 'BOWL', cfg)
     rounds = int(cfg['flow']['leftover_max_rounds'])
     assert got == [('PICK', 'f1', 'pick', ('RET_B', 'BOWL')),
-                   ('WEIGH', 'f1', 'move_to', ('WEIGH', True, 'BOWL')),      # kind 를 넘긴다 (E8)
                    ('WEIGH', 'f2', 'leftover_loop', ('BOWL', rounds))]
 
 

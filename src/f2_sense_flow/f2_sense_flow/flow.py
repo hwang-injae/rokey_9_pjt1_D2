@@ -531,8 +531,8 @@ class Flow:
         #    꺼내는 것까지 call_fn 안에서 해야 "함수가 없다"가 크래시가 아니라 Result 가 된다.
         steps = [
             ('PICK', 'f1', 'pick', (self.zone_id, self.kind)),
-            # 🚨 kind 를 넘긴다 — WEIGH 자세는 종류별로 다르다(9/20 E8·PR #36). 없으면 ValueError
-            ('WEIGH', 'f1', 'move_to', ('WEIGH', True, self.kind)),
+            # 🔄 9/23 15:5x 튜닝(황인재 #1·#6): 'f1.move_to WEIGH' 단계를 뺐다 — sense.weigh 가 **스스로 HOME → WEIGH** 로 가므로(9/23 아침 · 오는 길 통일)
+            #    집은 자리에서 12.9 mm 살짝 내려가던 이 단계는 중복이었다. WEIGH 자세는 종류별(E8)이라 kind 는 leftover_loop 가 넘긴다.
             ('WEIGH', 'f2', 'leftover_loop', (self.kind, rounds)),
             ('SEAT', 'f1', 'place', (bed,)),
             ('SOAP', 'f1', 'tool', (tool_id, 'PICK')),

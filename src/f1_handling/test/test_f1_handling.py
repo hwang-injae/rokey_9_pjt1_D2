@@ -187,6 +187,20 @@ def test_tool_return_reverses_the_pick_when_this_program_picked(cc):
     assert 'BRUSH' not in handling._LAST_PICK                               # 한 번 쓰면 잊는다
 
 
+def test_tool_return_depth_zero_goes_straight_to_pick_pose_and_releases(cc):
+    """🔄 9/23 15:5x 튜닝(#4·#7): tool_return_depth_mm 0 이면 힘 감시 없이 집은 자리로 곧게 내려가 놓고 올라온다(contact_down 없음)."""
+    cc.conf['f1']['tool_return_depth_mm'] = 0
+    handling.tool('SPONGE', 'PICK')
+    cc.calls.clear()
+    r = handling.tool('SPONGE', 'RETURN')
+    assert r.ok
+    names = [c[0] for c in cc.calls]
+    assert 'contact_down' not in names
+    assert names[names.index('release') - 1] == 'move_rel'                  # 내려간 뒤 놓는다
+    rel = [c for c in cc.calls if c[0] == 'move_rel']
+    assert rel[0][3] == pytest.approx(-100.0) and rel[-1][3] == pytest.approx(100.0)   # clear 만큼 내려가고 다시 올라옴
+
+
 def test_tool_return_finds_the_bottom_then_releases(cc):
     """이 프로그램이 집지 않은 툴(집은 자리를 모름) → 옛 방식: 티칭한 return 자세 + 바닥 찾기."""
     handling._LAST_PICK.clear()

@@ -237,7 +237,7 @@ def test_stop_pauses_between_steps():
     assert sig.calls_at_pause == 3, \
         f'stop 뒤에 {sig.calls_at_pause - 3} 단계를 더 갔다 — 단계 사이에서 멈춰야 한다'
     assert f.step != 'PAUSED', 'resume 뒤 끝까지 가야 한다'
-    assert len(sig.calls) == 13, f'resume 뒤 남은 단계를 다 못 갔다 ({len(sig.calls)}/13)'
+    assert len(sig.calls) == 12, f'resume 뒤 남은 단계를 다 못 갔다 ({len(sig.calls)}/12)'   # 🔄 9/23 WEIGH 이동 단계 제거 → 12
 
 
 def test_stop_does_not_touch_the_gripper():
@@ -736,9 +736,9 @@ def test_flow05_cup_skips_weigh_bowl_keeps_it():
     assert not [x for x in cup if x[0] == 'WEIGH'], f'컵이 WEIGH 를 거쳤다: {cup}'
     assert ('WEIGH', 'leftover_loop') not in cup and ('WEIGH', 'move_to') not in cup
     assert cup[:2] == [('PICK', 'pick'), ('SEAT', 'place')], cup[:3]       # PICK 다음이 곧장 SEAT
-    assert ('WEIGH', 'move_to') in bowl and ('WEIGH', 'leftover_loop') in bowl
+    assert ('WEIGH', 'leftover_loop') in bowl and ('WEIGH', 'move_to') not in bowl   # 🔄 9/23: WEIGH 이동 단계는 뺐다(weigh 가 HOME 경유로 스스로 감)
     assert (f.done_bowl, f.done_cup, f.isolated) == (2, 2, 0)              # 나머지 단계는 다 돈다
-    assert len(bowl) == 13 * 2 and len(cup) == 11 * 2
+    assert len(bowl) == 12 * 2 and len(cup) == 11 * 2                    # 🔄 9/23 그릇 12(WEIGH 이동 제거) · 컵 11(WEIGH 전부 생략)
 
 
 def test_flow05_missing_key_keeps_old_behaviour():
