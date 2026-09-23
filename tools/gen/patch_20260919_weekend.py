@@ -2908,10 +2908,9 @@ HISTORY177 = ['v22.7', '📅 슬롯', 'INT-4b, INT-4d, 로봇 슬롯 9/23', 'PM�
 P1518 = 'PM 9/23 15:18(date 값)'
 EDIT.update({
  'NEW-02b':  dict(status='완료', prog='0.9', note_add=P1518 + ': ✅ **PR #93 merge**(황인재 수락 · 분리 없이 케이블 넛지 + 그리퍼 안전 스위치 원격 해제(흐름 미연결 · 운영자 도구) + HMI 비프음 · 494 통과) · 🟡 실기 0회 → 17:20 민범진 실기(케이블 당김 → PAUSED → 톡톡 → 재개) · 🟡 떨림 상한 50 vs 오늘 최대 45 → 80 검토(황인재)'),
- 'DOC-01':   dict(note_add=P1518 + ': 강사 확인용 저장소 정리 — 옛 일정표 패치 3 · 프롬프트/아키텍처 생성기 2 · 옛 그림 3 · 해결된 요청 문서 4 삭제(316 파일) · README §4 "실행 방법"(준비 → 로봇 없이 → 가상 → 실기 → 시연 실행 서비스 호출) · 리마인드·SDD 브리핑용 갱신'),
- 'DOC-02':   dict(note_add=P1518 + ': 시스템 아키텍처를 **Archify**(대화형 HTML · docs/images/system_architecture_pc.html · 명세 .archify.json · 캡처 .png)로 다시 그림 — 보기 3개(시연 실행 경로 · 로봇 명령 경로 · 설정·기록) · 자동 검사 9항목 통과'),
+ 'DOC-03': dict(note_add=P1518 + ': 강사 확인용 저장소 정리(옛 일정표 패치 3 · 프롬프트/아키텍처 생성기 2 · 옛 그림 3 · 해결된 요청 문서 4 삭제 · 316 파일) · README §4 "실행 방법" · 리마인드·SDD 브리핑용 갱신 · **시스템 아키텍처를 Archify 대화형 HTML 로 다시 그림**(docs/images/system_architecture_pc.html · 명세 .archify.json · 캡처 .png · 보기 3개 · 자동 검사 9항목 통과)'),
 })
-HISTORY178 = ['v22.8', '✅ merge', 'NEW-02b, DOC-01, DOC-02', 'PM 9/23 15:18: #93 merge(황인재 수락 · 실기 17:20) · 저장소 정리 · README 실행 방법 · 아키텍처 Archify 갱신', '황인재 9/23 15:18', 'H']
+HISTORY178 = ['v22.8', '✅ merge', 'NEW-02b, DOC-03', 'PM 9/23 15:18: #93 merge(황인재 수락 · 실기 17:20) · 저장소 정리 · README 실행 방법 · 아키텍처 Archify 갱신', '황인재 9/23 15:18', 'H']
 
 
 def main(out):
