@@ -46,14 +46,14 @@ def test_repo_cell_skeleton_uses_ird_ids():
     assert set(cell['beds']) == beds
     assert set(cell['zones']) == {RET_B, RET_C}
     assert set(cell['rack']['slots']) == set(RACK_SLOTS)
-    assert set(cell['presets']) == {'BOWL', 'CUP', 'SPONGE', 'BRUSH'}
+    assert set(cell['presets']) == {'BOWL', 'CUP', 'CUP_SIDE', 'SPONGE', 'BRUSH'}   # 🆕 9/23 CUP_SIDE = 홈 C 옆면 재파지 전용(결정 ㉡)
     # 9/20 CELL-04: 양식을 티칭 데이터에 맞췄다 — 종류별 · 용도별(point) · 슬롯별
     for name in ('WEIGH', 'WASTE', 'SOAP', 'RINSE', 'ISOLATE'):
         assert set(cell['stations'][name]) == {'BOWL', 'CUP'}, name
     for name in ('TOOL_SPONGE', 'TOOL_BRUSH'):
         assert set(cell['stations'][name]) == {'pick', 'return'}, name
     assert set(cell['beds']['SPONGE_BED_B']) == {'place', 'wash', 'seat'}
-    assert set(cell['beds']['SPONGE_BED_C']) == {'place', 'wash', 'seat'}      # 🔄 9/22 저녁 E29: regrip(옆면 파지용) 은 뺐다 — 컵도 place 자리에서 다시 잡는다(키가 있으면 옛 경로)
+    assert set(cell['beds']['SPONGE_BED_C']) == {'place', 'wash', 'seat', 'regrip', 'regrip_preset'}   # 🔄 9/23 08:2x 결정 ㉡ 유지: 옆면 재파지(접근점 posx + 전용 프리셋)
     assert all(len(cell['zones'][z]['slots']) == 1 for z in (RET_B, RET_C))       # 구역마다 집는 자리 1개 — 한 자리 공급 구조(9/20 결정 E9)
 
 

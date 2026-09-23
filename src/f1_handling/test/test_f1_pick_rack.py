@@ -66,6 +66,7 @@ class FakeCC:
         self._note('move_rel', dx, dy, dz, frame); self.z += dz
 
     def release(self): self._note('release')
+    def set_grip_preset(self, name): self._note('set_grip_preset', name)
     def force_off(self): self._note('force_off')
     def safe_retreat(self): self._note('safe_retreat')            # Z 만 safe_z 로 (가짜 — 높이 셈은 안 한다)
     def where(self): return [0.0, 0.0, self.z, 0.0, 0.0, 0.0]
@@ -78,6 +79,7 @@ class FakeCC:
         self._note('contact_down', max_depth, limit)
         if self.contact_raises:
             raise self.contact_raises
+        self.z -= float(self.contact[0])                          # 🔄 9/23 내려간 깊이만큼 z 도 내린다(재파지 접근점 시험)
         return self.contact
 
     def names(self): return [c[0] for c in self.calls]
@@ -163,6 +165,68 @@ def test_regrip_with_regrip_pose_lifts_to_entry_z(cc):
     assert r.ok
     assert cc.of('move_to')[0] == ('move_to', 'SPONGE_BED_C', False, 'CUP', 'regrip')
     assert cc.of('move_rel')[-1][3] == pytest.approx(130.0)
+
+
+def test_regrip_uses_bed_regrip_preset(cc):
+    """🔄 9/23 결정 ㉡: 홈 C 옆면 재파지는 beds.<bed>.regrip_preset(CUP_SIDE · 고정 폭 76 · 5 N)으로 잡고,
+    잡은 뒤 cc.set_grip_preset 으로 알려 준다 — 그 뒤 HOLD 전환이 CUP 의 35 N 을 몸통에 걸지 않게(E19 눌림)."""
+    cc.conf['cell']['beds']['SPONGE_BED_C'] = {'regrip': {'posj': [0] * 6}, 'regrip_preset': 'CUP_SIDE'}
+    cc.conf['cell']['presets']['CUP_SIDE'] = {'grip_target_mm': 76.0, 'grip_zero_mm': 10.58, 'grip_force_n': 5}
+    cc.grip_widths = [77.4]
+    cc.z = 120.0
+    r = handling.pick('SPONGE_BED_C', 'CUP')
+    assert r.ok and r.width_mm == pytest.approx(77.4)           # 고정 폭은 드라이버 폭을 그대로 보고한다
+    g = cc.of('grip')[-1]
+    assert g[1] == pytest.approx(76.0) and g[2] == pytest.approx(5.0)
+    assert cc.of('set_grip_preset') == [('set_grip_preset', 'CUP_SIDE')]
+
+
+def test_regrip_with_approach_descends_then_grips_then_lifts_to_entry_z(cc):
+    """🔄 9/23 08:1x: 재파지 자세에 접근점(approach_posx+posx)이 있으면 **위에서 자세를 맞추고 Z 만 내려** 잡고,
+    잡은 뒤 rack.cup_entry_z_mm(250) 까지 올린다 — 07:55 실기: HOME 에서 관절 이동으로 곧장 가다 열린 그리퍼가 컵에 걸려 SAFE_STOP."""
+    cc.conf['cell']['beds']['SPONGE_BED_C'] = {'regrip': {'approach_posx': [0] * 6, 'posx': [0] * 6}, 'regrip_preset': 'CUP_SIDE'}
+    cc.conf['cell']['presets']['CUP_SIDE'] = {'grip_target_mm': 76.0, 'grip_zero_mm': 10.58, 'grip_force_n': 5}
+    cc.up[('SPONGE_BED_C', 'regrip')] = 100.0
+    cc.contact = (60.0, 2.0)                                       # 감시 60 mm 를 끝까지 내려감(닿은 것 없음)
+    cc.z = 200.0
+    r = handling.pick('SPONGE_BED_C', 'CUP')
+    assert r.ok
+    names = cc.names()
+    assert names.index('move_to') < names.index('contact_down') < names.index('grip')
+    assert cc.of('contact_down')[0][1:] == (60.0, 15)               # 마지막 60 mm 는 insert_limit_n 으로 감시
+    rel = [c[3] for c in cc.of('move_rel')]
+    assert rel == [pytest.approx(-40.0), pytest.approx(150.0)]        # 자유 40 → 감시 60(200→100) → 250 까지 올림
+    assert names.index('grip') < len(names) - 1 - names[::-1].index('move_rel')
+
+
+def test_regrip_finger_on_cup_rim_backs_up_with_grip_fail(cc):
+    """감시 구간에서 힘이 먼저 닿으면(손가락이 컵 테두리에 얹힘) SAFE_STOP 대신 되올라와 GRIP_FAIL — 잡기(grip)는 하지 않는다."""
+    cc.conf['cell']['beds']['SPONGE_BED_C'] = {'regrip': {'approach_posx': [0] * 6, 'posx': [0] * 6}, 'regrip_preset': 'CUP_SIDE'}
+    cc.conf['cell']['presets']['CUP_SIDE'] = {'grip_target_mm': 76.0, 'grip_zero_mm': 10.58, 'grip_force_n': 5}
+    cc.up[('SPONGE_BED_C', 'regrip')] = 100.0
+    cc.contact = (40.0, 9.0)                                       # 60 중 40 에서 9 N
+    r = handling.pick('SPONGE_BED_C', 'CUP')
+    assert not r.ok and r.code == GRIP_FAIL
+    assert not cc.of('grip') and 'force_off' in cc.names()
+    assert cc.of('move_rel')[-1][3] == pytest.approx(80.0)          # 자유 40 + 내려간 40 만큼 되올라옴
+
+
+def test_regrip_with_approach_fails_back_up(cc):
+    """헛잡음이면 놓고 접근점 높이로 올라간 뒤 GRIP_FAIL — 컵 옆에 손가락을 두고 멈추지 않는다."""
+    cc.conf['cell']['beds']['SPONGE_BED_C'] = {'regrip': {'approach_posx': [0] * 6, 'posx': [0] * 6}}
+    cc.up[('SPONGE_BED_C', 'regrip')] = 100.0
+    cc.contact = (60.0, 2.0)
+    cc.grip_widths = [10.6]                                        # 빈손 폭 → CUP(고정 폭 76)이 아닌 BOWL 판정으로 시험
+    r = handling.pick('SPONGE_BED_C', 'BOWL')
+    assert not r.ok and r.code == GRIP_FAIL
+    assert cc.names()[-2:] == ['release', 'move_rel'] and cc.of('move_rel')[-1][3] == pytest.approx(100.0)
+
+
+def test_regrip_without_preset_key_does_not_touch_grip_preset(cc):
+    cc.conf['cell']['beds']['SPONGE_BED_C'] = {'regrip': {'posj': [0] * 6}}
+    cc.z = 120.0
+    assert handling.pick('SPONGE_BED_C', 'CUP').ok
+    assert not cc.of('set_grip_preset')
 
 
 def test_regrip_cup_without_regrip_pose_uses_place_point(cc):

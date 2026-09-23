@@ -325,6 +325,13 @@ def weigh(kind: str) -> WeighResult:
                      hi=_need(lim, 'max_settle_s', where='f2.limits'))
     min_net = _need(lim, 'min_net_g', where='f2.limits')
 
+    # 🔄 9/23 06:4x 실기(황인재 · F4 총괄 통합): **무게는 항상 HOME 을 거쳐 WEIGH 로 내려와 잰다.**
+    #    같은 그릇·같은 WEIGH 자세인데 "집어 올린 자리에서 바로" 재면 −113 g, "HOME 을 거쳐" 재면 −23 g
+    #    (1분 간격 · 06:54:05 / 06:55:17 · 🔄 로그 환산값) — 90 g 차. 아침 4회씩도 두 무리(−121 / −60)로 갈렸다.
+    #    이 로봇은 관절 토크로 힘을 추정하므로 **마지막 이동 이력**(내려가 집고 올라옴 vs HOME 에서 직선)이
+    #    남아 값이 달라진다. 기준값 도구(rig_f2 empty)와 털기 뒤 재측정(_via_home → weigh)은 이미 HOME 을
+    #    거치므로, 첫 측정만 다른 길이었다 → 여기서 통일한다(용기당 약 10 s 추가 · 이미 HOME 이면 안 움직임).
+    _via_home()
     _goto(_WEIGH_STATION, carrying=True, kind=kind)
     time.sleep(settle_s)                      # 🚨 움직이는 중에 재면 가속도가 섞인다(SDD §5.3)
     raw = float(cc.weigh(samples))            # cobot_common/weigh.py — 중앙값, 음수는 버린다
@@ -395,8 +402,7 @@ def leftover_loop(kind: str, max_rounds: int) -> LeftoverResult:
         if not shaken.ok:
             return LeftoverResult.fail(shaken.code, weight_before_g=before,
                                        weight_after_g=after, rounds=done)
-        _via_home()                                   # 🚨 E15: 잔반통(뒤) → 저울(앞)
-        again = weigh(kind)
+        again = weigh(kind)                           # 🔄 9/23: weigh 가 스스로 HOME 을 거친다(E15 잔반통(뒤) → 저울(앞) 포함)
         if not again.ok:
             return LeftoverResult.fail(again.code, weight_before_g=before,
                                        weight_after_g=after, rounds=done)

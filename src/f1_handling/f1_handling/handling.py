@@ -145,11 +145,49 @@ def _regrip(bed: str, kind: str) -> PickResult:
     """
     bed_spec = ((_cell().get('beds') or {}).get(bed) or {})
     if bed_spec.get(_REGRIP_POINT):
+        # 🔄 9/23(황인재 · 결정 ㉡): 옆면 재파지는 **다른 프리셋**(beds.<bed>.regrip_preset · 컵은 CUP_SIDE 고정 폭 76 · 5 N)으로 잡는다 —
+        #    반납 자리 집기(벽 · CUP 1.7 mm · 20 N)와 같은 프리셋을 쓰면 몸통(≈78 mm)에서 "헛잡음" 판정이 난다.
+        #    잡은 뒤 cc.set_grip_preset 으로 알려 주어 f2 의 HOLD/NORMAL 전환이 이 프리셋의 힘(5 N)을 쓰게 한다(35 N 이면 눌림 · E19).
+        preset = bed_spec.get('regrip_preset') or kind
         cc.release()
-        cc.move_to(bed, False, kind, _REGRIP_POINT)                 # posj — 접근점 없음
-        ok, width = _grip_here(kind)
+        # 🔄 9/23 08:1x(황인재): 재파지 자세에 **접근점**(approach_posx + posx · rig_fkin 으로 posj → posx)을 두면
+        #    위에서 자세를 맞추고 **Z 만 내려** 손가락이 컵 양옆으로 내려온다. posj 만 있으면(옛 방식) 관절 이동으로 곧장 가는데,
+        #    07:55 실기에서 HOME 에서 곧장 가다 열린 그리퍼가 홈 C 의 컵에 걸려 SAFE_STOP 이 났다.
+        up = float(cc.move_to(bed, False, kind, _REGRIP_POINT) or 0.0)
+        free = depth = 0.0
+        if up > 0.0:
+            # 🔄 9/23 08:2x: 내려오는 마지막 f1.regrip_watch_mm(60)은 **힘 감시**(cell.limits.insert_limit_n) — 손가락이 컵 테두리에 얹히면
+            #    컨트롤러 SAFE_STOP(07:55) 대신 상한에서 멈춰 되올라오고 GRIP_FAIL(정책 pause · 사람이 자세 XY 확인). 컵 윗단은 잡는 높이 +45 쯤.
+            cell = _cell()
+            watch = min(up, float((cc.cfg().get('f1') or {}).get('regrip_watch_mm') or 60.0))
+            free = up - watch
+            if free > 0.0:
+                cc.move_rel(0.0, 0.0, -free, 'BASE')
+            limit_n = float(_need(cell.get('limits'), 'insert_limit_n', 'cell.limits'))
+            try:
+                depth, force = cc.contact_down(watch, limit_n, timeout_s=_contact_timeout())
+            except ForceLimitError as e:
+                _log().error(f'재파지({bed}) 하강 — 힘 상한: {e}')
+                _after_contact_failure(free, watch)
+                return PickResult.fail(FORCE_LIMIT, attempts=1)
+            except MotionTimeout as e:
+                _log().error(f'재파지({bed}) 하강 — 시간 초과: {e}')
+                _after_contact_failure(free, watch)
+                return PickResult.fail(TIMEOUT, attempts=1)
+            cc.force_off()
+            tol = float((cell.get('rack') or {}).get('seat_tol_mm') or 3.0)
+            if depth < watch - tol:
+                _log().warn(f'재파지({bed}) — {depth:.1f}/{watch:.1f} mm 에서 {force:.1f} N 닿음 → 손가락이 컵에 얹힌 것 · 재파지 자세 XY 확인 → GRIP_FAIL')
+                cc.move_rel(0.0, 0.0, free + depth, 'BASE')
+                return PickResult.fail(GRIP_FAIL, attempts=1)
+        ok, width = _grip_here(preset)
         if not ok:
+            cc.release()                                            # 헛잡음 — 놓고 접근점으로 올라가 GRIP_FAIL(사람이 확인)
+            if up > 0.0:
+                cc.move_rel(0.0, 0.0, free + depth, 'BASE')
             return PickResult.fail(GRIP_FAIL, attempts=1)
+        if preset != kind:
+            cc.set_grip_preset(preset)
         entry_z = float(_need(_cell().get('rack'), 'cup_entry_z_mm', 'cell.rack'))
         dz = entry_z - float(cc.where()[2])
         if dz > 0.0:
@@ -171,6 +209,146 @@ def _regrip(bed: str, kind: str) -> PickResult:
     return PickResult(width_mm=width, attempts=1)
 
 
+def _place_isolate_bowl() -> PlaceResult:
+    """BOWL 격리 전용 실기 검증 경로.
+
+    시작 전제:
+        J2~J6 = HOME 형상
+        J1은 현재 위치여도 됨
+
+    경로:
+        J1 only -> ISOLATE.BOWL J1(-210)
+        BASE Z -isolate_drop_mm
+        release
+        BASE Z +isolate_drop_mm
+        J1 only -> 0
+
+    ISOLATE.BOWL의 나머지 관절은 HOME 형상이어야 한다.
+    CUP 격리 경로에는 영향을 주지 않는다.
+    """
+    cfg = cc.cfg()
+    cell = _cell()
+
+    stations = _need(
+        cell,
+        'stations',
+        'cell',
+    )
+
+    isolate = _need(
+        stations,
+        'ISOLATE',
+        'cell.stations',
+    )
+
+    bowl = _need(
+        isolate,
+        'BOWL',
+        'cell.stations.ISOLATE',
+    )
+
+    target_j = [
+        float(v)
+        for v in _need(
+            bowl,
+            'posj',
+            'cell.stations.ISOLATE.BOWL',
+        )
+    ]
+
+    drop = float(
+        _need(
+            cfg.get('f1'),
+            'isolate_drop_mm',
+            'f1',
+        )
+    )
+
+    now = [
+        float(v)
+        for v in cc.joints()
+    ]
+
+    # J1만 회전하는 실기 검증 경로이므로
+    # J2~J6가 HOME 형상이 아니면 진입하지 않는다.
+    expected = [
+        0.0,
+        90.0,
+        0.0,
+        90.0,
+        0.0,
+    ]
+
+    for joint_no, actual, wanted in zip(
+        range(2, 7),
+        now[1:],
+        expected,
+    ):
+        if abs(actual - wanted) > 3.0:
+            raise RuntimeError(
+                f'ISOLATE 진입 거부 — '
+                f'J{joint_no}={actual:.1f}°, '
+                f'예상 {wanted:.1f}°. '
+                'J1만 움직이는 경로가 아니다.'
+            )
+
+    target_j1 = float(target_j[0])
+    delta = target_j1 - now[0]
+
+    _log().info(
+        f'BOWL ISOLATE — '
+        f'J1 {now[0]:.1f}° '
+        f'→ {target_j1:.1f}° '
+        f'({delta:+.1f}°)'
+    )
+
+    # ① J1만 -210°
+    cc.move_joint_rel(
+        1,
+        delta,
+        carrying=True,
+    )
+
+    # ② 격리통 쪽으로 수직 하강
+    cc.move_rel(
+        0.0,
+        0.0,
+        -drop,
+        'BASE',
+    )
+
+    # ③ BOWL 놓기
+    cc.release()
+
+    # ④ 빈손으로 같은 거리 복귀
+    cc.move_rel(
+        0.0,
+        0.0,
+        drop,
+        'BASE',
+    )
+
+    # ⑤ J1만 0° 복귀
+    here_j1 = float(
+        cc.joints()[0]
+    )
+
+    cc.move_joint_rel(
+        1,
+        -here_j1,
+        carrying=False,
+    )
+
+    _log().info(
+        'BOWL ISOLATE 완료 — '
+        'RELEASE → Z 복귀 → J1=0'
+    )
+
+    return PlaceResult(
+        offset_mm=0.0
+    )
+
+
 def place(station: str, kind: str = None) -> PlaceResult:
     """놓기 — 성공하면 **항상 release 까지** 한다. 코드 OK / (F1-05 에서) SEAT_FAIL · FORCE_LIMIT · TIMEOUT. — F1-01(일반) · F1-05(안착)
 
@@ -183,6 +361,11 @@ def place(station: str, kind: str = None) -> PlaceResult:
       깊이 미달이면 periodic_search(cell.beds.*.seat) → 들어가면 release(offset_mm = 보정 거리) / 한도 초과면 **들고** 후퇴 + SEAT_FAIL.
       지금은 스펀지 홈에서도 위 일반 놓기로 돈다(9/20 범위 방어: "단순 놓기부터").
     """
+    # BOWL ISOLATE는 실기 검증된 J1-only 경로를 사용한다.
+    # CUP 및 다른 station은 기존 place() 로직 그대로.
+    if station == 'ISOLATE' and kind == 'BOWL':
+        return _place_isolate_bowl()
+
     point = _PLACE_POINT if station in (cc.cfg().get('cell') or {}).get('beds', {}) else None
     clear = float(_need(cc.cfg().get('f1'), 'place_clear_mm', 'params.yaml 의 f1'))   # 값이 없으면 움직이기 **전에** KeyError
     up = float(cc.move_to(station, True, kind, point) or 0.0)       # ① 접근점(없으면 끝점)
