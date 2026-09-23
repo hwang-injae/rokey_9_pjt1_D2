@@ -214,6 +214,19 @@ def test_regrip_contact_timeout_scales_with_watch_distance(cc):
     assert handling._contact_timeout(60.0) == pytest.approx(100.0)
 
 
+def test_contact_timeout_has_floor(cc):
+    """🔄 9/23 13:52 리허설: 순응 걸음이 배속과 무관하게 ≈3 s 라 0.5 에서 20 mm 감시가 20 s 를 넘겼다 → f1.contact_timeout_min_s(30) 아래로는 안 내려간다."""
+    cc.conf['run'] = {'vel_scale': 0.5}
+    cc.conf['f1']['contact_timeout_min_s'] = 30.0
+    assert handling._contact_timeout() == pytest.approx(30.0)               # 10 ÷ 0.5 = 20 → 바닥 30
+    assert handling._contact_timeout(60.0) == pytest.approx(60.0)           # 60 mm 는 20 × 3 = 60 > 30 그대로
+    cc.conf['run'] = {'vel_scale': 0.3}
+    assert handling._contact_timeout() == pytest.approx(10.0 / 0.3)         # 33.3 > 30 그대로
+    cc.conf['f1'].pop('contact_timeout_min_s')
+    cc.conf['run'] = {'vel_scale': 0.5}
+    assert handling._contact_timeout() == pytest.approx(20.0)               # 키 없으면 예전과 같다
+
+
 def test_regrip_finger_on_cup_rim_backs_up_with_grip_fail(cc):
     """감시 구간에서 힘이 먼저 닿으면(손가락이 컵 테두리에 얹힘) SAFE_STOP 대신 되올라와 GRIP_FAIL — 잡기(grip)는 하지 않는다."""
     cc.conf['cell']['beds']['SPONGE_BED_C'] = {'regrip': {'approach_posx': [0] * 6, 'posx': [0] * 6}, 'regrip_preset': 'CUP_SIDE'}
