@@ -36,9 +36,7 @@
   <button id="b-start" class="go" disabled>시작</button>
   <button id="b-toggle" class="stop" disabled>일시정지</button>
   <button id="b-abort" class="warn" disabled>중단 (이 용기 접기)</button>
-  <button id="b-beep1" type="button" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:8px 12px;cursor:pointer;font-weight:bold">🔊 1. 기계 비프(1000Hz)</button>
-  <button id="b-beep2" type="button" style="background:#059669;color:#fff;border:none;border-radius:6px;padding:8px 12px;cursor:pointer;font-weight:bold">🔊 2. 이중 비프(삐-빅!)</button>
-  <button id="b-beep3" type="button" style="background:#d97706;color:#fff;border:none;border-radius:6px;padding:8px 12px;cursor:pointer;font-weight:bold">🔊 3. 고음 비프(1500Hz)</button>
+  <button id="b-beep" type="button" style="background:#d97706;color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-weight:bold">🔊 톡톡 비프음 테스트</button>
 </div>
 <div id="reply" class="dim">버튼을 누르면 flow 의 대답이 여기에 나온다</div>
 <div class="grid">
@@ -101,7 +99,7 @@ function render() {
     $('what').textContent = `${s.kind || '-'} · ${s.zone_id || '-'}`;
     $('message').textContent = s.message || '';
     if (s.message && s.message.includes('재개 요청 감지') && lastSoundMsg !== s.message) {
-      playDoubleBeep();
+      playBeep(1500, 0.16, 'square', 0.75);
     }
     lastSoundMsg = s.message || '';
     $('bowl').textContent = `${s.done_bowl} / ${s.target_bowl}`; $('cup').textContent = `${s.done_cup} / ${s.target_cup}`;
@@ -144,9 +142,7 @@ async function press(name) {
 $('b-start').onclick = () => press('start');
 $('b-toggle').onclick = () => press(d.state && d.state.step === 'PAUSED' ? 'resume' : 'stop');
 $('b-abort').onclick = () => press('abort');
-$('b-beep1').onclick = () => playBeep(1000, 0.18, 'square', 0.7);
-$('b-beep2').onclick = () => playDoubleBeep();
-$('b-beep3').onclick = () => playBeep(1500, 0.16, 'square', 0.75);
+$('b-beep').onclick = () => playBeep(1500, 0.16, 'square', 0.75);
 
 // 받는 방식 ①: WebSocket — 서버가 먼저 밀어 준다. 끊기면 2초 뒤 다시 건다. 그동안은 ②(물어보기)로 버틴다.
 let ws = null;

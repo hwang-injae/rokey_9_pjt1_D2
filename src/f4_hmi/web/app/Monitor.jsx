@@ -59,11 +59,11 @@ export default function Monitor() {
   if (s && RUNNING.includes(s.step) && lastRunning.current !== s.step) { lastRunning.current = s.step; remember(s.step); }
   if (s && (s.step === 'IDLE' || s.step === 'DONE') && lastRunning.current) { lastRunning.current = ''; remember(''); }
 
-  // 🆕 톡톡(Nudge) 재개 감지 시 브라우저 비프음 재생 ("삐-빅!")
+  // 🆕 톡톡(Nudge) 재개 감지 시 브라우저 비프음 재생 (1500Hz 기계음)
   useEffect(() => {
     const msg = s?.message || '';
     if (msg.includes('재개 요청 감지') && lastSoundMsg.current !== msg) {
-      playDoubleBeep();
+      playBeep(1500, 0.16, 'square', 0.75);
     }
     lastSoundMsg.current = msg;
   }, [s?.message]);
