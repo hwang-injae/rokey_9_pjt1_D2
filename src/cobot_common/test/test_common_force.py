@@ -291,24 +291,6 @@ def test_periodic_search_axes_and_repeat(robot):
     assert p['period'][:2] == [0.8, pytest.approx(1.6)] and p['repeat'] == 3   # 6 s // 1.6 s
 
 
-def test_force_check_raises_over_limit(robot):
-    """닦는 동안 힘 상한 감시 — force_on 의 limit 을 넘으면 ForceLimitError (#20 검토 2)."""
-    d = robot(z=100.0, surface_z=104.0, k_n_per_mm=1.0)                         # 4 mm 눌림 → |Fz| 4 N
-    force.force_on('z', 4.0, 10.0)
-    press, lateral = force.force_check('z')
-    assert press == pytest.approx(4.0) and lateral == pytest.approx(0.0)
-    d.pos[2] = 90.0                                                             # 14 mm 눌림 → 14 N > limit 10
-    with pytest.raises(force.ForceLimitError):
-        force.force_check('z')
-
-
-def test_force_check_uses_baseline(robot):
-    d = robot(z=200.0)
-    d.offset_fz = -2.0                                                          # 툴 무게로 공중에서도 2 N
-    base = force.read_force()
-    assert force.force_check('z', baseline=base)[0] == pytest.approx(0.0)
-
-
 def test_force_off_tries_both_even_if_first_fails(robot):
     """release_force 가 실패해도 순응 해제까지 시도한다 (#20 검토 1) — 안 그러면 safe_retreat 의 후퇴가 막힌다."""
     d = robot(fail={'release_force'})
@@ -429,7 +411,7 @@ def test_contact_down_does_not_count_paused_time(robot, monkeypatch):
 def test_exports():
     import cobot_common as cc
     for name in ('force_on', 'force_off', 'force_reached', 'contact_down', 'periodic_search', 'safe_retreat',
-                 'read_force', 'force_check', 'compliance_on', 'compliance_off', 'start_nudge_watch', 'check_nudge',
+                 'read_force', 'compliance_on', 'compliance_off', 'start_nudge_watch', 'check_nudge',
                  'robot_state', 'wait_robot_ready',
                  'where', 'motion_done', 'move_spiral', 'move_arc', 'move_periodic', 'joints', 'stop_now', 'ForceLimitError', 'MotionTimeout'):
         assert hasattr(cc, name), name
