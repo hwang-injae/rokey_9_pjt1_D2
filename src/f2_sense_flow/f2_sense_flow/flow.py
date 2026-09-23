@@ -822,7 +822,18 @@ class Flow:
             self.emit_event('SKIPPED')
             return SKIP_ZONE
 
-        # ISOLATE, 그리고 재시도를 다 쓴 RETRY
+        # LEFTOVER_REMAIN: WEIGH에서 바로 격리하지 않고
+        # 실기 검증된 경로대로 HOME 경유 후 ISOLATE에 놓는다.
+        if self.last_code == 'LEFTOVER_REMAIN':
+            self.step = 'ISOLATE'
+            self.call_fn('f1', 'move_to', 'HOME', True)
+            self.call_fn('f1', 'place', 'ISOLATE', self.kind)
+            self.call_fn('f1', 'move_to', 'HOME', False)
+            self.isolated += 1
+            self.emit_event('ISOLATED')
+            return GO_ON
+
+        # 그 밖의 ISOLATE / 재시도 소진 정책은 기존 동작 유지
         self.step = 'ISOLATE'
         self.isolated += 1
         self.emit_event('ISOLATED')
