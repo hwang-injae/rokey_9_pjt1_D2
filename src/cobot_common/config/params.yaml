@@ -89,7 +89,7 @@ f2:                                   # ── f2 절 (민범진) ── 값은 
                                       #   🟡 값은 9/23 첫 실기(황인재)로 조정 — rig_shake_tune --mode RINSE 로 a/A(진폭) p/P(주기) 바꿔 보고 w 로 찍는다
                                       #   period_s = 한 주기 → 속도 = 4·amp/period(deg/s) · acc_deg_s2 = 가속도. 상한은 cell.motion.vel/acc_joint_fast_max(180 · 600 · 물 털기 전용 · 두산 손목 한계 225 아래)
       BOWL: {joint: 4, amp_deg: 30, period_s: 0.7, acc_deg_s2: 600, at: RINSE_SHAKE, fast: true, smooth: true}   # 그릇 — 털기 자세(z 600 · 툴 옆으로)에서 J4 ±30° · 평균 171 °/s(전용 상한 180) · 가속 600 · 🔄 9/23 08:2x 황인재 "사람이 물 털 듯 빠르게"
-      CUP:  {joint: 4, amp_deg: 25, period_s: 0.7, acc_deg_s2: 600, at: RINSE_SHAKE, fast: true, smooth: true}   # 컵 — 지금은 벽 집기(20 N · HOLD 35) 실기값 · 🟡 옆면 재파지(E38 · 5 N)로 바뀌면 진폭·가속을 낮춘다
+      CUP:  {joint: 4, amp_deg: 15, period_s: 0.8, acc_deg_s2: 400, at: RINSE_SHAKE, fast: true, smooth: true}   # 컵 — 🔄 9/23 10:1x 옆면 재파지 기준(E38 · CUP_SIDE 70 mm·10 N · HOLD 못 세게)으로 낮춤 · 🟡 첫 컵 헹굼 실기로 조정(벽 집기 실기값은 ±25°·0.7 s·600 이었음)
                                       #   직선 왕복이 필요하면 {axis: x, amp_mm: 20, period_s: 0.5, acc_mm_s2: 800} (코드 있음 · 상한 max_amp_mm · fast 불가)
   dip:                                # depth_mm = **티칭 자세에서** 내려가는 거리 (SDD §5.3)
     RINSE: {depth_mm: 60, hold_s: 1.0}                # 헹굼 담금, 60 확인은 V-07
