@@ -522,18 +522,22 @@ class Flow:
         if last_zone_empty:
             self.message = '반납 구역 확인 완료 — HOME 복귀 중'
 
-            r = self.call_fn('f1', 'move_to', 'HOME', False)
+            while True:
+                r = self.call_fn('f1', 'move_to', 'HOME', False)
 
-            if not r.ok:
-                # 위치를 모르는 실패일 수 있으므로 HOME을 자동 재시도하지 않는다.
+                if r.ok:
+                    break
+
                 self.message = (
-                    f'HOME 복귀 실패 ({r.code}) — 로봇 위치를 확인하세요'
+                    f'HOME 복귀 실패 ({r.code}) — 재개를 기다리는 중'
                 )
                 self.to_paused(
                     f'EMPTY_ZONE 후 HOME 복귀 실패 ({r.code})',
                     sig,
                 )
-                return
+
+                # 사람이 상태를 확인하고 resume한 뒤에만 HOME을 다시 시도한다.
+                self.wait_resume(sig)
 
             if not saw_container:
                 self.message = '처리 대상 없음 — HOME 복귀 완료'
