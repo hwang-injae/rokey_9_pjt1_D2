@@ -371,3 +371,24 @@ def test_over_total_time_is_timeout_and_goes_home(rb):
     rb.cfg_['f3']['wipe_bowl']['duration_s'] = -1
     r = wipe.wipe_bowl()
     assert r.code == TIMEOUT and _ended_home(rb)
+
+
+# ------------------------------------------------------------------ 🔧 9/23 17:43 실기 — f2.slip_tol_mm 이 종류별 dict 여도 툴 놓침 감시가 살아야 한다
+def test_tool_lost_tolerance_accepts_per_kind_dict(monkeypatch):
+    class _CC:
+        def cfg(self): return {'f2': {'slip_tol_mm': {'BOWL': 1.0, 'CUP': 1.5}}}
+        def grip_width(self): return 25.7
+    monkeypatch.setattr(wipe, 'cc', _CC())
+    monkeypatch.setattr(wipe, '_tool_baseline_mm', 25.6)
+    assert wipe._tool_tol_mm() == 1.0                                       # 가장 작은 값(툴 손잡이는 단단하다)
+    assert wipe._tool_lost_now() is False                                   # 0.1 mm 차이 → 놓친 것 아님
+    monkeypatch.setattr(wipe, '_tool_baseline_mm', 22.0)
+    assert wipe._tool_lost_now() is True                                    # 3.7 mm → 놓침
+
+
+def test_tool_lost_tolerance_accepts_a_plain_number(monkeypatch):
+    class _CC:
+        def cfg(self): return {'f2': {'slip_tol_mm': 2.0}}
+        def grip_width(self): return 25.7
+    monkeypatch.setattr(wipe, 'cc', _CC())
+    assert wipe._tool_tol_mm() == 2.0
