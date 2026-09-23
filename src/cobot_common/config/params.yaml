@@ -7,7 +7,7 @@
 
 f1:                                   # ── f1 절 (한석형) ── 값은 SDD §4.3 예시, 한석형이 확정
   soap_pump:
-    enabled: true
+    enabled: false
     head_lift_mm: 30.0
     head_open_mm: 35.0
     head_grip_mm: 22.0
