@@ -34,13 +34,14 @@ LEFTOVER = 'LEFTOVER'
 LEFTOVER_REMAIN = 'LEFTOVER_REMAIN'
 SEAT_FAIL = 'SEAT_FAIL'
 TOOL_FAIL = 'TOOL_FAIL'
+TOOL_LOST = 'TOOL_LOST'                                     # 9/23 신설(황인재 승인) — 집기는 됐는데 닦는 도중 놓침. TOOL_FAIL(애초에 못 집음)과 구분
 FORCE_LIMIT = 'FORCE_LIMIT'
 TIMEOUT = 'TIMEOUT'
 RACK_JAM = 'RACK_JAM'
 RACK_FULL = 'RACK_FULL'
 ROBOT_ERROR = 'ROBOT_ERROR'
 STOPPED = 'STOPPED'
-CODES = (OK, GRIP_FAIL, EMPTY_ZONE, LEFTOVER, LEFTOVER_REMAIN, SEAT_FAIL, TOOL_FAIL,
+CODES = (OK, GRIP_FAIL, EMPTY_ZONE, LEFTOVER, LEFTOVER_REMAIN, SEAT_FAIL, TOOL_FAIL, TOOL_LOST,
          FORCE_LIMIT, TIMEOUT, RACK_JAM, RACK_FULL, ROBOT_ERROR, STOPPED)
 
 
@@ -147,13 +148,14 @@ class F3Api(Protocol):
     """F3 접촉 닦기 — 박진용 · 모듈 f3_wipe.wipe"""
 
     def soap(self, count: int, kind: str = None) -> Result:
-        """툴 든 채 세제 수조 담금. kind(BOWL/CUP): SOAP 이 종류별 자리라 준다 — BOWL = 수세미를 쥔 자세 · CUP = 솔을 쥔 자세 (9/20 추가, #36)"""
+        """툴 든 채 세제 수조 담금. kind(BOWL/CUP): SOAP 이 종류별 자리라 준다 — BOWL = 수세미를 쥔 자세 · CUP = 솔을 쥔 자세 (9/20 추가, #36)
+        닦는 동안 쥔 폭이 기준(soap 시작 시점)보다 크게 벗어나면 TOOL_LOST(9/23 신설 — 놓침)"""
 
     def wipe_bowl(self) -> WipeBowlResult:
-        """그릇: 힘제어 나선 닦기. 상한 초과 FORCE_LIMIT"""
+        """그릇: 힘제어 나선 닦기. 상한 초과 FORCE_LIMIT · 놓침 TOOL_LOST"""
 
     def wipe_cup(self) -> WipeCupResult:
-        """컵: 솔 삽입 → J6 회전 + Z 스트로크"""
+        """컵: 솔 삽입 → J6 회전 + Z 스트로크 · 놓침 TOOL_LOST"""
 
 
 def check_api(module, api) -> List[str]:

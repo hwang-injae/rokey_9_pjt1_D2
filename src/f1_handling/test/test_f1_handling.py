@@ -35,9 +35,9 @@ class FakeCC:
         self.contact_raises = None
         self.retreat_raises = None
         self.conf = {'f1': {'place_clear_mm': 100, 'tool_clear_mm': 100,
-                            'tool_return_depth_mm': 20, 'tool_return_contact_n': 8},
+                            'tool_return_depth_mm': 20, 'tool_return_contact_n': 8, 'contact_timeout_ref_mm': 20},
                      'cell': {'beds': {'SPONGE_BED_B': {}, 'SPONGE_BED_C': {}},
-                              'motion': {'vel_tcp_max_mm_s': 400, 'acc_tcp_max_mm_s2': 800}, 'limits': {'vel_carry_pct': 30, 'timeout_s': 10},
+                              'motion': {'vel_tcp_max_mm_s': 400, 'acc_tcp_max_mm_s2': 800}, 'limits': {'vel_carry_pct': 30, 'vel_free_pct': 60, 'timeout_s': 10},
                               'presets': {'SPONGE': {'grip_width_mm': 30, 'grip_zero_mm': 10.5, 'grip_force_n': 30, 'width_tol_mm': 3},
                                           'BRUSH': {'grip_width_mm': 30, 'grip_zero_mm': 10.5, 'grip_force_n': 30, 'width_tol_mm': 3}}}}
 
@@ -49,8 +49,8 @@ class FakeCC:
         if self.fail_on == name or self.fail_on == (name, len([c for c in self.calls if c[0] == name])):
             raise MoveIncomplete(f'{name} 이 도중에 멈췄다')
 
-    def move_to(self, station, carrying, kind=None, point=None):
-        self._note('move_to', station, carrying, kind, point)
+    def move_to(self, station, carrying, kind=None, point=None, **kw):     # 🆕 9/23 kw = j6_period(툴 홀더 J6 동치각)
+        self._note('move_to', station, carrying, kind, point, *([kw] if kw else []))
         return self.up.get((station, point), 0.0)
 
     def move_rel(self, dx, dy, dz, frame):
@@ -81,8 +81,8 @@ class FakeCC:
     def force_off(self):
         self._note('force_off')
 
-    def contact_down(self, max_depth, limit, timeout_s=None):
-        self._note('contact_down', max_depth, limit)
+    def contact_down(self, max_depth, limit, timeout_s=None, step_mm=None):   # 🆕 9/23 step_mm = 마지막 감시 구간 걸음
+        self._note('contact_down', max_depth, limit, *([step_mm] if step_mm is not None else []))
         if self.contact_raises is not None:
             raise self.contact_raises('시험')
         return self.contact
@@ -92,7 +92,9 @@ class FakeCC:
 def cc(monkeypatch):
     fake = FakeCC()
     monkeypatch.setattr(handling, 'cc', fake)
-    return fake
+    handling._LAST_PICK.clear()                        # 다른 테스트의 PICK 이 남긴 자리가 새지 않게
+    yield fake
+    handling._LAST_PICK.clear()
 
 
 # ------------------------------------------------------------------ move_to
@@ -157,6 +159,22 @@ def test_tool_pick_grips_at_the_holder_and_stays_there(cc):
     assert cc.calls == [('move_to', 'TOOL_SPONGE', False, None, 'pick'),   # 빈손으로 집는 자세까지 (관절 자세 → 남은 높이 0)
                         ('grip', 34.5, 30.0),                              # 영점 10.5 + (기대 30 − 2 × 허용오차 3) · 프리셋 힘 (E16)
                         ('where',)]                                        # 집은 자리를 기억(RETURN 역순용) · 빼내지 않는다
+
+
+def test_tool_pick_reverses_to_the_last_pick_spot_when_repicked(cc):
+    """🆕 9/23 E37 — 이미 한 번 집은 적 있으면(TOOL_LOST 뒤 재PICK) 홀더 자세로 곧장 가지 않고
+    처음 집었던 **정확한 자리**로 곧장 내려가 다시 잡는다(힘 감시 없이 — 실기: contact_down 은
+    상대할 저항이 없어 TIMEOUT). _tool_return 과 같은 역순 패턴이지만 마지막은 더듬지 않는다."""
+    assert handling.tool('SPONGE', 'PICK').ok            # 첫 PICK — _LAST_PICK 을 남긴다
+    cc.calls.clear()
+    r = handling.tool('SPONGE', 'PICK')                   # 재PICK — 역순 패턴을 타야 한다
+    assert r.ok
+    assert cc.calls == [('release',),                                              # 놓친 폭에서 바로 grip 하면 헛잡음(9/23 실기)
+                        ('move_pose', [273.6, -222.9, 165.2, 128.2, 180.0, -52.0]),  # 집은 자리 + clear(100) 위로
+                        ('move_pose', [273.6, -222.9, 65.2, 128.2, 180.0, -52.0]),   # 그 정확한 자리로 곧장 하강
+                        ('grip', 34.5, 30.0),
+                        ('where',)]
+    assert 'move_to' not in [c[0] for c in cc.calls]      # 홀더 자세로 곧장 가지 않는다
 
 
 def test_tool_pick_descends_and_returns_when_the_holder_has_an_approach_point(cc):

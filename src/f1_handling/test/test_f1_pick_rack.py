@@ -58,8 +58,8 @@ class FakeCC:
         if self.fail_on == name or self.fail_on == (name, len([c for c in self.calls if c[0] == name])):
             raise MoveIncomplete(f'{name} 이 도중에 멈췄다')
 
-    def move_to(self, station, carrying, kind=None, point=None):
-        self._note('move_to', station, carrying, kind, point)
+    def move_to(self, station, carrying, kind=None, point=None, **kw):     # 🆕 9/23 kw = j6_period(툴 홀더 J6 동치각)
+        self._note('move_to', station, carrying, kind, point, *([kw] if kw else []))
         return self.up.get((station, point), 0.0)
 
     def move_rel(self, dx, dy, dz, frame, **kw):
@@ -75,8 +75,8 @@ class FakeCC:
         self._note('grip', width, force)
         return self.grip_widths.pop(0) if self.grip_widths else 13.0
 
-    def contact_down(self, max_depth, limit, timeout_s=None):
-        self._note('contact_down', max_depth, limit)
+    def contact_down(self, max_depth, limit, timeout_s=None, step_mm=None):   # 🆕 9/23 step_mm = 마지막 감시 구간 걸음
+        self._note('contact_down', max_depth, limit, *([step_mm] if step_mm is not None else []))
         if self.contact_raises:
             raise self.contact_raises
         self.z -= float(self.contact[0])                          # 🔄 9/23 내려간 깊이만큼 z 도 내린다(재파지 접근점 시험)

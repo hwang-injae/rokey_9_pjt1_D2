@@ -435,12 +435,28 @@ def _tool_pick(station, tool, preset, clear) -> ToolResult:
         tol = float(_need(preset, 'width_tol_mm', where))
         zero = float(_need(preset, 'grip_zero_mm', where))
         target, check = zero + max(0.0, want - 2 * tol), (want, tol, zero)
-    # 🆕 9/23 황인재 튜닝 #1: 두 손가락 그리퍼는 J6 를 180° 돌려도 같은 파지(수세미 −220.37 9/22 · −40.37 9/23 둘 다 ✅) →
-    #    cell.presets.<툴>.j6_symmetric 이 참이면 티칭 J6 ± 180·k 중 **지금 손목에서 가장 가까운 것**으로 간다(홈 B 에서 220° → 43°).
-    j6 = {'j6_period': 180.0} if preset.get('j6_symmetric') else {}
-    up = float(cc.move_to(station, False, point='pick', **j6) or 0.0)   # 빈손으로 간다
-    if up > 0.0:
-        cc.move_rel(0.0, 0.0, -up, 'BASE')
+    pick = _LAST_PICK.get(tool)
+    if pick:
+        # 🆕 9/23 E37(박진용 요청) — 놓친 뒤(TOOL_LOST) 재PICK. 놓친 자리에서 홀더 자세로 곧장
+        #    관절이동하면 경로가 예측 안 된다(실기: 목표까지 16~32° 남고 MoveIncomplete 반복).
+        #    맨 처음 실제로 잡았던 **정확한 자리**를 이미 아니까(_LAST_PICK), 힘으로 더듬을 필요 없다
+        #    (9/23 실기: contact_down 이 아무 저항도 못 찾고 TIMEOUT) — 위로 갔다가 그 자리로 직선
+        #    하강해 바로 잡는다.
+        motion, limits = _cell().get('motion') or {}, _cell().get('limits') or {}
+        vel = float(_need(motion, 'vel_tcp_max_mm_s', 'cell.motion')) * float(_need(limits, 'vel_free_pct', 'cell.limits')) / 100.0
+        acc = float(_need(motion, 'acc_tcp_max_mm_s2', 'cell.motion')) * float(_need(limits, 'vel_free_pct', 'cell.limits')) / 100.0
+        cc.release()                                                 # 놓친 폭에서 바로 grip 하면 거의 안 움직여 헛잡음(9/23 실기)
+        above = list(pick)
+        above[2] = pick[2] + clear
+        cc.move_pose(above, vel, 60.0, acc, 60.0)                    # 잡았던 자리 위로(직선 · 자세 포함)
+        cc.move_pose(pick, vel, 60.0, acc, 60.0)                     # 그 정확한 자리로 곧장 내려간다(더듬지 않는다)
+    else:
+        # 🆕 9/23 황인재 튜닝 #1: 두 손가락 그리퍼는 J6 를 180° 돌려도 같은 파지(수세미 −220.37 9/22 · −40.37 9/23 둘 다 ✅) →
+        #    cell.presets.<툴>.j6_symmetric 이 참이면 티칭 J6 ± 180·k 중 **지금 손목에서 가장 가까운 것**으로 간다(홈 B 에서 220° → 43°).
+        j6 = {'j6_period': 180.0} if preset.get('j6_symmetric') else {}
+        up = float(cc.move_to(station, False, point='pick', **j6) or 0.0)   # 빈손으로 간다
+        if up > 0.0:
+            cc.move_rel(0.0, 0.0, -up, 'BASE')
     width = float(cc.grip(target, force))
     if check and abs(width - check[2] - check[0]) > check[1]:       # 헛잡음 — 툴을 홀더에 두고 물러난다
         cc.release()

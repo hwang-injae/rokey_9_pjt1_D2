@@ -35,7 +35,8 @@ from . import motion as _motion
 from .motion import is_paused, move_rel
 
 __all__ = ['force_on', 'force_off', 'force_release', 'force_reached', 'force_check', 'compliance_on', 'compliance_off',
-           'contact_down', 'periodic_search', 'safe_retreat', 'read_force',
+           'contact_down', 'periodic_search', 'safe_retreat', 'read_force', 'start_nudge_watch', 'check_nudge',
+           'robot_state', 'wait_robot_ready',
            'where', 'joints', 'stop_now', 'motion_done', 'wait_done', 'move_joints', 'move_line_rel', 'move_spiral', 'move_arc', 'move_pose', 'move_periodic',
            'ForceLimitError', 'MotionTimeout']
 
@@ -160,6 +161,61 @@ def read_force():
     if not isinstance(f, (list, tuple)) or len(f) != 6:
         raise RuntimeError(f'get_tool_force 실패: {f!r}')
     return [float(x) for x in f]
+
+
+def robot_state():
+    """지금 로봇 상태 번호(motion.py 의 코드 체계와 같다) — 1 = STANDBY(정상, 새 명령을 받을 수 있다).
+
+    넛지(RS1) 뒤 컨트롤러 쪽 SOS 해제가 끝났는지 보려고 만들었다(9/23 — 고정 시간만 기다리면
+    MoveIncomplete 가 났다). motion.py 를 고치지 않고 여기서 직접 두산 API 를 읽는다(읽기 전용).
+    """
+    return int(dsr().get_robot_state())
+
+
+def wait_robot_ready(timeout_s):
+    """robot_state() 가 STANDBY(1)가 될 때까지 기다린다 — 최대 timeout_s. 됐으면 True, 시간 초과면 False."""
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < timeout_s:
+        if robot_state() == 1:
+            return True
+        time.sleep(0.05)
+    return False
+
+
+# ------------------------------------------------------------------ 넛지 감지 (NEW-02a·NEW-02b · E37 재개 신호)
+# 🔸 로봇이 멈춰(PAUSED) 있는 동안 사람이 살짝 밀거나 톡 치는 것을 힘으로 본다 — HMI 버튼 없이도 재개할 수 있게.
+#    이동 중이 아니라 정지 상태에서만 쓴다 — 그래서 순수 힘 감시(모션 없음)만으로 충분하다.
+_nudge_baseline = None                                   # start_nudge_watch() 가 기록한 정지 시점 힘
+_nudge_above_since = None                                # threshold_n 을 넘기 시작한 시각(모노토닉) — 끊기면 None
+
+
+def start_nudge_watch():
+    """넛지 감시 시작 — 지금(멈춘 자리) 힘을 기준으로 삼는다. PAUSED 들어갈 때 한 번 부른다."""
+    global _nudge_baseline, _nudge_above_since
+    _nudge_baseline = read_force()
+    _nudge_above_since = None
+
+
+def check_nudge(threshold_n, hold_s):
+    """기준보다 threshold_n 넘게 벗어난 상태가 hold_s 동안 이어지면 True — 호출부(flow)가 대기 루프에서 반복해서 부른다.
+
+    한 번 튄 값(순간 노이즈)에 오검출하지 않으려고 **유지 시간**을 본다(hold_s). 벗어났다가 곧 가라앉으면 다시 None 부터.
+    start_nudge_watch() 를 먼저 불러야 한다 — 안 불렀으면 RuntimeError.
+    """
+    global _nudge_above_since
+    if _nudge_baseline is None:
+        raise RuntimeError('check_nudge: start_nudge_watch() 를 먼저 불러 기준을 잡는다')
+    f = read_force()
+    mag = sum((f[i] - _nudge_baseline[i]) ** 2 for i in range(3)) ** 0.5   # xyz 크기, 정지 시점 대비
+    now = time.monotonic()
+    if mag >= threshold_n:
+        if _nudge_above_since is None:
+            _nudge_above_since = now
+        elif now - _nudge_above_since >= hold_s:
+            return True
+    else:
+        _nudge_above_since = None
+    return False
 
 
 def contact_down(max_depth, limit, timeout_s=None, keep_compliance=False, step_mm=None):
