@@ -6,6 +6,25 @@
 #   - 코드에서는  cc.cfg()['f3']['wipe_bowl']['limit_n']  처럼 읽는다. 숫자를 코드에 쓰지 않는다.
 
 f1:                                   # ── f1 절 (한석형) ── 값은 SDD §4.3 예시, 한석형이 확정
+  soap_pump:
+    enabled: false
+    head_lift_mm: 30.0
+    head_open_mm: 35.0
+    head_grip_mm: 22.0
+    press_grip_mm: 0.0
+    head_grip_force_n: 10.0
+    sponge_turn_deg: -90.0
+    brush_turn_deg: 90.0
+    force_start_z_mm: 130.0
+    full_press_n: 10.0
+    force_step_mm: 0.5
+    max_force_travel_mm: 30.0
+    force_vel_mm_s: 8.0
+    force_acc_mm_s2: 20.0
+    fast_tcp_vel_mm_s: 400.0
+    fast_tcp_acc_mm_s2: 800.0
+    fast_rot_vel_deg_s: 100.0
+    tool_pick_z_mm: 150.0
   insert_approach_mm: 5               # 🔄 9/23 15:5x 20 → 5 (황인재 튜닝 #5·#9): 칸 자세가 정확해 마지막 5 mm 만 힘 감시(순응 걸음 ≈3 s × 2) — 놓기까지 15 s 절약 · 걸림 보호는 유지
                                       #   이전 20 — 팔레트 삽입 전 힘 감시 하강 거리. 🔄 9/22 밤 30 → 20 (황인재 · 통합 리더 E33): 박진용 실기(#83)에서 RACK_B1 삽입이
                                       #   28.5/30 mm 에서 접촉 타임아웃 10 s(cell.limits.timeout_s) — contact_down 은 3 mm 씩 20 mm/s × vel_scale 로 내려가
