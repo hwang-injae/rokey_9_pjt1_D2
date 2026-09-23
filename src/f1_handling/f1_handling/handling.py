@@ -420,8 +420,169 @@ def tool(tool: str, action: str) -> ToolResult:
         preset = ((conf.get('cell') or {}).get('presets') or {}).get(tool)
         if not preset:
             raise KeyError(f'cell.presets.{tool} 가 없다 — 툴 파지 폭·힘을 cell.yaml 에 채운다(한석형)')
+        soap_pump = f1.get('soap_pump') or {}
+        if bool(soap_pump.get('enabled', False)):
+            return _soap_pump_and_pick(station, tool, preset, clear)
         return _tool_pick(station, tool, preset, clear)
     return _tool_return(station, f1, clear, tool)
+
+
+
+def _soap_pump_and_pick(station, tool, preset, clear) -> ToolResult:
+    """세제 펌프 1회 작동 후 기존 툴 PICK으로 이어간다."""
+    conf = cc.cfg()
+    f1 = _need(conf, 'f1', 'config')
+    pump_cfg = _need(f1, 'soap_pump', 'f1')
+
+    pump = _need(
+        _need(_cell(), 'stations', 'cell'),
+        'SOAP_PUMP',
+        'cell.stations',
+    )
+    head = [
+        float(v)
+        for v in _need(pump, 'posx', 'cell.stations.SOAP_PUMP')
+    ]
+
+    head_lift = float(_need(pump_cfg, 'head_lift_mm', 'f1.soap_pump'))
+    head_open = float(_need(pump_cfg, 'head_open_mm', 'f1.soap_pump'))
+    head_grip = float(_need(pump_cfg, 'head_grip_mm', 'f1.soap_pump'))
+    press_grip = float(_need(pump_cfg, 'press_grip_mm', 'f1.soap_pump'))
+    grip_force = float(_need(pump_cfg, 'head_grip_force_n', 'f1.soap_pump'))
+
+    turn_key = 'sponge_turn_deg' if tool == SPONGE else 'brush_turn_deg'
+    turn_deg = float(_need(pump_cfg, turn_key, 'f1.soap_pump'))
+
+    force_start_z = float(_need(pump_cfg, 'force_start_z_mm', 'f1.soap_pump'))
+    full_press_n = float(_need(pump_cfg, 'full_press_n', 'f1.soap_pump'))
+    force_step = float(_need(pump_cfg, 'force_step_mm', 'f1.soap_pump'))
+    max_travel = float(_need(pump_cfg, 'max_force_travel_mm', 'f1.soap_pump'))
+    force_vel = float(_need(pump_cfg, 'force_vel_mm_s', 'f1.soap_pump'))
+    force_acc = float(_need(pump_cfg, 'force_acc_mm_s2', 'f1.soap_pump'))
+
+    fast_vel = float(_need(pump_cfg, 'fast_tcp_vel_mm_s', 'f1.soap_pump'))
+    fast_acc = float(_need(pump_cfg, 'fast_tcp_acc_mm_s2', 'f1.soap_pump'))
+    rot_vel = float(_need(pump_cfg, 'fast_rot_vel_deg_s', 'f1.soap_pump'))
+    tool_pick_z = float(_need(pump_cfg, 'tool_pick_z_mm', 'f1.soap_pump'))
+
+    def pose():
+        return [float(v) for v in cc.where()[:6]]
+
+    def move_z(z):
+        now = pose()
+        cc.move_rel(
+            0.0, 0.0, z - now[2], 'BASE',
+            vel_mm_s=fast_vel,
+            acc_mm_s2=fast_acc,
+        )
+
+    # 그리퍼 힘 센서 초기화 — rig와 동일
+    cc.release()
+
+    # 그리퍼 초기화
+    cc.release()
+
+    # HOME
+    cc.move_to('HOME', False)
+
+    # SOAP_PUMP X/Y, Z 유지
+    now = pose()
+    cc.move_rel(
+        head[0] - now[0],
+        head[1] - now[1],
+        0.0,
+        'BASE',
+        vel_mm_s=fast_vel,
+        acc_mm_s2=fast_acc,
+    )
+
+    # XYZ 유지, 펌프 헤드 orientation
+    now = pose()
+    cc.move_pose(
+        [now[0], now[1], now[2], head[3], head[4], head[5]],
+        vel_mm_s=fast_vel,
+        vel_deg_s=rot_vel,
+        acc_mm_s2=fast_acc,
+        acc_deg_s2=rot_vel * 2.0,
+    )
+
+    # 헤드 접근 및 파지
+    cc.grip(head_open, grip_force)
+    move_z(head[2])
+    cc.grip(head_grip, grip_force)       # 9/23: 20 → 22 mm
+
+    # SPONGE -90 / BRUSH +90
+    cc.move_joint_rel(
+        6,
+        turn_deg,
+        time_s=abs(turn_deg) / rot_vel,
+        carrying=False,
+    )
+
+    # 펌프 누르기 준비
+    cc.grip(head_open, grip_force)
+    cc.move_rel(
+        0.0, 0.0, head_lift, 'BASE',
+        vel_mm_s=fast_vel,
+        acc_mm_s2=fast_acc,
+    )
+    cc.grip(press_grip, grip_force)
+    move_z(force_start_z)
+
+    # 힘 기반 펌프
+    baseline = cc.read_force()
+    travelled = 0.0
+    full_press = False
+
+    cc.compliance_on()
+    try:
+        while travelled < max_travel:
+            cc.move_rel(
+                0.0, 0.0, -force_step, 'BASE',
+                vel_mm_s=force_vel,
+                acc_mm_s2=force_acc,
+            )
+            travelled += force_step
+
+            force = cc.read_force()
+            dfz = abs(float(force[2]) - float(baseline[2]))
+
+            if dfz >= full_press_n:
+                full_press = True
+                break
+    finally:
+        cc.compliance_off()
+
+    # 펌프에서 빠져나와 헤드 원위치
+    cc.move_rel(
+        0.0, 0.0, 30.0, 'BASE',
+        vel_mm_s=fast_vel,
+        acc_mm_s2=fast_acc,
+    )
+    cc.grip(head_open, grip_force)
+
+    move_z(head[2])
+    cc.grip(head_grip, grip_force)
+
+    cc.move_joint_rel(
+        6,
+        -turn_deg,
+        time_s=abs(turn_deg) / rot_vel,
+        carrying=False,
+    )
+
+    cc.grip(head_open, grip_force)
+    move_z(tool_pick_z)
+
+    if not full_press:
+        _log().error(
+            f'세제 펌프 실패 — {max_travel:.1f} mm 내 '
+            f'{full_press_n:.1f} N 미도달'
+        )
+        return ToolResult.fail(TOOL_FAIL)
+
+    # 기존 검증된 F1 툴 픽업
+    return _tool_pick(station, tool, preset, clear)
 
 
 def _tool_pick(station, tool, preset, clear) -> ToolResult:
