@@ -600,7 +600,8 @@ def test_every_move_passes_kind(monkeypatch):
     ):
         r = Rec(weights=[180.0])
         call(_sense(monkeypatch, r))
-        moves = r.of('move_to')
+        # 🔄 9/23: weigh 가 먼저 HOME 을 거친다 — HOME 은 종류로 갈리지 않는 자리라 kind 가 없어도 된다
+        moves = [c for c in r.of('move_to') if c[1][0] != 'HOME']
         assert moves, 'move_to 를 한 번은 불러야 한다'
         for c in moves:
             assert c[1][2] == kind, f'move_to 에 kind 가 빠졌다 — {c[1]}'
@@ -770,7 +771,21 @@ def test_leftover_goes_via_home_between_scale_and_waste_bin(monkeypatch):
     s = _sense(monkeypatch, r)
     s.leftover_loop('BOWL', 2)
     stations = [c[1][0] for c in r.of('move_to')]
-    assert stations == ['WEIGH', 'HOME', 'WASTE', 'HOME', 'WEIGH'], stations
+    assert stations == ['HOME', 'WEIGH', 'HOME', 'WASTE', 'HOME', 'WEIGH'], stations
+
+
+def test_weigh_goes_via_home_first(monkeypatch):
+    """🔄 9/23 실기: 무게는 **항상 HOME 을 거쳐** WEIGH 로 내려와 잰다.
+
+    같은 그릇을 같은 WEIGH 자세에서 재도, 집어 올린 자리에서 바로 재면 −113 g · HOME 을 거쳐 재면 −23 g
+    (06:54:05 / 06:55:17 · 1분 간격 · 90 g 차). 관절 토크로 힘을 추정하는 로봇이라 마지막 이동 이력이 값에 남는다.
+    기준값 도구(rig_f2 empty)·털기 뒤 재측정은 원래 HOME 을 거쳤으므로 첫 측정만 이 길을 안 타고 있었다.
+    """
+    r = Rec(weights=[180.0])
+    s = _sense(monkeypatch, r)
+    s.weigh('BOWL')
+    stations = [c[1][0] for c in r.of('move_to')]
+    assert stations == ['HOME', 'WEIGH'], stations
 
 
 # ────────────────────────────────── 🔑 놓쳤는지는 **폭**이 답한다 (9/22 저녁 · 영점 이동)

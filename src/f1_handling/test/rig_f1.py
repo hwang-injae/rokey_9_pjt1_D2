@@ -104,6 +104,9 @@ def main():
     ap.add_argument('--tool', default=SPONGE, choices=(SPONGE, BRUSH))
     ap.add_argument('--action', default=PICK, choices=(PICK, RETURN, CYCLE), help='tool: CYCLE = 집기 → 반납 한 쌍 × n (V-08)')
     ap.add_argument('--slot', default=RACK_SLOTS[0], choices=RACK_SLOTS, help='rack_place')
+    ap.add_argument('--to-slot', action='store_true',
+                    help='rack_place: 놓는 자세 **위에서 멈춘다**(놓지 않음 · 되돌아오지 않음) — 펜던트로 칸 자세를 새로 찍을 때(9/23 황인재)')
+    ap.add_argument('--hold-mm', type=float, default=20.0, help='--to-slot 에서 놓는 자세 몇 mm 위에 멈출지 (기본 20)')
     ap.add_argument('--no-robot', action='store_true', help='두산 드라이버 없이 시작(init(robot=False)) — 골격·반환값 확인용')
     ap.add_argument('--fill-virtual', action='store_true', help='비어 있는 limits·motion 을 Virtual 시험 값으로 채운 임시 설정으로 돈다(Virtual 전용)')
     ap.add_argument('--no-gripper', action='store_true', help='cc.release() 를 가짜로 — 그리퍼 드라이버 없이 이동·순서만 확인')
@@ -159,12 +162,44 @@ def main():
             preset = ((cc.cfg().get('cell') or {}).get('presets') or {}).get(a.tool) or {}
             _summary(log, a.tool, a.n, ok, rounds, preset.get('grip_zero_mm'))
             return
+        if a.which == 'rack_place' and a.to_slot:
+            _to_slot(a.slot, a.kind, a.hold_mm, log)
+            return
         for i in range(a.n):                                # ② 연속 3회 이상
             log.info(f'{i + 1}/{a.n} {a.which} → {fn()}')
     except KeyboardInterrupt:
         log.warn('Ctrl+C 또는 q — 정지 명령을 보내고 끝낸다')
     finally:
         cc.shutdown()                                       # ③ 끝낼 때 (Ctrl+C 포함)
+
+
+def _to_slot(slot_name, kind, hold_mm, log):
+    """rack_place 와 **같은 길**로 칸까지 가서 놓는 자세 hold_mm 위에서 멈춘다 — 놓지 않고, 빠져나오지도 않는다.
+
+    🔄 9/23 09:1x(황인재): 컵 칸(RACK_C1/C2) 놓는 자세를 펜던트로 다시 찍기 위해. 컵을 옆으로 쥔 채(pick SPONGE_BED_C 뒤)
+    이 명령으로 칸 위까지 오면, 펜던트 수동으로 전환해 컵을 기둥에 앉히고 X·Y·Z·A·B·C 를 읽는다.
+    길: 수조 위(RINSE 접근 235) → 컵은 rack.cup_entry_z_mm 까지 상승(그릇은 HOME 경유) → 경유점(via) → 칸 위 → (up − hold) 하강.
+    """
+    cell = cc.cfg()['cell']
+    slot = cell['rack']['slots'][slot_name]
+    cc.force_off()
+    cc.safe_retreat()
+    cc.move_to('RINSE', True, kind)                             # ① 수조 위 접근점 (E15 경로 그대로)
+    if kind == CUP:
+        entry_z = float(cell['rack']['cup_entry_z_mm'])
+        dz = entry_z - float(cc.where()[2])
+        if dz > 0.0:
+            cc.move_rel(0.0, 0.0, dz, 'BASE')
+    else:
+        cc.move_to('HOME', True)
+    cc.move_to(slot['via'], True)                               # ② 경유점 (관절 자세)
+    up = float(cc.move_to(slot_name, True) or 0.0)              # ③ 칸 바로 위
+    down = max(0.0, up - float(hold_mm))
+    if down > 0.0:
+        cc.move_rel(0.0, 0.0, -down, 'BASE')
+    now = cc.where()
+    log.info(f'{slot_name} 놓는 자세 {hold_mm:g} mm 위에서 멈췄다(놓지 않음) — 지금 posx [' + ', '.join(f'{float(v):.2f}' for v in now) + ']')
+    log.info('→ 펜던트 수동으로 전환해 컵을 기둥에 앉히고 X·Y·Z·A·B·C(BASE)·J1~J6 를 기록한다. 끝나면 자동으로 되돌리고 다음 명령의 문지기가 이름을 확인한다')
 
 
 def _use_filled_config():

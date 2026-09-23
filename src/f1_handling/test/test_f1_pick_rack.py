@@ -37,7 +37,7 @@ class FakeCC:
         self.conf = {
             'f1': {'place_clear_mm': 100, 'insert_approach_mm': 30},
             'cell': {
-                'limits': {'insert_limit_n': 15},
+                'limits': {'insert_limit_n': 15, 'timeout_s': 10},
                 'presets': {'BOWL': {'grip_width_mm': 2.15, 'grip_zero_mm': 10.58, 'grip_force_n': 20, 'width_tol_mm': 0.6},
                             'CUP': {'grip_target_mm': 76.0, 'grip_zero_mm': 10.58, 'grip_force_n': 5}},
                 'zones': {'RET_B': {'slots': [{'approach_posx': [0] * 6, 'posx': [0] * 6}]},
@@ -45,8 +45,8 @@ class FakeCC:
                           'RET_X': {'slots': [{'posx': [0] * 6}, {'posx': [0] * 6}]}},        # 접근점 없는 슬롯 2개
                 'beds': {'SPONGE_BED_B': {}, 'SPONGE_BED_C': {}},
                 'rack': {'cup_entry_z_mm': 250.0, 'seat_tol_mm': 3.0,
-                         'slots': {'RACK_B1': {'via': 'RACK_B1_VIA', 'exit_rel_mm': [[0, -25, 0], [0, 0, 100]]},
-                                   'RACK_C1': {'via': 'RACK_C_VIA', 'exit_rel_mm': [[0, 0, 92], [0, -117.21, 0]]}}},
+                         'slots': {'RACK_B1': {'via': 'RACK_B1_VIA', 'approach_posx': [300, 600, 400, 0, 0, 0], 'exit_rel_mm': [[0, -25, 0], [0, 0, 100]]},
+                                   'RACK_C1': {'via': 'RACK_C_VIA', 'approach_posx': [250, 470, 350, 0, 0, 0], 'exit_rel_mm': [[0, 0, 92], [0, -117.21, 0]]}}},
             },
         }
 
@@ -66,17 +66,20 @@ class FakeCC:
         self._note('move_rel', dx, dy, dz, frame); self.z += dz
 
     def release(self): self._note('release')
+    def set_grip_preset(self, name): self._note('set_grip_preset', name)
     def force_off(self): self._note('force_off')
+    def safe_retreat(self): self._note('safe_retreat')            # Z 만 safe_z 로 (가짜 — 높이 셈은 안 한다)
     def where(self): return [0.0, 0.0, self.z, 0.0, 0.0, 0.0]
 
     def grip(self, width, force):
         self._note('grip', width, force)
         return self.grip_widths.pop(0) if self.grip_widths else 13.0
 
-    def contact_down(self, max_depth, limit):
+    def contact_down(self, max_depth, limit, timeout_s=None):
         self._note('contact_down', max_depth, limit)
         if self.contact_raises:
             raise self.contact_raises
+        self.z -= float(self.contact[0])                          # 🔄 9/23 내려간 깊이만큼 z 도 내린다(재파지 접근점 시험)
         return self.contact
 
     def names(self): return [c[0] for c in self.calls]
@@ -153,13 +156,86 @@ def test_regrip_bowl_empty_is_grip_fail_not_empty_zone(cc):
     assert not r.ok and r.code == GRIP_FAIL and cc.names()[-2:] == ['release', 'move_rel']
 
 
-def test_regrip_cup_lifts_to_entry_z(cc):
-    """컵: regrip(posj) → 쥐기 → rack.cup_entry_z_mm(250) 까지 올린다(한석형 9/22 경로)."""
+def test_regrip_with_regrip_pose_lifts_to_entry_z(cc):
+    """홈에 regrip(posj) 이 **있으면**(옆면 파지 · 한석형 9/22 컵 경로): 그 자세 → 쥐기 → rack.cup_entry_z_mm(250) 까지 올린다.
+    🔄 9/22 저녁 E29: 종류가 아니라 키 유무로 고른다 — 이 시험은 키를 넣어 옛 경로를 지킨다."""
+    cc.conf['cell']['beds']['SPONGE_BED_C'] = {'regrip': {'posj': [0] * 6}}
     cc.z = 120.0
     r = handling.pick('SPONGE_BED_C', 'CUP')
     assert r.ok
     assert cc.of('move_to')[0] == ('move_to', 'SPONGE_BED_C', False, 'CUP', 'regrip')
     assert cc.of('move_rel')[-1][3] == pytest.approx(130.0)
+
+
+def test_regrip_uses_bed_regrip_preset(cc):
+    """🔄 9/23 결정 ㉡: 홈 C 옆면 재파지는 beds.<bed>.regrip_preset(CUP_SIDE · 고정 폭 76 · 5 N)으로 잡고,
+    잡은 뒤 cc.set_grip_preset 으로 알려 준다 — 그 뒤 HOLD 전환이 CUP 의 35 N 을 몸통에 걸지 않게(E19 눌림)."""
+    cc.conf['cell']['beds']['SPONGE_BED_C'] = {'regrip': {'posj': [0] * 6}, 'regrip_preset': 'CUP_SIDE'}
+    cc.conf['cell']['presets']['CUP_SIDE'] = {'grip_target_mm': 76.0, 'grip_zero_mm': 10.58, 'grip_force_n': 5}
+    cc.grip_widths = [77.4]
+    cc.z = 120.0
+    r = handling.pick('SPONGE_BED_C', 'CUP')
+    assert r.ok and r.width_mm == pytest.approx(77.4)           # 고정 폭은 드라이버 폭을 그대로 보고한다
+    g = cc.of('grip')[-1]
+    assert g[1] == pytest.approx(76.0) and g[2] == pytest.approx(5.0)
+    assert cc.of('set_grip_preset') == [('set_grip_preset', 'CUP_SIDE')]
+
+
+def test_regrip_with_approach_descends_then_grips_then_lifts_to_entry_z(cc):
+    """🔄 9/23 08:1x: 재파지 자세에 접근점(approach_posx+posx)이 있으면 **위에서 자세를 맞추고 Z 만 내려** 잡고,
+    잡은 뒤 rack.cup_entry_z_mm(250) 까지 올린다 — 07:55 실기: HOME 에서 관절 이동으로 곧장 가다 열린 그리퍼가 컵에 걸려 SAFE_STOP."""
+    cc.conf['cell']['beds']['SPONGE_BED_C'] = {'regrip': {'approach_posx': [0] * 6, 'posx': [0] * 6}, 'regrip_preset': 'CUP_SIDE'}
+    cc.conf['cell']['presets']['CUP_SIDE'] = {'grip_target_mm': 76.0, 'grip_zero_mm': 10.58, 'grip_force_n': 5}
+    cc.up[('SPONGE_BED_C', 'regrip')] = 100.0
+    cc.contact = (60.0, 2.0)                                       # 감시 60 mm 를 끝까지 내려감(닿은 것 없음)
+    cc.z = 200.0
+    r = handling.pick('SPONGE_BED_C', 'CUP')
+    assert r.ok
+    names = cc.names()
+    assert names.index('move_to') < names.index('contact_down') < names.index('grip')
+    assert cc.of('contact_down')[0][1:] == (60.0, 15)               # 마지막 60 mm 는 insert_limit_n 으로 감시
+    rel = [c[3] for c in cc.of('move_rel')]
+    assert rel == [pytest.approx(-40.0), pytest.approx(150.0)]        # 자유 40 → 감시 60(200→100) → 250 까지 올림
+    assert names.index('grip') < len(names) - 1 - names[::-1].index('move_rel')
+
+
+def test_regrip_finger_on_cup_rim_backs_up_with_grip_fail(cc):
+    """감시 구간에서 힘이 먼저 닿으면(손가락이 컵 테두리에 얹힘) SAFE_STOP 대신 되올라와 GRIP_FAIL — 잡기(grip)는 하지 않는다."""
+    cc.conf['cell']['beds']['SPONGE_BED_C'] = {'regrip': {'approach_posx': [0] * 6, 'posx': [0] * 6}, 'regrip_preset': 'CUP_SIDE'}
+    cc.conf['cell']['presets']['CUP_SIDE'] = {'grip_target_mm': 76.0, 'grip_zero_mm': 10.58, 'grip_force_n': 5}
+    cc.up[('SPONGE_BED_C', 'regrip')] = 100.0
+    cc.contact = (40.0, 9.0)                                       # 60 중 40 에서 9 N
+    r = handling.pick('SPONGE_BED_C', 'CUP')
+    assert not r.ok and r.code == GRIP_FAIL
+    assert not cc.of('grip') and 'force_off' in cc.names()
+    assert cc.of('move_rel')[-1][3] == pytest.approx(80.0)          # 자유 40 + 내려간 40 만큼 되올라옴
+
+
+def test_regrip_with_approach_fails_back_up(cc):
+    """헛잡음이면 놓고 접근점 높이로 올라간 뒤 GRIP_FAIL — 컵 옆에 손가락을 두고 멈추지 않는다."""
+    cc.conf['cell']['beds']['SPONGE_BED_C'] = {'regrip': {'approach_posx': [0] * 6, 'posx': [0] * 6}}
+    cc.up[('SPONGE_BED_C', 'regrip')] = 100.0
+    cc.contact = (60.0, 2.0)
+    cc.grip_widths = [10.6]                                        # 빈손 폭 → CUP(고정 폭 76)이 아닌 BOWL 판정으로 시험
+    r = handling.pick('SPONGE_BED_C', 'BOWL')
+    assert not r.ok and r.code == GRIP_FAIL
+    assert cc.names()[-2:] == ['release', 'move_rel'] and cc.of('move_rel')[-1][3] == pytest.approx(100.0)
+
+
+def test_regrip_without_preset_key_does_not_touch_grip_preset(cc):
+    cc.conf['cell']['beds']['SPONGE_BED_C'] = {'regrip': {'posj': [0] * 6}}
+    cc.z = 120.0
+    assert handling.pick('SPONGE_BED_C', 'CUP').ok
+    assert not cc.of('set_grip_preset')
+
+
+def test_regrip_cup_without_regrip_pose_uses_place_point(cc):
+    """홈에 regrip 이 **없으면**(9/22 저녁 벽 집기 · cell.yaml 기본): 컵도 그릇처럼 place 자리에서 다시 잡고 entry_z 로 올리지 않는다."""
+    cc.z = 120.0
+    r = handling.pick('SPONGE_BED_C', 'CUP')
+    assert r.ok
+    assert cc.of('move_to')[0] == ('move_to', 'SPONGE_BED_C', False, 'CUP', 'place')
+    assert not cc.of('move_rel')                                    # 접근점이 없는 가짜 홈이라 오르내림 없음
 
 
 # ────────────────────────────────── rack_place
@@ -203,7 +279,8 @@ def test_rack_place_force_limit_and_timeout_become_codes(cc, exc, code):
     cc.contact_raises = exc
     r = handling.rack_place('RACK_B1', 'BOWL')
     assert not r.ok and r.code == code and 'release' not in cc.names()
-    assert cc.of('move_rel')[-1][3] == pytest.approx(70.0)          # 자유 하강분만큼 되올라온다
+    assert cc.of('move_rel')[-1][3] == pytest.approx(70.0 + 30.0)   # 🔄 9/22 밤: 깊이를 모르니 감시 구간 전체만큼 — 접근점 위(안전) · 순응도 끈다
+    assert cc.names().count('force_off') == 2                       # 시작 1 + 실패 뒤 1
 
 
 def test_rack_place_missing_via_is_keyerror_before_moving(cc):
@@ -218,3 +295,19 @@ def test_pick_and_rack_three_times_in_a_row(cc):
     cc.grip_widths = [13.0] * 3; cc.contact = (30.0, 2.0)
     for _ in range(3):
         assert handling.pick('RET_B', 'BOWL').ok and handling.rack_place('RACK_B1', 'BOWL').ok
+
+
+def test_rack_place_retry_near_the_slot_skips_rinse_and_via(cc):
+    """🔄 9/22 밤(황인재): flow 의 RACK 재시도는 이미 칸 위에 있다 → 수조·HOME·경유점을 다시 거치지 않는다(22:57 실기: 헹굼 자리로 되돌아갔다)."""
+    cc.contact = (29.0, 4.0)
+    cc.where = lambda: [300.0, 600.0, 400.0, 0.0, 0.0, 0.0]        # 칸 접근점 바로 그 자리
+    assert handling.rack_place('RACK_B1', 'BOWL').ok
+    assert [c[1] for c in cc.of('move_to')] == ['RACK_B1']
+
+
+def test_contact_timeout_grows_with_slow_speed(cc):
+    """0.3 배속이면 접촉 타임아웃도 3.3배 — 10 s 로는 20 mm 감시 하강을 못 끝냈다(22:57 실기 19.9/20)."""
+    cc.conf['run'] = {'vel_scale': 0.3}
+    assert handling._contact_timeout() == pytest.approx(10.0 / 0.3)
+    cc.conf['run'] = {'vel_scale': 1.0}
+    assert handling._contact_timeout() == pytest.approx(10.0)
