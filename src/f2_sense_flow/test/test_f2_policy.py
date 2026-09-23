@@ -807,3 +807,51 @@ class FakeLogLines:
     def warn(self, m): self.warns.append(m)
     def error(self, m): pass
 
+
+
+def test_empty_zone_home_failure_pauses_then_resumes_and_retries():
+    """마지막 EMPTY_ZONE 뒤 HOME 실패 시 PAUSED에서 resume을 기다리고 HOME을 다시 시도한다."""
+    import copy
+
+    mock.configure([
+        'pick:EMPTY_ZONE',
+        'move_to:ROBOT_ERROR:1',
+    ])
+
+    try:
+        f = Flow(copy.deepcopy(CFG), Quiet(), publish_event=lambda ev: None)
+        f.f = load_features(['f1', 'f2', 'f3'])
+
+        home_results = []
+        paused_reasons = []
+
+        orig_call = f.call_fn
+        orig_paused = f.to_paused
+
+        def spy_call(mod, fname, *args):
+            r = orig_call(mod, fname, *args)
+            if mod == 'f1' and fname == 'move_to' and args[:2] == ('HOME', False):
+                home_results.append(r)
+            return r
+
+        def spy_paused(reason, sig):
+            paused_reasons.append(reason)
+            return orig_paused(reason, sig)
+
+        f.call_fn = spy_call
+        f.to_paused = spy_paused
+
+        f.run_plan(AutoResume())
+
+        assert len(home_results) == 2
+        assert not home_results[0].ok
+        assert home_results[0].code == 'ROBOT_ERROR'
+        assert home_results[1].ok
+        assert paused_reasons == [
+            'EMPTY_ZONE 후 HOME 복귀 실패 (ROBOT_ERROR)'
+        ]
+        assert f.message == '처리 대상 없음 — HOME 복귀 완료'
+        assert f.step == 'IDLE'
+
+    finally:
+        mock.reset()
