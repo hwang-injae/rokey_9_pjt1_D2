@@ -728,8 +728,13 @@ def recheck_cable(conf=None):
     """
     conf = conf if conf is not None else _f2()
     nudge_cfg = conf.get('nudge') or {}
+    settle_s = float(nudge_cfg.get('settle_s') or 1.5)
     samples = int(nudge_cfg.get('recheck_samples') or 10)
     max_spread = float(((conf.get('limits') or {}).get('max_weigh_spread_g')) or 50.0)
+
+    # 손으로 톡톡 친 직후 센서 탄성/진동이 가라앉도록 잠시 대기
+    if settle_s > 0:
+        time.sleep(settle_s)
 
     try:
         cc.weigh(samples)
