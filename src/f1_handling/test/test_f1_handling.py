@@ -163,16 +163,15 @@ def test_tool_pick_grips_at_the_holder_and_stays_there(cc):
 
 def test_tool_pick_reverses_to_the_last_pick_spot_when_repicked(cc):
     """🆕 9/23 E37 — 이미 한 번 집은 적 있으면(TOOL_LOST 뒤 재PICK) 홀더 자세로 곧장 가지 않고
-    잡았던 자리 위에서 힘 감시하며 내려가 다시 잡는다 — 놓친 자리에서 곧장 관절이동하면
-    경로가 예측 안 된다(실기: MoveIncomplete 반복). _tool_return 과 같은 역순 패턴."""
+    처음 집었던 **정확한 자리**로 곧장 내려가 다시 잡는다(힘 감시 없이 — 실기: contact_down 은
+    상대할 저항이 없어 TIMEOUT). _tool_return 과 같은 역순 패턴이지만 마지막은 더듬지 않는다."""
     assert handling.tool('SPONGE', 'PICK').ok            # 첫 PICK — _LAST_PICK 을 남긴다
     cc.calls.clear()
     r = handling.tool('SPONGE', 'PICK')                   # 재PICK — 역순 패턴을 타야 한다
     assert r.ok
     assert cc.calls == [('release',),                                              # 놓친 폭에서 바로 grip 하면 헛잡음(9/23 실기)
-                        ('move_pose', [273.6, -222.9, 165.2, 128.2, 180.0, -52.0]),  # 집은 자리 + clear(100)
-                        ('move_rel', 0.0, 0.0, -80.0, 'BASE'),                       # 자유 하강(100 − tool_return_depth_mm 20)
-                        ('contact_down', 20.0, 8.0),                                 # 마지막 20 mm 는 힘 감시
+                        ('move_pose', [273.6, -222.9, 165.2, 128.2, 180.0, -52.0]),  # 집은 자리 + clear(100) 위로
+                        ('move_pose', [273.6, -222.9, 65.2, 128.2, 180.0, -52.0]),   # 그 정확한 자리로 곧장 하강
                         ('grip', 34.5, 30.0),
                         ('where',)]
     assert 'move_to' not in [c[0] for c in cc.calls]      # 홀더 자세로 곧장 가지 않는다
