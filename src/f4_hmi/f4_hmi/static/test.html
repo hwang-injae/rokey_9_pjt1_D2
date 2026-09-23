@@ -36,6 +36,7 @@
   <button id="b-start" class="go" disabled>시작</button>
   <button id="b-toggle" class="stop" disabled>일시정지</button>
   <button id="b-abort" class="warn" disabled>중단 (이 용기 접기)</button>
+  <button id="b-beep" type="button" style="background:#d97706;color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-weight:bold">🔊 톡톡 비프음 테스트</button>
 </div>
 <div id="reply" class="dim">버튼을 누르면 flow 의 대답이 여기에 나온다</div>
 <div class="grid">
@@ -58,6 +59,34 @@ const FORCE_FULL_N = 12;      // 막대가 꽉 차는 힘 — 시험 페이지�
 const RUNNING = ['PICK', 'WEIGH', 'SHAKE', 'SEAT', 'SOAP', 'WIPE', 'RINSE', 'RACK', 'ISOLATE'];
 let d = {connected: false, state: null, gripping: null, force_n: null, events: [], plan: {}, received: 0, age_s: null};
 let forceAt = 0;
+let audioCtx = null;
+let lastSoundMsg = '';
+
+function playBeep(freq = 1000, duration = 0.18, type = 'square', vol = 0.7) {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    if (!audioCtx) audioCtx = new AudioContext();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    const now = audioCtx.currentTime;
+    gain.gain.setValueAtTime(vol, now);
+    gain.gain.setValueAtTime(vol, now + duration - 0.02);
+    gain.gain.linearRampToValueAtTime(0.001, now + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + duration);
+  } catch (e) {}
+}
+
+function playDoubleBeep() {
+  playBeep(1200, 0.09, 'square', 0.7);
+  setTimeout(() => playBeep(1600, 0.11, 'square', 0.7), 120);
+}
 
 function render() {
   $('dot').className = 'dot' + (d.connected ? ' on' : '');
@@ -69,6 +98,10 @@ function render() {
     $('step').textContent = s.step; $('step').className = 'big ' + s.step;
     $('what').textContent = `${s.kind || '-'} · ${s.zone_id || '-'}`;
     $('message').textContent = s.message || '';
+    if (s.message && s.message.includes('재개 요청 감지') && lastSoundMsg !== s.message) {
+      playBeep(1500, 0.16, 'square', 0.75);
+    }
+    lastSoundMsg = s.message || '';
     $('bowl').textContent = `${s.done_bowl} / ${s.target_bowl}`; $('cup').textContent = `${s.done_cup} / ${s.target_cup}`;
     $('isolated').textContent = s.isolated; $('code').textContent = s.last_code;
     const c = (d.plan || {}).consumables || {};
@@ -95,6 +128,10 @@ function render() {
 }
 
 async function press(name) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  } catch(e) {}
   $('reply').className = 'dim'; $('reply').textContent = `/api/${name} 보내는 중…`;
   try {
     const r = await (await fetch('/api/' + name, {method: 'POST'})).json();
@@ -105,6 +142,7 @@ async function press(name) {
 $('b-start').onclick = () => press('start');
 $('b-toggle').onclick = () => press(d.state && d.state.step === 'PAUSED' ? 'resume' : 'stop');
 $('b-abort').onclick = () => press('abort');
+$('b-beep').onclick = () => playBeep(1500, 0.16, 'square', 0.75);
 
 // 받는 방식 ①: WebSocket — 서버가 먼저 밀어 준다. 끊기면 2초 뒤 다시 건다. 그동안은 ②(물어보기)로 버틴다.
 let ws = null;

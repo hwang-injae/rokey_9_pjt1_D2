@@ -5,6 +5,7 @@
 """
 import importlib
 import sys
+import time
 import types
 
 import pytest
@@ -372,3 +373,177 @@ def test_force_memory_comes_only_from_reading(monkeypatch):
 
     G._on_joint_states(msg(35.0))
     assert G._force_n == pytest.approx(35.0), '읽힌 값으로 갱신해야 한다'
+
+
+# ────────────────────────────────── 🆕 안전 스위치 읽기·풀기 (상자와 직접 통신)
+#   🚨 진짜 상자에 붙지 않는다 — pymodbus 를 가짜 모듈로 바꿔 끼워서 "무엇을 어디에 썼나" 만 본다.
+#      실기 확인은 rig_grip_reset.py (check → watch → reset).
+
+class FakeRegs:
+    """읽기·쓰기 응답 흉내 (pymodbus 응답은 .registers 와 .isError() 를 갖는다)."""
+
+    def __init__(self, registers=()):
+        self.registers = list(registers)
+
+    def isError(self):
+        return False
+
+
+class FakeErrRes:
+    """상자가 오류로 답한 경우 — 툴 전원이 꺼져 있을 때 이렇게 온다."""
+
+    registers = None
+
+    def isError(self):
+        return True
+
+    def __repr__(self):
+        return 'ExceptionResponse(가짜 오류)'
+
+
+class FakeBox:
+    """컴퓨트박스 흉내. 자기 자신을 클라이언트로도 돌려준다(ModbusTcpClient(...) 자리)."""
+
+    def __init__(self):
+        self.regs = [0] * 18            # 상태 18칸 — 12~16번째가 안전 스위치
+        self.reads, self.writes = [], []
+        self.opened = self.closed = 0
+        self.connect_ok = True
+        self.read_error = False
+        self.on_write = None            # 쓰기가 오면 부를 함수 — 전원 재시작 효과를 흉내낸다
+
+    def __call__(self, host=None, port=None, timeout=None):
+        self.host, self.port, self.timeout = host, port, timeout
+        return self
+
+    def connect(self):
+        self.opened += 1
+        return self.connect_ok
+
+    def close(self):
+        self.closed += 1
+
+    def read_holding_registers(self, address=None, count=None, slave=None):
+        self.reads.append((address, count, slave))
+        return FakeErrRes() if self.read_error else FakeRegs(self.regs[:count])
+
+    def write_register(self, address=None, value=None, slave=None):
+        self.writes.append((address, value, slave))
+        if self.on_write:
+            self.on_write(self)
+        return FakeRegs()
+
+
+BOX_CFG = dict(FAKE_CFG, f2={'gripper_box': {
+    'ip': '192.168.1.1', 'port': 502, 'tool_unit': 65, 'box_unit': 63,
+    'status_addr': 258, 'status_count': 18, 'restart_addr': 0, 'restart_value': 2,
+    'connect_timeout_s': 0.1, 'restart_wait_s': 1.0, 'driver_alive_s': 0.1,
+}})
+
+
+@pytest.fixture
+def box(fake, monkeypatch):
+    """가짜 상자 + f2.gripper_box 가 채워진 설정. fake 뒤에 와야 bootstrap 이 이미 가짜다."""
+    b = FakeBox()
+    client_mod = types.ModuleType('pymodbus.client')
+    client_mod.ModbusTcpClient = b
+    monkeypatch.setitem(sys.modules, 'pymodbus', types.ModuleType('pymodbus'))
+    monkeypatch.setitem(sys.modules, 'pymodbus.client', client_mod)
+    monkeypatch.setattr(sys.modules['cobot_common.bootstrap'], 'cfg', lambda: BOX_CFG)
+    monkeypatch.setattr(G, '_RESET_POLL_S', 0.0)      # 시험 속도 (실기는 0.5 s)
+    return b
+
+
+def test_safety_reads_the_right_place(box):
+    """상태는 **툴 번호(65)** 로, 258번 칸부터 18칸을 읽는다 — 드라이버와 같은 자리."""
+    s = G.grip_safety()
+    assert box.reads == [(258, 18, 65)]
+    assert s['tripped'] is False
+    assert box.opened == 1 and box.closed == 1, '붙었으면 반드시 뗀다'
+
+
+def test_safety_tripped_when_switch_triggered(box):
+    """10번째 칸(gsta)의 Bit 3(s1_triggered, 1 << 3 = 8)이 1 이면 걸린 것이다."""
+    box.regs[10] = (1 << 3)
+    s = G.grip_safety()
+    assert s['tripped'] is True and s['s1_triggered'] == 1
+    assert s['s1_pushed'] == 0, '눌림(Bit 2)과 걸림(Bit 3)은 다른 비트다'
+
+
+def test_safety_needs_config(fake):
+    """🚨 주소를 모르면 아무 데도 쏘지 않는다 (AGENTS 규칙 6·12)."""
+    with pytest.raises(G.GripperBoxError, match='gripper_box'):
+        G.grip_safety()
+
+
+def test_safety_read_error_is_reported(box):
+    """상자가 오류로 답하면 '정상' 으로 읽지 않는다 — 모르는 것은 모른다고 한다."""
+    box.read_error = True
+    with pytest.raises(G.GripperBoxError, match='못 읽었다'):
+        G.grip_safety()
+
+
+def test_reset_refuses_when_hand_may_be_full(box):
+    """🚨 전원을 껐다 켜면 쥔 것이 떨어진다 → 사람이 밝히기 전에는 **보내지 않는다**."""
+    with pytest.raises(RuntimeError, match='떨어뜨린다'):
+        G.grip_reset()
+    assert box.writes == [], '거부했으면 아무것도 안 쓴다'
+
+
+def test_reset_writes_restart_to_the_box(box):
+    """전원 재시작은 **상자 번호(63)** 의 0번 칸에 2 — 툴 번호(65)가 아니다.
+
+    🚨 강사 배포본의 /onrobot/restartPower 는 여기서 인자 이름이 틀려(values=) 예외가 나고
+       드라이버 노드가 죽는다. 그래서 우리가 직접 보낸다(9/21 소스 확인).
+    """
+    box.regs[10] = (1 << 3)                           # 걸린 상태에서 시작
+    box.on_write = lambda b: b.regs.__setitem__(10, 0)   # 전원이 들어오면서 풀렸다
+    s = G.grip_reset(empty_hand=True)
+    assert box.writes == [(0, 2, 63)]
+    assert s['tripped'] is False
+
+
+def test_reset_reports_a_dead_driver(box, monkeypatch):
+    """전원이 끊긴 순간 드라이버가 죽을 수 있다 → 살아남았는지 알려 준다."""
+    box.regs[10] = (1 << 3)
+    box.on_write = lambda b: b.regs.__setitem__(10, 0)
+    monkeypatch.setattr(G, '_stamp', time.monotonic() - 5)   # 5초째 새 값이 없다
+    s = G.grip_reset(empty_hand=True)
+    assert s['driver_alive'] is False
+
+
+def test_reset_sees_a_live_driver(box, monkeypatch):
+    """전원 재시작 **뒤에** 새 상태가 오면 살아남은 것이다."""
+    box.regs[10] = (1 << 3)
+
+    def powered(b):
+        b.regs[10] = 0
+        G._stamp = time.monotonic()                   # 드라이버가 다시 발행하기 시작
+    box.on_write = powered
+    monkeypatch.setattr(G, '_stamp', time.monotonic() - 5)
+    assert G.grip_reset(empty_hand=True)['driver_alive'] is True
+
+
+def test_reset_still_stuck_is_not_called_success(box):
+    """전원을 넣었는데도 걸려 있으면 그대로 알려 준다 — 손가락에 뭔가 걸려 있는 것이다."""
+    box.regs[10] = (1 << 5)                           # s2_triggered (Bit 5)
+    s = G.grip_reset(empty_hand=True)
+    assert s['tripped'] is True
+
+
+def test_stuck_command_now_names_the_safety_switch(box, fake, monkeypatch):
+    """🔄 폭이 안 변하면 예전처럼 짐작하지 않고 **읽어서** 걸렸다고 말한다."""
+    box.regs[10] = (1 << 3)
+    monkeypatch.setattr(G, '_force_n', 20.0)
+    monkeypatch.setattr(G, '_joint_angle', 0.83)      # 명령해도 폭이 그대로
+    G.grip(2.0, 20.0)
+    assert any(kind == 'error' and '안전 스위치가 걸렸다' in m for kind, m in fake.log.lines)
+
+
+def test_stuck_without_a_box_falls_back_to_the_old_guess(fake, monkeypatch):
+    """상자에 못 붙어도(Virtual) 본 동작은 막지 않는다 — 짐작 경고로 되돌아간다."""
+    monkeypatch.setattr(G, '_force_n', 20.0)
+    monkeypatch.setattr(G, '_joint_angle', 0.83)
+    G.grip(2.0, 20.0)                                 # f2 절이 없는 FAKE_CFG → 확인 불가
+    assert any(kind == 'warn' and '확인하지 못했다' in m for kind, m in fake.log.lines)
+

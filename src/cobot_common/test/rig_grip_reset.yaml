@@ -1,0 +1,4 @@
+# rig_grip_reset.py 시험 값 — 🚨 팀 설정이 아니다. 명령줄 인자로 덮어쓸 수 있다.
+#   상자 주소·기다리는 시간 같은 **진짜 값**은 여기가 아니라 팀 params.yaml 의 f2.gripper_box 다.
+watch_interval_s: 1.0         # watch 가 다시 읽어 보는 간격 (사람이 눈으로 따라갈 속도)
+watch_rounds: 0               # 몇 번 읽고 끝낼까. 0 이면 Ctrl+C 까지 계속

@@ -54,7 +54,7 @@ def test_repo_cell_skeleton_uses_ird_ids():
         assert set(cell['stations'][name]) == {'pick', 'return'}, name
     assert set(cell['beds']['SPONGE_BED_B']) == {'place', 'wash', 'seat'}
     assert set(cell['beds']['SPONGE_BED_C']) == {'place', 'wash', 'seat', 'regrip', 'regrip_preset'}   # 🔄 9/23 08:2x 결정 ㉡ 유지: 옆면 재파지(접근점 posx + 전용 프리셋)
-    assert all(len(cell['zones'][z]['slots']) == 1 for z in (RET_B, RET_C))       # 구역마다 집는 자리 1개 — 한 자리 공급 구조(9/20 결정 E9)
+    assert all(len(cell['zones'][z]['slots']) == 2 for z in (RET_B, RET_C))       # 🔄 9/23 E41(강사 피드백): 그릇 2·컵 2 처음부터 배치 → 구역마다 자리 2개(E9 대체)
 
 
 def _rotation(rx, ry, rz):

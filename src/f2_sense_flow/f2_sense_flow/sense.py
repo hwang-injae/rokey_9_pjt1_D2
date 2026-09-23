@@ -41,17 +41,42 @@ import cobot_common as cc
 # 스테이션 이름 = shake 의 mode 이름과 같다(WASTE·RINSE). WEIGH 는 contracts 에 상수가 없어 여기 하나만 둔다.
 _WEIGH_STATION = 'WEIGH'
 
+class CableTightError(RuntimeError):
+    """그리퍼 케이블 장력/떨림 이상 — 즉시 일시 정지(PAUSED) 후 확인 필요."""
+
+
 # 🚨 이 예외들은 Result 로 바꾸지 **않고** 위로 그대로 올린다 (9/21 PM 요청 · SDD §7)
 #    MoveIncomplete : 이동이 도중에 섰다 → **로봇이 어디 있는지 모른다.** 여기서 코드로 바꾸면
 #                     flow 가 평범한 실패로 보고 재시도하거나 이어서 내려간다 — 그러면 안 된다.
 #    MotionHalted   : 강제정지(중단) — flow 의 중단 흐름이 받아야 한다(FLOW-03).
+#    CableTightError: 케이블 장력/떨림 이상 — flow 가 PAUSED 로 진입하고 넛지(톡톡) 재개를 기다린다.
 #    flow.call() 이 받아서 ROBOT_ERROR(그 자리 정지 → PAUSED)로 마무리한다.
 _PASS_THROUGH = (cc.MoveIncomplete, cc.MotionHalted)
+_PASS_THROUGH = (cc.MoveIncomplete, cc.MotionHalted, CableTightError)
 
 
 # ────────────────────────────────────────────────────────── 설정 읽기
+class _DummyLogger:
+    def info(self, msg): pass
+    def warn(self, msg): pass
+    def error(self, msg): pass
+
+_DUMMY_LOGGER = _DummyLogger()
+
+
 def _log():
-    return cc.io_node().get_logger()
+    try:
+        node = cc.io_node()
+        if node is not None:
+            return node.get_logger()
+    except Exception:
+        pass
+    try:
+        import rclpy.logging
+        return rclpy.logging.get_logger('f2_sense')
+    except Exception:
+        pass
+    return _DUMMY_LOGGER
 
 
 def _f2():
@@ -234,6 +259,20 @@ def _release_hold(kind):
     _quietly('grip_level(NORMAL)', _hold, kind, NORMAL)
 
 
+def _slip_tol(conf, kind):
+    """미끄러짐 허용 폭(mm) — f2.slip_tol_mm 가 숫자면 공통, {BOWL: …, CUP: …} 면 종류별.
+
+    🔄 9/23 11:41 실기(황인재 · 컵 98 g 3회차): 컵 벽 집기(1.7 mm)는 HOLD 로 세게 쥐면 **컵 테두리가 눌려** 폭이 12.2 → 11.2 로
+       1.00 mm 줄었고(어제 0.9), 공통 1.0 에 걸려 GRIP_FAIL·PAUSED 가 났다 — 놓친 게 아니다. 그릇(단단한 벽)은 0.4 만 변하므로
+       그릇 1.0 은 그대로 두고 컵만 넓힌다. 컵을 놓치면 폭이 목표(11.08)까지 닫히는데 그것도 1.1 차라 폭으로는 구분이 안 되고,
+       놓친 컵은 다음 weigh(빈손 −120 g → 하한 −60 아래 → 폭 판정 빈손)가 잡는다(E19 ③ 한계 그대로).
+    """
+    tol = _need(conf, 'slip_tol_mm', cast=lambda v: v)      # 숫자 또는 {종류: 숫자} — 여기서는 형만 받고 아래서 float 로
+    if isinstance(tol, dict):
+        return _need(tol, kind, where='f2.slip_tol_mm', lo=0.0)
+    return float(tol)
+
+
 def _slipped(label, w_before, w_after, tol):
     """동작 전후 그리퍼 폭이 tol 보다 변했으면 미끄러진 것. 🚨 기준은 여기 한 곳.
 
@@ -335,6 +374,15 @@ def weigh(kind: str) -> WeighResult:
     _goto(_WEIGH_STATION, carrying=True, kind=kind)
     time.sleep(settle_s)                      # 🚨 움직이는 중에 재면 가속도가 섞인다(SDD §5.3)
     raw = float(cc.weigh(samples))            # cobot_common/weigh.py — 중앙값, 음수는 버린다
+
+    # 🔗 케이블 장력/떨림 이상 확인 (기존 weigh_last 의 jitter_g 활용)
+    weigh_last_fn = getattr(cc, 'weigh_last', None)
+    last = weigh_last_fn() if callable(weigh_last_fn) else {}
+    jitter = last.get('jitter_g')
+    max_spread = lim.get('max_weigh_spread_g')
+    if max_spread is not None and jitter is not None and jitter > float(max_spread):
+        _log().warn(f'🔗 weigh({kind}) 케이블 장력 이상 감지: 떨림 {jitter:.1f} g > 상한 {float(max_spread):.1f} g')
+        raise CableTightError(f'케이블 장력 이상 감지 (떨림 {jitter:.0f} g > 상한 {float(max_spread):.0f} g)')
 
     net = raw - empty
     _log().info(f'weigh({kind}) — 읽음 {raw:.1f} g − 빈 용기 {empty:.1f} g = 잔반 {net:.1f} g')
@@ -480,7 +528,7 @@ def shake(mode: str, count: int, kind: str) -> Result:
         amp = _need(p, 'amp_deg', lo=0.0, hi=_need(lim, 'max_amp_deg', where='f2.limits'),
                     where=f'f2.shake.{mode}')
     period = _need(p, 'period_s', lo=0.0, where=f'f2.shake.{mode}')
-    slip_tol = _need(conf, 'slip_tol_mm')
+    slip_tol = _slip_tol(conf, kind)                          # 🔄 9/23 종류별 허용(컵 테두리 눌림)
     tilt = 0.0
     if p.get('tilt_deg') is not None:                        # 🆕 선택 — 있으면 상한까지 검사 (관절 왕복에만)
         if linear:
@@ -607,7 +655,7 @@ def dip(station: str, count: int, kind: str) -> Result:
                   where=f'f2.dip.{station}')
     hold_s = _need(p, 'hold_s', lo=0.0, hi=_need(lim, 'max_hold_s', where='f2.limits'),
                    where=f'f2.dip.{station}')
-    slip_tol = _need(conf, 'slip_tol_mm')
+    slip_tol = _slip_tol(conf, kind)                          # 🔄 9/23 종류별 허용(컵 테두리 눌림)
     n = int(count)
 
     if n <= 0:
@@ -640,3 +688,76 @@ def dip(station: str, count: int, kind: str) -> Result:
     if _slipped(f'dip({station})', w_before, w_after, slip_tol):
         return _fail(Result, GRIP_FAIL)
     return Result()
+
+
+# ────────────────────────────────── 케이블 넛지(톡톡) 및 재검증
+def wait_for_nudge(conf=None, sig=None, timeout_s=None):
+    """정지 상태에서 사용자의 가벼운 두드림(톡톡 · 넛지)을 감지한다.
+
+    외력 순간 변화량 |F - F_base| >= force_threshold_n 이면 'nudge' 반환.
+    sig 가 주어지면 resume/abort 깃발도 함께 검사한다.
+    timeout_s 에 도달하면 None 반환.
+    """
+    conf = conf if conf is not None else _f2()
+    nudge_cfg = conf.get('nudge') or {}
+    thresh = float(nudge_cfg.get('force_threshold_n') or 5.0)
+    gap = float(nudge_cfg.get('poll_gap_s') or 0.05)
+
+    read_force_fn = getattr(cc, 'read_force', None)
+    try:
+        f_base = [float(v) for v in (read_force_fn()[:3] if callable(read_force_fn) else [0.0, 0.0, 0.0])]
+    except Exception as e:
+        _log().warn(f'기준 외력 읽기 실패({e!r}) — [0, 0, 0] 기준')
+        f_base = [0.0, 0.0, 0.0]
+
+    t0 = time.monotonic()
+    alpha = 0.05  # 느린 드리프트 추적용 저주파 필터 계수
+    while True:
+        if sig is not None:
+            if sig.peek('abort'):
+                return 'abort'
+            if sig.peek('resume'):
+                return 'resume'
+
+        if timeout_s is not None and (time.monotonic() - t0) > timeout_s:
+            return None
+
+        time.sleep(gap)
+        try:
+            f_now = [float(v) for v in (read_force_fn()[:3] if callable(read_force_fn) else [0.0, 0.0, 0.0])]
+            diff = sum((curr - base) ** 2 for curr, base in zip(f_now, f_base)) ** 0.5
+            if diff >= thresh:
+                _log().info(f'👉 톡톡(넛지) 감지 — 외력 변화량 {diff:.1f} N >= 임계 {thresh:.1f} N')
+                return 'nudge'
+            # 드리프트 적응 업데이트
+            f_base = [(1.0 - alpha) * b + alpha * c for b, c in zip(f_base, f_now)]
+        except Exception:
+            pass
+
+
+def recheck_cable(conf=None):
+    """정지 상태에서 케이블 장력(jitter_g)을 재측정하여 정상 여부를 판정한다.
+
+    반환: (is_ok: bool, jitter_g: float, limit_g: float)
+    """
+    conf = conf if conf is not None else _f2()
+    nudge_cfg = conf.get('nudge') or {}
+    settle_s = float(nudge_cfg.get('settle_s') or 1.5)
+    samples = int(nudge_cfg.get('recheck_samples') or 10)
+    max_spread = float(((conf.get('limits') or {}).get('max_weigh_spread_g')) or 50.0)
+
+    # 손으로 톡톡 친 직후 센서 탄성/진동이 가라앉도록 잠시 대기
+    if settle_s > 0:
+        time.sleep(settle_s)
+
+    try:
+        cc.weigh(samples)
+    except Exception as e:
+        _log().warn(f'케이블 재측정 중 weigh 실패({e!r})')
+
+    weigh_last_fn = getattr(cc, 'weigh_last', None)
+    last = weigh_last_fn() if callable(weigh_last_fn) else {}
+    jitter = float(last.get('jitter_g') or 0.0)
+    is_ok = jitter <= max_spread
+    return is_ok, jitter, max_spread
+
