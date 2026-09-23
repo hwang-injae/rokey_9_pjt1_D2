@@ -37,8 +37,17 @@ def _tool_lost_now():
     if _tool_baseline_mm is None:
         return False
     w = float(cc.grip_width())
-    tol = float(cc.cfg()['f2']['slip_tol_mm'])
-    return abs(w - _tool_baseline_mm) > tol
+    return abs(w - _tool_baseline_mm) > _tool_tol_mm()
+
+
+def _tool_tol_mm():
+    """툴 놓침 판정 허용오차(mm) = f2.slip_tol_mm. 🔄 9/23 17:4x 이 값이 **종류별 dict**({BOWL: 1.0, CUP: 1.5} · PR #96)가 된 뒤
+    float() 이 TypeError 를 내며 감시 스레드와 soap 이 죽었다(17:43 실기 · flow ROBOT_ERROR). 툴 손잡이는 단단해 가장 작은 값(1.0)으로 본다.
+    숫자 하나면 그대로."""
+    tol = cc.cfg()['f2']['slip_tol_mm']
+    if isinstance(tol, dict):
+        return min(float(v) for v in tol.values())
+    return float(tol)
 
 
 def _check_tool(where):
@@ -47,7 +56,7 @@ def _check_tool(where):
         return
     cc.stop_now()
     w = float(cc.grip_width())
-    tol = float(cc.cfg()['f2']['slip_tol_mm'])
+    tol = _tool_tol_mm()
     raise ToolLostError(f'{where}: 폭 {w:.2f} mm (기준 {_tool_baseline_mm:.2f} mm · 허용 ±{tol:g}) — 놓침 의심')
 
 
@@ -72,7 +81,7 @@ def _guarded_move_rel(dx, dy, dz, frame, vel_mm_s, acc_mm_s2):
     def _lost_error():
         cc.clear_halt()
         w = float(cc.grip_width())
-        tol = float(cc.cfg()['f2']['slip_tol_mm'])
+        tol = _tool_tol_mm()
         return ToolLostError(f'이동 중: 폭 {w:.2f} mm (기준 {_tool_baseline_mm:.2f} mm · 허용 ±{tol:g}) — 놓침 의심')
 
     t = threading.Thread(target=watch, daemon=True)
