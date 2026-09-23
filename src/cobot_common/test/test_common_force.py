@@ -506,3 +506,24 @@ def test_wait_robot_ready_false_on_timeout(robot):
     d = robot()
     d.get_robot_state = lambda: 2      # 계속 MOVING
     assert force.wait_robot_ready(0.05) is False
+
+
+# ------------------------------------------------------------------ 🆕 9/23 step_mm — 마지막 감시 구간을 한 걸음에(황인재 튜닝 #2·#5)
+def test_contact_down_step_mm_takes_the_watch_in_one_step(robot):
+    d = robot(z=400.0, surface_z=None)
+    depth, _ = force.contact_down(max_depth=5.0, limit=3.0, step_mm=5.0)
+    assert depth == pytest.approx(5.0) and d.calls.count('movel') == 1          # 기본 3 mm 면 3 + 2 두 걸음
+
+
+def test_contact_down_default_step_is_still_the_config_value(robot):
+    import math
+    d = robot(z=400.0, surface_z=None)
+    force.contact_down(max_depth=5.0, limit=3.0)
+    assert d.calls.count('movel') == math.ceil(5.0 / CFG['cell']['force']['contact_step_mm'])   # 설정 걸음대로 여러 걸음
+
+
+def test_contact_down_rejects_a_non_positive_step_without_moving(robot):
+    d = robot(z=400.0, surface_z=None)
+    with pytest.raises(ValueError):
+        force.contact_down(max_depth=5.0, limit=3.0, step_mm=0.0)
+    assert 'movel' not in d.calls

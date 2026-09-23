@@ -339,3 +339,19 @@ def test_contact_timeout_grows_with_slow_speed(cc):
     assert handling._contact_timeout() == pytest.approx(10.0 / 0.3)
     cc.conf['run'] = {'vel_scale': 1.0}
     assert handling._contact_timeout() == pytest.approx(10.0)
+
+
+# ------------------------------------------------------------------ 🆕 9/23 튜닝 #5 — 팔레트 삽입 마지막 구간 한 걸음
+def test_rack_place_watches_the_last_millimetres_in_one_step(cc):
+    cc.conf['f1']['insert_approach_mm'] = 5
+    cc.conf['f1']['watch_step_mm'] = 5
+    cc.contact = (5.0, 3.0)
+    assert handling.rack_place('RACK_B1', 'BOWL').ok
+    assert ('contact_down', 5.0, 15.0, 5.0) in cc.calls
+
+
+def test_rack_place_without_watch_step_setting_uses_the_default_step(cc):
+    cc.conf['f1']['insert_approach_mm'] = 5
+    cc.contact = (5.0, 3.0)
+    assert handling.rack_place('RACK_B1', 'BOWL').ok
+    assert ('contact_down', 5.0, 15.0) in cc.calls

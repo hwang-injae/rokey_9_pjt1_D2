@@ -103,7 +103,8 @@ def _install_step_gate(f, log):
             raise KeyboardInterrupt
         t0 = time.monotonic()
         r = orig(mod_key, fn_name, *args)
-        log.info(f'   ← 단계 {n} 끝 · {time.monotonic() - t0:.1f} s · {getattr(r, "code", r)}')
+        q = ' · '.join(f'J{i + 1} {v:.1f}' for i, v in enumerate(cc.joints()))      # 🆕 9/23 튜닝 #1·#4: 단계 끝 관절 각도(J6 감김 확인)
+        log.info(f'   ← 단계 {n} 끝 · {time.monotonic() - t0:.1f} s · {getattr(r, "code", r)} · 관절 {q}')
         return r
     f.call_fn = gated
 

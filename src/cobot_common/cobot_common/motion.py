@@ -386,7 +386,12 @@ def _warn(text):
 
 
 def _info(text):
-    from rclpy.logging import get_logger
+    try:
+        from rclpy.logging import get_logger
+    except ImportError:                             # ROS 없는 시험 셸(pytest) — 표준 logging 으로
+        import logging
+        logging.getLogger('cobot_common').info(text)
+        return
     get_logger('cobot_common').info(text)
 
 

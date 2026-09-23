@@ -323,3 +323,41 @@ def test_tool_pick_with_a_fixed_width_closes_only_that_far_and_skips_the_check(c
     r = handling.tool('SPONGE', 'PICK')
     assert r.ok and r.width_mm == 36.0
     assert cc.calls[1] == ('grip', 36.0, 5.0)
+
+
+# ------------------------------------------------------------------ 🆕 9/23 튜닝 #1·#2 — 툴 홀더 J6 동치각 · 반납 마지막 구간 한 걸음
+def test_tool_pick_uses_the_nearest_j6_for_a_symmetric_tool(cc):
+    cc.conf['cell']['presets']['SPONGE']['j6_symmetric'] = True
+    handling.tool('SPONGE', 'PICK')
+    assert ('move_to', 'TOOL_SPONGE', False, None, 'pick', {'j6_period': 180.0}) in cc.calls
+
+
+def test_tool_pick_goes_to_the_taught_j6_when_the_tool_is_not_marked_symmetric(cc):
+    handling.tool('BRUSH', 'PICK')
+    assert ('move_to', 'TOOL_BRUSH', False, None, 'pick') in cc.calls
+
+
+def test_tool_return_watches_the_last_millimetres_in_one_step(cc):
+    cc.conf['f1']['tool_return_depth_mm'] = 5
+    cc.conf['f1']['watch_step_mm'] = 5
+    cc.contact = (5.0, 2.0)
+    handling.tool('SPONGE', 'PICK')
+    handling.tool('SPONGE', 'RETURN')
+    assert ('contact_down', 5.0, 8.0, 5.0) in cc.calls                           # (감시 깊이, 접촉 힘, 걸음)
+
+
+def test_tool_return_step_never_exceeds_the_watch_depth(cc):
+    cc.conf['f1']['tool_return_depth_mm'] = 3
+    cc.conf['f1']['watch_step_mm'] = 5
+    cc.contact = (3.0, 2.0)
+    handling.tool('SPONGE', 'PICK')
+    handling.tool('SPONGE', 'RETURN')
+    assert ('contact_down', 3.0, 8.0, 3.0) in cc.calls
+
+
+def test_tool_return_without_watch_step_setting_uses_the_default_step(cc):
+    cc.conf['f1']['tool_return_depth_mm'] = 5
+    cc.contact = (5.0, 2.0)
+    handling.tool('SPONGE', 'PICK')
+    handling.tool('SPONGE', 'RETURN')
+    assert ('contact_down', 5.0, 8.0) in cc.calls                                # step_mm 없이 → force 기본 걸음
