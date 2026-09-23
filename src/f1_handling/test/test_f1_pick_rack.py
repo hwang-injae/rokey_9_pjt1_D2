@@ -35,7 +35,7 @@ class FakeCC:
         self.z = z
         self.fail_on = None
         self.conf = {
-            'f1': {'place_clear_mm': 100, 'insert_approach_mm': 30},
+            'f1': {'place_clear_mm': 100, 'insert_approach_mm': 30, 'contact_timeout_ref_mm': 20},
             'cell': {
                 'limits': {'insert_limit_n': 15, 'timeout_s': 10},
                 'presets': {'BOWL': {'grip_width_mm': 2.15, 'grip_zero_mm': 10.58, 'grip_force_n': 20, 'width_tol_mm': 0.6},
@@ -197,6 +197,34 @@ def test_regrip_with_approach_descends_then_grips_then_lifts_to_entry_z(cc):
     rel = [c[3] for c in cc.of('move_rel')]
     assert rel == [pytest.approx(-40.0), pytest.approx(150.0)]        # 자유 40 → 감시 60(200→100) → 250 까지 올림
     assert names.index('grip') < len(names) - 1 - names[::-1].index('move_rel')
+
+
+def test_regrip_contact_timeout_scales_with_watch_distance(cc):
+    """🔄 9/23 10:5x 실기(PM): contact_down 은 걸음당 ≈0.8 s 라 60 mm 감시는 배속 1 에서도 16 s 가 걸리는데 10 s 로 잘렸다(36.9/60 TIMEOUT)
+    → 타임아웃 = timeout_s ÷ vel_scale × (감시 거리 / 20)."""
+    cc.conf['cell']['beds']['SPONGE_BED_C'] = {'regrip': {'approach_posx': [0] * 6, 'posx': [0] * 6}, 'regrip_preset': 'CUP_SIDE'}
+    cc.conf['cell']['presets']['CUP_SIDE'] = {'grip_target_mm': 70.0, 'grip_zero_mm': 10.58, 'grip_force_n': 10}
+    cc.up[('SPONGE_BED_C', 'regrip')] = 100.0
+    cc.contact = (60.0, 2.0)
+    cc.conf['run'] = {'vel_scale': 1.0}
+    assert handling.pick('SPONGE_BED_C', 'CUP').ok
+    assert handling._contact_timeout(60.0) == pytest.approx(30.0)          # 10 s × 3
+    assert handling._contact_timeout(20.0) == pytest.approx(10.0)          # 팔레트 삽입 20 mm 은 그대로
+    cc.conf['run'] = {'vel_scale': 0.3}
+    assert handling._contact_timeout(60.0) == pytest.approx(100.0)
+
+
+def test_contact_timeout_has_floor(cc):
+    """🔄 9/23 13:52 리허설: 순응 걸음이 배속과 무관하게 ≈3 s 라 0.5 에서 20 mm 감시가 20 s 를 넘겼다 → f1.contact_timeout_min_s(30) 아래로는 안 내려간다."""
+    cc.conf['run'] = {'vel_scale': 0.5}
+    cc.conf['f1']['contact_timeout_min_s'] = 30.0
+    assert handling._contact_timeout() == pytest.approx(30.0)               # 10 ÷ 0.5 = 20 → 바닥 30
+    assert handling._contact_timeout(60.0) == pytest.approx(60.0)           # 60 mm 는 20 × 3 = 60 > 30 그대로
+    cc.conf['run'] = {'vel_scale': 0.3}
+    assert handling._contact_timeout() == pytest.approx(10.0 / 0.3)         # 33.3 > 30 그대로
+    cc.conf['f1'].pop('contact_timeout_min_s')
+    cc.conf['run'] = {'vel_scale': 0.5}
+    assert handling._contact_timeout() == pytest.approx(20.0)               # 키 없으면 예전과 같다
 
 
 def test_regrip_finger_on_cup_rim_backs_up_with_grip_fail(cc):

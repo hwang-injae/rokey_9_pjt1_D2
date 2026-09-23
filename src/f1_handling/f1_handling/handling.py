@@ -145,7 +145,7 @@ def _regrip(bed: str, kind: str) -> PickResult:
     """
     bed_spec = ((_cell().get('beds') or {}).get(bed) or {})
     if bed_spec.get(_REGRIP_POINT):
-        # 🔄 9/23(황인재 · 결정 ㉡): 옆면 재파지는 **다른 프리셋**(beds.<bed>.regrip_preset · 컵은 CUP_SIDE 고정 폭 76 · 5 N)으로 잡는다 —
+        # 🔄 9/23(황인재 · 결정 ㉡): 옆면 재파지는 **다른 프리셋**(beds.<bed>.regrip_preset · 컵은 CUP_SIDE 고정 폭 70 · 10 N — 09:0x 실기: 76·5 N 은 폭에 닿자마자 위치로 멈춰 힘이 안 쓰여 이송 중 돌아감)으로 잡는다 —
         #    반납 자리 집기(벽 · CUP 1.7 mm · 20 N)와 같은 프리셋을 쓰면 몸통(≈78 mm)에서 "헛잡음" 판정이 난다.
         #    잡은 뒤 cc.set_grip_preset 으로 알려 주어 f2 의 HOLD/NORMAL 전환이 이 프리셋의 힘(5 N)을 쓰게 한다(35 N 이면 눌림 · E19).
         preset = bed_spec.get('regrip_preset') or kind
@@ -165,7 +165,7 @@ def _regrip(bed: str, kind: str) -> PickResult:
                 cc.move_rel(0.0, 0.0, -free, 'BASE')
             limit_n = float(_need(cell.get('limits'), 'insert_limit_n', 'cell.limits'))
             try:
-                depth, force = cc.contact_down(watch, limit_n, timeout_s=_contact_timeout())
+                depth, force = cc.contact_down(watch, limit_n, timeout_s=_contact_timeout(watch))   # 감시 60 mm → 시간도 3배
             except ForceLimitError as e:
                 _log().error(f'재파지({bed}) 하강 — 힘 상한: {e}')
                 _after_contact_failure(free, watch)
@@ -463,10 +463,12 @@ def _tool_return(station, f1, clear, tool=None) -> ToolResult:
         cc.move_rel(0.0, 0.0, -(clear - watch), 'BASE')             # 자유 하강
         try:
             depth, _force = cc.contact_down(watch, limit, timeout_s=_contact_timeout())   # 집은 z 까지 감시 하강 — 툴이 미끄러졌거나 홀더가 밀렸으면 여기서 멈춘다
-        except cc.ForceLimitError:
+        except cc.ForceLimitError as e:
+            _log().error(f'툴 반납({tool}) 감시 하강 — 힘 상한: {e}')          # 🔄 9/23 12:49 실기: 사유 없이 TIMEOUT 만 보여 원인을 못 갈랐다 → 깊이·시간을 남긴다
             _after_contact_failure(clear - watch, watch)
             return ToolResult.fail(FORCE_LIMIT)
-        except cc.MotionTimeout:
+        except cc.MotionTimeout as e:
+            _log().error(f'툴 반납({tool}) 감시 하강 — 시간 초과: {e}')
             _after_contact_failure(clear - watch, watch)
             return ToolResult.fail(TIMEOUT)
         cc.release()                                                # 집은 자리(또는 닿은 자리)에서 놓는다
@@ -493,12 +495,25 @@ def _tool_return(station, f1, clear, tool=None) -> ToolResult:
     return ToolResult()
 
 
-def _contact_timeout():
-    """접촉 동작 타임아웃(cell.limits.timeout_s)을 **배속에 맞춰** 늘린다 — 0.3 배속이면 contact_down 3 mm 걸음이 3배 느려 10 s 로는
-    20 mm 도 못 내려간다(9/22 22:57 실기: 19.9/20 mm 에서 시간 초과). 최소 1배(배속 1 이상이면 그대로)."""
+def _contact_timeout(watch_mm=None):
+    """접촉 동작 타임아웃(cell.limits.timeout_s)을 **배속과 감시 거리에 맞춰** 늘린다.
+
+    · 배속: 0.3 이면 contact_down 3 mm 걸음이 느려 10 s 로는 20 mm 도 못 내려간다(9/22 22:57 실기: 19.9/20 mm 시간 초과) → ÷ vel_scale(최소 1배).
+    · 거리: 🔄 9/23 10:5x 실기(PM 보고): 걸음당 ≈0.8 s(가속 제한 · 배속과 거의 무관)라 60 mm 감시(재파지)는 배속 1 에서 ≈16 s 가 필요한데
+      10 s 로 잘렸다(36.9/60 mm TIMEOUT). timeout_s 는 기준 거리(params f1.contact_timeout_ref_mm · 20)에 맞춘 값이므로 감시 거리에 비례해 늘린다.
+    """
+    f1 = cc.cfg().get('f1') or {}
     base = float(_need(_cell().get('limits'), 'timeout_s', 'cell.limits'))
     scale = float(((cc.cfg() or {}).get('run') or {}).get('vel_scale') or 1.0)
-    return base / max(min(scale, 1.0), 0.1)
+    factor = 1.0
+    if watch_mm is not None:                                        # 기준 거리(f1.contact_timeout_ref_mm · 20)보다 긴 감시만 늘린다
+        ref = float(_need(f1, 'contact_timeout_ref_mm', 'f1'))
+        factor = max(1.0, float(watch_mm) / ref)
+    # 🔄 9/23 13:52 리허설(황인재 · 0.5): 툴 반납 contact_down 이 **20 mm 를 다 내려갔는데도** 20 s 를 넘겨 TIMEOUT(사유 로그로 확인).
+    #    순응 하강 한 걸음(3 mm)이 컨트롤러에서 ≈3 s 걸려 20 mm ≈ 21 s — 배속과 무관한 시간이라 "÷ vel_scale" 로는 0.5 이상에서 늘 짧다
+    #    (0.3 → 33 s 통과 · 0.5 → 20 s 실패 · 12:49 도 같은 것). 접촉 없이 끝까지 내려가는 경우를 덮는 **최소 시간**(f1.contact_timeout_min_s)을 둔다.
+    floor = float(f1.get('contact_timeout_min_s') or 0.0)
+    return max(base / max(min(scale, 1.0), 0.1) * factor, floor)
 
 
 def _after_contact_failure(free, watch):

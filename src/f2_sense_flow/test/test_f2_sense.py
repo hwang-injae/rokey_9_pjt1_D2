@@ -427,6 +427,24 @@ def test_shake_detects_slip_by_width(monkeypatch):
     assert not out.ok and out.code == GRIP_FAIL
 
 
+def test_slip_tol_per_kind(monkeypatch):
+    """🔄 9/23 11:41 실기: 컵 테두리는 HOLD 로 쥐면 1.0 mm 눌린다 → f2.slip_tol_mm 를 {BOWL: 1.0, CUP: 1.5} 처럼 종류별로 둘 수 있다.
+    같은 1.0 mm 변화가 그릇에서는 GRIP_FAIL, 컵에서는 통과(놓친 컵은 다음 weigh 가 잡는다)."""
+    r = Rec(widths=[12.2, 12.2, 11.2])             # 컵 98 g 3회차 실기 값 (첫 읽기는 사전 확인 · 그다음 HOLD 전 · NORMAL 뒤)
+    s = _sense(monkeypatch, r)
+    s.cc.cfg()['f2']['slip_tol_mm'] = {'BOWL': 1.0, 'CUP': 1.5}
+    try:
+        assert s.shake('WASTE', 1, 'CUP').ok
+        assert s._slip_tol(s.cc.cfg()['f2'], 'BOWL') == pytest.approx(1.0)   # 그릇은 그대로 1.0
+        assert s._slip_tol(s.cc.cfg()['f2'], 'CUP') == pytest.approx(1.5)
+        assert s._slipped('x', 12.25, 11.2, 1.0) is True                       # 1.05 mm 변화 — 그릇 허용(1.0)에서는 미끄러짐(실기 1.00 은 부동소수점으로 살짝 넘어 걸렸다)
+        assert s._slipped('x', 12.25, 11.2, 1.5) is False
+        s.cc.cfg()['f2']['slip_tol_mm'] = 1.0                                   # 숫자도 그대로 받는다
+        assert s._slip_tol(s.cc.cfg()['f2'], 'CUP') == pytest.approx(1.0)
+    finally:
+        s.cc.cfg()['f2']['slip_tol_mm'] = 1.0          # CFG 는 모듈 공용 — 되돌린다
+
+
 def test_shake_small_width_change_is_ok(monkeypatch):
     """허용치 안이면 통과한다 — 폭 읽기는 원래 조금 흔들린다."""
     r = Rec(widths=[2.0, 2.4])

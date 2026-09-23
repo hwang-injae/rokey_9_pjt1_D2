@@ -11,12 +11,13 @@
 ## 1. 무엇을 하는가 — 용기 1개가 도는 길
 
 ```
-반납 구역 ──집기──▶ 저울 자세 ──무게──▶ (잔반 ≥ 50 g 이면 잔반통 위에서 기울여 버리고 다시 잰다)
-        ──▶ 스펀지 홈에 놓기 ──▶ 수세미 툴 집기 → 세제 → 안쪽 닦기(힘 제어) → 툴 반납
-        ──▶ 다시 집기 ──▶ 헹굼 담금 → 물 털기 ──▶ 식기세척기 팔레트 칸에 꽂기 ──▶ HOME
+반납 구역 ──집기──▶ HOME 을 거쳐 저울 자세 ──무게──▶ (잔반 ≥ 50 g 이면 잔반통 위에서 기울여 털고 다시 잰다)
+        ──▶ 스펀지 홈에 놓기 ──▶ 툴 집기(그릇 수세미 · 컵 솔) → 세제 → 안쪽 닦기(힘 제어) → 툴 반납
+        ──▶ 다시 집기(컵은 옆면으로) ──▶ 헹굼 담금 2회 → 곧게 위로 → 털기 자세에서 손목(J4) 좌우 3회
+        ──▶ 식기세척기 팔레트 칸에 꽂기(컵은 뒤집어) ──▶ HOME
 ```
-- **그릇**: 위 순서 전부. **컵**: 액체만 있다고 보고 **무게·잔반 버리기는 하지 않는다**(9/22 결정 E25). 나머지는 같다(컵은 솔 툴).
-- 시연 계획: 그릇 2개 + 컵 2개, **정상 흐름을 끝까지 한 번**(예외 처리는 시연 목표에서 제외 · 결정 E28).
+- **그릇·컵 모두** 위 순서 전부(컵도 무게·잔반 버리기 — 결정 E30). 컵은 반납 자리에서 테두리를 집고(E29), 스펀지 홈에서 **옆면 몸통**으로 다시 잡아(70 mm · 10 N · E38) 헹군 뒤 뒤집어 꽂는다.
+- 시연 시나리오(강사 피드백 · E41): **그릇 2 · 컵 2 를 처음부터 다 놓아 두고** 그릇1 → 그릇2 → 컵1 → 컵2 순으로 **정상 흐름을 끝까지**(예외 처리는 시연 목표에서 제외 · E28). 배속 0.5(E40) · 잔반 대용품은 2개(≈190 g) 기준.
 - 실패하면: 빈 구역 → 다음 구역 / 잔반이 계속 남음·안착 실패·삽입 걸림 → 격리 구역에 놓고 다음 용기 / 용기를 놓침·로봇 오류 → 멈추고 사람이 확인.
 
 ## 2. 구조 한눈에 (PC 2대 · 프로그램 2개)
@@ -31,32 +32,36 @@
 | 모듈 | 담당 | 함수 | 한 줄 |
 |---|---|---|---|
 | `f1_handling` | 한석형 | `pick` `place` `move_to` `tool` `rack_place` | 집기 · 놓기 · 이동 · 툴 집기/반납 · 팔레트 꽂기 |
-| `f2_sense_flow` | 민범진 | `weigh` `leftover_loop` `shake` `dip` + `flow.py`/`flow_node.py` | 무게 · 잔반 버리기 · 헹굼 담금 · 물 털기 + **흐름** |
+| `f2_sense_flow` | 민범진(9/23 통합은 황인재) | `weigh` `leftover_loop` `shake` `dip` + `flow.py`/`flow_node.py` | 무게(항상 HOME 경유) · 잔반 버리기 · 헹굼 담금 · 물 털기(E36 · 털기 자세 `RINSE_SHAKE`) + **흐름** |
 | `f3_wipe` | 박진용 | `soap` `wipe_bowl` `wipe_cup` | 세제 · 그릇 닦기(나선 + 벽면 힘 제어) · 컵 닦기(솔 회전) |
 | `f4_hmi` | 황인재 | `hmi_bridge` · `web/`(Next.js) · `fake_state_pub`(가짜 flow) | 운영 화면 |
-| `cobot_common` | 4명 분담 | `bootstrap` `motion` `gripper` `weigh` `force` | 두산 API·그리퍼를 감싼 **공용 로봇 함수** — 두산 함수는 여기서만 부른다 |
+| `cobot_common` | 4명 분담 | `bootstrap` `motion` `gripper` `weigh` `force` | 두산 API·그리퍼를 감싼 **공용 로봇 함수** — 두산 함수는 여기서만 부른다. 이동 상한·접촉 타임아웃은 배속(`PREWASH_VEL_SCALE`)에 맞춰 늘어난다 |
 | `cobot_api` · `cobot_msgs` | 황인재(정본) | 함수 약속(`contracts.py`) · 메시지 2개(`FlowState` `FlowEvent`) | 팀 계약 — 혼자 바꾸지 않는다 |
 | `prewash_bringup` | 황인재 | `prewash.launch.py` · `prewash_mock.launch.py` | 실행 묶음 |
 
-좌표·힘·횟수 같은 숫자는 코드가 아니라 `src/cobot_common/config/cell.yaml`(좌표·프리셋) · `params.yaml`(기능별 값)에 있다.
+좌표·힘·횟수 같은 숫자는 코드가 아니라 `src/cobot_common/config/cell.yaml`(좌표·프리셋 · 스테이션 12 · 프리셋 5 · 팔레트 4칸 · 반납 구역 2×2 슬롯) · `params.yaml`(기능별 값 · 빈 용기 기준값 · 시간 상한)에 있다.
 
-## 3. 지금까지 된 것 (9/22 저녁 기준)
+## 3. 지금까지 된 것 (9/23 14시 기준 · 동결일)
 
 검증 수준 표기: **자동** = pytest(로봇 없이) · **가상** = RViz 가상 로봇 · **실기** = 실제 로봇 · 🟡 = 아직 실기로 못 봄
 
 | 영역 | 상태 | 확인 수준 | 근거 |
 |---|---|---|---|
-| 환경·좌표 | 4대 PC 환경 · 전 스테이션 좌표 티칭(HOME·저울·잔반통·반납 구역·스펀지 홈·툴 홀더·팔레트 6칸·격리) · 툴 무게·TCP 등록 | 실기 | `docs/test_logs/20260922_ENV-05_*` · `20260921_V-22_*`(재현 오차 0.24 mm) |
-| 공용 로봇 함수 | 이동(비동기 + 즉시 정지) · 그리퍼(폭 판정) · 무게(힘센서 Fz) · 힘 제어·접촉 하강·순응 | 자동 + 실기 | Ctrl+C 즉시 정지 5/5(`20260922_V-26_*`) · 그리퍼 세션(`20260921_*그리퍼*`) |
-| F1 집기·이송 | `move_to`·`place` · `tool`(수세미·솔 10/10) · `pick`·`rack_place`(한석형 실기 동선 → 함수로 이식) | 실기(tool) · 가상(pick·rack_place) 🟡 | `20260922_V-08_*` · `20260922_F1-02_F1-04_*` |
-| F2 무게·털기 | 빈 그릇 기준값 −12 g(100 g 물건 오차 +3 g) · 잔반 버리기(기울여 털기 · 107 g 대용품 털림) · 헹굼 담금 3/3 · 컵 76 mm 파지 | 실기 · 물 털기 값 🟡 | `20260922_V-02_*` · `20260922_F2실기_*` · `20260921_저녁_F2실기_*` |
-| F2 흐름(flow) | 상태 머신 · 실패 정책 · 정지/재개/중단 · 기록 · 컵 무게 건너뛰기 · 시작 전 툴·TCP 문지기 · 케이블 장력 경고 | 자동 + mock 기동 · 실기 🟡 | `20260921_UT-FLOW_*` · `20260920_V-20*` |
-| F3 닦기 | 그릇 닦기(바닥 힘으로 찾기 → 나선 → 벽면 1.5 N) · 컵 세척(솔 ±90° 회전) · 세제 → 닦기 → 반납 **실기 1차 통합 성공** | 실기 | `20260920_V-03_*` · `20260921_V-10_*` · PR #72 |
-| F4 화면 | 운영 화면(단계 카드 · 팔레트 그림 · 숫자 · 이력) · 버튼 · 가짜 flow 대본 5개 | 가짜 flow · 실제 연결 🟡 | PR #66 · `src/f4_hmi/README.md` |
-| 안전 | 접촉 동작마다 힘 상한·후퇴·타임아웃 · 로봇 위치를 모르면 자동으로 안 움직임 · 툴·TCP 이름 확인 · 케이블 느슨하게 · 실기 끝나면 Ctrl+C 뒤 랜선 | 규칙 + 코드 | `AGENTS.md` §3 · `docs/00_현재상황_리마인드.md` §6 · `docs/troubleshooting/` |
+| **시연 경로 리허설** | 메인 프로그램(`flow_node`) 한 번 시작 → **그릇 2 → 컵 2 연속 완주 2회**(배속 0.5 · 19분 34초 / 19분 39초 · 격리 0) — 2번째 슬롯 집기 · 팔레트 B1·B2·C1·C2 · 잔반 감지 → 털기 → 재측정 통과 | 실기 | `docs/test_logs/20260923_VER-0923_*` §17~18 · PR #96 #97 |
+| 그릇 한 바퀴 | 빈 그릇 · 96 g 잔반(감지 → 털기 → 통과) 각 1회 + 리허설 4회 | 실기 | 같은 기록 §2~5 |
+| 컵 한 바퀴 | 빈 컵 2회 · 98 g 잔반 2회(옆면 재파지 → 담금 → 뒤집은 자세 물털기 → 팔레트) + 리허설 4회 | 실기 | 같은 기록 §12~16 · PR #92 #94 |
+| 환경·좌표 | 4대 PC 환경 · 전 스테이션 좌표(HOME·저울·잔반통·반납 구역 2×2·스펀지 홈·툴 홀더·팔레트 4칸·격리·털기 자세) · 툴 무게·TCP 등록 | 실기 | `20260922_ENV-05_*` · `20260921_V-22_*` |
+| 공용 로봇 함수 | 이동(비동기 + 즉시 정지 · 배속에 맞춘 시간 상한) · 그리퍼(폭 판정 · 쥔 프리셋 기억 · 빈손 거부) · 무게(힘센서 Fz · 떨림·흐름 분리) · 힘 제어·접촉 하강·순응 · 관절 스플라인(물털기) | 자동 + 실기 | `20260922_V-26_*` · PR #89 #92 #94 #97 |
+| F1 집기·이송 | `pick`(슬롯 2개 순회) · `place`(그릇 격리 J1 경로 #90) · `tool`(수세미·솔 · 반납 감시 하강) · `rack_place`(경유점 · 그릇 손목 반전 · 컵 뒤집기) · 옆면 재파지(접근점 + 힘 감시) | 실기 | `20260922_V-08_*` · 9/23 기록 |
+| F2 무게·털기·헹굼 | 무게는 항상 HOME 경유(오는 길 차 90 g 발견) · 기준값은 **실행 직전 1회**(드리프트 ±45 g) · 잔반 털기(그릇 35 N · 컵 25 N) · 담금 2회 → 새 물털기(J4 ±30°/±15° 스플라인 · 배속 예외로 빠르게) | 실기 | 9/23 기록 · PR #89 #95 #96 |
+| F2 흐름(flow) | 상태 머신 · 실패 정책(재시도 · 격리 · 정지) · 정지/재개/중단 · 기록 · 툴·TCP 문지기 · 계획(구역마다 2개) | 자동 + **실기(flow_node 리허설 2회)** | `20260921_UT-FLOW_*` · 9/23 기록 §17~18 |
+| F3 닦기 | 세제 → 그릇 닦기(바닥 힘으로 찾기 → 나선 → 벽면) · 컵 닦기(솔) → 반납 — 흐름 안에서 그릇·컵 모두 | 실기 | `20260920_V-03_*` · `20260921_V-10_*` · 9/23 기록 |
+| F4 화면 | 운영 화면(단계 카드 · 팔레트 그림 · 숫자 · 이력) · 버튼 · 가짜 flow 대본 5개 | 가짜 flow · 실제 flow 연결 🟡(추석) | PR #66 · `src/f4_hmi/README.md` |
+| 새 기능(9/23) | 그릇 격리 경로(#90 · 흐름의 중단 정리에서 씀) · 세제 펌프 실기 도구(#91 · 흐름 미연결) · 케이블 이상 → 멈춤 → 톡톡 재개(PR #93 · **실기 검증 뒤 merge**) · 툴 놓침 TOOL_LOST(박진용 · 진행) | 실기(격리·펌프 단독) · 🟡 저녁 통합 | PR #90 #91 #93 |
+| 안전 | 접촉 동작마다 힘 상한·후퇴·타임아웃(배속·거리에 맞춰 늘림 · 최소 30 s) · 로봇 위치를 모르면 자동으로 안 움직임 · 수조 안에서는 먼저 곧게 위로 · 빈손이면 털기·담금 거부 · 툴·TCP 이름 확인 · 실기 끝나면 Ctrl+C 뒤 랜선 | 규칙 + 코드 | `AGENTS.md` §3 · `docs/00_현재상황_리마인드.md` §6 · `docs/troubleshooting/` |
 
-**아직 남은 것(9/23)**: 안착 놓기(힘으로 홈에 앉히기) · 기능 3개를 한 흐름으로 잇는 통합(그릇 → 컵) · 화면과 실제 flow 연결 · 시연 영상.
-자동 시험은 **441개**(9/22 20시 기준, 두 환경에서 통과). 시험 기록은 `docs/test_logs/`(29개), 결정은 `docs/meetings/20260919_결정기록_DSN-03.md`(E1~E28).
+**오늘 남은 것(9/23 저녁)**: 15:00 시연 실행 + 녹화(그릇 2 · 컵 2 · 0.5) → 새 기능 단위 확인(격리 · 펌프 · 넛지) → PR #93 실기 검증 → **동결 · `v1.0-demo` 태그**. 추석에는 로봇 없이 화면(HMI)·문서만.
+자동 시험은 **476개**(9/23 14시 · 두 환경에서 통과). 시험 기록은 `docs/test_logs/`(31개), 결정은 `docs/meetings/20260919_결정기록_DSN-03.md`(E1~E41). 오늘 merge 된 PR: #89 #90 #91 #92 #94 #95 #96 #97.
 
 ## 4. 직접 확인해 보는 명령 — 지금까지 된 것만
 
@@ -66,7 +71,7 @@
 ### A. 로봇 없이 (아무 PC)
 ```bash
 cbc                                            # 빌드 — "8 packages finished"
-python3 -m pytest -q src                        # 자동 시험 441개 통과 (빌드한 뒤에 실행)
+python3 -m pytest -q src                        # 자동 시험 476개 통과 (빌드한 뒤에 실행)
 python3 src/f2_sense_flow/test/rig_int12.py check      # 함수 약속 · 빈 껍데기 여부 · 좌표 점검 (전부 "구현돼 있다" · OK)
 python3 src/f2_sense_flow/test/rig_flow_once.py check  # 메인 흐름 설정(계획 · 컵 무게 건너뛰기 · 팔레트 순서) 확인
 ```
@@ -101,9 +106,12 @@ ros2 service call /dsr01/dsr_controller2/tool/get_current_tool dsr_msgs2/srv/Get
 soc && PREWASH_VEL_SCALE=0.3 python3 src/f1_handling/test/rig_f1.py tool --action CYCLE -n 10   # 툴 집기 → 반납 10회 (V-08)
 soc && PREWASH_VEL_SCALE=0.3 python3 src/f2_sense_flow/test/rig_f2.py empty --kind BOWL -n 10    # 빈 그릇 기준값 (V-02)
 soc && PREWASH_VEL_SCALE=0.3 python3 src/f3_wipe/test/rig_f3.py                                  # 그릇 닦기 (V-03)
-soc && PREWASH_VEL_SCALE=0.3 python3 src/f2_sense_flow/test/rig_flow_once.py --kind BOWL --mock f3   # 메인 흐름으로 그릇 1개 (F3 만 가짜)
-soc && ros2 launch prewash_bringup prewash.launch.py             # 메인 프로그램 (기본 vel_scale 0.3) — PC-B 는 ros2 run f4_hmi hmi_bridge
+soc && PREWASH_VEL_SCALE=0.3 python3 src/f2_sense_flow/test/rig_flow_once.py --kind CUP --mock "" -n 1     # 메인 흐름으로 컵 1개 (모든 기능 실제)
+soc && PREWASH_VEL_SCALE=0.3 python3 src/f2_sense_flow/test/rig_f2.py shake --mode RINSE --kind BOWL --count 3 -n 1 --no-home   # 새 물털기만
+soc && PREWASH_VEL_SCALE=0.3 python3 src/cobot_common/test/rig_goto.py RINSE_SHAKE --kind CUP --carrying --via RINSE            # 자리 한 곳으로 가서 멈춤(티칭 확인)
+soc && ros2 launch prewash_bringup prewash.launch.py vel_scale:=0.5     # 메인 프로그램(시연 배속 0.5) → ros2 service call /flow/start … — PC-B 는 ros2 run f4_hmi hmi_bridge
 ```
+🚨 실기 전 **빈 용기 기준값은 실행 직전에 1회**(`rig_f2 empty --kind BOWL/CUP -n 1` · 브링업 뒤 워밍업 ~50분 · 몇 분 사이에도 수십 g 움직인다) · 로봇 프로그램은 **한 번에 하나만** · 단계별 도구(rig)는 프로그램마다 그리퍼 힘·프리셋 기억이 이어지지 않으니 담금·털기는 한 프로그램(흐름) 안에서 본다.
 실기가 끝나면 **프로그램 터미널 Ctrl+C → 브링업 터미널 Ctrl+C → 그다음 랜선**. 급하면 Ctrl+C가 아니라 E-Stop.
 
 ## 5. 문서 지도
@@ -114,9 +122,9 @@ soc && ros2 launch prewash_bringup prewash.launch.py             # 메인 프로
 | 요구사항 (BR · FR · NFR · SR · 추적표) | [docs/01_요구사항_BR-SR.md](docs/01_요구사항_BR-SR.md) |
 | 함수·메시지 약속 (계약 정본) | [docs/02_인터페이스_IRD.md](docs/02_인터페이스_IRD.md) · [`src/cobot_api/cobot_api/contracts.py`](src/cobot_api/cobot_api/contracts.py) · [docs/interfaces/](docs/interfaces/) |
 | 설계 (아키텍처 · 상태 머신 · YAML 양식 · 오류·안전 · §9 테스트 계획) | [docs/03_설계_SDD.md](docs/03_설계_SDD.md) |
-| 결정 기록 (E1~E28 · 왜 그렇게 했나) | [docs/meetings/20260919_결정기록_DSN-03.md](docs/meetings/20260919_결정기록_DSN-03.md) |
+| 결정 기록 (E1~E41 · 왜 그렇게 했나) | [docs/meetings/20260919_결정기록_DSN-03.md](docs/meetings/20260919_결정기록_DSN-03.md) |
 | 시험 기록 (날짜_ID_내용_이름.md) | [docs/test_logs/](docs/test_logs/) |
-| 트러블슈팅 (TS-01 두산 API 초기화 … TS-07 툴·TCP 설정 풀림) | [docs/troubleshooting/](docs/troubleshooting/) |
+| 트러블슈팅 (TS-01 두산 API 초기화 … TS-08 수조 안에서 HOME 으로 가다 충돌) | [docs/troubleshooting/](docs/troubleshooting/) |
 | PC 환경 설정 · 별칭 | [docs/setup/M0609_환경설정.md](docs/setup/M0609_환경설정.md) |
 | 팀 규칙 (에이전트 공통) · 기여 규칙 (브랜치 · PR · 검토) | [AGENTS.md](AGENTS.md) · [CONTRIBUTING.md](CONTRIBUTING.md) |
 | 일정표 (구글 시트 · 실시간 정본) | [일정표](https://docs.google.com/spreadsheets/d/1ikTAYTa8bgZofF_3RgP5jDoOipSZBPB1/edit?usp=sharing) · 터미널 `python3 tools/sched.py [담당\|taskID]` |
