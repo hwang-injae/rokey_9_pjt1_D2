@@ -34,7 +34,7 @@ from .bootstrap import cfg, dsr
 from . import motion as _motion
 from .motion import is_paused, move_rel
 
-__all__ = ['force_on', 'force_off', 'force_release', 'force_reached', 'force_check', 'compliance_on', 'compliance_off',
+__all__ = ['force_on', 'force_off', 'force_release', 'force_reached', 'compliance_on', 'compliance_off',
            'contact_down', 'periodic_search', 'safe_retreat', 'read_force', 'start_nudge_watch', 'check_nudge',
            'robot_state', 'wait_robot_ready', 'recover_robot_if_needed',
            'where', 'joints', 'stop_now', 'motion_done', 'wait_done', 'move_joints', 'move_line_rel', 'move_spiral', 'move_arc', 'move_pose', 'move_periodic',
@@ -319,28 +319,6 @@ def contact_down(max_depth, limit, timeout_s=None, keep_compliance=False):
     finally:
         if not keep_compliance:
             force_off()
-
-
-def force_check(axis='z', baseline=None):
-    """지금 걸린 힘을 돌려주고, force_on 에 준 limit(과 cell.force.force_max_n)을 넘었으면 ForceLimitError.
-
-    닦기·문지르기 루프에서 **한 걸음마다** 부른다(force_on 의 limit 은 저장만 되므로 — #20 검토 2).
-    baseline 을 주면 그 값 대비 변화량으로 본다(툴 무게 옵셋 제거, contact_down 과 같은 방식).
-    → (누르는 힘, 옆 힘) — 누르는 힘 = axis 성분, 옆 힘 = 나머지 두 축의 크기.
-    """
-    i = _axis_index(axis)
-    f = read_force()
-    base = [0.0, 0.0, 0.0] if baseline is None else [float(v) for v in baseline[:3]]
-    fx, fy, fz = (f[k] - base[k] for k in range(3))
-    press = abs((fx, fy, fz)[i])
-    lateral = (fx ** 2 + fy ** 2 + fz ** 2 - press ** 2) ** 0.5
-    f_max = _force_cfg('force_max_n')
-    limit = _state['limit']
-    if press > f_max:
-        raise ForceLimitError(f'force_check: 누르는 힘 {press:.1f} N > force_max_n {f_max} N')
-    if limit is not None and press > limit:
-        raise ForceLimitError(f'force_check: 누르는 힘 {press:.1f} N > force_on 의 limit {limit} N')
-    return press, lateral
 
 
 def periodic_search(amp, period, duration):
