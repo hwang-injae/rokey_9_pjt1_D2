@@ -16,7 +16,7 @@ CFG = {
     'cell': {
         'limits': {'vel_free_pct': 60, 'vel_carry_pct': 30, 'safe_z_mm': SAFE_Z},
         'motion': {'vel_tcp_max_mm_s': 500.0, 'acc_tcp_max_mm_s2': 1000.0,
-                   'vel_joint_max_deg_s': 100.0, 'acc_joint_max_deg_s2': 200.0, 'move_timeout_s': 5.0},
+                   'vel_joint_max_deg_s': 100.0, 'acc_joint_max_deg_s2': 200.0, 'move_timeout_s': 5.0, 'vel_joint_fast_max_deg_s': 180, 'acc_joint_fast_max_deg_s2': 600},
         'stations': {'HOME': {'posj': [0, 0, 90, 0, 90, 0]},
                      'WEIGH': {'posx': [400, 100, 450, 0, 180, 0]},          # 안전 높이보다 높다
                      'TOOL_SPONGE': {'posx': [300, -200, 120, 0, 180, 0]},   # 안전 높이보다 낮다
@@ -69,6 +69,16 @@ class FakeDsr:
         self.left = self.busy_polls
         if kw.get('mod', self.DR_MV_MOD_ABS) == self.DR_MV_MOD_ABS and not self.stops_short:
             self.at_j = [float(v) for v in pos]
+        return self.ret
+
+    def posj(self, q):                       # 두산 posj 흉내(list 그대로) — 실물은 posj(list) 형이어야 movesj 가 받는다
+        return list(q)
+
+    def amovesj(self, pos_list, **kw):        # 🆕 관절 스플라인(E36 물 털기) — 마지막 점에 도착한 것으로
+        self.calls.append(('movesj', [list(p) for p in pos_list], kw))
+        self.left = self.busy_polls
+        if not self.stops_short:
+            self.at_j = [float(v) for v in pos_list[-1]]
         return self.ret
 
     def check_motion(self):
@@ -271,6 +281,19 @@ def test_move_joint_rel_time_within_cap_is_untouched(robot, monkeypatch):
     assert robot.calls[-1][2]['time'] == pytest.approx(0.3)
 
 
+def test_move_joint_rel_scale_false_ignores_vel_scale_but_keeps_the_cap(robot, monkeypatch):
+    """🆕 9/23 E36 scale=False — 물 털기(fast): 배속을 낮춰도 시간을 늘리지 않는다. 상한은 100 % 기준(100 deg/s) 그대로."""
+    warned = []
+    monkeypatch.setattr(motion, '_warn', warned.append)
+    robot.cfg['run']['vel_scale'] = 0.3
+    motion.move_joint_rel(4, 20, time_s=0.2, scale=False)           # 100 deg/s — 물 털기 상한 180 안 → 그대로 0.2 s
+    assert robot.calls[-1][2] == {'mod': robot.DR_MV_MOD_REL, 'time': pytest.approx(0.2)} and warned == []
+    motion.move_joint_rel(4, 20, time_s=0.05, scale=False)          # 400 deg/s 요구 → 물 털기 상한 180 으로 0.111 s
+    assert robot.calls[-1][2]['time'] == pytest.approx(20 / 180) and len(warned) == 1 and 'vel_scale 예외' in warned[0]
+    motion.move_joint_rel(4, 20, time_s=0.2)                        # 기본(scale=True)은 예전대로 0.2/0.3 = 0.667 s
+    assert robot.calls[-1][2]['time'] == pytest.approx(0.2 / 0.3)
+
+
 def test_move_joint_rel_time_needs_the_cap_value(robot):
     robot.cfg['cell']['motion']['vel_joint_max_deg_s'] = None       # 기준값이 비어 있으면 움직이지 않는다
     with pytest.raises(KeyError, match='cell.motion.vel_joint_max_deg_s'):
@@ -379,3 +402,35 @@ def test_missing_timeout_value_means_no_motion(robot):
     with pytest.raises(KeyError, match='cell.motion.move_timeout_s'):
         motion.move_joint_rel(5, 10)
     assert robot.calls == []
+
+
+# ------------------------------------------------------------------ move_joints_via (E36 물 털기 · 관절 스플라인)
+def test_move_joints_via_sends_one_spline_and_caps_speed(robot):
+    q0 = [0, 0, 90, 0, 90, 0]
+    pts = [[0, 0, 90, 30, 90, 0], [0, 0, 90, -30, 90, 0], q0]
+    motion.move_joints_via(pts, vel_deg_s=100, acc_deg_s2=200)
+    assert robot.calls[-1][0] == 'movesj' and robot.calls[-1][1] == [[float(v) for v in p] for p in pts]
+    assert robot.calls[-1][2] == {'vel': 100.0, 'acc': 200.0, 'mod': robot.DR_MV_MOD_ABS}
+    robot.cfg['run']['vel_scale'] = 0.3
+    motion.move_joints_via(pts, vel_deg_s=100, acc_deg_s2=200)                  # 기본: × vel_scale
+    assert robot.calls[-1][2]['vel'] == pytest.approx(30.0) and robot.calls[-1][2]['acc'] == pytest.approx(60.0)
+    motion.move_joints_via(pts, vel_deg_s=300, acc_deg_s2=900, scale=False)     # 예외: vel_scale 무시 · 물 털기 전용 상한(180 · 600)
+    assert robot.calls[-1][2]['vel'] == pytest.approx(180.0) and robot.calls[-1][2]['acc'] == pytest.approx(600.0)
+    motion.move_joints_via(pts, vel_deg_s=150, acc_deg_s2=500, scale=False)     # 상한 안이면 그대로
+    assert robot.calls[-1][2]['vel'] == pytest.approx(150.0) and robot.calls[-1][2]['acc'] == pytest.approx(500.0)
+    motion.move_joints_via(pts)                                                 # 안 주면 들고 가는 속도(30 %) × vel_scale
+    assert robot.calls[-1][2]['vel'] == pytest.approx(100 * 0.3 * 0.3)
+
+
+@pytest.mark.parametrize('bad', [[[0, 0, 90, 0, 90, 0]], [[0, 0, 90, 0, 90]]])
+def test_move_joints_via_bad_points(robot, bad):
+    with pytest.raises(ValueError):
+        motion.move_joints_via(bad + ([[0, 0, 90, 0, 90, 0]] if len(bad[0]) != 6 else []))
+    assert not robot.calls
+
+
+def test_fast_cap_falls_back_to_base_when_missing(robot):
+    """물 털기 전용 상한이 없으면 100 % 기준과 같다 — 예외를 줘도 더 빨라지지 않는다."""
+    robot.cfg['cell']['motion'].pop('vel_joint_fast_max_deg_s'); robot.cfg['cell']['motion'].pop('acc_joint_fast_max_deg_s2')
+    motion.move_joints_via([[0, 0, 90, 30, 90, 0], [0, 0, 90, 0, 90, 0]], vel_deg_s=300, acc_deg_s2=900, scale=False)
+    assert robot.calls[-1][2]['vel'] == pytest.approx(100.0) and robot.calls[-1][2]['acc'] == pytest.approx(200.0)

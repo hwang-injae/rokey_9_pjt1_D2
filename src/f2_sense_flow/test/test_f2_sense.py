@@ -26,9 +26,10 @@ CFG = {'f2': {
     'limits': {'max_amp_deg': 45.0, 'max_depth_mm': 150.0, 'max_hold_s': 5.0,
                'max_settle_s': 5.0, 'min_net_g': -30.0},
     'shake': {'WASTE': {'joint': 5, 'amp_deg': 15.0, 'cycles': 4, 'period_s': 0.6},
-              'RINSE': {'joint': 5, 'amp_deg': 10.0, 'period_s': 0.5}},
+              'RINSE': {'joint': 4, 'amp_deg': 30.0, 'period_s': 0.7, 'acc_deg_s2': 600.0, 'at': 'RINSE_SHAKE', 'fast': True, 'smooth': True}},   # 🔄 9/23 E36
     'dip': {'RINSE': {'depth_mm': 60.0, 'hold_s': 0.2}},
-}}
+}, 'cell': {'stations': {'RINSE': {}, 'RINSE_SHAKE': {}, 'WASTE': {}, 'WEIGH': {}, 'HOME': {}},
+            'motion': {'vel_joint_max_deg_s': 100.0, 'acc_joint_max_deg_s2': 200.0}, 'limits': {'vel_carry_pct': 30}}}   # 🆕 shake at=<스테이션> · smooth 복구 검사용
 
 
 class Rec:
@@ -69,8 +70,18 @@ class Rec:
     def move_rel(self, dx, dy, dz, frame, **kw):
         self._note('move_rel', dx, dy, dz, frame, **kw)      # 🆕 vel_mm_s 등 키워드도 기록(직선 왕복 시험)
 
-    def move_joint_rel(self, joint, delta_deg, *, time_s=None, carrying=True):
-        self._note('move_joint_rel', joint, delta_deg, time_s)
+    def move_joint_rel(self, joint, delta_deg, *, time_s=None, carrying=True, **kw):
+        self._note('move_joint_rel', joint, delta_deg, time_s, **kw)          # 🆕 scale=False(E36 fast) 도 기록
+
+    def joints(self):
+        self._note('joints')
+        return [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
+
+    def move_joints_via(self, q_list, **kw):
+        self._note('move_joints_via', [list(q) for q in q_list], **kw)
+
+    def move_joints(self, q, vel, acc):
+        self._note('move_joints', list(q), vel, acc)
 
     def force_off(self):
         self._note('force_off')
@@ -104,7 +115,7 @@ def rec(monkeypatch):
 def _install(monkeypatch, r):
     """가짜 cobot_common 을 끼우고 sense 를 다시 읽어 들인다."""
     fake = types.ModuleType('cobot_common')
-    for name in ('cfg', 'io_node', 'move_to', 'move_rel', 'move_joint_rel',
+    for name in ('cfg', 'io_node', 'move_to', 'move_rel', 'move_joint_rel', 'joints', 'move_joints_via', 'move_joints',
                  'force_off', 'safe_retreat', 'grip_level', 'grip_width', 'weigh'):
         setattr(fake, name, getattr(r, name))
     # 🚨 sense 가 "삼키지 않고 위로 올릴" 예외 클래스 — **진짜 클래스**를 그대로 넣는다.
@@ -435,8 +446,117 @@ def test_shake_rinse_uses_its_own_preset(monkeypatch):
     r = Rec()
     s = _sense(monkeypatch, r)
     s.shake('RINSE', 1, 'CUP')
-    first = r.of('move_joint_rel')[0][1]
-    assert first == (5, +10.0, 0.125)          # RINSE: amp 10, period 0.5 → 0.125
+    spl = r.of('move_joints_via')[0]           # 🔄 E36 RINSE: 스플라인 한 번 · J4 ±30 · 100 deg/s(4·30/1.2) · vel_scale 예외
+    assert [q[3] for q in spl[1][0]] == [30.0, -30.0, 0.0] and spl[2] == {'vel_deg_s': pytest.approx(4 * 30 / 0.7), 'acc_deg_s2': 600.0, 'scale': False}
+    assert not r.of('move_joint_rel')
+
+
+# ────────────────────────────────── 🆕 9/23 E36 물 털기 재설계 — 접근 높이에서 J4 좌우 · 빠르게
+def test_shake_rinse_rises_then_goes_to_shake_station(monkeypatch):
+    """E36(황인재 9/23): 담금 뒤 수조 안에서 부르면 ① move_to(RINSE) = 접근점(같은 x·y)까지 곧게 위로 ② move_to(RINSE_SHAKE) 관절 이동으로 털기 자세.
+    **내려가지 않는다**(move_rel 없음) · 끝나도 거기 · HOLD → 흔들기 → NORMAL."""
+    r = Rec(up=248.6)
+    s = _sense(monkeypatch, r)
+    assert s.shake('RINSE', 3, 'BOWL').ok
+    names = r.names()
+    tos = [c[1] for c in r.of('move_to')]
+    assert tos == [('RINSE', True, 'BOWL'), ('RINSE_SHAKE', True, 'BOWL')], '접근점 먼저 · 그다음 털기 자세'
+    assert not r.of('move_rel'), '티칭 자세로 내려가지 않는다'
+    assert names.index('force_off') < names.index('move_to') < names.index('move_joints_via')
+    levels = [c[1][1] for c in r.of('grip_level')]
+    assert levels[0] == 'HOLD' and levels[-1] == 'NORMAL'
+
+
+def test_shake_rinse_at_approach_variant(monkeypatch):
+    """at: approach 도 남아 있다 — 접근점까지만 가고(move_to 1번) 내려가지 않는다."""
+    import copy
+    cfg = copy.deepcopy(CFG)
+    cfg['f2']['shake']['RINSE'] = {'joint': 4, 'amp_deg': 20.0, 'period_s': 0.8, 'at': 'approach', 'fast': True}
+
+    class R2(Rec):
+        def cfg(self):
+            return cfg
+    r = R2(up=248.6)
+    s = _sense(monkeypatch, r)
+    assert s.shake('RINSE', 1, 'BOWL').ok
+    assert [c[1] for c in r.of('move_to')] == [('RINSE', True, 'BOWL')] and not r.of('move_rel')
+
+
+def test_shake_rinse_joint4_fast_three_cycles(monkeypatch):
+    """E36(smooth): 4번 관절 ±30° 3회를 **스플라인 한 번**으로 — 점 7개(+30 −30 +30 −30 +30 −30 → 가운데 0) · 다른 관절 그대로 · vel_scale 예외 · 정지 없음."""
+    r = Rec()
+    s = _sense(monkeypatch, r)
+    assert s.shake('RINSE', 3, 'BOWL').ok
+    spl = r.of('move_joints_via')
+    assert len(spl) == 1 and not r.of('move_joint_rel')
+    pts = spl[0][1][0]
+    assert [q[3] for q in pts] == [30.0, -30.0, 30.0, -30.0, 30.0, -30.0, 0.0]
+    assert all(q[:3] == [0.0, 0.0, 90.0] and q[4:] == [90.0, 0.0] for q in pts), '다른 관절은 시작 자세 그대로'
+    assert spl[0][2]['scale'] is False and spl[0][2]['vel_deg_s'] == pytest.approx(4 * 30 / 0.7) and spl[0][2]['acc_deg_s2'] == 600.0
+    assert not r.of('move_joints'), '성공했으면 되돌리기 없음'
+
+
+def test_shake_smooth_failure_returns_to_start_pose(monkeypatch):
+    """스플라인 도중 실패 → 시작 관절 자세(q0)로 되돌린다(들고 가는 속도 30 % · vel_scale 은 move_joints 가 곱함) · NORMAL 복구 · ROBOT_ERROR."""
+    r = Rec(raise_on='move_joints_via')
+    s = _sense(monkeypatch, r)
+    out = s.shake('RINSE', 3, 'BOWL')
+    assert not out.ok and out.code == ROBOT_ERROR
+    back = r.of('move_joints')
+    assert len(back) == 1 and back[0][1] == ([0.0, 0.0, 90.0, 0.0, 90.0, 0.0], 30.0, 60.0)
+    assert [c[1][1] for c in r.of('grip_level')][-1] == 'NORMAL'
+
+
+def test_shake_fast_is_joint_only_and_at_is_validated(monkeypatch):
+    """직선 왕복에 fast 를 주거나 at 이 이상하면 **움직이기 전에** 거절(ROBOT_ERROR)."""
+    import copy
+    for bad in ({'axis': 'x', 'amp_mm': 20.0, 'period_s': 0.5, 'fast': True},
+                {'joint': 4, 'amp_deg': 20.0, 'period_s': 0.8, 'at': 'NOWHERE_STATION'}):
+        cfg = copy.deepcopy(CFG)
+        cfg['f2']['shake']['RINSE'] = bad
+        cfg['f2']['limits']['max_amp_mm'] = 60.0
+
+        class R2(Rec):
+            def cfg(self):
+                return cfg
+        r = R2()
+        s = _sense(monkeypatch, r)
+        out = s.shake('RINSE', 1, 'BOWL')
+        assert not out.ok and out.code == ROBOT_ERROR
+        assert not r.of('move_to') and not r.of('move_joint_rel') and not r.of('move_rel')
+
+
+def test_shake_and_dip_refuse_to_move_when_gripper_is_open(monkeypatch):
+    """🆕 9/23: 첫 폭이 100 mm 넘게 열려 있으면(빈손) shake·dip 은 **움직이기 전에** GRIP_FAIL — 08:4x 실기(열린 채 담금 시작)."""
+    for call in (lambda s: s.shake('RINSE', 3, 'CUP'), lambda s: s.dip('RINSE', 2, 'CUP')):
+        r = Rec(widths=[110.6])
+        s = _sense(monkeypatch, r)
+        out = call(s)
+        assert not out.ok and out.code == GRIP_FAIL
+        assert not r.of('move_to') and not r.of('move_rel') and not r.of('move_joints_via') and not r.of('grip_level')
+
+
+def test_shake_and_dip_refuse_to_move_when_gripper_is_closed_empty(monkeypatch):
+    """🆕 9/23: 폭 판정 프리셋(벽 집기)에서 폭 ≤ 영점 + 허용오차 = **꽉 닫힌 빈손** → 움직이기 전에 GRIP_FAIL(08:4x 실기 10.5 mm).
+    고정 폭 프리셋(grip_target_mm · 옆면 컵)은 이 판정을 하지 않는다."""
+    for call in (lambda s: s.shake('RINSE', 3, 'BOWL'), lambda s: s.dip('RINSE', 2, 'BOWL')):
+        r = RecCell(widths=[10.5])                          # BOWL: 영점 10.58 · tol 0.6 → 11.18 이하 = 빈손
+        s = _sense(monkeypatch, r)
+        out = call(s)
+        assert not out.ok and out.code == GRIP_FAIL
+        assert not r.of('move_to') and not r.of('move_rel') and not r.of('move_joints_via') and not r.of('grip_level')
+    r = RecCell(widths=[76.0, 76.0, 76.0])                  # CUP(고정 폭 76 · E19): 판정 안 함 → 움직인다
+    s = _sense(monkeypatch, r)
+    assert s.dip('RINSE', 1, 'CUP').ok and r.of('move_to')
+
+
+def test_shake_waste_unchanged_by_e36(monkeypatch):
+    """잔반 털기(WASTE)는 그대로 — 티칭 자세까지 가고(_goto) J5 · vel_scale 적용(scale 키워드 없음)."""
+    r = Rec(up=30.0)
+    s = _sense(monkeypatch, r)
+    assert s.shake('WASTE', 1, 'BOWL').ok
+    assert r.of('move_rel')[0][1][2] == pytest.approx(-30.0), '접근점이 있으면 티칭 자세까지 내려간다'
+    assert all(c[1][0] == 5 and c[2] == {} for c in r.of('move_joint_rel'))
 
 
 def test_shake_unknown_mode_is_robot_error(monkeypatch):
@@ -799,7 +919,9 @@ class RecCell(Rec):
     """cell.presets 까지 들고 있는 가짜 — 폭 판정을 켠다."""
 
     def cfg(self):
-        return dict(CFG, **_CELL_PRESETS)
+        c = dict(CFG)
+        c['cell'] = {**CFG.get('cell', {}), **_CELL_PRESETS['cell']}   # 🔄 stations·motion 은 CFG 것 + presets 덧붙임(깊은 합치기)
+        return c
 
 
 def test_weigh_low_but_width_says_held_is_not_a_drop(monkeypatch):
