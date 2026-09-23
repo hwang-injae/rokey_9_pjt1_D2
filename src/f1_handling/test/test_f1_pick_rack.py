@@ -355,3 +355,16 @@ def test_rack_place_without_watch_step_setting_uses_the_default_step(cc):
     cc.contact = (5.0, 3.0)
     assert handling.rack_place('RACK_B1', 'BOWL').ok
     assert ('contact_down', 5.0, 15.0) in cc.calls
+
+
+# ------------------------------------------------------------------ 🆕 9/23 18:1x 튜닝 3차 #3 — 삽입 감시 0 = 곧게 내려 놓기
+def test_rack_place_with_zero_insert_watch_descends_straight_and_releases(cc):
+    cc.conf['f1']['insert_approach_mm'] = 0
+    cc.conf['f1']['land_slow_mm'] = 15
+    cc.conf['f1']['land_vel_mm_s'] = 30
+    assert handling.rack_place('RACK_B1', 'BOWL').ok
+    assert 'contact_down' not in cc.names()
+    rel = [c for c in cc.calls if c[0] == 'move_rel']
+    down = [c for c in rel if c[3] < 0]
+    assert down[0][3] == pytest.approx(-85.0) and down[1][3] == -15.0                # 100 = 칸 위 높이 → 85 빠르게 + 15 완충
+    assert cc.names().index('release') > cc.calls.index(down[1])

@@ -53,8 +53,8 @@ class FakeCC:
         self._note('move_to', station, carrying, kind, point, *([kw] if kw else []))
         return self.up.get((station, point), 0.0)
 
-    def move_rel(self, dx, dy, dz, frame):
-        self._note('move_rel', dx, dy, dz, frame)
+    def move_rel(self, dx, dy, dz, frame, **kw):                 # 🆕 9/23 kw = vel_mm_s(마지막 완충 구간)
+        self._note('move_rel', dx, dy, dz, frame, *([kw] if kw else []))
 
     def where(self):                                                 # 집은 자리(RETURN 역순용)
         self._note('where')
@@ -361,3 +361,32 @@ def test_tool_return_without_watch_step_setting_uses_the_default_step(cc):
     handling.tool('SPONGE', 'PICK')
     handling.tool('SPONGE', 'RETURN')
     assert ('contact_down', 5.0, 8.0) in cc.calls                                # step_mm 없이 → force 기본 걸음
+
+
+# ------------------------------------------------------------------ 🆕 9/23 18:1x 튜닝 3차 — 곧게 내려 놓기 · 마지막 land_slow_mm 완충
+def test_place_descends_in_one_go_when_no_soft_landing_is_set(cc):
+    handling.place('SPONGE_BED_B')
+    assert ('move_rel', 0.0, 0.0, -147.7, 'BASE') in cc.calls                    # 한 구간
+
+
+def test_place_slows_only_the_last_millimetres_when_soft_landing_is_set(cc):
+    cc.conf['f1']['land_slow_mm'] = 15
+    cc.conf['f1']['land_vel_mm_s'] = 30
+    handling.place('SPONGE_BED_B')
+    rel = [c for c in cc.calls if c[0] == 'move_rel']
+    assert rel[0][1:4] == (0.0, 0.0, pytest.approx(-132.7)) and len(rel[0]) == 5      # 빠르게 147.7 − 15
+    assert rel[1][1:4] == (0.0, 0.0, -15.0) and rel[1][5] == {'vel_mm_s': 30.0}       # 마지막 15 mm 는 30 mm/s
+    assert cc.calls.index(rel[1]) < cc.calls.index(('release',))                      # 그 뒤 놓는다
+
+
+def test_tool_return_depth_zero_uses_the_soft_landing_and_releases_at_the_spot(cc):
+    cc.conf['f1']['tool_return_depth_mm'] = 0
+    cc.conf['f1']['land_slow_mm'] = 15
+    handling.tool('SPONGE', 'PICK')
+    cc.calls.clear()
+    handling.tool('SPONGE', 'RETURN')
+    names = [c[0] for c in cc.calls]
+    assert 'contact_down' not in names and 'force_off' not in names               # 힘 감시·순응 없음
+    rel = [c for c in cc.calls if c[0] == 'move_rel']
+    assert rel[0][3] == pytest.approx(-85.0) and rel[1][3] == -15.0 and rel[1][5] == {'vel_mm_s': 30.0}
+    assert names.index('release') > cc.calls.index(rel[1]) and rel[2][3] == 100.0   # 놓고 → 곧게 올라온다

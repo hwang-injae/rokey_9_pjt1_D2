@@ -69,16 +69,16 @@ def _make_flow(cfg, log, features, robot):
 
 STAGES = [   # flow.process_one 의 steps 순서 그대로 (번호 = 황인재 튜닝 대화용 · 9/23 15:5x WEIGH 이동 단계 제거 뒤 12개)
     (1, 'PICK',  'f1.pick',          '반납 자리에서 집기(슬롯 1 → 2)'),
-    (2, 'WEIGH', 'f2.leftover_loop', 'HOME 거쳐 무게 자세 → 재기 → 잔반이면 잔반통 털기 → 재측정'),
+    (2, 'WEIGH', 'f2.leftover_loop', 'HOME 거쳐 무게 자세 → 재기 → 잔반이면 잔반통 털기(스플라인) → 재측정'),
     (3, 'SEAT',  'f1.place',         '스펀지 홈에 놓기'),
     (4, 'SOAP',  'f1.tool PICK',     '툴(수세미/솔) 집기'),
     (5, 'SOAP',  'f3.soap',          '세제 묻히기(홀더 안 비틀기·왕복)'),
     (6, 'WIPE',  'f3.wipe_*',        '닦기(그릇 나선 / 컵 위아래+회전)'),
-    (7, 'WIPE',  'f1.tool RETURN',   '툴 반납(집은 자리로 곧게 · 마지막 5 mm 힘 감시)'),
+    (7, 'WIPE',  'f1.tool RETURN',   '툴 반납(집은 자리로 곧게 · 감시 없음 · 마지막 15 mm 살짝 느리게)'),
     (8, 'RINSE', 'f1.pick(홈)',      '재파지(그릇 벽 / 컵 옆면 · 마지막 45 mm 감시)'),
     (9, 'RINSE', 'f2.dip',           '헹굼 담금(2회)'),
     (10, 'RINSE', 'f2.shake',        '물 털기(RINSE_SHAKE 자세 · J4 3회)'),
-    (11, 'RACK',  'f1.rack_place',   '팔레트 적재(수조 위 → 경유점 → 칸 → 마지막 5 mm 감시 → 빠져나오기)'),
+    (11, 'RACK',  'f1.rack_place',   '팔레트 적재(수조 위 → 경유점 → 칸 → 곧게 내려 놓기 → 빠져나오기)'),
     (12, 'RACK',  'f1.move_to HOME', 'HOME 복귀'),
 ]
 

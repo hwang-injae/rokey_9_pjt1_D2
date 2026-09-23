@@ -369,8 +369,7 @@ def place(station: str, kind: str = None) -> PlaceResult:
     point = _PLACE_POINT if station in (cc.cfg().get('cell') or {}).get('beds', {}) else None
     clear = float(_need(cc.cfg().get('f1'), 'place_clear_mm', 'params.yaml 의 f1'))   # 값이 없으면 움직이기 **전에** KeyError
     up = float(cc.move_to(station, True, kind, point) or 0.0)       # ① 접근점(없으면 끝점)
-    if up > 0.0:
-        cc.move_rel(0.0, 0.0, -up, 'BASE')                          # ② 끝점까지 곧게
+    _descend(up)                                                    # ② 끝점까지 곧게(마지막 land_slow_mm 만 살짝 느리게)
     cc.release()                                                    # ③
     cc.move_rel(0.0, 0.0, up if up > 0.0 else clear, 'BASE')        # ④ 되올라오기
     return PlaceResult(offset_mm=0.0)
@@ -643,7 +642,7 @@ def _tool_return(station, f1, clear, tool=None) -> ToolResult:
             # 🔄 9/23 15:5x 튜닝(황인재 #4·#7): 반납 자리 = **이 프로그램이 집은 바로 그 자리**(posx 기억)라 바닥을 찾을 필요가 없다 →
             #    힘 감시 없이 곧게 내려가 놓는다(순응 걸음 ≈3 s × 7 = 20 s 절약 · 12:49·13:52 TIMEOUT 도 이 구간). 
             #    tool_return_depth_mm 을 0 으로 두면 이 갈래, 양수면 예전처럼 마지막 그만큼을 힘 감시.
-            cc.move_rel(0.0, 0.0, -clear, 'BASE')
+            _descend(clear)                                         # 🔄 9/23 18:1x 황인재 3차 #2: 감시 없이 곧게 · 마지막 land_slow_mm 완충
             cc.release()
             cc.move_rel(0.0, 0.0, clear, 'BASE')
             _LAST_PICK.pop(tool, None)
@@ -681,6 +680,23 @@ def _tool_return(station, f1, clear, tool=None) -> ToolResult:
     cc.release()
     cc.move_rel(0.0, 0.0, depth + (0.0 if up > 0.0 else clear), 'BASE')   # 접근점이 있으면 접근점까지, 없으면 그 위로
     return ToolResult()
+
+
+def _descend(dist_mm):
+    """곧게 dist_mm 내려간다(순응·힘 감시 없음 · 한 번에). 🆕 9/23 18:1x 황인재 튜닝 3차 #2·#3:
+    "지정된 위치에 가면 바로 놓는다 · 단계별로 내려가는 것처럼 보이지 않게". 마지막 f1.land_slow_mm(기본 0 = 없음)만
+    f1.land_vel_mm_s(배속 무관)로 살짝 느리게 — 1.0 배속에서 툴·용기가 바닥에 닿는 충격(18:07 솔 반납 SAFE_STOP 의심)을 줄이는 완충.
+    두 구간이지만 멈춤 없이 이어져 한 번의 하강으로 보인다. 0 으로 두면 한 구간."""
+    dist = float(dist_mm)
+    if dist <= 0.0:
+        return
+    f1 = cc.cfg().get('f1') or {}
+    slow = min(float(f1.get('land_slow_mm') or 0.0), dist)
+    fast = dist - slow
+    if fast > 0.0:
+        cc.move_rel(0.0, 0.0, -fast, 'BASE')
+    if slow > 0.0:
+        cc.move_rel(0.0, 0.0, -slow, 'BASE', vel_mm_s=float(f1.get('land_vel_mm_s') or 30.0))
 
 
 def _watch_step(watch_mm):
@@ -779,7 +795,10 @@ def rack_place(rack_slot: str, kind: str) -> Result:
     free = max(0.0, up - approach_mm)
     watch = min(up, approach_mm) if up > 0.0 else 0.0
     if free > 0.0:
-        cc.move_rel(0.0, 0.0, -free, 'BASE')                        # ④-1 자유 하강
+        if watch > 0.0:
+            cc.move_rel(0.0, 0.0, -free, 'BASE')                    # ④-1 자유 하강(그 뒤 감시 구간)
+        else:
+            _descend(free)                                          # 🔄 9/23 18:1x 황인재 3차 #3: 감시 0 이면 곧게 끝까지 · 마지막 land_slow_mm 완충
     depth = 0.0
     try:
         if watch > 0.0:
