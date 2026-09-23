@@ -435,7 +435,10 @@ def _tool_pick(station, tool, preset, clear) -> ToolResult:
         tol = float(_need(preset, 'width_tol_mm', where))
         zero = float(_need(preset, 'grip_zero_mm', where))
         target, check = zero + max(0.0, want - 2 * tol), (want, tol, zero)
-    up = float(cc.move_to(station, False, point='pick') or 0.0)     # 빈손으로 간다
+    # 🆕 9/23 황인재 튜닝 #1: 두 손가락 그리퍼는 J6 를 180° 돌려도 같은 파지(수세미 −220.37 9/22 · −40.37 9/23 둘 다 ✅) →
+    #    cell.presets.<툴>.j6_symmetric 이 참이면 티칭 J6 ± 180·k 중 **지금 손목에서 가장 가까운 것**으로 간다(홈 B 에서 220° → 43°).
+    j6 = {'j6_period': 180.0} if preset.get('j6_symmetric') else {}
+    up = float(cc.move_to(station, False, point='pick', **j6) or 0.0)   # 빈손으로 간다
     if up > 0.0:
         cc.move_rel(0.0, 0.0, -up, 'BASE')
     width = float(cc.grip(target, force))
@@ -471,7 +474,7 @@ def _tool_return(station, f1, clear, tool=None) -> ToolResult:
             return ToolResult()
         cc.move_rel(0.0, 0.0, -(clear - watch), 'BASE')             # 자유 하강
         try:
-            depth, _force = cc.contact_down(watch, limit, timeout_s=_contact_timeout())   # 집은 z 까지 감시 하강 — 툴이 미끄러졌거나 홀더가 밀렸으면 여기서 멈춘다
+            depth, _force = cc.contact_down(watch, limit, timeout_s=_contact_timeout(), step_mm=_watch_step(watch))   # 집은 z 까지 감시 하강 — 툴이 미끄러졌거나 홀더가 밀렸으면 여기서 멈춘다
         except cc.ForceLimitError as e:
             _log().error(f'툴 반납({tool}) 감시 하강 — 힘 상한: {e}')          # 🔄 9/23 12:49 실기: 사유 없이 TIMEOUT 만 보여 원인을 못 갈랐다 → 깊이·시간을 남긴다
             _after_contact_failure(clear - watch, watch)
@@ -502,6 +505,19 @@ def _tool_return(station, f1, clear, tool=None) -> ToolResult:
     cc.release()
     cc.move_rel(0.0, 0.0, depth + (0.0 if up > 0.0 else clear), 'BASE')   # 접근점이 있으면 접근점까지, 없으면 그 위로
     return ToolResult()
+
+
+def _watch_step(watch_mm):
+    """마지막 감시 구간(툴 반납 · 팔레트 삽입)의 순응 하강 걸음(mm). → contact_down(step_mm=…) · None 이면 cell.force.contact_step_mm(3) 그대로.
+
+    🆕 9/23 황인재 튜닝 #2·#5: 순응 하강은 한 걸음(3 mm)에 ≈3 s 걸린다(배속 무관 · 컨트롤러가 순응 상태의 '이동 끝'을 늦게 잡음).
+    감시 5 mm 를 3 + 2 두 걸음으로 가면 ≈6 s 가만히 선 것처럼 보인다 → f1.watch_step_mm(5) 로 **한 걸음**에(≈3 s).
+    걸음이 감시 거리보다 크지는 않게(min). 재파지(45 mm)·닦기 바닥 찾기는 그대로 3 mm.
+    """
+    s = (cc.cfg().get('f1') or {}).get('watch_step_mm')
+    if not s:
+        return None
+    return min(float(watch_mm), float(s))
 
 
 def _contact_timeout(watch_mm=None):
@@ -591,7 +607,7 @@ def rack_place(rack_slot: str, kind: str) -> Result:
     depth = 0.0
     try:
         if watch > 0.0:
-            depth, force = cc.contact_down(watch, limit_n, timeout_s=_contact_timeout())   # ④-2 삽입력 감시 (순응 ON · 상한 · 시간은 배속에 맞춰 늘림)
+            depth, force = cc.contact_down(watch, limit_n, timeout_s=_contact_timeout(), step_mm=_watch_step(watch))   # ④-2 삽입력 감시 (순응 ON · 마지막 구간은 한 걸음 · 시간은 배속에 맞춰 늘림)
             seated = depth >= watch - float(_need(cell.get('rack'), 'seat_tol_mm', 'cell.rack'))
             if not seated:
                 _log().warn(f'rack_place({rack_slot}) — {depth:.1f}/{watch:.1f} mm 에서 {force:.1f} N 걸림 → RACK_JAM')

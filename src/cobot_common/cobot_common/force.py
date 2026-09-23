@@ -162,7 +162,7 @@ def read_force():
     return [float(x) for x in f]
 
 
-def contact_down(max_depth, limit, timeout_s=None, keep_compliance=False):
+def contact_down(max_depth, limit, timeout_s=None, keep_compliance=False, step_mm=None):
     """순응 ON 상태로 contact_step_mm 씩 내려가며 Z 힘이 limit 에 닿을 때까지 → (depth_mm, force_n).
 
     멈추는 조건: **시작할 때보다 Z 힘이 limit 만큼 커짐**(접촉) · 깊이 ≥ max_depth(바닥 못 찾음) —
@@ -173,12 +173,17 @@ def contact_down(max_depth, limit, timeout_s=None, keep_compliance=False):
     단 `keep_compliance=True`면 끄지 않는다(바로 이어서 순응 상태로 다른 동작을 할 때, 박진용 9/22:
     그릇 나선 진입 직전에 순응을 껐다 바로 다시 켜는 게 비동기 나선이 시작 안 하는 것과 관련 있어 보여서 없앰).
     힘이 cell.force.force_max_n 을 넘으면 ForceLimitError, cell.limits.timeout_s 를 넘으면 MotionTimeout.
+    🆕 9/23 step_mm — 한 걸음 크기를 부르는 쪽이 정할 수 있다(없으면 cell.force.contact_step_mm 3). 순응 걸음 하나가 ≈3 s 라
+       마지막 5 mm 만 감시하는 툴 반납·팔레트 삽입(f1.watch_step_mm)은 5 mm 한 걸음으로 간다(황인재 튜닝 #2·#5).
+       닿으면 순응이 그 걸음만큼만 눌리므로 걸음이 클수록 눌리는 힘도 커진다 — Z 강성 200 N/m × 5 mm = 1 N 이라 여유 있다.
     """
     if max_depth <= 0:
         raise ValueError(f'contact_down: max_depth={max_depth} mm — 0 보다 커야 한다')
     _check_force_args(limit=limit)
     d = dsr()
-    step = _force_cfg('contact_step_mm')
+    step = _force_cfg('contact_step_mm') if step_mm is None else float(step_mm)
+    if step <= 0:
+        raise ValueError(f'contact_down: step_mm={step} mm — 0 보다 커야 한다')
     vel = _force_cfg('contact_vel_mm_s') * _vel_scale()
     acc = _force_cfg('contact_acc_mm_s2')
     stx = _force_cfg('compliance_stx')
