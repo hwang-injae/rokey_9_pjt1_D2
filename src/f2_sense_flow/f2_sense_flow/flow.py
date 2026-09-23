@@ -112,7 +112,8 @@ class Flow:
 
     def __init__(self, cfg, log, publish_event=None, safe_retreat=None, features=None,
                  force_off=None, no_retreat_errors=(),
-                 is_paused=None, halt=None, clear_halt=None, halt_errors=()):
+                 is_paused=None, halt=None, clear_halt=None, halt_errors=(),
+                 pause=None, resume=None):
         self.cfg = (cfg or {}).get('flow', {})
         self.f = features or {}                  # {'f1': 모듈, 'f2': 모듈, 'f3': 모듈}
         self.log = log
@@ -130,11 +131,14 @@ class Flow:
         self._is_paused = is_paused or (lambda: False)
         self._halt = halt or (lambda: None)
         self._clear_halt = clear_halt or (lambda: None)
+        self._pause = pause or (lambda: None)
+        self._resume = resume or (lambda: None)
         self.holding_tool = None         # 쥐고 있는 툴 이름 — 중단 정리에서 반납한다
         # 🚨 cc.MotionHalted — 중단을 누르면 하던 이동이 이걸로 끊긴다. 평범한 실패가 아니라
         #    **중단 흐름**으로 보낸다(PM 9/21). ROBOT_ERROR 로 처리하면 사람이 또 확인해야 한다.
         self._halt_errors = tuple(halt_errors or ())
         self._halted = False
+        self._cable_tight = False
 
         # 🚨 설정은 **여기서 한 번에** 읽고 검증한다.
         #    YAML 에 키만 있고 값이 비면 None 이 들어온다(`or` 로 받아야 한다).
@@ -325,6 +329,11 @@ class Flow:
                 self.log.warn(f'{name} — 중단 요청으로 끊겼다')
                 self.message = '중단 요청으로 멈췄습니다'
                 self._halted = True
+            elif e.__class__.__name__ == 'CableTightError':
+                # 🆕 케이블 장력 이상 — 후퇴하지 않고 그 자리에서 PAUSED 진입, 톡톡 넛지 재개 대기
+                self.log.warn(f'{name} — 케이블 장력 이상 감지: {e}')
+                self.message = str(e)
+                self._cable_tight = True
             elif self._no_retreat_errors and isinstance(e, self._no_retreat_errors):
                 self.log.error(f'{name} — 로봇 위치를 알 수 없다. 후퇴하지 않고 힘·순응만 끈다')
                 self.message = f'{name}: 이동이 도중에 멈췄습니다 — 로봇 위치를 확인하세요'
@@ -561,6 +570,12 @@ class Flow:
             if self._halted:                          # 🆕 중단으로 끊긴 것 — 정책을 타지 않는다
                 self._halted = False
                 return self.abort_container(sig)
+            if self._cable_tight:                     # 🆕 케이블 장력 이상 — 톡톡 넛지 재개 대기
+                self._cable_tight = False
+                outcome = self.handle_cable_tight(sig)
+                if outcome != RETRY_STEP:
+                    return outcome
+                continue                              # 실패한 그 단계를 다시
             if r.ok and fname == 'tool':               # 쥐고 있는 툴을 기억한다(중단 정리에서 반납)
                 self.holding_tool = args[0] if args[1] == 'PICK' else None
             if not r.ok:
@@ -617,6 +632,72 @@ class Flow:
         order = self.rack_order.get(self.kind) or []
         done = self.done_bowl if self.kind == 'BOWL' else self.done_cup
         return order[done] if done < len(order) else (order[-1] if order else '')
+
+    def handle_cable_tight(self, sig):
+        """케이블 장력 이상 감지 시 정지(PAUSED) 후 사용자 개입(톡톡 또는 resume) 및 상태 재검증.
+
+        1. to_paused 로 상태를 PAUSED 로 변경하고 대시보드 안내 메시지 설정
+        2. 현재 모션 즉시 PAUSE (후퇴 없이 그 자리에서 멈춤)
+        3. 사용자 톡톡(외력 변화량) 또는 HMI resume 대기
+        4. 톡톡 또는 resume 감지 시: 케이블 상태(jitter_g) 재측정
+        5. 정상: 모션 resume 후 RETRY_STEP 돌려주어 그 단계부터 재개
+        6. 이상 지속: PAUSED 유지 및 메시지 갱신 후 다시 대기
+        7. abort 요청: abort_container(sig) 로 정리
+        """
+        self.to_paused('케이블 장력 이상 — 케이블 상태 확인 및 톡톡 재개 대기', sig)
+        self.message = '케이블 상태를 확인해주세요. 확인 후 로봇을 가볍게 톡톡 두드려 주세요.'
+        self.last_code = ROBOT_ERROR
+
+        # 🚨 케이블 이상 시 후퇴 동작 없이 현재 모션 즉시 PAUSE
+        self._guard(self._pause, what='pause')
+
+        sense_mod = self.f.get('f2')
+        wait_fn = getattr(sense_mod, 'wait_for_nudge', None)
+        recheck_fn = getattr(sense_mod, 'recheck_cable', None)
+
+        while True:
+            ev = None
+            if callable(wait_fn):
+                ev = wait_fn(conf=None, sig=sig, timeout_s=0.2)
+            else:
+                if sig.take('abort'):
+                    ev = 'abort'
+                elif sig.take('resume'):
+                    ev = 'resume'
+                else:
+                    time.sleep(_POLL_S)
+
+            if ev == 'abort' or sig.take('abort'):
+                sig.clear('stop')
+                self._guard(self._resume, what='resume')
+                self.log.warn('abort — 케이블 이상 중 용기 중단 요청')
+                return self.abort_container(sig)
+
+            if ev in ('nudge', 'resume') or sig.take('resume'):
+                sig.clear('stop')
+                self.log.info(f'재개 요청 감지(유형: {ev}) — 케이블 상태 재확인 중...')
+                self.message = '재개 요청 감지 — 케이블 상태를 재확인하고 있습니다...'
+
+                is_ok = True
+                jitter = 0.0
+                limit = 50.0
+                if callable(recheck_fn):
+                    try:
+                        is_ok, jitter, limit = recheck_fn(conf=None)
+                    except Exception as e:
+                        self.log.warn(f'케이블 재검증 중 오류({e!r}) — 정지 유지')
+                        is_ok = False
+
+                if is_ok:
+                    self.log.info(f'케이블 상태 정상 확인(떨림 {jitter:.1f} g <= {limit:.1f} g) — 작업 재개')
+                    self._guard(self._resume, what='resume')
+                    self.step = self._prev_step
+                    self.message = '케이블 정상 확인 — 작업을 재개합니다'
+                    self.last_code = OK
+                    return RETRY_STEP
+                else:
+                    self.log.warn(f'케이블 이상 지속(떨림 {jitter:.1f} g > {limit:.1f} g) — 정지 유지')
+                    self.message = f'케이블 이상 지속(떨림 {jitter:.0f} g > 상한 {limit:.0f} g): 케이블 확인 후 다시 톡톡 두드려 주세요'
 
     def handle_failure(self, sig, action=None):
         """실패를 정책대로 마무리한다 (재시도는 process_one 이 이미 끝냈다).

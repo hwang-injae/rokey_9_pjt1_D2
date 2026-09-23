@@ -207,7 +207,9 @@ def main():
                     is_paused=cc.is_paused if robot else None,
                     halt=cc.halt if robot else None,
                     clear_halt=cc.clear_halt if robot else None,
-                    halt_errors=(cc.MotionHalted,) if robot else ())
+                    halt_errors=(cc.MotionHalted,) if robot else (),
+                    pause=cc.pause if robot else None,
+                    resume=cc.resume if robot else None)
         io = Io(node, flow, sig)
         flow._publish_event = io.publish_event       # 두뇌 → 배선 (두뇌는 ROS 를 모른다)
 
