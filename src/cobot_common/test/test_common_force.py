@@ -506,3 +506,17 @@ def test_wait_robot_ready_false_on_timeout(robot):
     d = robot()
     d.get_robot_state = lambda: 2      # 계속 MOVING
     assert force.wait_robot_ready(0.05) is False
+
+
+def test_recover_robot_if_needed_already_standby(robot):
+    """이미 STANDBY(1) 상태이면 서비스를 부르지 않고 바로 True."""
+    d = robot()
+    d.get_robot_state = lambda: 1
+    assert force.recover_robot_if_needed(timeout_s=0.1) is True
+
+
+def test_recover_robot_if_needed_handles_mock_gracefully(robot):
+    """서비스나 ROS 노드가 없는 테스트 환경에서 상태가 5일 때도 예외 없이 False 반환."""
+    d = robot()
+    d.get_robot_state = lambda: 5      # SAFE_STOP
+    assert force.recover_robot_if_needed(timeout_s=0.05) is False

@@ -754,6 +754,16 @@ class Flow:
                 self.log.info(f'재개 요청 감지(유형: {ev}) — 케이블 상태 재확인 중...')
                 self.message = '재개 요청 감지 — 케이블 상태를 재확인하고 있습니다...'
 
+                # 🚨 9/23 실기: 넛지 시 강한 외력(예: >35 N)으로 제어기가 SAFE_STOP(5)에 걸릴 수 있다.
+                #    자동 복구(set_robot_control 2)를 시도하고 STANDBY 로 돌아올 때까지 대기.
+                timeout_s = 2.0
+                try:
+                    timeout_s = float(cc.cfg().get('cell', {}).get('limits', {}).get('nudge_resume_settle_s', 2.0))
+                except Exception:
+                    pass
+                if callable(getattr(cc, 'recover_robot_if_needed', None)):
+                    cc.recover_robot_if_needed(timeout_s=timeout_s)
+
                 is_ok = True
                 jitter = 0.0
                 limit = 50.0
@@ -766,6 +776,11 @@ class Flow:
 
                 if is_ok:
                     self.log.info(f'케이블 상태 정상 확인(떨림 {jitter:.1f} g <= {limit:.1f} g) — 작업 재개')
+                    # 이동 재개 전 로봇 상태가 STANDBY(1)인지 최종 확인 및 복구
+                    if callable(getattr(cc, 'recover_robot_if_needed', None)):
+                        if not cc.recover_robot_if_needed(timeout_s=timeout_s):
+                            if callable(getattr(cc, 'wait_robot_ready', None)) and not cc.wait_robot_ready(timeout_s):
+                                self.log.warn(f'재개 전 로봇이 {timeout_s:g} s 안에 STANDBY 로 안 돌아왔다 — 그래도 이어간다')
                     self._guard(self._resume, what='resume')
                     self.step = self._prev_step
                     self.message = '케이블 정상 확인 — 작업을 재개합니다'
@@ -802,6 +817,8 @@ class Flow:
                     #    컨트롤러의 공식 넛지 처리보다 먼저 반응할 수 있어서, 고정 시간 대신 로봇 상태가
                     #    STANDBY(정상)로 돌아올 때까지 직접 본다.
                     timeout_s = float(cc.cfg()['cell']['limits']['nudge_resume_settle_s'])
+                    if callable(getattr(cc, 'recover_robot_if_needed', None)):
+                        cc.recover_robot_if_needed(timeout_s=timeout_s)
                     if not cc.wait_robot_ready(timeout_s):
                         self.log.warn(f'넛지 뒤 로봇이 {timeout_s:g} s 안에 STANDBY 로 안 돌아왔다 — 그래도 이어간다')
                 tool_id = 'SPONGE' if self.kind == 'BOWL' else 'BRUSH'
