@@ -18,19 +18,55 @@ const KEY = 'prewash.lastStep';
 function recall() { try { return sessionStorage.getItem(KEY) || ''; } catch { return ''; } }   // 개인 창·막힌 저장소에서도 화면은 뜬다
 function remember(v) { try { sessionStorage.setItem(KEY, v); } catch { /* 없어도 된다 */ } }
 
+let audioCtx = null;
+function playBeep(freq = 880, duration = 0.15) {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    if (!audioCtx) audioCtx = new AudioContext();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  } catch {
+    /* 오디오 미지원 또는 차단 환경 */
+  }
+}
+
 export default function Monitor() {
   const { d, mode, press } = useHmi();
   const [reply, setReply] = useState(null);
   // 일시 정지됐을 때 "어느 단계에서" 를 보여 주려고 기억한다 — flow 가 보내는 값(FlowState)에는 그 칸이 없다.
   // 같은 탭에서 새로고침해도 잊지 않게 탭 저장소(sessionStorage)에도 둔다. 멈춘 **뒤에** 새 탭으로 열면 모른다.
   const lastRunning = useRef(null);
+  const lastSoundMsg = useRef('');
   const s = d.state;
   if (lastRunning.current === null) lastRunning.current = recall();
   if (s && RUNNING.includes(s.step) && lastRunning.current !== s.step) { lastRunning.current = s.step; remember(s.step); }
   if (s && (s.step === 'IDLE' || s.step === 'DONE') && lastRunning.current) { lastRunning.current = ''; remember(''); }
 
+  // 🆕 톡톡(Nudge) 재개 감지 시 브라우저 비프음 재생
+  useEffect(() => {
+    const msg = s?.message || '';
+    if (msg.includes('재개 요청 감지') && lastSoundMsg.current !== msg) {
+      playBeep(880, 0.15);
+    }
+    lastSoundMsg.current = msg;
+  }, [s?.message]);
+
   const can = buttons(d);
   async function onPress(name) {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    } catch {}
     if (name === 'abort' && !window.confirm('이 용기를 격리 구역으로 보내고 다음 용기로 넘어갑니다.\n중단할까요?')) return;
     setReply({ pending: true, text: `${BTN_KO[name]} 보내는 중…` });
     const r = await press(name);

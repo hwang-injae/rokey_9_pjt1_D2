@@ -58,6 +58,27 @@ const FORCE_FULL_N = 12;      // 막대가 꽉 차는 힘 — 시험 페이지�
 const RUNNING = ['PICK', 'WEIGH', 'SHAKE', 'SEAT', 'SOAP', 'WIPE', 'RINSE', 'RACK', 'ISOLATE'];
 let d = {connected: false, state: null, gripping: null, force_n: null, events: [], plan: {}, received: 0, age_s: null};
 let forceAt = 0;
+let audioCtx = null;
+let lastSoundMsg = '';
+
+function playBeep(freq = 880, duration = 0.15) {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    if (!audioCtx) audioCtx = new AudioContext();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  } catch (e) {}
+}
 
 function render() {
   $('dot').className = 'dot' + (d.connected ? ' on' : '');
@@ -69,6 +90,10 @@ function render() {
     $('step').textContent = s.step; $('step').className = 'big ' + s.step;
     $('what').textContent = `${s.kind || '-'} · ${s.zone_id || '-'}`;
     $('message').textContent = s.message || '';
+    if (s.message && s.message.includes('재개 요청 감지') && lastSoundMsg !== s.message) {
+      playBeep(880, 0.15);
+    }
+    lastSoundMsg = s.message || '';
     $('bowl').textContent = `${s.done_bowl} / ${s.target_bowl}`; $('cup').textContent = `${s.done_cup} / ${s.target_cup}`;
     $('isolated').textContent = s.isolated; $('code').textContent = s.last_code;
     const c = (d.plan || {}).consumables || {};
@@ -95,6 +120,10 @@ function render() {
 }
 
 async function press(name) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  } catch(e) {}
   $('reply').className = 'dim'; $('reply').textContent = `/api/${name} 보내는 중…`;
   try {
     const r = await (await fetch('/api/' + name, {method: 'POST'})).json();
