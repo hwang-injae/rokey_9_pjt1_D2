@@ -35,7 +35,7 @@ class FakeCC:
         self.z = z
         self.fail_on = None
         self.conf = {
-            'f1': {'place_clear_mm': 100, 'insert_approach_mm': 30},
+            'f1': {'place_clear_mm': 100, 'insert_approach_mm': 30, 'contact_timeout_ref_mm': 20},
             'cell': {
                 'limits': {'insert_limit_n': 15, 'timeout_s': 10},
                 'presets': {'BOWL': {'grip_width_mm': 2.15, 'grip_zero_mm': 10.58, 'grip_force_n': 20, 'width_tol_mm': 0.6},
