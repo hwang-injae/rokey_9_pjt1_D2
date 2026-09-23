@@ -14,7 +14,7 @@
 
 실행 인자 — 런치 인자가 환경변수로 넘어온다 (prewash_bringup 의 런치 2종이 넣어 준다. rig 는 손으로 줘도 된다)
   PREWASH_USE_MOCK="f1,f3"   → cfg['flow']['use_mock'] 을 덮어쓴다. 빈 문자열이면 [] (전부 실제). 변수가 없으면 YAML 값 그대로
-  PREWASH_VEL_SCALE="0.3"    → cfg['run']['vel_scale'] (0 초과 1 이하, 없으면 1.0). 이동 함수가 cell.limits 의 속도 % 에 곱한다
+  PREWASH_VEL_SCALE="0.3"    → cfg['run']['vel_scale'] (0 초과 1 이하, 없으면 0.5 — 9/23 황인재 결정 · DEFAULT_VEL_SCALE). 이동 함수가 cell.limits 의 속도 % 에 곱한다
   init() 보다 먼저 읽을 수 있어야 해서 ROS 파라미터가 아니라 환경변수다 (flow 는 use_mock 을 보고 init(robot=False) 를 정한다).
 """
 import os
@@ -31,6 +31,7 @@ MOCKABLE = ('f1', 'f2', 'f3')                       # use_mock 에 쓸 수 있�
 ENV_CONFIG_DIR = 'PREWASH_CONFIG_DIR'
 ENV_USE_MOCK = 'PREWASH_USE_MOCK'
 ENV_VEL_SCALE = 'PREWASH_VEL_SCALE'
+DEFAULT_VEL_SCALE = '0.5'                     # 🔄 9/23 배속을 안 적었을 때(전속 1.0 → 0.5 · 황인재 결정)
 
 
 class ConfigError(RuntimeError):
@@ -94,7 +95,9 @@ def load(directory=None) -> dict:
 
     if ENV_USE_MOCK in os.environ:
         merged['flow']['use_mock'] = parse_use_mock(os.environ[ENV_USE_MOCK])
-    merged[RUN_KEY] = {'vel_scale': parse_vel_scale(os.environ.get(ENV_VEL_SCALE, '1.0'))}
+    # 🔄 9/23 밤 황인재 결정: 배속을 안 적으면 **0.5**(전에는 1.0 = 전속). rig·`ros2 run` 으로 배속 없이 띄우면 전속이 나가던 위험 방지.
+    #    launch 는 늘 vel_scale 인자를 넘기므로 영향 없음(기본 0.3). 시연 배속은 launch 인자로 명시한다.
+    merged[RUN_KEY] = {'vel_scale': parse_vel_scale(os.environ.get(ENV_VEL_SCALE, DEFAULT_VEL_SCALE))}
     return merged
 
 
