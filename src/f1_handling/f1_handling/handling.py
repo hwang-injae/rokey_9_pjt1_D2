@@ -165,7 +165,7 @@ def _regrip(bed: str, kind: str) -> PickResult:
                 cc.move_rel(0.0, 0.0, -free, 'BASE')
             limit_n = float(_need(cell.get('limits'), 'insert_limit_n', 'cell.limits'))
             try:
-                depth, force = cc.contact_down(watch, limit_n, timeout_s=_contact_timeout())
+                depth, force = cc.contact_down(watch, limit_n, timeout_s=_contact_timeout(watch))   # 감시 60 mm → 시간도 3배
             except ForceLimitError as e:
                 _log().error(f'재파지({bed}) 하강 — 힘 상한: {e}')
                 _after_contact_failure(free, watch)
@@ -493,12 +493,16 @@ def _tool_return(station, f1, clear, tool=None) -> ToolResult:
     return ToolResult()
 
 
-def _contact_timeout():
-    """접촉 동작 타임아웃(cell.limits.timeout_s)을 **배속에 맞춰** 늘린다 — 0.3 배속이면 contact_down 3 mm 걸음이 3배 느려 10 s 로는
-    20 mm 도 못 내려간다(9/22 22:57 실기: 19.9/20 mm 에서 시간 초과). 최소 1배(배속 1 이상이면 그대로)."""
+def _contact_timeout(watch_mm=20.0):
+    """접촉 동작 타임아웃(cell.limits.timeout_s)을 **배속과 감시 거리에 맞춰** 늘린다.
+
+    · 배속: 0.3 이면 contact_down 3 mm 걸음이 느려 10 s 로는 20 mm 도 못 내려간다(9/22 22:57 실기: 19.9/20 mm 시간 초과) → ÷ vel_scale(최소 1배).
+    · 거리: 🔄 9/23 10:5x 실기(PM 보고): 걸음당 ≈0.8 s(가속 제한 · 배속과 거의 무관)라 60 mm 감시(재파지)는 배속 1 에서 ≈16 s 가 필요한데
+      10 s 로 잘렸다(36.9/60 mm TIMEOUT). 기준 20 mm 에 맞춘 값이므로 감시 거리에 비례해 늘린다(× max(1, watch/20)).
+    """
     base = float(_need(_cell().get('limits'), 'timeout_s', 'cell.limits'))
     scale = float(((cc.cfg() or {}).get('run') or {}).get('vel_scale') or 1.0)
-    return base / max(min(scale, 1.0), 0.1)
+    return base / max(min(scale, 1.0), 0.1) * max(1.0, float(watch_mm) / 20.0)
 
 
 def _after_contact_failure(free, watch):

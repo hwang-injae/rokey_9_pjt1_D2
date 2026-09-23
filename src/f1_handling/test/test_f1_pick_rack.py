@@ -199,6 +199,21 @@ def test_regrip_with_approach_descends_then_grips_then_lifts_to_entry_z(cc):
     assert names.index('grip') < len(names) - 1 - names[::-1].index('move_rel')
 
 
+def test_regrip_contact_timeout_scales_with_watch_distance(cc):
+    """🔄 9/23 10:5x 실기(PM): contact_down 은 걸음당 ≈0.8 s 라 60 mm 감시는 배속 1 에서도 16 s 가 걸리는데 10 s 로 잘렸다(36.9/60 TIMEOUT)
+    → 타임아웃 = timeout_s ÷ vel_scale × (감시 거리 / 20)."""
+    cc.conf['cell']['beds']['SPONGE_BED_C'] = {'regrip': {'approach_posx': [0] * 6, 'posx': [0] * 6}, 'regrip_preset': 'CUP_SIDE'}
+    cc.conf['cell']['presets']['CUP_SIDE'] = {'grip_target_mm': 70.0, 'grip_zero_mm': 10.58, 'grip_force_n': 10}
+    cc.up[('SPONGE_BED_C', 'regrip')] = 100.0
+    cc.contact = (60.0, 2.0)
+    cc.conf['run'] = {'vel_scale': 1.0}
+    assert handling.pick('SPONGE_BED_C', 'CUP').ok
+    assert handling._contact_timeout(60.0) == pytest.approx(30.0)          # 10 s × 3
+    assert handling._contact_timeout(20.0) == pytest.approx(10.0)          # 팔레트 삽입 20 mm 은 그대로
+    cc.conf['run'] = {'vel_scale': 0.3}
+    assert handling._contact_timeout(60.0) == pytest.approx(100.0)
+
+
 def test_regrip_finger_on_cup_rim_backs_up_with_grip_fail(cc):
     """감시 구간에서 힘이 먼저 닿으면(손가락이 컵 테두리에 얹힘) SAFE_STOP 대신 되올라와 GRIP_FAIL — 잡기(grip)는 하지 않는다."""
     cc.conf['cell']['beds']['SPONGE_BED_C'] = {'regrip': {'approach_posx': [0] * 6, 'posx': [0] * 6}, 'regrip_preset': 'CUP_SIDE'}
