@@ -480,8 +480,15 @@ class Flow:
         # 🚨 지난 실행에서 남은 중단 깃발이 새 실행으로 넘어오지 않게 (to_paused 가 resume 을
         #    지우는 것과 같은 이유). ①이 제 자리에서 지우지만, 두 번째 방어선을 둔다.
         sig.clear('abort')
-        for entry in self.plan:
+        self.message = ''
+
+        saw_container = False
+        last_zone_empty = False
+
+        for entry_i, entry in enumerate(self.plan):
             self.zone_id, self.kind = entry['zone'], entry['kind']
+            zone_empty = False
+
             for _ in range(entry['count']):
                 # 용기와 용기 사이. 단계 사이의 정지는 process_one 안에 따로 있다 (SDD §5.1)
                 if sig.peek('stop') or self._is_paused():
@@ -491,12 +498,50 @@ class Flow:
                         # 🚨 용기 **사이**라 접을 용기가 없다 → 정리 없이 다음 용기로 간다.
                         #    전에는 반환값을 버려서 **우연히** 이렇게 됐다 — 코드로 분명히 한다.
                         self.log.info('abort — 아직 집지 않았으므로 치울 것이 없다. 다음 용기로')
+
                 outcome = self.process_one(sig)
+
                 if outcome == HALT:
                     return
-                if outcome == SKIP_ZONE:        # 구역이 비었다 → 남은 count 를 버리고 다음 구역
+
+                if outcome == SKIP_ZONE:
+                    # pick()이 이 구역의 모든 슬롯을 확인한 뒤
+                    # EMPTY_ZONE을 반환한 경우.
+                    zone_empty = True
                     break
+
+                # EMPTY_ZONE이 아니었다면 이번 실행에서 처리할 용기를
+                # 하나 이상 발견한 것이다.
+                saw_container = True
+
+            if entry_i == len(self.plan) - 1:
+                last_zone_empty = zone_empty
+
+        # 마지막 구역(현재 RET_C)의 슬롯까지 모두 비었다면
+        # 마지막 슬롯의 접근 높이에서 HOME으로 복귀한다.
+        if last_zone_empty:
+            self.message = '반납 구역 확인 완료 — HOME 복귀 중'
+
+            r = self.call_fn('f1', 'move_to', 'HOME', False)
+
+            if not r.ok:
+                # 위치를 모르는 실패일 수 있으므로 HOME을 자동 재시도하지 않는다.
+                self.message = (
+                    f'HOME 복귀 실패 ({r.code}) — 로봇 위치를 확인하세요'
+                )
+                self.to_paused(
+                    f'EMPTY_ZONE 후 HOME 복귀 실패 ({r.code})',
+                    sig,
+                )
+                return
+
+            if not saw_container:
+                self.message = '처리 대상 없음 — HOME 복귀 완료'
+            else:
+                self.message = '남은 처리 대상 없음 — HOME 복귀 완료'
+
         self.step, self.kind, self.zone_id = 'DONE', '', ''
+
         self.log.info(f'plan 완료 — 그릇 {self.done_bowl} · 컵 {self.done_cup} · 격리 {self.isolated}')
         # 🚨 곧바로 IDLE 로 덮으면 2 Hz 타이머가 DONE 을 한 번도 못 보고 HMI 에 완료가 안 뜬다.
         #    발행 주기보다 길게 머무른다.
