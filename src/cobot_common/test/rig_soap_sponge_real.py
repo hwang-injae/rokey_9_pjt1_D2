@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 
+import argparse
+
 import cobot_common as cc
+from cobot_api import BRUSH, PICK, SPONGE
+from f1_handling import handling as f1
 
 
 # ============================================================
@@ -29,8 +33,13 @@ HEAD_GRIP_MM = 20.0
 PRESS_GRIP_MM = 0.0
 HEAD_GRIP_FORCE_N = 10.0
 
-# +Y -> SPONGE
-SPONGE_TURN_DEG = -90.0
+# 기준 방향 +Y
+# SPONGE 쪽 = -90 deg
+# BRUSH  쪽 = +90 deg
+TOOL_TURN_DEG = {
+    SPONGE: -90.0,
+    BRUSH: +90.0,
+}
 
 # force press
 FORCE_START_Z = 130.0
@@ -259,7 +268,7 @@ def force_press():
       -> 헤드 방향 전환
       -> 힘 기반 펌핑 구간
       -> 헤드 원위치
-      -> SPONGE PICK
+      -> 선택 툴 PICK
 
     전체 동작 구조 검증.
     """
@@ -406,274 +415,267 @@ def force_press():
 
 
 # ============================================================
-# SPONGE 실제 PICK
+# SPONGE / BRUSH 공용 세제 펌프 -> F1 TOOL PICK
 # ============================================================
 
-def sponge_pick_values():
-    cfg = cc.cfg()
-    cell = cfg['cell']
+def normalize_tool(value):
+    v = str(value).strip().upper()
 
-    # 기존 실기 규칙:
-    # return POSX = 실제 PICK 위치에서 Z +10
-    ret = [
-        float(v)
-        for v in
-        cell['stations']['TOOL_SPONGE']['return']['posx']
-    ]
+    if v in ('SPONGE', '스폰지'):
+        return SPONGE
 
-    x = ret[0]
-    y = ret[1]
-    wait_z = ret[2]
-    pick_z = wait_z - 10.0
-    abc = ret[3:6]
+    if v in ('BRUSH', 'SCRUBBER', '수세미'):
+        return BRUSH
 
-    # 현재 로컬 cell.yaml 의 SPONGE preset 일부가 None 이므로
-    # 이번 미스트 실기 rig에서만 최신 검증값을 임시 고정한다.
-    #
-    # main 기준:
-    #   grip_width_mm = 15.0
-    #   grip_zero_mm  = 10.58
-    #   width_tol_mm  = 0.6
-    #   grip_force_n  = 40
-    #
-    # target = 10.58 + (15.0 - 2*0.6) = 24.38 mm
-    target = 24.38
-    force = 40.0
-
-    return (
-        x, y,
-        wait_z, pick_z,
-        abc,
-        target, force,
+    raise ValueError(
+        f"지원하지 않는 tool={value!r} "
+        "(SPONGE / BRUSH / SCRUBBER)"
     )
 
 
+def pump_and_pick(tool):
+    """
+    F1 세제 펌프 전처리.
+
+    공통:
+      HOME
+      -> 세제 헤드 접근
+      -> 헤드 파지
+      -> 선택 툴 방향으로 J6 회전
+      -> 펌프 누르기
+      -> 헤드 +Y 원위치
+      -> F1 tool(tool, PICK)
+
+    차이:
+      SPONGE = -90 deg
+      BRUSH  = +90 deg
+
+    현재 미스트 펌프의 좌표/힘/스트로크는 TEMP.
+    최종 용기로 교체 후 파라미터만 재티칭한다.
+    """
+
+    if tool not in (SPONGE, BRUSH):
+        raise ValueError(
+            f"tool={tool!r} — SPONGE/BRUSH만 가능"
+        )
+
+    turn_deg = TOOL_TURN_DEG[tool]
+
+    print()
+    print("=" * 78)
+    print(f"MIST SOAP -> {tool} PICK / REAL")
+    print("=" * 78)
+    print(f"TOOL            : {tool}")
+    print(f"HEAD TURN       : {turn_deg:+.1f} deg")
+    print(f"MIST HEAD POSX  : {MIST_HEAD_POSX}")
+    print(
+        f"FORCE TEMP      : "
+        f"contact {CONTACT_N:.1f} N / "
+        f"target {FULL_PRESS_N:.1f} N"
+    )
+    print("용기 종속 좌표/힘/스트로크는 TEMP")
+    print("=" * 78)
+
+    # ------------------------------------------------------
+    # 빈손 시작
+    # ------------------------------------------------------
+
+    step(
+        "00 RG2 초기화",
+        f"빈손 확인 / 선택 툴={tool}"
+    )
+
+    cc.release()
+
+    # ------------------------------------------------------
+    # HOME
+    # ------------------------------------------------------
+
+    step(
+        "01 HOME",
+        f"{tool} 세제 시퀀스 시작"
+    )
+
+    cc.move_to(
+        'HOME',
+        False
+    )
+
+    # ------------------------------------------------------
+    # MIST 접근
+    # ------------------------------------------------------
+
+    fast_xy(
+        "02 SOAP X/Y",
+        SOAP_X,
+        SOAP_Y
+    )
+
+    orient_current_xyz(
+        "03 MIST HEAD orientation",
+        MIST_HEAD_POSX[3:6]
+    )
+
+    grip_width(
+        "04 HEAD OPEN 30 mm",
+        HEAD_OPEN_MM
+    )
+
+    fast_z(
+        "05 MIST HEAD Z117.94",
+        HEAD_Z
+    )
+
+    grip_width(
+        "06 HEAD GRIP 20 mm",
+        HEAD_GRIP_MM
+    )
+
+    # ------------------------------------------------------
+    # +Y -> 선택 툴 방향
+    # SPONGE -90 / BRUSH +90
+    # ------------------------------------------------------
+
+    turn_j6(
+        f"07 HEAD -> {tool} {turn_deg:+.0f} deg",
+        turn_deg
+    )
+
+    # ------------------------------------------------------
+    # 펌프 누르기 준비
+    # 30mm OPEN -> Z +30 -> 0mm
+    # ------------------------------------------------------
+
+    grip_width(
+        "08 HEAD OPEN 30 mm",
+        HEAD_OPEN_MM
+    )
+
+    fast_z_rel(
+        "08-1 HEAD 위로 +30 mm",
+        HEAD_LIFT_MM
+    )
+
+    grip_width(
+        "09 PRESS GRIP 0 mm",
+        PRESS_GRIP_MM
+    )
+
+    fast_z(
+        "09-1 FORCE START Z130",
+        FORCE_START_Z
+    )
+
+    # ------------------------------------------------------
+    # 힘 기반 펌프 구간
+    # ------------------------------------------------------
+
+    force_press()
+
+    # ------------------------------------------------------
+    # 펌프에서 빠져나오기
+    # ------------------------------------------------------
+
+    fast_z_rel(
+        "11 펌프에서 +30 mm 상승",
+        +30.0
+    )
+
+    grip_width(
+        "12 HEAD OPEN 30 mm",
+        HEAD_OPEN_MM
+    )
+
+    fast_z(
+        "13 HEAD Z117.94",
+        HEAD_Z
+    )
+
+    grip_width(
+        "14 HEAD GRIP 20 mm",
+        HEAD_GRIP_MM
+    )
+
+    # ------------------------------------------------------
+    # 선택 툴 방향 -> +Y 원위치
+    # ------------------------------------------------------
+
+    turn_j6(
+        f"15 {tool} -> +Y {-turn_deg:+.0f} deg",
+        -turn_deg
+    )
+
+    grip_width(
+        "16 HEAD RELEASE 30 mm",
+        HEAD_OPEN_MM
+    )
+
+    # ------------------------------------------------------
+    # F1 제품 함수로 실제 TOOL PICK
+    # ------------------------------------------------------
+
+    fast_z(
+        "17 TOOL PICK 이동 높이 Z150",
+        150.0
+    )
+
+    step(
+        f"18 F1 tool({tool}, PICK)",
+        "세제 펌프 완료 -> 툴 PICK -> F3 인계"
+    )
+
+    result = f1.tool(
+        tool,
+        PICK
+    )
+
+    print()
+    print(
+        f"[F1 TOOL PICK] "
+        f"tool={tool} / "
+        f"code={result.code} / "
+        f"width={result.width_mm:.2f} mm"
+    )
+
+    if not result.ok:
+        raise RuntimeError(
+            f"F1 tool({tool}, PICK) 실패: "
+            f"{result.code}"
+        )
+
+    print()
+    print("=" * 78)
+    print(f"SOAP -> {tool} PICK 완료")
+    print("이 상태에서 F3 인계")
+    print("=" * 78)
+
+    return result
+
+
 def main():
-    cc.init('rig_soap_sponge_real')
+    ap = argparse.ArgumentParser(
+        description=(
+            "세제 펌프 작동 후 "
+            "SPONGE/BRUSH PICK 실기 rig"
+        )
+    )
+
+    ap.add_argument(
+        "--tool",
+        default="SPONGE",
+        help=(
+            "SPONGE / BRUSH "
+            "(SCRUBBER도 BRUSH로 처리)"
+        ),
+    )
+
+    args = ap.parse_args()
+    tool = normalize_tool(args.tool)
+
+    cc.init('rig_soap_tool_real')
 
     try:
-        (
-            sponge_x,
-            sponge_y,
-            sponge_wait_z,
-            sponge_pick_z,
-            sponge_abc,
-            sponge_target_width,
-            sponge_force,
-        ) = sponge_pick_values()
-
-        print()
-        print("=" * 78)
-        print("MIST SOAP -> SPONGE / REAL")
-        print("=" * 78)
-
-        print(
-            f"MIST HEAD POSX : "
-            f"{MIST_HEAD_POSX}"
-        )
-
-        print(
-            f"FORCE          : "
-            f"contact {CONTACT_N:.1f} N / "
-            f"limit {FULL_PRESS_N:.1f} N"
-        )
-
-        print(
-            f"SPONGE PICK    : "
-            f"X={sponge_x:.2f}, "
-            f"Y={sponge_y:.2f}, "
-            f"wait Z={sponge_wait_z:.2f}, "
-            f"pick Z={sponge_pick_z:.2f}"
-        )
-
-        print()
-        print(
-            "자유이동 최대속도 / FORCE 구간만 저속"
-        )
-        print(
-            "q·Ctrl+C·예외 시 자동 HOME 없음"
-        )
-        print("=" * 78)
-
-        # 빈손일 때만 시작
-        step(
-            "00 RG2 초기화",
-            "빈손 상태 확인 후 Enter"
-        )
-
-        cc.release()
-
-        # ------------------------------------------------------
-        # HOME
-        # ------------------------------------------------------
-
-        step(
-            "01 HOME",
-            "세제 시퀀스 시작"
-        )
-
-        cc.move_to(
-            'HOME',
-            False
-        )
-
-        # ------------------------------------------------------
-        # SOAP 접근
-        # ------------------------------------------------------
-
-        fast_xy(
-            "02 SOAP X/Y",
-            SOAP_X,
-            SOAP_Y
-        )
-
-        orient_current_xyz(
-            "03 MIST HEAD orientation",
-            MIST_HEAD_POSX[3:6]
-        )
-
-        grip_width(
-            "04 그리퍼 30 mm",
-            HEAD_OPEN_MM
-        )
-
-        fast_z(
-            "05 MIST HEAD Z117.94",
-            HEAD_Z
-        )
-
-        grip_width(
-            "06 HEAD GRIP 20 mm",
-            HEAD_GRIP_MM
-        )
-
-        # +Y -> SPONGE
-        turn_j6(
-            "07 HEAD -> SPONGE -90 deg",
-            SPONGE_TURN_DEG
-        )
-
-        # ------------------------------------------------------
-        # 누르기 준비
-        # ------------------------------------------------------
-
-        grip_width(
-            "08 HEAD OPEN 30 mm",
-            HEAD_OPEN_MM
-        )
-
-        fast_z_rel(
-            "08-1 HEAD 위로 +30 mm",
-            HEAD_LIFT_MM
-        )
-
-        grip_width(
-            "09 PRESS GRIP 0 mm",
-            PRESS_GRIP_MM
-        )
-
-        # 여기까진 빠르게
-        fast_z(
-            "09-1 FORCE START Z130",
-            FORCE_START_Z
-        )
-
-        # ------------------------------------------------------
-        # 힘 감시 자동
-        # ------------------------------------------------------
-
-        force_press()
-
-        # ------------------------------------------------------
-        # 끝까지 눌렀으면 +30
-        # ------------------------------------------------------
-
-        fast_z_rel(
-            "11 펌프에서 +30 mm 상승",
-            +30.0
-        )
-
-        # 주댕이 피하기
-        grip_width(
-            "12 HEAD OPEN 30 mm",
-            HEAD_OPEN_MM
-        )
-
-        # 다시 주댕이 높이
-        fast_z(
-            "13 HEAD Z117.94",
-            HEAD_Z
-        )
-
-        grip_width(
-            "14 HEAD GRIP 20 mm",
-            HEAD_GRIP_MM
-        )
-
-        # SPONGE -> +Y
-        turn_j6(
-            "15 HEAD -> +Y +90 deg",
-            -SPONGE_TURN_DEG
-        )
-
-        grip_width(
-            "16 HEAD RELEASE 30 mm",
-            HEAD_OPEN_MM
-        )
-
-        # ------------------------------------------------------
-        # SPONGE PICK으로 이동
-        # ------------------------------------------------------
-
-        fast_z(
-            "17 SPONGE 이동 높이 Z150",
-            150.0
-        )
-
-        orient_current_xyz(
-            "18 SPONGE PICK orientation",
-            sponge_abc
-        )
-
-        fast_xy(
-            "19 SPONGE PICK X/Y",
-            sponge_x,
-            sponge_y
-        )
-
-        fast_z(
-            "20 SPONGE PICK WAIT Z",
-            sponge_wait_z
-        )
-
-        fast_z(
-            "21 SPONGE PICK Z",
-            sponge_pick_z
-        )
-
-        # 실제 sponge grip
-        step(
-            "22 SPONGE PICK",
-            f"width={sponge_target_width:.2f} mm / "
-            f"force={sponge_force:.1f} N\n"
-            f"이후 F3 인계"
-        )
-
-        actual = cc.grip(
-            sponge_target_width,
-            sponge_force
-        )
-
-        print()
-        print(
-            f"[SPONGE PICK] actual width={actual:.2f} mm"
-        )
-
-        print()
-        print("=" * 78)
-        print("SOAP -> SPONGE PICK 완료")
-        print("자동 HOME / 자동 RELEASE 없음")
-        print("=" * 78)
+        pump_and_pick(tool)
 
     except UserQuit:
         print()
@@ -691,12 +693,12 @@ def main():
             f"[ERROR] {type(e).__name__}: {e}"
         )
         print(
-            "자동 HOME / 자동 RELEASE / 자동 추가 이동 없음"
+            "자동 HOME / 자동 RELEASE / "
+            "자동 추가 이동 없음"
         )
         raise
 
     finally:
-        # 움직이지 않고 힘/순응 상태만 해제
         try:
             cc.force_off()
         except Exception:
