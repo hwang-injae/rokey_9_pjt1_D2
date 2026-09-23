@@ -17,7 +17,7 @@
 
 🔄 9/23 최신 그림: **[images/system_architecture_pc.html](images/system_architecture_pc.html)** — Archify 로 만든 대화형 HTML(브라우저에서 열기 · 확대 · 경로 추적 · "시연 실행 경로 / 로봇 명령 경로 / 설정·기록" 보기 전환). 위 PNG 는 그 화면 캡처. 원본 명세는 `images/system_architecture_pc.archify.json`(수정 뒤 `archify deliver` 로 다시 만든다).
 
-그림 규칙: **사각형 = 노드, 타원 = 토픽, 점선 상자 = 파이썬 패키지·라이브러리(노드 아님)**. 실선 화살표는 서비스 호출(요청 방향)이고 라벨에 `서비스 이름 : 타입`을 적는다. 점선 화살표는 토픽 publish/subscribe이고 라벨에 메시지 타입을 적는다. 회색 가는 화살표는 **파이썬 함수 호출**(ROS 통신 아님)이다. **PC-B(웹) 안쪽은 비워 두었다** — 황인재의 HMI 설계 초안(F4-00) 뒤 DSN-03 회의에서 채운다. 팀이 다시 그릴 수 있게 같은 내용의 [.drawio](images/system_architecture_pc.drawio)를 둔다(생성기 `tools/gen/gen_arch.py`).
+그림 규칙(9/23 Archify 판): **초록 = 우리 프로그램·함수 모듈**(flow_node · hmi_bridge · f1/f2/f3 · cobot_common) · **주황 = ROS 2 DDS**(토픽·서비스) · **보라 = 기록**(records.csv · prewash.db) · **회색 = 드라이버·장비**(두산·그리퍼 드라이버 · 컨트롤러 · RG2) · **점선 상자 = PC 경계와 로봇 셀**. 굵은 초록 화살표가 시연 실행 경로(시작 → flow_node → 기능 함수), 회색이 로봇 명령 경로(cobot_common → 드라이버 → 장비), 점선이 상태·설정 흐름이다. 화살표 라벨은 실제 이름(`/flow/*` · `cc.*` · 서비스·포트)이다.
 
 **구조 한 줄 요약(9/18 저녁 결정, [DSN-02b](meetings/20260918_결정기록_구조_인터페이스.md))**: `flow_node`가 **메인 프로그램**이다. f1·f2·f3는 노드가 아니라 **함수를 제공하는 파이썬 패키지**이고, `flow_node`의 메인 스레드가 그 함수를 차례로 부른다. 두산 API가 전제하는 "혼자 도는 스크립트" 방식 그대로다. ROS 통신은 flow ↔ HMI, 그리고 `cobot_common` ↔ 두산·그리퍼 드라이버뿐이다.
 
