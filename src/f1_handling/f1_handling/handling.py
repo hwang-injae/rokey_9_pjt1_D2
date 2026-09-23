@@ -242,7 +242,7 @@ def place(station: str, kind: str = None) -> PlaceResult:
       깊이 미달이면 periodic_search(cell.beds.*.seat) → 들어가면 release(offset_mm = 보정 거리) / 한도 초과면 **들고** 후퇴 + SEAT_FAIL.
       지금은 스펀지 홈에서도 위 일반 놓기로 돈다(9/20 범위 방어: "단순 놓기부터").
     """
-    # BOWL ISOLATE는 실기 검증된 J1-only 경로를 사용한다.
+    # BOWL ISOLATE는 현재 위치에서 ISOLATE.BOWL로 직접 이동한다.
     # CUP 및 다른 station은 기존 place() 로직 그대로.
     if station == 'ISOLATE' and kind == 'BOWL':
         return _place_isolate_bowl()
