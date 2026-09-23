@@ -234,6 +234,20 @@ def _release_hold(kind):
     _quietly('grip_level(NORMAL)', _hold, kind, NORMAL)
 
 
+def _slip_tol(conf, kind):
+    """미끄러짐 허용 폭(mm) — f2.slip_tol_mm 가 숫자면 공통, {BOWL: …, CUP: …} 면 종류별.
+
+    🔄 9/23 11:41 실기(황인재 · 컵 98 g 3회차): 컵 벽 집기(1.7 mm)는 HOLD 로 세게 쥐면 **컵 테두리가 눌려** 폭이 12.2 → 11.2 로
+       1.00 mm 줄었고(어제 0.9), 공통 1.0 에 걸려 GRIP_FAIL·PAUSED 가 났다 — 놓친 게 아니다. 그릇(단단한 벽)은 0.4 만 변하므로
+       그릇 1.0 은 그대로 두고 컵만 넓힌다. 컵을 놓치면 폭이 목표(11.08)까지 닫히는데 그것도 1.1 차라 폭으로는 구분이 안 되고,
+       놓친 컵은 다음 weigh(빈손 −120 g → 하한 −60 아래 → 폭 판정 빈손)가 잡는다(E19 ③ 한계 그대로).
+    """
+    tol = _need(conf, 'slip_tol_mm', cast=lambda v: v)      # 숫자 또는 {종류: 숫자} — 여기서는 형만 받고 아래서 float 로
+    if isinstance(tol, dict):
+        return _need(tol, kind, where='f2.slip_tol_mm', lo=0.0)
+    return float(tol)
+
+
 def _slipped(label, w_before, w_after, tol):
     """동작 전후 그리퍼 폭이 tol 보다 변했으면 미끄러진 것. 🚨 기준은 여기 한 곳.
 
@@ -480,7 +494,7 @@ def shake(mode: str, count: int, kind: str) -> Result:
         amp = _need(p, 'amp_deg', lo=0.0, hi=_need(lim, 'max_amp_deg', where='f2.limits'),
                     where=f'f2.shake.{mode}')
     period = _need(p, 'period_s', lo=0.0, where=f'f2.shake.{mode}')
-    slip_tol = _need(conf, 'slip_tol_mm')
+    slip_tol = _slip_tol(conf, kind)                          # 🔄 9/23 종류별 허용(컵 테두리 눌림)
     tilt = 0.0
     if p.get('tilt_deg') is not None:                        # 🆕 선택 — 있으면 상한까지 검사 (관절 왕복에만)
         if linear:
@@ -607,7 +621,7 @@ def dip(station: str, count: int, kind: str) -> Result:
                   where=f'f2.dip.{station}')
     hold_s = _need(p, 'hold_s', lo=0.0, hi=_need(lim, 'max_hold_s', where='f2.limits'),
                    where=f'f2.dip.{station}')
-    slip_tol = _need(conf, 'slip_tol_mm')
+    slip_tol = _slip_tol(conf, kind)                          # 🔄 9/23 종류별 허용(컵 테두리 눌림)
     n = int(count)
 
     if n <= 0:
