@@ -575,13 +575,12 @@ def _soap_pump_and_pick(station, tool, preset, clear) -> ToolResult:
     move_z(tool_pick_z)
 
     if not full_press:
-        _log().error(
-            f'세제 펌프 실패 — {max_travel:.1f} mm 내 '
-            f'{full_press_n:.1f} N 미도달'
+        _log().warning(
+            f'세제 펌프 압력 미도달 — {max_travel:.1f} mm 내 '
+            f'{full_press_n:.1f} N 미도달. 툴 PICK은 계속 진행'
         )
-        return ToolResult.fail(TOOL_FAIL)
 
-    # 기존 검증된 F1 툴 픽업
+    # 펌프 압력 미도달이어도 안전 퇴피 후 기존 F1 툴 픽업 계속
     return _tool_pick(station, tool, preset, clear)
 
 
