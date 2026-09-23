@@ -435,11 +435,12 @@ def test_slip_tol_per_kind(monkeypatch):
     s.cc.cfg()['f2']['slip_tol_mm'] = {'BOWL': 1.0, 'CUP': 1.5}
     try:
         assert s.shake('WASTE', 1, 'CUP').ok
-        r2 = Rec(widths=[12.2, 12.2, 11.2])
-        s2 = _sense(monkeypatch, r2)
-        s2.cc.cfg()['f2']['slip_tol_mm'] = {'BOWL': 1.0, 'CUP': 1.5}
-        out = s2.shake('WASTE', 1, 'BOWL')
-        assert not out.ok and out.code == GRIP_FAIL
+        assert s._slip_tol(s.cc.cfg()['f2'], 'BOWL') == pytest.approx(1.0)   # 그릇은 그대로 1.0
+        assert s._slip_tol(s.cc.cfg()['f2'], 'CUP') == pytest.approx(1.5)
+        assert s._slipped('x', 12.25, 11.2, 1.0) is True                       # 1.05 mm 변화 — 그릇 허용(1.0)에서는 미끄러짐(실기 1.00 은 부동소수점으로 살짝 넘어 걸렸다)
+        assert s._slipped('x', 12.25, 11.2, 1.5) is False
+        s.cc.cfg()['f2']['slip_tol_mm'] = 1.0                                   # 숫자도 그대로 받는다
+        assert s._slip_tol(s.cc.cfg()['f2'], 'CUP') == pytest.approx(1.0)
     finally:
         s.cc.cfg()['f2']['slip_tol_mm'] = 1.0          # CFG 는 모듈 공용 — 되돌린다
 
