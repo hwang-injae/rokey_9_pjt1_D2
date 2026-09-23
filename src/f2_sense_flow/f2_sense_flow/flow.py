@@ -17,7 +17,8 @@ import re
 import threading
 import time
 
-from cobot_api import OK, ROBOT_ERROR, Result
+import cobot_common as cc
+from cobot_api import OK, PICK, ROBOT_ERROR, TOOL_LOST, Result
 
 from .logger import Consumables, Records, now_iso
 
@@ -36,7 +37,8 @@ GO_ON = 'go_on'                  # 이 구역의 다음 용기로
 SKIP_ZONE = 'skip_zone'          # 이 구역은 그만, 다음 구역으로 (EMPTY_ZONE)
 HALT = 'halt'                    # 전부 중단 (Ctrl+C 등)
 # wait_resume 이 돌려주는 값 — 사람이 PAUSED 에서 무엇을 눌렀나
-RESUMED = 'resumed'              # 재개 (이어서)
+RESUMED = 'resumed'              # 재개 (이어서) — HMI 버튼
+RESUMED_NUDGE = 'resumed_nudge'  # 재개 — 넛지(힘). 컨트롤러 쪽 SOS 해제가 아직 안 끝났을 수 있어 구분한다
 ABORTED = 'aborted'              # 중단 (이 용기를 접고 다음 용기)
 # handle_failure 만 돌려주는 값 — run_plan 까지 올라가지 않고 process_one 이 그 자리에서 쓴다
 RETRY_STEP = 'retry_step'        # 재개 — **실패한 그 단계부터 다시** (IRD §8 · 9/20 PM 결정)
@@ -399,8 +401,12 @@ class Flow:
         self.step = 'PAUSED'
         self.log.warn(f'PAUSED — resume 을 기다린다{(" · " + why) if why else ""}')
 
-    def wait_resume(self, sig):
+    def wait_resume(self, sig, allow_nudge=False):
         """resume 을 기다린다. 기다리는 동안에도 /flow/state 는 계속 나간다.
+
+        allow_nudge=True 면 HMI 재개 버튼 대신(또는 같이) **로봇을 살짝 밀거나 톡 치는 것**도 재개 신호로
+        본다(E37 · NEW-02a — cell.limits.nudge_force_n·nudge_hold_s). TOOL_LOST 처럼 사람이 현장에서
+        바로 손대는 상황에만 쓴다 — ROBOT_ERROR 등 위치를 모르는 상황에서는 안 쓴다(handle_failure 가 고른다).
 
         Ctrl+C 로 끝내려면 여기서 KeyboardInterrupt 가 올라가 main() 의 finally 로 간다.
 
@@ -414,6 +420,16 @@ class Flow:
         # 🚨 여기서 resume 을 지우지 않는다 — 지우는 것은 to_paused 가 'PAUSED' 로
         #    바꾸기 **전**에 한다(이유는 to_paused 주석). 여기서 지우면 to_paused 와
         #    이 줄 사이에 들어온 **정당한** resume 이 조용히 사라진다.
+        if allow_nudge:
+            # 🚨 halt() 명령은 즉시 나가지만 팔이 실제로 완전히 멈추기까지는 물리적으로 시간이 든다.
+            #    그 사이 기준값을 잡으면 흔들리는 값이 기준이 돼 오작동한다.
+            #    완전히 멈춘 뒤에 기준을 잡도록 settle_s 만큼 기다린다.
+            time.sleep(float(cc.cfg()['cell']['limits']['nudge_settle_s']))
+            cc.start_nudge_watch()
+            nudge_force_n = float(cc.cfg()['cell']['limits']['nudge_force_n'])
+            nudge_hold_s = float(cc.cfg()['cell']['limits']['nudge_hold_s'])
+            nudge_poll_s = float(cc.cfg()['cell']['limits']['nudge_poll_s'])
+            last_nudge_check = 0.0
         while True:
             if sig.take('abort'):                     # 🆕 사람이 "이 용기는 접자" 고 판단했다
                 sig.clear('stop')
@@ -424,6 +440,17 @@ class Flow:
                 self.step = self._prev_step
                 self.log.info('resume — 이어서 진행한다')
                 return RESUMED
+            # 🚨 9/23 실기: check_nudge 를 _POLL_S(0.05s)마다 부르면 힘 읽기 요청이 로봇 실시간
+            #    제어 채널을 계속 붙잡아 하트비트가 5초 안에 못 나가 SAFE_STOP(1.3014)이 걸렸다
+            #    (충돌 감지가 아니었다 — 통신 과부하였다). nudge_poll_s 간격으로만 부른다.
+            now = time.monotonic()
+            if allow_nudge and now - last_nudge_check >= nudge_poll_s:
+                last_nudge_check = now
+                if cc.check_nudge(nudge_force_n, nudge_hold_s):
+                    sig.clear('stop')
+                    self.step = self._prev_step
+                    self.log.info('넛지 감지 — 이어서 진행한다')
+                    return RESUMED_NUDGE
             time.sleep(_POLL_S)
 
     def abort_container(self, sig):
@@ -628,7 +655,7 @@ class Flow:
 
         if action == PAUSE:
             self.to_paused(f'코드 {self.last_code}', sig)
-            answer = self.wait_resume(sig)
+            answer = self.wait_resume(sig, allow_nudge=(self.last_code == TOOL_LOST))
             if answer == ABORTED:                     # 🆕 사람이 이 용기를 접기로 했다
                 return self.abort_container(sig)
             # 🚨 ROBOT_ERROR 만 예외 — 로봇이 어디 있는지 모르는 채 같은 단계를 다시 하면 위험하다.
@@ -638,7 +665,22 @@ class Flow:
             if self.last_code == ROBOT_ERROR:
                 self.emit_event('ERROR')
                 return GO_ON
-            # 그 밖(GRIP_FAIL·RACK_FULL)은 사람이 확인·조치한 뒤 **실패한 그 단계부터** 이어 간다.
+            if self.last_code == TOOL_LOST:            # 🆕 E37 — 닦는 도중 놓쳤다. 이어가기 전에 다시 집는다
+                if answer == RESUMED_NUDGE:
+                    # 🚨 9/23 실기: 넛지(밀기)로 재개하면 컨트롤러 쪽 SOS(RS1 뒤 자세 유지 감시)가
+                    #    아직 안 풀렸는데 바로 새 이동을 보내 MoveIncomplete 로 끊겼다. 저희 힘 감지가
+                    #    컨트롤러의 공식 넛지 처리보다 먼저 반응할 수 있어서, 고정 시간 대신 로봇 상태가
+                    #    STANDBY(정상)로 돌아올 때까지 직접 본다.
+                    timeout_s = float(cc.cfg()['cell']['limits']['nudge_resume_settle_s'])
+                    if not cc.wait_robot_ready(timeout_s):
+                        self.log.warn(f'넛지 뒤 로봇이 {timeout_s:g} s 안에 STANDBY 로 안 돌아왔다 — 그래도 이어간다')
+                tool_id = 'SPONGE' if self.kind == 'BOWL' else 'BRUSH'
+                rt = self.call_fn('f1', 'tool', tool_id, PICK)
+                self._collect('TOOL_LOST 재PICK', 'tool', rt)
+                if not rt.ok:                          # 재PICK도 실패 — 그 코드의 정책을 새로 탄다
+                    self.last_code = rt.code
+                    return self.handle_failure(sig)
+            # 그 밖(GRIP_FAIL·RACK_FULL·TOOL_LOST 재PICK 성공)은 **실패한 그 단계부터** 이어 간다.
             #    끝까지 가면 DONE 으로 기록되므로 여기서는 이벤트를 내지 않는다(9/20 PM 결정).
             #    다시 실패하면 또 PAUSED 가 된다 — 풀려면 사람이 resume 을 눌러야 하므로 혼자 돌지 않는다.
             #    사람이 "이 용기는 접자" 고 판단하면 /flow/abort 다(IRD §6 · PR #50 으로 구현됨

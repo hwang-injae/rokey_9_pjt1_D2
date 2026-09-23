@@ -75,6 +75,8 @@ def main():
     ap.add_argument('--mock', default='f3', help='가짜로 돌릴 기능, 쉼표 (기본 f3 — 툴·닦기는 가짜)')
     ap.add_argument('-n', type=int, default=1, help='연속 몇 개 (반납 구역에 그만큼)')
     ap.add_argument('--no-robot', action='store_true', help='전부 가짜일 때만')
+    ap.add_argument('--nudge', action='store_true',
+                     help='PAUSED 에서 키보드로 안 묻는다 — 넛지(로봇을 밀거나 톡 치기)·HMI 로만 재개(E37 실기용)')
     a = ap.parse_args()
     use_mock = [m for m in parse_use_mock(a.mock) if m in FEATURES] if a.mock else []
     robot = not (a.no_robot or set(FEATURES) <= set(use_mock))
@@ -117,7 +119,9 @@ def main():
             log.info('E15 — 먼저 HOME 으로 간다')
             cc.force_off()
             go_home_safely(None, log, False)
-        sig = HumanSignals(log)
+        sig = Signals() if a.nudge else HumanSignals(log)
+        if a.nudge:
+            log.info('--nudge — PAUSED 에서 키보드로 안 묻는다. 넛지(로봇을 밀거나 톡 치기)로 재개한다')
         f.zone_id, f.kind = zone, a.kind
         for i in range(1, a.n + 1):
             log.info(f'━━ 용기 {i}/{a.n} · {a.kind} · {zone} · 팔레트 {f._next_slot()} ━━')

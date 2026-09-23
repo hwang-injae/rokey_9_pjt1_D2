@@ -11,7 +11,7 @@ import math
 
 import pytest
 
-from cobot_api import FORCE_LIMIT, OK, ROBOT_ERROR, TIMEOUT
+from cobot_api import FORCE_LIMIT, OK, ROBOT_ERROR, TIMEOUT, TOOL_LOST
 from f3_wipe import wipe
 
 WALL_R = (110.0 - 90.0) / 2 + 4.0
@@ -21,6 +21,7 @@ AIR = 2.0
 FIND = 11.0
 CFG0 = {
     'run': {'vel_scale': 0.3},
+    'f2': {'slip_tol_mm': 1.0},                                          # TOOL_LOST 판정 허용오차(재사용)
     'cell': {'force': {'compliance_stx': [1000, 1000, 200, 100, 100, 100]},
              'stations': {'HOME': {'posj': HOME_POSJ}}},
     'f3': {'wipe_bowl': {
@@ -67,6 +68,10 @@ class FakeRobot:
         self.halted = False
         self.fail = None
         self.logger = _Logger()
+        self.width = 20.0                                # TOOL_LOST 시험용 — 기본은 안 변한다(안 놓침)
+
+    def grip_width(self):
+        return self.width
 
     def _chk(self, name):
         if self.fail == name:
@@ -132,6 +137,9 @@ class FakeRobot:
     def force_release(self):
         self.calls.append(('release_force',))
 
+    def stop_now(self):
+        self.calls.append(('stop_now',))
+
     def cfg(self):
         return self.cfg_
 
@@ -165,7 +173,7 @@ class FakeRobot:
 
 CC_NAMES = ('move_joints', 'move_line_rel', 'move_rel', 'move_pose', 'move_arc', 'where', 'wait_done', 'compliance_on',
             'move_spiral', 'motion_done', 'force_release', 'cfg', 'contact_down', 'read_force', 'force_on', 'force_off',
-            'is_halted', 'io_node')
+            'is_halted', 'io_node', 'grip_width', 'stop_now')
 
 
 @pytest.fixture
@@ -174,6 +182,7 @@ def rb(monkeypatch, tmp_path):
     r = FakeRobot()
     for name in CC_NAMES:
         monkeypatch.setattr(wipe.cc, name, getattr(r, name), raising=False)
+    monkeypatch.setattr(wipe, '_tool_baseline_mm', None, raising=False)   # 다른 시험의 soap() 기준이 새지 않게
     return r
 
 
@@ -251,6 +260,70 @@ def test_bottom_not_found(rb):
     assert not r.ok and 'spiral' not in _names(rb) and _ended_home(rb)
 
 
+def test_tool_lost_detected_before_spiral(rb, monkeypatch):
+    """9/23: soap 이 넘긴 기준 폭보다 크게 벗어나면(바닥 찾은 뒤 나선 전) TOOL_LOST — FORCE_LIMIT 과는 별개 코드."""
+    monkeypatch.setattr(wipe, '_tool_baseline_mm', 20.0, raising=False)
+    orig_contact_down = rb.contact_down
+
+    def dropped(*a, **kw):
+        result = orig_contact_down(*a, **kw)
+        rb.width = 20.0 + 5.0                        # slip_tol_mm(1.0)보다 훨씬 크게 벗어남 — 실기 재현 값 참고
+        return result
+
+    monkeypatch.setattr(wipe.cc, 'contact_down', dropped, raising=False)
+    r = wipe.wipe_bowl()
+    assert not r.ok and r.code == TOOL_LOST
+    # 🚨 9/23 실기 사고: 놓친 뒤 "실패했으니 원래 높이로 올라오기"까지 하면 빈 그리퍼로 더 움직인다 —
+    #    TOOL_LOST 는 감지된 그 자리에 그대로 둔다(올라오지 않는다).
+    assert 'spiral' not in _names(rb) and not _ended_home(rb)
+    assert 'movec' not in _names(rb)                          # 나선 이후(벽면)로도 안 갔다
+
+
+def test_tool_lost_during_fast_descend_halts_immediately(rb, monkeypatch):
+    """9/23: 체크 지점이 없는 단일 move_rel(빠른 하강) 도중 놓쳐도 감시 스레드가 halt() 로 그 자리에서 세운다."""
+    import time as _t
+
+    monkeypatch.setattr(wipe, '_tool_baseline_mm', 20.0, raising=False)
+    rb.width = 20.0
+    halted = {'flag': False}
+    real_move_rel = rb.move_rel
+
+    def slow_move_rel(dx, dy, dz, frame, **kw):
+        rb.width = 20.0 + 5.0                        # 이동이 시작되는 순간 놓친 걸로 바꾼다
+        t0 = _t.monotonic()
+        while _t.monotonic() - t0 < 0.3:
+            if halted['flag']:
+                raise wipe.cc.MotionHalted('시험: halt 도중')
+            _t.sleep(0.01)
+        return real_move_rel(dx, dy, dz, frame, **kw)
+
+    monkeypatch.setattr(wipe.cc, 'move_rel', slow_move_rel, raising=False)
+    monkeypatch.setattr(wipe.cc, 'halt', lambda: halted.update(flag=True), raising=False)
+    monkeypatch.setattr(wipe.cc, 'clear_halt', lambda: halted.update(flag=False), raising=False)
+
+    r = wipe.wipe_bowl()
+    assert not r.ok and r.code == TOOL_LOST
+    assert 'contact_down' not in _names(rb)          # 하강 중에 멈췄다 — 접촉까지도 못 갔다
+    assert halted['flag'] is False                   # 우리가 건 halt는 우리가 풀었다(clear_halt)
+
+
+def test_wipe_bowl_sets_its_own_baseline_without_soap(rb, monkeypatch):
+    """9/23: TOOL_LOST 뒤 flow 는 soap() 없이 wipe_bowl() 만 재시도한다(재PICK 후) —
+    이 함수 혼자서도 자기가 쥔 폭을 기준으로 놓침을 잡아야 한다(soap() 가 준 기준에 기대면 안 된다)."""
+    assert wipe._tool_baseline_mm is None            # soap() 를 거치지 않았다 — fixture 가 리셋해 둔 상태
+    rb.width = 30.0                                  # 이번에 실제로 쥔 폭(soap 을 안 거쳤으니 임의값)
+    orig_contact_down = rb.contact_down
+
+    def dropped(*a, **kw):
+        result = orig_contact_down(*a, **kw)
+        rb.width = 30.0 + 5.0                        # 기준(자기가 방금 잰 30.0)보다 크게 벗어남
+        return result
+
+    monkeypatch.setattr(wipe.cc, 'contact_down', dropped, raising=False)
+    r = wipe.wipe_bowl()
+    assert not r.ok and r.code == TOOL_LOST, 'soap() 없이도 wipe_bowl 스스로 기준을 잡아 놓침을 잡아야 한다'
+
+
 def test_air_force_too_big(rb):
     rb.air = 3.5
     r = wipe.wipe_bowl()
@@ -279,7 +352,7 @@ def test_halt_before_start_does_not_move(rb):
     rb.halted = True
     with pytest.raises(wipe.cc.MotionHalted):
         wipe.wipe_bowl()
-    assert _names(rb) == ['force_off']
+    assert _names(rb) == ['stop_now', 'force_off']
 
 
 def test_spiral_timeout(rb, monkeypatch):

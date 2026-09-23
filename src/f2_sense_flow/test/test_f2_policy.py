@@ -8,7 +8,8 @@ import types
 
 import pytest
 
-from cobot_api import F1Api, F2Api, F3Api, GRIP_FAIL, Result
+from cobot_api import F1Api, F2Api, F3Api, GRIP_FAIL, PICK, TOOL_LOST, Result
+from f2_sense_flow import flow as flow_module
 from f2_sense_flow import mock
 from f2_sense_flow.flow import _POLL_S, Flow, Signals, load_features
 
@@ -26,7 +27,8 @@ CFG = {'flow': {
                'FORCE_LIMIT': 'retry:1->isolate', 'TIMEOUT': 'retry:1->isolate',
                'RACK_JAM': 'retry:1->isolate', 'TOOL_FAIL': 'retry:1->isolate',
                'RACK_FULL': 'pause', 'ROBOT_ERROR': 'pause',
-               'GRIP_FAIL': 'pause'},          # 9/20 결정 E12 — params.yaml 과 같은 값
+               'GRIP_FAIL': 'pause',           # 9/20 결정 E12 — params.yaml 과 같은 값
+               'TOOL_LOST': 'pause'},          # 9/23 결정 E37 — params.yaml 과 같은 값
     'counts': {'soap_dips': 3, 'rinse_dips': 1, 'rinse_shakes': 3},
     'step_delay_s': 0.0,
     'done_hold_s': 0.0,     # 시험에서는 기다리지 않는다
@@ -409,6 +411,51 @@ def test_resume_redoes_the_failed_step():
     assert sig.resumes >= 1, 'GRIP_FAIL 인데 PAUSED 를 거치지 않았다 (E12)'
     assert len(tries) == 2, f'재개 뒤 같은 단계를 다시 하지 않았다 (dip {len(tries)}회)'
     assert f.isolated == 0, 'GRIP_FAIL 은 격리가 아니다 — 놓친 용기는 손에 없을 수 있다 (E12)'
+    assert [e['result'] for e in events] == ['DONE'], '마저 해서 끝났으면 DONE 이다'
+
+
+def test_tool_lost_repicks_before_retrying_step(monkeypatch):
+    """🆕 E37 — TOOL_LOST 로 멈추면 재개 전에 f1.tool(PICK) 을 다시 부른 뒤 실패한 단계부터 다시.
+
+    GRIP_FAIL 과 달리 손에 아무것도 없는 게 아니라 **툴을 놓친** 것이라, 그냥 다시 하면
+    빈손으로 닦으려 든다 — 재개 전에 반드시 다시 집어야 한다(handle_failure).
+    """
+    monkeypatch.setattr(flow_module.cc, 'start_nudge_watch', lambda: None)
+    monkeypatch.setattr(flow_module.cc, 'check_nudge', lambda *a: False)   # 여기선 HMI 재개(AutoResume)만 본다
+
+    mock.configure([])
+    mods = load_features(['f1', 'f2', 'f3'])
+    wipe_tries = []
+    tool_calls = []
+
+    def wipe_bowl():
+        wipe_tries.append(1)
+        if len(wipe_tries) == 1:                     # 첫 번째 닦기 중 놓침
+            return Result.fail(TOOL_LOST)
+        return mods['f3'].wipe_bowl()
+
+    def tool(tool_id, action):
+        tool_calls.append((tool_id, action))
+        return mods['f1'].tool(tool_id, action)
+
+    f3 = types.SimpleNamespace(**{n: getattr(mods['f3'], n) for n in dir(F3Api) if not n.startswith('_')})
+    f3.wipe_bowl = wipe_bowl
+    f1 = types.SimpleNamespace(**{n: getattr(mods['f1'], n) for n in dir(F1Api) if not n.startswith('_')})
+    f1.tool = tool
+
+    events = []
+    f = Flow(CFG, Quiet(), publish_event=events.append)
+    f.f = {'f1': f1, 'f2': mods['f2'], 'f3': f3}
+    f.plan = [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 1}]
+
+    sig = PauseWatcher()
+    f.run_plan(sig)
+
+    assert sig.resumes >= 1, 'TOOL_LOST 인데 PAUSED 를 거치지 않았다'
+    assert len(wipe_tries) == 2, f'재개 뒤 같은 단계(wipe_bowl)를 다시 하지 않았다 ({len(wipe_tries)}회)'
+    pick_calls = [c for c in tool_calls if c[1] == PICK]
+    assert len(pick_calls) == 2, f'놓친 뒤 재PICK 을 안 했다 (tool PICK {len(pick_calls)}회 — 원래 1 + 재PICK 1 = 2)'
+    assert f.isolated == 0, 'TOOL_LOST 는 격리가 아니다'
     assert [e['result'] for e in events] == ['DONE'], '마저 해서 끝났으면 DONE 이다'
 
 

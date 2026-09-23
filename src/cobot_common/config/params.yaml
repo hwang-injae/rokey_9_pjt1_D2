@@ -254,6 +254,8 @@ flow:                                 # ── flow 절 (민범진) ── 🟡 
     TIMEOUT: "retry:1->isolate"
     RACK_JAM: "retry:1->isolate"
     TOOL_FAIL: "retry:1->isolate"
+    TOOL_LOST: pause                  # 🆕 E37(9/23) — 닦는 도중 놓침. 정지 → 사람이 홀더에 다시 놓고 넛지(또는 HMI 재개)
+                                      #    → f1.tool 재PICK(handle_failure) → 그 단계부터 다시. GRIP_FAIL 과 같은 결
     RACK_FULL: pause
     ROBOT_ERROR: pause
   consumables: {sponge_max_uses: 20, soap_max_dips: 60}

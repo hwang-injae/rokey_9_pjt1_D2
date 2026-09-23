@@ -429,6 +429,80 @@ def test_contact_down_does_not_count_paused_time(robot, monkeypatch):
 def test_exports():
     import cobot_common as cc
     for name in ('force_on', 'force_off', 'force_reached', 'contact_down', 'periodic_search', 'safe_retreat',
-                 'read_force', 'force_check', 'compliance_on', 'compliance_off',
+                 'read_force', 'force_check', 'compliance_on', 'compliance_off', 'start_nudge_watch', 'check_nudge',
+                 'robot_state', 'wait_robot_ready',
                  'where', 'motion_done', 'move_spiral', 'move_arc', 'move_periodic', 'joints', 'stop_now', 'ForceLimitError', 'MotionTimeout'):
         assert hasattr(cc, name), name
+
+
+# ------------------------------------------------------------------ 넛지 감지 (E37 · NEW-02a/b)
+@pytest.fixture
+def _reset_nudge():
+    force._nudge_baseline = None
+    force._nudge_above_since = None
+    yield
+    force._nudge_baseline = None
+    force._nudge_above_since = None
+
+
+def test_check_nudge_requires_start_first(_reset_nudge):
+    with pytest.raises(RuntimeError, match='start_nudge_watch'):
+        force.check_nudge(15.0, 0.15)
+
+
+def test_check_nudge_ignores_small_change(_reset_nudge, monkeypatch):
+    """기준 대비 별 차이 없으면(정지 상태의 정상 흔들림) 넛지로 안 본다."""
+    monkeypatch.setattr(force, 'read_force', lambda: [0.0, 0.0, 0.0, 0, 0, 0])
+    force.start_nudge_watch()
+    monkeypatch.setattr(force, 'read_force', lambda: [0.5, 0.0, 0.5, 0, 0, 0])
+    assert force.check_nudge(15.0, 0.15) is False
+
+
+def test_check_nudge_true_after_sustained_push(_reset_nudge, monkeypatch):
+    """threshold_n 을 넘은 상태가 hold_s 동안 이어져야 True — 순간 노이즈 한 번으로는 안 된다."""
+    monkeypatch.setattr(force, 'read_force', lambda: [0.0, 0.0, 0.0, 0, 0, 0])
+    force.start_nudge_watch()
+    times = iter([0.0, 0.2])
+    monkeypatch.setattr(force.time, 'monotonic', lambda: next(times))
+    monkeypatch.setattr(force, 'read_force', lambda: [0.0, 0.0, 20.0, 0, 0, 0])
+    assert force.check_nudge(15.0, 0.15) is False    # 방금 넘었다 — 아직 hold_s 못 채움
+    assert force.check_nudge(15.0, 0.15) is True     # 0.2 s 유지 → 넛지로 본다
+
+
+def test_check_nudge_resets_if_it_drops_before_hold(_reset_nudge, monkeypatch):
+    """hold_s 채우기 전에 힘이 가라앉으면 없던 일로 하고 처음부터 다시 센다."""
+    monkeypatch.setattr(force, 'read_force', lambda: [0.0, 0.0, 0.0, 0, 0, 0])
+    force.start_nudge_watch()
+    times = iter([0.0, 0.05, 0.1, 0.1])
+    monkeypatch.setattr(force.time, 'monotonic', lambda: next(times))
+    seq = iter([[0.0, 0.0, 20.0, 0, 0, 0],    # 넘음(0.0 s) — 카운트 시작
+                [0.0, 0.0, 0.0, 0, 0, 0],     # 가라앉음(0.05 s) — 리셋
+                [0.0, 0.0, 20.0, 0, 0, 0],    # 다시 넘음(0.1 s) — 카운트 재시작
+                [0.0, 0.0, 20.0, 0, 0, 0]])   # 아직 같은 0.1 s — hold_s(0.15) 못 채움
+    monkeypatch.setattr(force, 'read_force', lambda: next(seq))
+    assert force.check_nudge(15.0, 0.15) is False    # 넘음, 카운트 시작
+    assert force.check_nudge(15.0, 0.15) is False    # 가라앉아 리셋
+    assert force.check_nudge(15.0, 0.15) is False    # 다시 넘음, 카운트 재시작(0.1 s 기준)
+    assert force.check_nudge(15.0, 0.15) is False    # 아직 0.1 s — hold_s 못 채움
+
+
+def test_robot_state_reads_dsr(robot):
+    """robot_state() 는 두산 API get_robot_state() 를 그대로 읽는다."""
+    d = robot()
+    d.get_robot_state = lambda: 1
+    assert force.robot_state() == 1
+
+
+def test_wait_robot_ready_true_once_standby(robot):
+    """STANDBY(1) 가 될 때까지 기다리다 되면 True."""
+    d = robot()
+    states = iter([2, 2, 1])          # MOVING → MOVING → STANDBY
+    d.get_robot_state = lambda: next(states)
+    assert force.wait_robot_ready(1.0) is True
+
+
+def test_wait_robot_ready_false_on_timeout(robot):
+    """시간 안에 STANDBY 가 안 되면 False(예외 안 던짐 — 그래도 이어간다는 정책을 flow 가 고른다)."""
+    d = robot()
+    d.get_robot_state = lambda: 2      # 계속 MOVING
+    assert force.wait_robot_ready(0.05) is False

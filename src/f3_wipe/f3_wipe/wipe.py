@@ -6,23 +6,97 @@ soap 이 잡은 위치로 수세미/컵솔을 가려 작업 위치까지 데려�
 import csv
 import math
 import os
+import threading
 import time
 
 import cobot_common as cc
-from cobot_api import FORCE_LIMIT, OK, ROBOT_ERROR, TIMEOUT, Result, WipeBowlResult, WipeCupResult
+from cobot_api import FORCE_LIMIT, OK, ROBOT_ERROR, TIMEOUT, TOOL_LOST, Result, WipeBowlResult, WipeCupResult
 
 
 class JointGuardStop(RuntimeError):
     """컵 세척 중 1·4번 조인트가 움직여 즉시 정지했다."""
 
 
+class ToolLostError(RuntimeError):
+    """쥔 폭이 soap 시작 때 기준보다 크게 벗어났다 — 닦는 도중 놓쳤다 (TOOL_LOST, 9/23 신설)."""
+
+
 START = 'HOME'                       # 닦기의 기준 자리 (cell.stations.HOME)
 
 FORCE_LOG_HEADER = ('t', 'fx', 'fy', 'fz', 'target')   # 힘 로그 CSV 열
 
+_tool_baseline_mm = None             # soap() 이 잡을 때 재는 기준 폭 — wipe_bowl/wipe_cup 도 이 값으로 본다
+
+
+def _tool_lost_now():
+    """기준 폭 대비 벗어났는지만 본다(예외 없음) — 기준 없으면(soap 안 거침) False. 감시 스레드가 반복 호출한다.
+
+    허용오차는 새로 만들지 않고 f2.slip_tol_mm 을 그대로 쓴다(9/23 실기로 재현성 확인 — 놓치면
+    변화량이 수세미 약 3 mm·솔 약 2 mm, 정상 흔들림은 0.1~0.2 mm 라 이 허용오차로 충분히 갈린다).
+    """
+    if _tool_baseline_mm is None:
+        return False
+    w = float(cc.grip_width())
+    tol = float(cc.cfg()['f2']['slip_tol_mm'])
+    return abs(w - _tool_baseline_mm) > tol
+
+
+def _check_tool(where):
+    """벗어났으면 **즉시 멈추고**(stop_now) ToolLostError — move_periodic·move_spiral 은 이미 도는 중 반복 호출된다."""
+    if not _tool_lost_now():
+        return
+    cc.stop_now()
+    w = float(cc.grip_width())
+    tol = float(cc.cfg()['f2']['slip_tol_mm'])
+    raise ToolLostError(f'{where}: 폭 {w:.2f} mm (기준 {_tool_baseline_mm:.2f} mm · 허용 ±{tol:g}) — 놓침 의심')
+
+
+def _guarded_move_rel(dx, dy, dz, frame, vel_mm_s, acc_mm_s2):
+    """move_rel 은 통짜 호출이라 도중에 검사할 틈이 없다 — 별도 스레드로 폭을 지켜보다 놓치면 cc.halt() 로 그 자리에서 멈춘다.
+
+    cc.halt()/is_halted() 는 다른 스레드에서 불러도 안전하다(motion.py 명시). halt 로 멈추면 move_rel 이
+    MotionHalted 를 던지는데, **우리가 건 halt**면 clear_halt() 로 직접 풀고 ToolLostError 로 바꿔서 올린다
+    (안 풀면 다음 이동을 아무것도 못 보낸다 — 재개가 막힌다). 남이 건 halt(HMI 등)면 그대로 올린다.
+    """
+    lost = {'via_halt': False}
+    stop_watch = threading.Event()
+
+    def watch():
+        while not stop_watch.is_set():
+            if _tool_lost_now():
+                lost['via_halt'] = True
+                cc.halt()
+                return
+            time.sleep(0.02)
+
+    def _lost_error():
+        cc.clear_halt()
+        w = float(cc.grip_width())
+        tol = float(cc.cfg()['f2']['slip_tol_mm'])
+        return ToolLostError(f'이동 중: 폭 {w:.2f} mm (기준 {_tool_baseline_mm:.2f} mm · 허용 ±{tol:g}) — 놓침 의심')
+
+    t = threading.Thread(target=watch, daemon=True)
+    t.start()
+    try:
+        cc.move_rel(dx, dy, dz, frame, vel_mm_s=vel_mm_s, acc_mm_s2=acc_mm_s2)
+    except cc.MotionHalted:
+        if not lost['via_halt']:
+            raise
+        raise _lost_error() from None
+    else:
+        # 🚨 halt 가 걸린 바로 그 순간 이동이 자연스럽게 끝나버리면 move_rel 이 예외 없이 돌아올 수 있다
+        #    (motion.py 의 폴링과 우리 감시 스레드 사이의 경합) — 그래도 우리가 halt 를 걸었던 거면 놓침이다.
+        if lost['via_halt']:
+            raise _lost_error() from None
+    finally:
+        stop_watch.set()
+        t.join(timeout=0.5)
+
 
 def soap(count: int, kind: str = None) -> Result:
     """세제 담금 — F3-03. kind 는 안 쓴다(쥔 위치로 스스로 판정)."""
+    global _tool_baseline_mm
+    _tool_baseline_mm = float(cc.grip_width())     # 이 뒤 wipe_bowl/wipe_cup 의 놓침 판정 기준이 된다
     return _soap_twist_updown()
 
 
@@ -50,15 +124,16 @@ def _soap_move_to(target_xyz):
     tx, ty, tz = target_xyz
     dz = tz - cc.where()[2]
     if dz > 0:
-        cc.move_rel(0.0, 0.0, dz, 'BASE', vel_mm_s=vel, acc_mm_s2=acc)
+        _guarded_move_rel(0.0, 0.0, dz, 'BASE', vel, acc)
     now = cc.where()
     dx, dy = tx - now[0], ty - now[1]
     if abs(dx) > 1e-6 or abs(dy) > 1e-6:
-        cc.move_rel(dx, dy, 0.0, 'BASE', vel_mm_s=vel, acc_mm_s2=acc)
+        _guarded_move_rel(dx, dy, 0.0, 'BASE', vel, acc)
 
 
 def _soap_twist_updown() -> Result:
     """비틀기 → Z 왕복 → 작업 위치 이동. soap() 의 실제 구현."""
+    global _tool_baseline_mm
     p = cc.cfg()['f3']['soap']
     duration = float(p['duration_s'])
     ramp = float(p['ramp_s'])
@@ -106,6 +181,10 @@ def _soap_twist_updown() -> Result:
     except (cc.MotionHalted, cc.MoveIncomplete):          # 위치를 모른다 → 올리지 않는다
         moved = False
         raise
+    except ToolLostError as e:
+        _warn(f'soap 중단: {e}')
+        code = TOOL_LOST
+        _tool_baseline_mm = None                       # 이미 놓쳤다고 보고했다 — 뒤이은 후퇴 이동까지 다시 검사하지 않는다
     except (cc.MotionTimeout, cc.MoveTimeout):
         code = TIMEOUT
     except (RuntimeError, ValueError, KeyError):
@@ -118,6 +197,8 @@ def _soap_twist_updown() -> Result:
         if not moved:
             _warn('🚨 로봇이 어디 있는지 모른다 → 힘만 끄고 **움직이지 않았다**. '
                   '티치펜던트로 상태를 확인하고 사람이 복구한다')
+        elif code == TOOL_LOST:                            # 놓쳤다 → 더 움직이지 않는다(빈 그리퍼로 후퇴 금지)
+            _warn('TOOL_LOST — 그 자리에 그대로 둔다. 사람이 툴을 다시 넣고 넛지·재개할 때까지 안 움직인다')
         elif code != OK:                                   # 성공했으면 이미 목표 위치 — 실패했을 때만 후퇴
             try:
                 _soap_move_to(target)
@@ -128,11 +209,16 @@ def _soap_twist_updown() -> Result:
 
 def wipe_bowl() -> WipeBowlResult:
     """그릇 안쪽을 수세미로 닦는다 — F3-02, 고정 좌표 방식. 호출된 자리에서 바로 하강한다."""
+    global _tool_baseline_mm
     p = cc.cfg()['f3']['wipe_bowl']
     t0 = time.monotonic()
     log = _Log(p, t0)
     code, started, moved, bowl_check_z = ROBOT_ERROR, False, True, None
     try:
+        # 🚨 soap() 가 준 기준을 물려받는 게 아니라 **여기서 다시 잰다** — TOOL_LOST 뒤 재PICK 하면
+        #    flow 가 soap() 없이 이 함수만 재시도한다(9/23). soap() 가 안 거쳐도 이 함수 혼자서
+        #    놓침을 감지할 수 있어야 한다.
+        _tool_baseline_mm = float(cc.grip_width())
         _halt_check('그릇 닦기 시작')
         bowl_check_z = cc.where()[2]                        # 호출된 높이 기록 — 안 움직임
         started = True
@@ -153,6 +239,7 @@ def wipe_bowl() -> WipeBowlResult:
         _bowl_force_on(p, log, float(p['target_force_n']))   # 힘제어 → 벽면
         _halt_check('벽면 회전')
         _bowl_wall(p, log, r_wall)
+        _check_tool('벽면 끝')
         cc.force_release()
         log.target = 0.0
         _bowl_to_center(p, log)
@@ -162,6 +249,10 @@ def wipe_bowl() -> WipeBowlResult:
         _warn(f'wipe_bowl 중단: {type(e).__name__}: {e}')
         moved = False
         raise
+    except ToolLostError as e:
+        _warn(f'wipe_bowl 중단: {e}')
+        code = TOOL_LOST
+        _tool_baseline_mm = None                       # 이미 놓쳤다고 보고했다 — 뒤이은 후퇴 이동까지 다시 검사하지 않는다
     except cc.ForceLimitError as e:
         _warn(f'wipe_bowl 중단: {e}')
         code = FORCE_LIMIT
@@ -172,14 +263,14 @@ def wipe_bowl() -> WipeBowlResult:
         _warn(f'wipe_bowl 중단: {type(e).__name__}: {e}')
         code = ROBOT_ERROR
     finally:
-        _bowl_finish(p, started, moved, bowl_check_z)
+        _bowl_finish(p, started, moved, bowl_check_z, code)
     return WipeBowlResult(ok=(code == OK), code=code, force_log_path=log.save(),
                           duration_s=time.monotonic() - t0, force_mean_n=log.mean())
 
 
 def _bowl_move_z(dz, vel, acc):
     """빠른 하강·상승 (BASE z 상대 이동)."""
-    cc.move_rel(0.0, 0.0, float(dz), 'BASE', vel_mm_s=float(vel) * _scale(), acc_mm_s2=float(acc) * _scale())
+    _guarded_move_rel(0.0, 0.0, float(dz), 'BASE', float(vel) * _scale(), float(acc) * _scale())
 
 
 def _bowl_zero(log):
@@ -224,6 +315,7 @@ def _bowl_sample_spiral(p, log, p0):
             raise cc.MotionTimeout('나선이 끝나지 않는다')
         if log.over_time():
             raise cc.MotionTimeout(f'wipe_bowl: 전체 {p["duration_s"]} s 초과(나선)')
+        _check_tool('나선 도는 중')
         time.sleep(p['sample_s'])
 
 
@@ -267,6 +359,7 @@ def _bowl_wall(p, log, r_wall):
                     0.0 if k == n - 1 else radius, lin_a, rot_a)
         if k % max(1, int(p['force_every'])) == 0:
             log.watch('wall')
+            _check_tool('벽면 도는 중')
     cc.wait_done()
 
 
@@ -278,7 +371,7 @@ def _bowl_to_center(p, log):
                  float(p['lin_acc_mm_s2']), float(p['rot_acc_deg_s2']))
 
 
-def _bowl_finish(p, started, moved, bowl_check_z):
+def _bowl_finish(p, started, moved, bowl_check_z, code=None):
     """힘 끄기는 언제나 → moved 면 동작 끝 대기 → 곧게 호출 시점 높이로 상승. 움직여서 자리를 다시 찾지 않는다."""
     if not started:
         try:
@@ -293,6 +386,9 @@ def _bowl_finish(p, started, moved, bowl_check_z):
     if not moved:
         _warn('🚨 로봇이 어디 있는지 모른다 → 힘만 끄고 **움직이지 않았다**. '
               '티치펜던트로 상태를 확인하고 사람이 복구한다')
+        return
+    if code == TOOL_LOST:                                     # 놓쳤다 → 더 움직이지 않는다(빈 그리퍼로 상승 금지)
+        _warn('TOOL_LOST — 그 자리에 그대로 둔다. 사람이 툴을 다시 넣고 넛지·재개할 때까지 안 움직인다')
         return
 
     def rise():
@@ -315,8 +411,8 @@ def cup_hops(p):
 
 def _fast_z(p, dz):
     """빠른 하강·상승 (BASE z 상대 이동, 컵 전용 속도)."""
-    cc.move_rel(0.0, 0.0, float(dz), 'BASE',
-                vel_mm_s=float(p['fast_vel_mm_s']) * _scale(), acc_mm_s2=float(p['fast_acc_mm_s2']) * _scale())
+    _guarded_move_rel(0.0, 0.0, float(dz), 'BASE',
+                      float(p['fast_vel_mm_s']) * _scale(), float(p['fast_acc_mm_s2']) * _scale())
 
 
 class _Trip:
@@ -366,9 +462,11 @@ def _warn(msg):
 
 
 def _halt_check(where):
-    """구간 사이에서만 강제정지를 본다 — 나선·원호는 도는 중에 끊을 수 없다."""
+    """구간 사이에서 강제정지·놓침을 본다 — 나선·원호는 도는 중에 끊을 수 없다."""
     if cc.is_halted():
+        cc.stop_now()
         raise cc.MotionHalted(f'wipe_bowl: {where} 앞에서 강제정지')
+    _check_tool(where)
 
 
 class _Log:
@@ -420,11 +518,16 @@ def _scale():
 
 def wipe_cup() -> WipeCupResult:
     """컵 안을 솔로 닦는다 — F3-03. 호출된 자리에서 바로 하강해 삽입만 힘으로 찾는다."""
+    global _tool_baseline_mm
     p = cc.cfg()['f3']['wipe_cup']
     t0 = time.monotonic()
     log = _Log(p, t0)
     code, depth, moved, cup_check_z = ROBOT_ERROR, 0.0, True, None
     try:
+        # 🚨 soap() 가 준 기준을 물려받는 게 아니라 **여기서 다시 잰다** — TOOL_LOST 뒤 재PICK 하면
+        #    flow 가 soap() 없이 이 함수만 재시도한다(9/23). soap() 가 안 거쳐도 이 함수 혼자서
+        #    놓침을 감지할 수 있어야 한다.
+        _tool_baseline_mm = float(cc.grip_width())
         _halt_check('컵 닦기 시작')
         cup_check_z = cc.where()[2]                           # 호출된 높이 기록 — 안 움직임
         log.start(cc.read_force())
@@ -438,6 +541,7 @@ def wipe_cup() -> WipeCupResult:
         if found >= float(p['find_max_mm']) - 0.5:
             raise RuntimeError(f'wipe_cup: {p["find_max_mm"]:g} mm 를 내려가도 바닥을 못 찾았다 — 컵·좌표 확인')
         _scrub_cup(p, log)
+        _check_tool('세척 끝')
         code = OK
     except (cc.MotionHalted, cc.MoveIncomplete):               # 위치를 모른다 → 올리지 않는다
         moved = False
@@ -445,6 +549,10 @@ def wipe_cup() -> WipeCupResult:
     except JointGuardStop as e:                                # 1·4번 조인트가 움직였다 — 곧게 뽑아 호출된 높이로
         code = ROBOT_ERROR
         _warn(f'{e} → 호출된 높이로 복귀했다. 티치펜던트로 자세 확인')
+    except ToolLostError as e:
+        _warn(f'wipe_cup 중단: {e}')
+        code = TOOL_LOST
+        _tool_baseline_mm = None                       # 이미 놓쳤다고 보고했다 — 뒤이은 후퇴 이동까지 다시 검사하지 않는다
     except cc.ForceLimitError:
         code = FORCE_LIMIT
     except (cc.MotionTimeout, cc.MoveTimeout):
@@ -452,12 +560,12 @@ def wipe_cup() -> WipeCupResult:
     except (RuntimeError, ValueError, KeyError):
         code = ROBOT_ERROR
     finally:
-        _cup_finish(p, moved, cup_check_z)
+        _cup_finish(p, moved, cup_check_z, code)
     return WipeCupResult(ok=(code == OK), code=code, force_log_path=log.save(),
                          duration_s=time.monotonic() - t0, insert_depth_mm=depth)
 
 
-def _cup_finish(p, moved, cup_check_z):
+def _cup_finish(p, moved, cup_check_z, code=None):
     """힘 끄기는 언제나 → moved 면 동작 끝 대기 → 곧게 호출 시점 높이로 상승."""
     try:
         cc.force_off()
@@ -466,6 +574,9 @@ def _cup_finish(p, moved, cup_check_z):
     if not moved:
         _warn('🚨 로봇이 어디 있는지 모른다 → 힘만 끄고 **움직이지 않았다**. '
               '티치펜던트로 상태를 확인하고 사람이 복구한다')
+        return
+    if code == TOOL_LOST:                                      # 놓쳤다 → 더 움직이지 않는다(빈 그리퍼로 상승 금지)
+        _warn('TOOL_LOST — 그 자리에 그대로 둔다. 사람이 툴을 다시 넣고 넛지·재개할 때까지 안 움직인다')
         return
 
     def rise():
@@ -529,6 +640,7 @@ def _scrub_cup(p, log):
             cc.stop_now()
             raise cc.MotionTimeout('wipe_cup: 세척 시간 초과')
         log.watch('cup-scrub')
+        _check_tool('세척 도는 중')
         time.sleep(float(p['sample_s']))
     end = cc.joints()[5]
     if abs(end - q0[5]) > 5.0:
