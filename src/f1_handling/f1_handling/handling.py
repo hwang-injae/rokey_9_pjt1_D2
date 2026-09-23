@@ -502,13 +502,18 @@ def _contact_timeout(watch_mm=None):
     · 거리: 🔄 9/23 10:5x 실기(PM 보고): 걸음당 ≈0.8 s(가속 제한 · 배속과 거의 무관)라 60 mm 감시(재파지)는 배속 1 에서 ≈16 s 가 필요한데
       10 s 로 잘렸다(36.9/60 mm TIMEOUT). timeout_s 는 기준 거리(params f1.contact_timeout_ref_mm · 20)에 맞춘 값이므로 감시 거리에 비례해 늘린다.
     """
+    f1 = cc.cfg().get('f1') or {}
     base = float(_need(_cell().get('limits'), 'timeout_s', 'cell.limits'))
     scale = float(((cc.cfg() or {}).get('run') or {}).get('vel_scale') or 1.0)
     factor = 1.0
     if watch_mm is not None:                                        # 기준 거리(f1.contact_timeout_ref_mm · 20)보다 긴 감시만 늘린다
-        ref = float(_need(cc.cfg().get('f1'), 'contact_timeout_ref_mm', 'f1'))
+        ref = float(_need(f1, 'contact_timeout_ref_mm', 'f1'))
         factor = max(1.0, float(watch_mm) / ref)
-    return base / max(min(scale, 1.0), 0.1) * factor
+    # 🔄 9/23 13:52 리허설(황인재 · 0.5): 툴 반납 contact_down 이 **20 mm 를 다 내려갔는데도** 20 s 를 넘겨 TIMEOUT(사유 로그로 확인).
+    #    순응 하강 한 걸음(3 mm)이 컨트롤러에서 ≈3 s 걸려 20 mm ≈ 21 s — 배속과 무관한 시간이라 "÷ vel_scale" 로는 0.5 이상에서 늘 짧다
+    #    (0.3 → 33 s 통과 · 0.5 → 20 s 실패 · 12:49 도 같은 것). 접촉 없이 끝까지 내려가는 경우를 덮는 **최소 시간**(f1.contact_timeout_min_s)을 둔다.
+    floor = float(f1.get('contact_timeout_min_s') or 0.0)
+    return max(base / max(min(scale, 1.0), 0.1) * factor, floor)
 
 
 def _after_contact_failure(free, watch):

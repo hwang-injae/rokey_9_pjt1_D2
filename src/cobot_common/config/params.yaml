@@ -13,6 +13,9 @@ f1:                                   # ── f1 절 (한석형) ── 값은 
   place_clear_mm: 100                 # 접근점이 없는 자리에 놓은 뒤 위로 빠지는 높이 — 한석형 티칭 스크립트의 'z +100'(F1-01, 9/20). 접근점이 있는 자리는 내려간 만큼 되올라온다
   isolate_drop_mm: 50                 # 9/23 한석형 실기: BOWL ISOLATE J1 -210 자세에서 BASE Z -50 후 release
   tool_clear_mm: 100                  # 툴을 집은 뒤·반납한 뒤 홀더에서 수직으로 빠지는 높이(접근점이 없을 때) — F1-03·V-08 에서 확정
+  contact_timeout_min_s: 30           # 🆕 9/23 13:52 접촉 감시 하강의 **최소** 시간 상한(s) — 리허설 0.5 에서 솔 반납 contact_down 이 20 mm 를 다 내려갔는데도
+                                      #   20 s(10 ÷ 0.5)를 넘겨 TIMEOUT(12:49 · 13:52 · 정책 retry 로 넘어감). 순응 걸음(3 mm)이 ≈3 s 라 20 mm ≈ 21 s — 배속과 무관.
+                                      #   0.3 에선 33 s 라 통과. 이 값 이하로는 안 줄인다(handling._contact_timeout). 팔레트 삽입은 닿으면 바로 끝나 영향 없음.
   contact_timeout_ref_mm: 20          # 🆕 9/23 10:5x 접촉 타임아웃(cell.limits.timeout_s)이 맞춰진 기준 감시 거리(mm). contact_down 은 3 mm 걸음(걸음당 ≈0.8 s ·
                                       #   가속 제한이라 배속과 거의 무관)이라 이보다 긴 감시(재파지 60)는 timeout 을 거리 비례로 늘린다(handling._contact_timeout · PM 제안: 값은 YAML 에)
   regrip_watch_mm: 60                 # 🆕 9/23(황인재 · 총괄 통합) 홈 C 옆면 재파지: 접근점(+100)에서 내려올 때 **마지막 60 mm 는 힘 감시**(cell.limits.insert_limit_n)
