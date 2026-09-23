@@ -58,8 +58,8 @@ class FakeCC:
         if self.fail_on == name or self.fail_on == (name, len([c for c in self.calls if c[0] == name])):
             raise MoveIncomplete(f'{name} 이 도중에 멈췄다')
 
-    def move_to(self, station, carrying, kind=None, point=None):
-        self._note('move_to', station, carrying, kind, point)
+    def move_to(self, station, carrying, kind=None, point=None, **kw):     # 🆕 9/23 kw = j6_period(툴 홀더 J6 동치각)
+        self._note('move_to', station, carrying, kind, point, *([kw] if kw else []))
         return self.up.get((station, point), 0.0)
 
     def move_rel(self, dx, dy, dz, frame, **kw):
@@ -75,8 +75,8 @@ class FakeCC:
         self._note('grip', width, force)
         return self.grip_widths.pop(0) if self.grip_widths else 13.0
 
-    def contact_down(self, max_depth, limit, timeout_s=None):
-        self._note('contact_down', max_depth, limit)
+    def contact_down(self, max_depth, limit, timeout_s=None, step_mm=None):   # 🆕 9/23 step_mm = 마지막 감시 구간 걸음
+        self._note('contact_down', max_depth, limit, *([step_mm] if step_mm is not None else []))
         if self.contact_raises:
             raise self.contact_raises
         self.z -= float(self.contact[0])                          # 🔄 9/23 내려간 깊이만큼 z 도 내린다(재파지 접근점 시험)
@@ -339,3 +339,32 @@ def test_contact_timeout_grows_with_slow_speed(cc):
     assert handling._contact_timeout() == pytest.approx(10.0 / 0.3)
     cc.conf['run'] = {'vel_scale': 1.0}
     assert handling._contact_timeout() == pytest.approx(10.0)
+
+
+# ------------------------------------------------------------------ 🆕 9/23 튜닝 #5 — 팔레트 삽입 마지막 구간 한 걸음
+def test_rack_place_watches_the_last_millimetres_in_one_step(cc):
+    cc.conf['f1']['insert_approach_mm'] = 5
+    cc.conf['f1']['watch_step_mm'] = 5
+    cc.contact = (5.0, 3.0)
+    assert handling.rack_place('RACK_B1', 'BOWL').ok
+    assert ('contact_down', 5.0, 15.0, 5.0) in cc.calls
+
+
+def test_rack_place_without_watch_step_setting_uses_the_default_step(cc):
+    cc.conf['f1']['insert_approach_mm'] = 5
+    cc.contact = (5.0, 3.0)
+    assert handling.rack_place('RACK_B1', 'BOWL').ok
+    assert ('contact_down', 5.0, 15.0) in cc.calls
+
+
+# ------------------------------------------------------------------ 🆕 9/23 18:1x 튜닝 3차 #3 — 삽입 감시 0 = 곧게 내려 놓기
+def test_rack_place_with_zero_insert_watch_descends_straight_and_releases(cc):
+    cc.conf['f1']['insert_approach_mm'] = 0
+    cc.conf['f1']['land_slow_mm'] = 15
+    cc.conf['f1']['land_vel_mm_s'] = 30
+    assert handling.rack_place('RACK_B1', 'BOWL').ok
+    assert 'contact_down' not in cc.names()
+    rel = [c for c in cc.calls if c[0] == 'move_rel']
+    down = [c for c in rel if c[3] < 0]
+    assert down[0][3] == pytest.approx(-85.0) and down[1][3] == -15.0                # 100 = 칸 위 높이 → 85 빠르게 + 15 완충
+    assert cc.names().index('release') > cc.calls.index(down[1])

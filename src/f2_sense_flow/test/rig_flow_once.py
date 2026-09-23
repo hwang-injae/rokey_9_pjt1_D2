@@ -67,6 +67,48 @@ def _make_flow(cfg, log, features, robot):
     return f, events
 
 
+STAGES = [   # flow.process_one 의 steps 순서 그대로 (번호 = 황인재 튜닝 대화용 · 9/23 15:5x WEIGH 이동 단계 제거 뒤 12개)
+    (1, 'PICK',  'f1.pick',          '반납 자리에서 집기(슬롯 1 → 2)'),
+    (2, 'WEIGH', 'f2.leftover_loop', 'HOME 거쳐 무게 자세 → 재기 → 잔반이면 잔반통 털기(스플라인) → 재측정'),
+    (3, 'SEAT',  'f1.place',         '스펀지 홈에 놓기'),
+    (4, 'SOAP',  'f1.tool PICK',     '툴(수세미/솔) 집기'),
+    (5, 'SOAP',  'f3.soap',          '세제 묻히기(홀더 안 비틀기·왕복)'),
+    (6, 'WIPE',  'f3.wipe_*',        '닦기(그릇 나선 / 컵 위아래+회전)'),
+    (7, 'WIPE',  'f1.tool RETURN',   '툴 반납(집은 자리로 곧게 · 감시 없음 · 마지막 15 mm 살짝 느리게)'),
+    (8, 'RINSE', 'f1.pick(홈)',      '재파지(그릇 벽 / 컵 옆면 · 마지막 45 mm 감시)'),
+    (9, 'RINSE', 'f2.dip',           '헹굼 담금(2회)'),
+    (10, 'RINSE', 'f2.shake',        '물 털기(RINSE_SHAKE 자세 · J4 3회)'),
+    (11, 'RACK',  'f1.rack_place',   '팔레트 적재(수조 위 → 경유점 → 칸 → 곧게 내려 놓기 → 빠져나오기)'),
+    (12, 'RACK',  'f1.move_to HOME', 'HOME 복귀'),
+]
+
+
+def _print_stages(log):
+    log.info('단계 번호표 (용기 1개 · 12단계 · 컵은 2단계가 flow.weigh_kinds 에 따라 빠질 수 있음)')
+    for n, grp, fn, what in STAGES:
+        log.info(f'  [{n:>2}] {grp:<5} {fn:<18} {what}')
+
+
+def _install_step_gate(f, log):
+    """flow.call_fn 을 감싸 단계마다 번호·이름을 찍고 Enter 를 기다린다(q = KeyboardInterrupt → 정지 명령 뒤 종료)."""
+    orig = f.call_fn
+    state = {'n': 0}
+
+    def gated(mod_key, fn_name, *args):
+        state['n'] += 1
+        n = state['n']
+        label = next((f'[{k:>2}] {grp} {fn}' for k, grp, fn, _ in STAGES if k == n), f'[{n:>2}]')
+        print(f'\n▶ 다음 단계 {label} — {mod_key}.{fn_name}{args}')
+        if input('   Enter = 실행 / q = 그만 > ').strip().lower() == 'q':
+            raise KeyboardInterrupt
+        t0 = time.monotonic()
+        r = orig(mod_key, fn_name, *args)
+        q = ' · '.join(f'J{i + 1} {v:.1f}' for i, v in enumerate(cc.joints()))      # 🆕 9/23 튜닝 #1·#4: 단계 끝 관절 각도(J6 감김 확인)
+        log.info(f'   ← 단계 {n} 끝 · {time.monotonic() - t0:.1f} s · {getattr(r, "code", r)} · 관절 {q}')
+        return r
+    f.call_fn = gated
+
+
 def main():
     ap = argparse.ArgumentParser(description='flow.process_one 을 용기 1개에 실기로')
     ap.add_argument('which', nargs='?', default='run', choices=['run', 'check'])
@@ -75,6 +117,9 @@ def main():
     ap.add_argument('--mock', default='f3', help='가짜로 돌릴 기능, 쉼표 (기본 f3 — 툴·닦기는 가짜)')
     ap.add_argument('-n', type=int, default=1, help='연속 몇 개 (반납 구역에 그만큼)')
     ap.add_argument('--no-robot', action='store_true', help='전부 가짜일 때만')
+    ap.add_argument('--step', action='store_true',
+                    help='🆕 9/23 튜닝용: 단계마다 번호·이름을 찍고 Enter 를 기다린다(q = 그만) — 없앨 동작·빨리 할 동작을 번호로 고르기')
+    ap.add_argument('--list', action='store_true', help='단계 번호표만 찍고 끝낸다(로봇 안 움직임)')
     ap.add_argument('--nudge', action='store_true',
                      help='PAUSED 에서 키보드로 안 묻는다 — 넛지(로봇을 밀거나 톡 치기)·HMI 로만 재개(E37 실기용)')
     a = ap.parse_args()
@@ -85,6 +130,10 @@ def main():
     if a.no_robot and robot:
         sys.exit('--no-robot 은 --mock f1,f2,f3 일 때만')
 
+    if a.list:
+        for n, grp, fn, what in STAGES:
+            print(f'  [{n:>2}] {grp:<5} {fn:<18} {what}')
+        return
     cc.init('rig_flow_once', robot=robot)
     log = cc.io_node().get_logger()
     try:
@@ -119,6 +168,9 @@ def main():
             log.info('E15 — 먼저 HOME 으로 간다')
             cc.force_off()
             go_home_safely(None, log, False)
+        if a.step:
+            _print_stages(log)
+            _install_step_gate(f, log)
         sig = Signals() if a.nudge else HumanSignals(log)
         if a.nudge:
             log.info('--nudge — PAUSED 에서 키보드로 안 묻는다. 넛지(로봇을 밀거나 톡 치기)로 재개한다')

@@ -434,3 +434,40 @@ def test_fast_cap_falls_back_to_base_when_missing(robot):
     robot.cfg['cell']['motion'].pop('vel_joint_fast_max_deg_s'); robot.cfg['cell']['motion'].pop('acc_joint_fast_max_deg_s2')
     motion.move_joints_via([[0, 0, 90, 30, 90, 0], [0, 0, 90, 0, 90, 0]], vel_deg_s=300, acc_deg_s2=900, scale=False)
     assert robot.calls[-1][2]['vel'] == pytest.approx(100.0) and robot.calls[-1][2]['acc'] == pytest.approx(200.0)
+
+
+# ------------------------------------------------------------------ 🆕 9/23 j6_period — J6 동치각(툴 홀더 180° · 한 바퀴 360°)
+@pytest.mark.parametrize('now_j6,period,expect', [
+    (182.2, 180.0, 139.63),     # 홈 B 에서 온 손목(+182) → −40.37 + 180 = 139.63 (회전 −42.6°, 티칭값이면 −222.6°)
+    (-177.6, 180.0, -220.37),   # 반대쪽으로 뒤집혀 왔으면 −40.37 − 180 = −220.37 (9/22 값 · 회전 −42.8°)
+    (-30.0, 180.0, -40.37),     # 이미 가까우면 티칭값 그대로
+    (294.6, 360.0, 319.63),     # 한 바퀴 감긴 손목이면 같은 자세(+360)로 — 회전 25° (티칭값이면 −335°)
+])
+def test_move_to_j6_period_picks_the_equivalent_angle_nearest_to_the_wrist(robot, now_j6, period, expect):
+    robot.cfg['cell']['stations']['TOOL_SPONGE'] = {'pick': {'posj': [-40.45, 2.5, 111.5, 0.0, 66.06, -40.37]}}
+    robot.at_j = [2.4, 20.0, 90.0, 0.0, 70.0, now_j6]
+    motion.move_to('TOOL_SPONGE', False, point='pick', j6_period=period)
+    sent = robot.calls[-1][1]
+    assert sent[:5] == [-40.45, 2.5, 111.5, 0.0, 66.06] and sent[5] == pytest.approx(expect)
+    assert robot.at_j[5] == pytest.approx(expect)                              # 도착 확인도 바뀐 각도로
+
+
+def test_move_to_without_j6_period_goes_to_the_taught_angle(robot):
+    robot.cfg['cell']['stations']['TOOL_SPONGE'] = {'pick': {'posj': [-40.45, 2.5, 111.5, 0.0, 66.06, -40.37]}}
+    robot.at_j = [2.4, 20.0, 90.0, 0.0, 70.0, 182.2]
+    motion.move_to('TOOL_SPONGE', False, point='pick')
+    assert robot.calls[-1][1][5] == pytest.approx(-40.37)
+
+
+def test_move_to_j6_period_keeps_the_taught_angle_when_the_equivalent_is_out_of_range(robot, monkeypatch):
+    warned = []
+    monkeypatch.setattr(motion, '_warn', warned.append)
+    robot.cfg['cell']['stations']['TOOL_SPONGE'] = {'pick': {'posj': [-40.45, 2.5, 111.5, 0.0, 66.06, 300.0]}}
+    robot.at_j = [0.0] * 5 + [-359.0]                                            # 가장 가까운 동치 −420 은 ±360 밖
+    motion.move_to('TOOL_SPONGE', False, point='pick', j6_period=360.0)
+    assert robot.calls[-1][1][5] == pytest.approx(300.0) and warned and '±360' in warned[0]
+
+
+def test_move_to_j6_period_is_ignored_for_straight_line_poses(robot):
+    motion.move_to('WEIGH', True, j6_period=180.0)                               # posx 자세 — 관절이 아니라 아무 영향 없음
+    assert robot.calls[-1][0] == 'movel'

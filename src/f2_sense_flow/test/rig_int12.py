@@ -59,7 +59,6 @@ def steps_for(which, kind, cfg, zone=None, slot=None):
         if zone is None:
             zone = next(p['zone'] for p in flow['plan'] if p['kind'] == kind)
         return [('PICK', 'f1', 'pick', (zone, kind)),
-                ('WEIGH', 'f1', 'move_to', ('WEIGH', True, kind)),
                 ('WEIGH', 'f2', 'leftover_loop', (kind, int(flow['leftover_max_rounds'])))]
     if which == 'b':
         bed = 'SPONGE_BED_B' if bowl else 'SPONGE_BED_C'

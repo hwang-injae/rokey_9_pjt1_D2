@@ -369,8 +369,7 @@ def place(station: str, kind: str = None) -> PlaceResult:
     point = _PLACE_POINT if station in (cc.cfg().get('cell') or {}).get('beds', {}) else None
     clear = float(_need(cc.cfg().get('f1'), 'place_clear_mm', 'params.yaml 의 f1'))   # 값이 없으면 움직이기 **전에** KeyError
     up = float(cc.move_to(station, True, kind, point) or 0.0)       # ① 접근점(없으면 끝점)
-    if up > 0.0:
-        cc.move_rel(0.0, 0.0, -up, 'BASE')                          # ② 끝점까지 곧게
+    _descend(up)                                                    # ② 끝점까지 곧게(마지막 land_slow_mm 만 살짝 느리게)
     cc.release()                                                    # ③
     cc.move_rel(0.0, 0.0, up if up > 0.0 else clear, 'BASE')        # ④ 되올라오기
     return PlaceResult(offset_mm=0.0)
@@ -611,7 +610,10 @@ def _tool_pick(station, tool, preset, clear) -> ToolResult:
         cc.move_pose(above, vel, 60.0, acc, 60.0)                    # 잡았던 자리 위로(직선 · 자세 포함)
         cc.move_pose(pick, vel, 60.0, acc, 60.0)                     # 그 정확한 자리로 곧장 내려간다(더듬지 않는다)
     else:
-        up = float(cc.move_to(station, False, point='pick') or 0.0)     # 빈손으로 간다
+        # 🆕 9/23 황인재 튜닝 #1: 두 손가락 그리퍼는 J6 를 180° 돌려도 같은 파지(수세미 −220.37 9/22 · −40.37 9/23 둘 다 ✅) →
+        #    cell.presets.<툴>.j6_symmetric 이 참이면 티칭 J6 ± 180·k 중 **지금 손목에서 가장 가까운 것**으로 간다(홈 B 에서 220° → 43°).
+        j6 = {'j6_period': 180.0} if preset.get('j6_symmetric') else {}
+        up = float(cc.move_to(station, False, point='pick', **j6) or 0.0)   # 빈손으로 간다
         if up > 0.0:
             cc.move_rel(0.0, 0.0, -up, 'BASE')
     width = float(cc.grip(target, force))
@@ -636,9 +638,18 @@ def _tool_return(station, f1, clear, tool=None) -> ToolResult:
         cc.move_pose(above, vel, 60.0, acc, 60.0)                   # 툴을 들고 집은 자리 위로(직선 · 자세 포함)
         watch = min(clear, float(_need(f1, 'tool_return_depth_mm', 'params.yaml 의 f1')))   # 마지막 구간은 힘 감시(AGENTS §3-2 · PM 9/22 밤)
         limit = float(_need(f1, 'tool_return_contact_n', 'params.yaml 의 f1'))
+        if watch <= 0.0:
+            # 🔄 9/23 15:5x 튜닝(황인재 #4·#7): 반납 자리 = **이 프로그램이 집은 바로 그 자리**(posx 기억)라 바닥을 찾을 필요가 없다 →
+            #    힘 감시 없이 곧게 내려가 놓는다(순응 걸음 ≈3 s × 7 = 20 s 절약 · 12:49·13:52 TIMEOUT 도 이 구간). 
+            #    tool_return_depth_mm 을 0 으로 두면 이 갈래, 양수면 예전처럼 마지막 그만큼을 힘 감시.
+            _descend(clear)                                         # 🔄 9/23 18:1x 황인재 3차 #2: 감시 없이 곧게 · 마지막 land_slow_mm 완충
+            cc.release()
+            cc.move_rel(0.0, 0.0, clear, 'BASE')
+            _LAST_PICK.pop(tool, None)
+            return ToolResult()
         cc.move_rel(0.0, 0.0, -(clear - watch), 'BASE')             # 자유 하강
         try:
-            depth, _force = cc.contact_down(watch, limit, timeout_s=_contact_timeout())   # 집은 z 까지 감시 하강 — 툴이 미끄러졌거나 홀더가 밀렸으면 여기서 멈춘다
+            depth, _force = cc.contact_down(watch, limit, timeout_s=_contact_timeout(), step_mm=_watch_step(watch))   # 집은 z 까지 감시 하강 — 툴이 미끄러졌거나 홀더가 밀렸으면 여기서 멈춘다
         except cc.ForceLimitError as e:
             _log().error(f'툴 반납({tool}) 감시 하강 — 힘 상한: {e}')          # 🔄 9/23 12:49 실기: 사유 없이 TIMEOUT 만 보여 원인을 못 갈랐다 → 깊이·시간을 남긴다
             _after_contact_failure(clear - watch, watch)
@@ -669,6 +680,36 @@ def _tool_return(station, f1, clear, tool=None) -> ToolResult:
     cc.release()
     cc.move_rel(0.0, 0.0, depth + (0.0 if up > 0.0 else clear), 'BASE')   # 접근점이 있으면 접근점까지, 없으면 그 위로
     return ToolResult()
+
+
+def _descend(dist_mm):
+    """곧게 dist_mm 내려간다(순응·힘 감시 없음 · 한 번에). 🆕 9/23 18:1x 황인재 튜닝 3차 #2·#3:
+    "지정된 위치에 가면 바로 놓는다 · 단계별로 내려가는 것처럼 보이지 않게". 마지막 f1.land_slow_mm(기본 0 = 없음)만
+    f1.land_vel_mm_s(배속 무관)로 살짝 느리게 — 1.0 배속에서 툴·용기가 바닥에 닿는 충격(18:07 솔 반납 SAFE_STOP 의심)을 줄이는 완충.
+    두 구간이지만 멈춤 없이 이어져 한 번의 하강으로 보인다. 0 으로 두면 한 구간."""
+    dist = float(dist_mm)
+    if dist <= 0.0:
+        return
+    f1 = cc.cfg().get('f1') or {}
+    slow = min(float(f1.get('land_slow_mm') or 0.0), dist)
+    fast = dist - slow
+    if fast > 0.0:
+        cc.move_rel(0.0, 0.0, -fast, 'BASE')
+    if slow > 0.0:
+        cc.move_rel(0.0, 0.0, -slow, 'BASE', vel_mm_s=float(f1.get('land_vel_mm_s') or 30.0))
+
+
+def _watch_step(watch_mm):
+    """마지막 감시 구간(툴 반납 · 팔레트 삽입)의 순응 하강 걸음(mm). → contact_down(step_mm=…) · None 이면 cell.force.contact_step_mm(3) 그대로.
+
+    🆕 9/23 황인재 튜닝 #2·#5: 순응 하강은 한 걸음(3 mm)에 ≈3 s 걸린다(배속 무관 · 컨트롤러가 순응 상태의 '이동 끝'을 늦게 잡음).
+    감시 5 mm 를 3 + 2 두 걸음으로 가면 ≈6 s 가만히 선 것처럼 보인다 → f1.watch_step_mm(5) 로 **한 걸음**에(≈3 s).
+    걸음이 감시 거리보다 크지는 않게(min). 재파지(45 mm)·닦기 바닥 찾기는 그대로 3 mm.
+    """
+    s = (cc.cfg().get('f1') or {}).get('watch_step_mm')
+    if not s:
+        return None
+    return min(float(watch_mm), float(s))
 
 
 def _contact_timeout(watch_mm=None):
@@ -754,11 +795,14 @@ def rack_place(rack_slot: str, kind: str) -> Result:
     free = max(0.0, up - approach_mm)
     watch = min(up, approach_mm) if up > 0.0 else 0.0
     if free > 0.0:
-        cc.move_rel(0.0, 0.0, -free, 'BASE')                        # ④-1 자유 하강
+        if watch > 0.0:
+            cc.move_rel(0.0, 0.0, -free, 'BASE')                    # ④-1 자유 하강(그 뒤 감시 구간)
+        else:
+            _descend(free)                                          # 🔄 9/23 18:1x 황인재 3차 #3: 감시 0 이면 곧게 끝까지 · 마지막 land_slow_mm 완충
     depth = 0.0
     try:
         if watch > 0.0:
-            depth, force = cc.contact_down(watch, limit_n, timeout_s=_contact_timeout())   # ④-2 삽입력 감시 (순응 ON · 상한 · 시간은 배속에 맞춰 늘림)
+            depth, force = cc.contact_down(watch, limit_n, timeout_s=_contact_timeout(), step_mm=_watch_step(watch))   # ④-2 삽입력 감시 (순응 ON · 마지막 구간은 한 걸음 · 시간은 배속에 맞춰 늘림)
             seated = depth >= watch - float(_need(cell.get('rack'), 'seat_tol_mm', 'cell.rack'))
             if not seated:
                 _log().warn(f'rack_place({rack_slot}) — {depth:.1f}/{watch:.1f} mm 에서 {force:.1f} N 걸림 → RACK_JAM')

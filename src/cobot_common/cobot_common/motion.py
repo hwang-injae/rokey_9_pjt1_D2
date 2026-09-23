@@ -58,6 +58,7 @@ _SRV = '/dsr01/dsr_controller2/motion/'             # 두산 드라이버의 이
 _STOP_MODE = 1                                      # DR_QSTOP — bootstrap.shutdown() 과 같은 값(박진용 확인 대상)
 _ARRIVE_TOL_MM = 2.0                                # move_to 도착 확인: 목표와 이만큼 넘게 떨어져 있으면 '도중에 멈췄다'
 _ARRIVE_TOL_DEG = 1.0                               #   관절 자세는 관절마다 이 각도
+_J6_LIMIT_DEG = 360.0                               # 🆕 9/23 J6 동치각 선택(j6_period)의 범위 — M0609 6번 관절 ±360°
 _ARRIVE_WAIT_S = 0.5                                #   이동이 끝난 직후 자세 값이 자리 잡기를 기다리는 상한
 
 _pause_flag = threading.Event()                     # HMI 가 일시정지를 눌렀다
@@ -80,7 +81,7 @@ class MoveTimeout(RuntimeError):
 
 
 # ------------------------------------------------------------------ 공개 함수
-def move_to(station, carrying, kind=None, point=None):
+def move_to(station, carrying, kind=None, point=None, j6_period=None):
     """station 의 티칭 자세로 **곧장** 간다. 들고 있으면(carrying) 느린 속도. → 끝점까지 남은 높이 mm (접근점이 없으면 0.0)
 
     station: cell.stations(HOME·WEIGH·…) · cell.beds(SPONGE_BED_*) · cell.zones(RET_*) · cell.rack.slots(RACK_*) 의 이름.
@@ -91,6 +92,9 @@ def move_to(station, carrying, kind=None, point=None):
           접근점(approach_posx)이 있으면 접근점으로 가고, 돌려주는 값 = 접근점 z − 끝점 z (끝점까지 곧게 내려갈 높이).
           🟡 접근점이 끝점의 바로 위가 아닌 자리(예: 팔레트 그릇 칸을 랙 밖에서 들어갈 때)는 이 값만으로 끝점에 못 간다 —
              부르는 쪽이 cell.yaml 의 (끝점 − 접근점)만큼 move_rel 한다.
+    j6_period: 🆕 9/23(황인재 튜닝 #1) posj 자세일 때 **6번 관절만** 티칭값 + k×j6_period 중 지금 각도에 가장 가까운 것으로 간다.
+             180 = 두 손가락 그리퍼가 180° 돌려도 같은 파지인 툴 홀더(cell.presets.*.j6_symmetric) · 360 = 같은 자세(한 바퀴 차이).
+             ±360° 를 넘는 값이 나오면 티칭값 그대로(경고). None(기본)이면 예전대로 티칭값으로.
     안전 자세 복귀는 move_to('HOME', False).
     """
     where, spec = _named_pose(station, kind, point)
@@ -101,7 +105,9 @@ def move_to(station, carrying, kind=None, point=None):
     d = dsr()                                       # 여기까지 오류가 없을 때만 로봇에 손댄다
 
     if 'posj' in spec:                              # 관절 자세 (HOME · 집는 자세)
-        joints = spec['posj']
+        joints = [float(v) for v in spec['posj']]
+        if j6_period:                               # 🆕 9/23 J6 동치각 — 지금 각도에서 가장 가까운 것으로(툴 홀더 180° · 한 바퀴 360°)
+            joints = _nearest_j6(joints, [float(v) for v in d.get_current_posj()], float(j6_period), where)
         _run(f'amovej({where})', timeout, lambda: d.amovej(joints, vel=vel_j, acc=acc_j))
         _must_arrive(where, lambda: max(abs(float(a) - b) for a, b in zip(d.get_current_posj(), joints)), _ARRIVE_TOL_DEG, '°')
         return 0.0
@@ -279,6 +285,27 @@ def _run(what, timeout_s, send):
         raise MotionHalted(f'{what} 직후 강제정지')
 
 
+def _nearest_j6(joints, now, period, where):
+    """J6 만 `티칭값 + k×period` 가운데 지금 각도(now[5])에 가장 가까운 것으로 바꾼 관절 자세를 돌려준다.
+
+    🆕 9/23 황인재 튜닝 #1: 수세미 홀더 집는 자세(posj J6 −40.37)는 홈 B 에서 놓고 온 손목(J6 ≈ +182)에서 220° 넘게 돌아야 했다.
+    두 손가락 그리퍼는 J6 를 180° 돌려도 같은 파지(9/22 −220.37 · 9/23 −40.37 둘 다 실기 파지 ✅)라 가장 가까운 동치각(+139.63)으로 가면 43°.
+    ±360°(_J6_LIMIT_DEG) 를 넘는 값이 나오면 티칭값 그대로 두고 경고만 남긴다(관절 범위 밖).
+    """
+    if period <= 0.0:
+        raise ValueError(f'move_to({where}): j6_period={period} — 0 보다 커야 한다(180 또는 360)')
+    taught, cur = joints[5], now[5]
+    cand = taught + round((cur - taught) / period) * period
+    if abs(cand) > _J6_LIMIT_DEG:
+        _warn(f'move_to({where}): J6 동치각 {cand:.2f}° 가 ±{_J6_LIMIT_DEG:g}° 를 넘어 티칭값 {taught:.2f}° 그대로 간다(지금 {cur:.1f}°)')
+        return list(joints)
+    out = list(joints)
+    out[5] = cand
+    if abs(cand - taught) > 1e-6:
+        _info(f'move_to({where}): J6 {taught:.2f}° → {cand:.2f}° (지금 {cur:.1f}° 에서 가장 가까운 {period:g}° 동치 · 회전 {cand - cur:+.1f}°)')
+    return out
+
+
 def _must_arrive(where, error_now, tol, unit):
     """이동이 끝난 뒤 목표에 와 있는지 본다(자유 공간의 이름 이동만 — 힘제어 중의 move_rel 은 일부러 덜 가므로 보지 않는다)."""
     waited, err = 0.0, error_now()
@@ -356,6 +383,16 @@ def _ok(ret, what):
 def _warn(text):
     from rclpy.logging import get_logger
     get_logger('cobot_common').warn(text)
+
+
+def _info(text):
+    try:
+        from rclpy.logging import get_logger
+    except ImportError:                             # ROS 없는 시험 셸(pytest) — 표준 logging 으로
+        import logging
+        logging.getLogger('cobot_common').info(text)
+        return
+    get_logger('cobot_common').info(text)
 
 
 def _positive(name, value):

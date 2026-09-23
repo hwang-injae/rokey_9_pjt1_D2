@@ -49,12 +49,12 @@ class FakeCC:
         if self.fail_on == name or self.fail_on == (name, len([c for c in self.calls if c[0] == name])):
             raise MoveIncomplete(f'{name} 이 도중에 멈췄다')
 
-    def move_to(self, station, carrying, kind=None, point=None):
-        self._note('move_to', station, carrying, kind, point)
+    def move_to(self, station, carrying, kind=None, point=None, **kw):     # 🆕 9/23 kw = j6_period(툴 홀더 J6 동치각)
+        self._note('move_to', station, carrying, kind, point, *([kw] if kw else []))
         return self.up.get((station, point), 0.0)
 
-    def move_rel(self, dx, dy, dz, frame):
-        self._note('move_rel', dx, dy, dz, frame)
+    def move_rel(self, dx, dy, dz, frame, **kw):                 # 🆕 9/23 kw = vel_mm_s(마지막 완충 구간)
+        self._note('move_rel', dx, dy, dz, frame, *([kw] if kw else []))
 
     def where(self):                                                 # 집은 자리(RETURN 역순용)
         self._note('where')
@@ -81,8 +81,8 @@ class FakeCC:
     def force_off(self):
         self._note('force_off')
 
-    def contact_down(self, max_depth, limit, timeout_s=None):
-        self._note('contact_down', max_depth, limit)
+    def contact_down(self, max_depth, limit, timeout_s=None, step_mm=None):   # 🆕 9/23 step_mm = 마지막 감시 구간 걸음
+        self._note('contact_down', max_depth, limit, *([step_mm] if step_mm is not None else []))
         if self.contact_raises is not None:
             raise self.contact_raises('시험')
         return self.contact
@@ -205,6 +205,20 @@ def test_tool_return_reverses_the_pick_when_this_program_picked(cc):
     assert 'BRUSH' not in handling._LAST_PICK                               # 한 번 쓰면 잊는다
 
 
+def test_tool_return_depth_zero_goes_straight_to_pick_pose_and_releases(cc):
+    """🔄 9/23 15:5x 튜닝(#4·#7): tool_return_depth_mm 0 이면 힘 감시 없이 집은 자리로 곧게 내려가 놓고 올라온다(contact_down 없음)."""
+    cc.conf['f1']['tool_return_depth_mm'] = 0
+    handling.tool('SPONGE', 'PICK')
+    cc.calls.clear()
+    r = handling.tool('SPONGE', 'RETURN')
+    assert r.ok
+    names = [c[0] for c in cc.calls]
+    assert 'contact_down' not in names
+    assert names[names.index('release') - 1] == 'move_rel'                  # 내려간 뒤 놓는다
+    rel = [c for c in cc.calls if c[0] == 'move_rel']
+    assert rel[0][3] == pytest.approx(-100.0) and rel[-1][3] == pytest.approx(100.0)   # clear 만큼 내려가고 다시 올라옴
+
+
 def test_tool_return_finds_the_bottom_then_releases(cc):
     """이 프로그램이 집지 않은 툴(집은 자리를 모름) → 옛 방식: 티칭한 return 자세 + 바닥 찾기."""
     handling._LAST_PICK.clear()
@@ -309,3 +323,70 @@ def test_tool_pick_with_a_fixed_width_closes_only_that_far_and_skips_the_check(c
     r = handling.tool('SPONGE', 'PICK')
     assert r.ok and r.width_mm == 36.0
     assert cc.calls[1] == ('grip', 36.0, 5.0)
+
+
+# ------------------------------------------------------------------ 🆕 9/23 튜닝 #1·#2 — 툴 홀더 J6 동치각 · 반납 마지막 구간 한 걸음
+def test_tool_pick_uses_the_nearest_j6_for_a_symmetric_tool(cc):
+    cc.conf['cell']['presets']['SPONGE']['j6_symmetric'] = True
+    handling.tool('SPONGE', 'PICK')
+    assert ('move_to', 'TOOL_SPONGE', False, None, 'pick', {'j6_period': 180.0}) in cc.calls
+
+
+def test_tool_pick_goes_to_the_taught_j6_when_the_tool_is_not_marked_symmetric(cc):
+    handling.tool('BRUSH', 'PICK')
+    assert ('move_to', 'TOOL_BRUSH', False, None, 'pick') in cc.calls
+
+
+def test_tool_return_watches_the_last_millimetres_in_one_step(cc):
+    cc.conf['f1']['tool_return_depth_mm'] = 5
+    cc.conf['f1']['watch_step_mm'] = 5
+    cc.contact = (5.0, 2.0)
+    handling.tool('SPONGE', 'PICK')
+    handling.tool('SPONGE', 'RETURN')
+    assert ('contact_down', 5.0, 8.0, 5.0) in cc.calls                           # (감시 깊이, 접촉 힘, 걸음)
+
+
+def test_tool_return_step_never_exceeds_the_watch_depth(cc):
+    cc.conf['f1']['tool_return_depth_mm'] = 3
+    cc.conf['f1']['watch_step_mm'] = 5
+    cc.contact = (3.0, 2.0)
+    handling.tool('SPONGE', 'PICK')
+    handling.tool('SPONGE', 'RETURN')
+    assert ('contact_down', 3.0, 8.0, 3.0) in cc.calls
+
+
+def test_tool_return_without_watch_step_setting_uses_the_default_step(cc):
+    cc.conf['f1']['tool_return_depth_mm'] = 5
+    cc.contact = (5.0, 2.0)
+    handling.tool('SPONGE', 'PICK')
+    handling.tool('SPONGE', 'RETURN')
+    assert ('contact_down', 5.0, 8.0) in cc.calls                                # step_mm 없이 → force 기본 걸음
+
+
+# ------------------------------------------------------------------ 🆕 9/23 18:1x 튜닝 3차 — 곧게 내려 놓기 · 마지막 land_slow_mm 완충
+def test_place_descends_in_one_go_when_no_soft_landing_is_set(cc):
+    handling.place('SPONGE_BED_B')
+    assert ('move_rel', 0.0, 0.0, -147.7, 'BASE') in cc.calls                    # 한 구간
+
+
+def test_place_slows_only_the_last_millimetres_when_soft_landing_is_set(cc):
+    cc.conf['f1']['land_slow_mm'] = 15
+    cc.conf['f1']['land_vel_mm_s'] = 30
+    handling.place('SPONGE_BED_B')
+    rel = [c for c in cc.calls if c[0] == 'move_rel']
+    assert rel[0][1:4] == (0.0, 0.0, pytest.approx(-132.7)) and len(rel[0]) == 5      # 빠르게 147.7 − 15
+    assert rel[1][1:4] == (0.0, 0.0, -15.0) and rel[1][5] == {'vel_mm_s': 30.0}       # 마지막 15 mm 는 30 mm/s
+    assert cc.calls.index(rel[1]) < cc.calls.index(('release',))                      # 그 뒤 놓는다
+
+
+def test_tool_return_depth_zero_uses_the_soft_landing_and_releases_at_the_spot(cc):
+    cc.conf['f1']['tool_return_depth_mm'] = 0
+    cc.conf['f1']['land_slow_mm'] = 15
+    handling.tool('SPONGE', 'PICK')
+    cc.calls.clear()
+    handling.tool('SPONGE', 'RETURN')
+    names = [c[0] for c in cc.calls]
+    assert 'contact_down' not in names and 'force_off' not in names               # 힘 감시·순응 없음
+    rel = [c for c in cc.calls if c[0] == 'move_rel']
+    assert rel[0][3] == pytest.approx(-85.0) and rel[1][3] == -15.0 and rel[1][5] == {'vel_mm_s': 30.0}
+    assert names.index('release') > cc.calls.index(rel[1]) and rel[2][3] == 100.0   # 놓고 → 곧게 올라온다
