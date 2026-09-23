@@ -36,6 +36,7 @@
   <button id="b-start" class="go" disabled>시작</button>
   <button id="b-toggle" class="stop" disabled>일시정지</button>
   <button id="b-abort" class="warn" disabled>중단 (이 용기 접기)</button>
+  <button id="b-beep" type="button" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-weight:bold">🔊 톡톡 비프음 테스트</button>
 </div>
 <div id="reply" class="dim">버튼을 누르면 flow 의 대답이 여기에 나온다</div>
 <div class="grid">
@@ -134,6 +135,7 @@ async function press(name) {
 $('b-start').onclick = () => press('start');
 $('b-toggle').onclick = () => press(d.state && d.state.step === 'PAUSED' ? 'resume' : 'stop');
 $('b-abort').onclick = () => press('abort');
+$('b-beep').onclick = () => playBeep(880, 0.15);
 
 // 받는 방식 ①: WebSocket — 서버가 먼저 밀어 준다. 끊기면 2초 뒤 다시 건다. 그동안은 ②(물어보기)로 버틴다.
 let ws = null;
