@@ -54,13 +54,22 @@ _SETTLE_SPAN_MM = 0.05               # 이 폭 안에서 머물면 "멈췄다"
 _SETTLE_HOLD_S = 0.2                 # 그 상태가 이만큼 이어져야 한다
 
 # ── 안전 스위치 (상자에서 직접 읽는다) ──
-# status_addr 부터 읽은 칸 중 **몇 번째**인가. 자리는 드라이버 comModbusTcp.getStatus 와 같다.
-_SAFETY_FIELDS = {
-    's1_pushed': 12,                 # 안전 스위치 1 — 지금 눌려 있다
-    's1_triggered': 13,              # 안전 스위치 1 — **걸렸다**(전원을 다시 넣어야 풀린다)
-    's2_pushed': 14,
-    's2_triggered': 15,
-    'safety': 16,                    # 보여만 주고 판정에는 쓰지 않는다
+# OnRobot RG2 공식 Modbus 규격 (OnRobotRGInput.msg 참조):
+# status_addr(258) + 10 = 268번 레지스터(regs[10])가 `gsta`(상태 비트필드)다.
+#   Bit 0: Busy (동작 중)
+#   Bit 1: Grip detected (파지 감지)
+#   Bit 2: S1 pushed (스위치 1 눌림)
+#   Bit 3: S1 triggered (안전회로 1 걸림 — 전원 재시작 필요)
+#   Bit 4: S2 pushed (스위치 2 눌림)
+#   Bit 5: S2 triggered (안전회로 2 걸림 — 전원 재시작 필요)
+#   Bit 6: Safety error (전원 켤 때 스위치 눌림 오류)
+_GSTA_INDEX = 10
+_SAFETY_BITS = {
+    's1_pushed': 2,
+    's1_triggered': 3,
+    's2_pushed': 4,
+    's2_triggered': 5,
+    'safety': 6,
 }
 _TRIPPED_FIELDS = ('s1_triggered', 's2_triggered')       # 이 중 하나라도 0 이 아니면 걸린 것
 _BOX_KEYS = ('ip', 'port', 'tool_unit', 'box_unit', 'status_addr', 'status_count',
@@ -496,7 +505,7 @@ def _box_open(conf):
 
 
 def _read_safety(client, conf):
-    """상태 레지스터를 한 번에 읽어 **안전 스위치 부분만** 뽑는다. 자리는 드라이버와 같다."""
+    """상태 레지스터를 한 번에 읽어 **안전 스위치 부분만** 뽑는다 (regs[10] gsta 비트필드)."""
     try:
         rr = client.read_holding_registers(address=int(conf['status_addr']),
                                            count=int(conf['status_count']),
@@ -506,12 +515,12 @@ def _read_safety(client, conf):
     regs = getattr(rr, 'registers', None)
     if rr is None or not regs or (hasattr(rr, 'isError') and rr.isError()):
         raise GripperBoxError(f'그리퍼 상태를 못 읽었다(상자 응답 {rr!r}) — 툴 전원이 꺼져 있을 수 있다')
-    need = max(_SAFETY_FIELDS.values())
-    if len(regs) <= need:
-        raise GripperBoxError(f'상태 칸이 {len(regs)}개뿐이다 — {need + 1}개가 필요하다. '
+    if len(regs) <= _GSTA_INDEX:
+        raise GripperBoxError(f'상태 칸이 {len(regs)}개뿐이다 — {_GSTA_INDEX + 1}개가 필요하다. '
                               'f2.gripper_box.status_count 를 확인한다')
-    out = {name: int(regs[i]) for name, i in _SAFETY_FIELDS.items()}
-    out['tripped'] = any(out[k] for k in _TRIPPED_FIELDS)
+    gsta = int(regs[_GSTA_INDEX])
+    out = {name: (1 if (gsta & (1 << bit)) else 0) for name, bit in _SAFETY_BITS.items()}
+    out['tripped'] = any(out[k] != 0 for k in _TRIPPED_FIELDS)
     return out
 
 

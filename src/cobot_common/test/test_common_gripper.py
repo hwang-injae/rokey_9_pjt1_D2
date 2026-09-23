@@ -463,11 +463,11 @@ def test_safety_reads_the_right_place(box):
 
 
 def test_safety_tripped_when_switch_triggered(box):
-    """13번째 칸(s1_triggered)이 1 이면 걸린 것이다."""
-    box.regs[13] = 1
+    """10번째 칸(gsta)의 Bit 3(s1_triggered, 1 << 3 = 8)이 1 이면 걸린 것이다."""
+    box.regs[10] = (1 << 3)
     s = G.grip_safety()
     assert s['tripped'] is True and s['s1_triggered'] == 1
-    assert s['s1_pushed'] == 0, '눌림과 걸림은 다른 칸이다'
+    assert s['s1_pushed'] == 0, '눌림(Bit 2)과 걸림(Bit 3)은 다른 비트다'
 
 
 def test_safety_needs_config(fake):
@@ -496,8 +496,8 @@ def test_reset_writes_restart_to_the_box(box):
     🚨 강사 배포본의 /onrobot/restartPower 는 여기서 인자 이름이 틀려(values=) 예외가 나고
        드라이버 노드가 죽는다. 그래서 우리가 직접 보낸다(9/21 소스 확인).
     """
-    box.regs[13] = 1                                  # 걸린 상태에서 시작
-    box.on_write = lambda b: b.regs.__setitem__(13, 0)   # 전원이 들어오면서 풀렸다
+    box.regs[10] = (1 << 3)                           # 걸린 상태에서 시작
+    box.on_write = lambda b: b.regs.__setitem__(10, 0)   # 전원이 들어오면서 풀렸다
     s = G.grip_reset(empty_hand=True)
     assert box.writes == [(0, 2, 63)]
     assert s['tripped'] is False
@@ -505,8 +505,8 @@ def test_reset_writes_restart_to_the_box(box):
 
 def test_reset_reports_a_dead_driver(box, monkeypatch):
     """전원이 끊긴 순간 드라이버가 죽을 수 있다 → 살아남았는지 알려 준다."""
-    box.regs[13] = 1
-    box.on_write = lambda b: b.regs.__setitem__(13, 0)
+    box.regs[10] = (1 << 3)
+    box.on_write = lambda b: b.regs.__setitem__(10, 0)
     monkeypatch.setattr(G, '_stamp', time.monotonic() - 5)   # 5초째 새 값이 없다
     s = G.grip_reset(empty_hand=True)
     assert s['driver_alive'] is False
@@ -514,10 +514,10 @@ def test_reset_reports_a_dead_driver(box, monkeypatch):
 
 def test_reset_sees_a_live_driver(box, monkeypatch):
     """전원 재시작 **뒤에** 새 상태가 오면 살아남은 것이다."""
-    box.regs[13] = 1
+    box.regs[10] = (1 << 3)
 
     def powered(b):
-        b.regs[13] = 0
+        b.regs[10] = 0
         G._stamp = time.monotonic()                   # 드라이버가 다시 발행하기 시작
     box.on_write = powered
     monkeypatch.setattr(G, '_stamp', time.monotonic() - 5)
@@ -526,14 +526,14 @@ def test_reset_sees_a_live_driver(box, monkeypatch):
 
 def test_reset_still_stuck_is_not_called_success(box):
     """전원을 넣었는데도 걸려 있으면 그대로 알려 준다 — 손가락에 뭔가 걸려 있는 것이다."""
-    box.regs[15] = 1                                  # s2_triggered
+    box.regs[10] = (1 << 5)                           # s2_triggered (Bit 5)
     s = G.grip_reset(empty_hand=True)
     assert s['tripped'] is True
 
 
 def test_stuck_command_now_names_the_safety_switch(box, fake, monkeypatch):
     """🔄 폭이 안 변하면 예전처럼 짐작하지 않고 **읽어서** 걸렸다고 말한다."""
-    box.regs[13] = 1
+    box.regs[10] = (1 << 3)
     monkeypatch.setattr(G, '_force_n', 20.0)
     monkeypatch.setattr(G, '_joint_angle', 0.83)      # 명령해도 폭이 그대로
     G.grip(2.0, 20.0)

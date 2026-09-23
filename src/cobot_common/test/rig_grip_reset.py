@@ -34,6 +34,9 @@ from pathlib import Path
 import yaml
 
 HERE = Path(__file__).resolve().parent
+COMMON_ROOT = HERE.parent
+if str(COMMON_ROOT) not in sys.path:
+    sys.path.insert(0, str(COMMON_ROOT))
 
 import cobot_common as cc                          # noqa: E402
 from cobot_common import gripper as G              # noqa: E402  cobot_common 자체 시험이라 내부를 본다
