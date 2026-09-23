@@ -30,7 +30,7 @@
 | 반납 구역 `zone_id` | `RET_B` `RET_C` | 공정 입구. **구역마다 고정 슬롯 2개**(트레이에 자리 표시) — 용기는 슬롯에 겹치지 않게 하나씩 놓는다(9/19 결정: 구역 + 탐색 파지 → 고정 슬롯). ID·함수 서명은 그대로 ✅ **9/20 변경(결정기록 E9)**: 반납 구역은 **내리막 공급 구조** — 용기를 꺼내면 뒤 용기가 같은 자리로 내려온다 → 구역마다 집는 자리는 **1개**이고 같은 자리에서 차례로 집는다(슬롯 2개 안은 폐기). |
 | 팔레트 칸 `rack_slot` | `RACK_B1` `RACK_B2` / `RACK_C1` `RACK_C2` | 공정 출구. 그릇 2칸·컵 2칸 (✅ 황인재 9/20: 컵 칸 4 → 2 — `RACK_C3`·`RACK_C4` 삭제. 코드(`cobot_api.RACK_SLOTS`·`cell.yaml`·`params.yaml`)는 한석형의 좌표 PR과 함께 바꾼다) |
 | 스테이션 `station` | `HOME` `WEIGH` `WASTE` `SPONGE_BED_B` `SPONGE_BED_C` `TOOL_SPONGE` `TOOL_BRUSH` `SOAP` `RINSE` `ISOLATE` | 작업대 위 고정 위치 |
-| 실패 코드 `code` | `OK` `GRIP_FAIL` `EMPTY_ZONE` `LEFTOVER` `LEFTOVER_REMAIN` `SEAT_FAIL` `TOOL_FAIL` `FORCE_LIMIT` `TIMEOUT` `RACK_JAM` `RACK_FULL` `ROBOT_ERROR` `STOPPED` | |
+| 실패 코드 `code` | `OK` `GRIP_FAIL` `EMPTY_ZONE` `LEFTOVER` `LEFTOVER_REMAIN` `SEAT_FAIL` `TOOL_FAIL` `TOOL_LOST`(🆕 9/23 E37 · 닦는 중 툴 놓침) `FORCE_LIMIT` `TIMEOUT` `RACK_JAM` `RACK_FULL` `ROBOT_ERROR` `STOPPED` | |
 | 흐름 상태 `step` | `IDLE` `PICK` `WEIGH` `SHAKE` `SEAT` `SOAP` `WIPE` `RINSE` `RACK` `ISOLATE` `DONE` `ERROR` `PAUSED` | `PICK` 안에 탐색 포함 |
 
 ## 3. F1 파지·이송·적재 (IR-01) · 한석형 · 모듈 `f1_handling.handling`
@@ -138,6 +138,7 @@ f1.pick('RET_B', 'BOWL') → f1.move_to('WEIGH', True, 'BOWL') → f2.leftover_l
 | `EMPTY_ZONE` | 구역 종료 → 다음 구역 (기록 SKIPPED) |
 | `LEFTOVER_REMAIN` `SEAT_FAIL` | ISOLATE 후 다음 용기 |
 | `FORCE_LIMIT` `TIMEOUT` `RACK_JAM` `TOOL_FAIL` | 후퇴 후 재시도 1회 → ISOLATE |
+| `TOOL_LOST` | 🆕 9/23 E37(9/22 회의 합의 · 황인재 승인): F3 가 닦는 중 폭 재확인으로 툴(수세미·솔) 놓침을 감지해 돌려준다 → flow 는 **정지(PAUSED)** → 사람이 홀더에 다시 넣고 재개 신호(넛지·HMI) → `f1.tool(kind, PICK)` 재호출 → F3 함수 재실행(GRIP_FAIL 정책 E12 와 같은 패턴 · 격리 아님) · 새 기능 NEW-02a 와 한 흐름 |
 | `GRIP_FAIL` (f2: 털기·담금 중 미끄러짐 · 무게로 본 빈손) | ✅ **PAUSED + HMI 알림 → 사람이 확인**(황인재 9/20 17:25). 놓쳤다면 용기가 손에 없을 수 있어 격리 동작이 의미 없고, 떨어진 용기를 다음 동작이 칠 수 있다. 확인 뒤 `resume` = 그 단계부터 다시 / `abort` = 그 용기를 접고 다음 용기 |
 | `RACK_FULL` | PAUSED + HMI 알림 → 팔레트 교체 후 **resume = 실패한 단계(적재)부터 다시** / **abort = 그 용기를 격리**하고 다음 용기 |
 | `ROBOT_ERROR` (기능 함수에서 새어 나온 예외 포함) | 그 자리 정지 → PAUSED + 알림 → **사람이 복구**(SDD §7). `abort`는 거부, 복구 뒤 `resume`하면 다음 용기부터(그 용기는 `ERROR`로 기록) |
