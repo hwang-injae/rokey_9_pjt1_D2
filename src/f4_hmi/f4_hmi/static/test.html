@@ -36,7 +36,9 @@
   <button id="b-start" class="go" disabled>시작</button>
   <button id="b-toggle" class="stop" disabled>일시정지</button>
   <button id="b-abort" class="warn" disabled>중단 (이 용기 접기)</button>
-  <button id="b-beep" type="button" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-weight:bold">🔊 톡톡 비프음 테스트</button>
+  <button id="b-beep1" type="button" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:8px 12px;cursor:pointer;font-weight:bold">🔊 1. 기계 비프(1000Hz)</button>
+  <button id="b-beep2" type="button" style="background:#059669;color:#fff;border:none;border-radius:6px;padding:8px 12px;cursor:pointer;font-weight:bold">🔊 2. 이중 비프(삐-빅!)</button>
+  <button id="b-beep3" type="button" style="background:#d97706;color:#fff;border:none;border-radius:6px;padding:8px 12px;cursor:pointer;font-weight:bold">🔊 3. 고음 비프(1500Hz)</button>
 </div>
 <div id="reply" class="dim">버튼을 누르면 flow 의 대답이 여기에 나온다</div>
 <div class="grid">
@@ -62,7 +64,7 @@ let forceAt = 0;
 let audioCtx = null;
 let lastSoundMsg = '';
 
-function playBeep(freq = 880, duration = 0.15) {
+function playBeep(freq = 1000, duration = 0.18, type = 'square', vol = 0.7) {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!AudioContext) return;
@@ -70,15 +72,22 @@ function playBeep(freq = 880, duration = 0.15) {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-    osc.type = 'sine';
+    osc.type = type;
     osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    const now = audioCtx.currentTime;
+    gain.gain.setValueAtTime(vol, now);
+    gain.gain.setValueAtTime(vol, now + duration - 0.02);
+    gain.gain.linearRampToValueAtTime(0.001, now + duration);
     osc.connect(gain);
     gain.connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + duration);
+    osc.start(now);
+    osc.stop(now + duration);
   } catch (e) {}
+}
+
+function playDoubleBeep() {
+  playBeep(1200, 0.09, 'square', 0.7);
+  setTimeout(() => playBeep(1600, 0.11, 'square', 0.7), 120);
 }
 
 function render() {
@@ -92,7 +101,7 @@ function render() {
     $('what').textContent = `${s.kind || '-'} · ${s.zone_id || '-'}`;
     $('message').textContent = s.message || '';
     if (s.message && s.message.includes('재개 요청 감지') && lastSoundMsg !== s.message) {
-      playBeep(880, 0.15);
+      playDoubleBeep();
     }
     lastSoundMsg = s.message || '';
     $('bowl').textContent = `${s.done_bowl} / ${s.target_bowl}`; $('cup').textContent = `${s.done_cup} / ${s.target_cup}`;
@@ -135,7 +144,9 @@ async function press(name) {
 $('b-start').onclick = () => press('start');
 $('b-toggle').onclick = () => press(d.state && d.state.step === 'PAUSED' ? 'resume' : 'stop');
 $('b-abort').onclick = () => press('abort');
-$('b-beep').onclick = () => playBeep(880, 0.15);
+$('b-beep1').onclick = () => playBeep(1000, 0.18, 'square', 0.7);
+$('b-beep2').onclick = () => playDoubleBeep();
+$('b-beep3').onclick = () => playBeep(1500, 0.16, 'square', 0.75);
 
 // 받는 방식 ①: WebSocket — 서버가 먼저 밀어 준다. 끊기면 2초 뒤 다시 건다. 그동안은 ②(물어보기)로 버틴다.
 let ws = null;

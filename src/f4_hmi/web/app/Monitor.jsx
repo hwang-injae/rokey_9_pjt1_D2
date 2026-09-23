@@ -19,7 +19,7 @@ function recall() { try { return sessionStorage.getItem(KEY) || ''; } catch { re
 function remember(v) { try { sessionStorage.setItem(KEY, v); } catch { /* 없어도 된다 */ } }
 
 let audioCtx = null;
-function playBeep(freq = 880, duration = 0.15) {
+function playBeep(freq = 1000, duration = 0.18, type = 'square', vol = 0.7) {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!AudioContext) return;
@@ -27,17 +27,24 @@ function playBeep(freq = 880, duration = 0.15) {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-    osc.type = 'sine';
+    osc.type = type;
     osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    const now = audioCtx.currentTime;
+    gain.gain.setValueAtTime(vol, now);
+    gain.gain.setValueAtTime(vol, now + duration - 0.02);
+    gain.gain.linearRampToValueAtTime(0.001, now + duration);
     osc.connect(gain);
     gain.connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + duration);
+    osc.start(now);
+    osc.stop(now + duration);
   } catch {
     /* 오디오 미지원 또는 차단 환경 */
   }
+}
+
+function playDoubleBeep() {
+  playBeep(1200, 0.09, 'square', 0.7);
+  setTimeout(() => playBeep(1600, 0.11, 'square', 0.7), 120);
 }
 
 export default function Monitor() {
@@ -52,11 +59,11 @@ export default function Monitor() {
   if (s && RUNNING.includes(s.step) && lastRunning.current !== s.step) { lastRunning.current = s.step; remember(s.step); }
   if (s && (s.step === 'IDLE' || s.step === 'DONE') && lastRunning.current) { lastRunning.current = ''; remember(''); }
 
-  // 🆕 톡톡(Nudge) 재개 감지 시 브라우저 비프음 재생
+  // 🆕 톡톡(Nudge) 재개 감지 시 브라우저 비프음 재생 ("삐-빅!")
   useEffect(() => {
     const msg = s?.message || '';
     if (msg.includes('재개 요청 감지') && lastSoundMsg.current !== msg) {
-      playBeep(880, 0.15);
+      playDoubleBeep();
     }
     lastSoundMsg.current = msg;
   }, [s?.message]);
