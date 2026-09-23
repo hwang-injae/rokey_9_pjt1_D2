@@ -5,7 +5,7 @@
 |---|---|
 | 문서 ID | SDD-PREWASH-001 · **v3.0** (2026-09-18) — 실행 구조를 스크립트형으로 변경([DSN-02b](meetings/20260918_결정기록_구조_인터페이스.md)) |
 | 상위 | [01_요구사항_BR-SR.md](01_요구사항_BR-SR.md) · [02_인터페이스_IRD.md](02_인터페이스_IRD.md) · 일정표(구글 드라이브 xlsx) |
-| 그림 | 🔄 9/23 **[images/system_architecture_pc.html](images/system_architecture_pc.html)**(Archify 대화형 · 명세 `.archify.json` · 캡처 `.png`) · 옛 밑그림 [.svg](images/system_architecture_pc.svg) / [.drawio](images/system_architecture_pc.drawio) |
+| 그림 | 🔄 9/23 **[images/system_architecture_pc.html](images/system_architecture_pc.html)**(Archify 대화형 · 명세 `.archify.json` · 캡처 `.png`) |
 
 이 문서는 요구사항을 "실제로 어떻게 만들 것인가"로 바꾼다. PC 배치, 노드·패키지, 통신, 워크셀 좌표, 상태 머신, 각 기능의 내부 절차, 오류 처리, 안전, 배포를 정한다. 강사 산출물(시스템 아키텍처·네트워크 구성도·동작 순서도·하드웨어 구성·인터페이스 정의서·노드 구조도·HMI 화면·예외/오류·위험요소/안전대책)은 §12 표에서 이 문서의 절로 연결한다.
 
@@ -15,7 +15,7 @@
 
 ![시스템 아키텍처](images/system_architecture_pc.png)
 
-🔄 9/23 최신 그림: **[images/system_architecture_pc.html](images/system_architecture_pc.html)** — Archify 로 만든 대화형 HTML(브라우저에서 열기 · 확대 · 경로 추적 · "시연 실행 경로 / 로봇 명령 경로 / 설정·기록" 보기 전환). 위 PNG 는 그 화면 캡처. 원본 명세는 `images/system_architecture_pc.archify.json`(수정 뒤 `archify deliver` 로 다시 만든다). 옛 draw.io 밑그림은 `images/system_architecture_pc.drawio`.
+🔄 9/23 최신 그림: **[images/system_architecture_pc.html](images/system_architecture_pc.html)** — Archify 로 만든 대화형 HTML(브라우저에서 열기 · 확대 · 경로 추적 · "시연 실행 경로 / 로봇 명령 경로 / 설정·기록" 보기 전환). 위 PNG 는 그 화면 캡처. 원본 명세는 `images/system_architecture_pc.archify.json`(수정 뒤 `archify deliver` 로 다시 만든다).
 
 그림 규칙: **사각형 = 노드, 타원 = 토픽, 점선 상자 = 파이썬 패키지·라이브러리(노드 아님)**. 실선 화살표는 서비스 호출(요청 방향)이고 라벨에 `서비스 이름 : 타입`을 적는다. 점선 화살표는 토픽 publish/subscribe이고 라벨에 메시지 타입을 적는다. 회색 가는 화살표는 **파이썬 함수 호출**(ROS 통신 아님)이다. **PC-B(웹) 안쪽은 비워 두었다** — 황인재의 HMI 설계 초안(F4-00) 뒤 DSN-03 회의에서 채운다. 팀이 다시 그릴 수 있게 같은 내용의 [.drawio](images/system_architecture_pc.drawio)를 둔다(생성기 `tools/gen/gen_arch.py`).
 
@@ -640,7 +640,7 @@ soc && python3 src/f3_wipe/test/rig_f3.py
 ## 12. 강사 요구 산출물 ↔ 이 문서
 | 강사 산출물 | 위치 |
 |---|---|
-| 시스템 아키텍처 | §1 그림 + [images/system_architecture_pc.html](images/system_architecture_pc.html)(9/23 Archify · 명세 `.archify.json`) · 옛 [.drawio](images/system_architecture_pc.drawio) |
+| 시스템 아키텍처 | §1 그림 + [images/system_architecture_pc.html](images/system_architecture_pc.html)(9/23 Archify · 명세 `.archify.json` · 캡처 `.png`) |
 | 네트워크 구성도 | §1.2 |
 | 동작 순서도 | §4.1, §5.1 |
 | 하드웨어 구성 | §2 |

@@ -1,8 +1,7 @@
 # tools/gen — 문서 생성기 (직접 편집 금지 대상의 원본)
 | 스크립트 | 만드는 것 | 실행 |
 |---|---|---|
-| `gen_prompts2.py` | `docs/prompts/F1~F4_*.md` (개인 프롬프트 4개, 부록 A = AGENTS.md 전문) | `python3 tools/gen/gen_prompts2.py` — AGENTS.md나 역할 내용이 바뀌면 재생성 |
-| `gen_arch.py` | `docs/images/system_architecture_pc.svg/.drawio` | `python3 tools/gen/gen_arch.py` 후 결과를 docs/images/로 복사 |
+| (아키텍처 그림) | `docs/images/system_architecture_pc.html` · `.archify.json` · `.png` | 9/23 부터 **Archify**(https://github.com/tt-a1i/archify)로 그린다 — 명세 `.archify.json` 을 고친 뒤 `node bin/archify.mjs deliver architecture <명세> <html> --quality showcase` · 캡처는 `google-chrome --headless=new --screenshot` |
 PM(황인재)만 실행한다. 프롬프트를 손으로 고치면 다음 재생성 때 사라지므로 생성기를 고친다.
 
 ## gen_todo.py — 담당별 할 일 시트
@@ -27,8 +26,6 @@ python3 tools/gen/patch_20260919_weekend.py ../_upload/prewash_일정표_0919n.x
 
 패치는 Time Line·상세·변경이력을 고친 뒤 **`할일_*` 시트를 고친 Time Line에서 다시 채운다**(`xlsx_patch.rebuild_todo` + `gen_todo.person_entries`). 그래서 할 일 시트의 ✓ 표시는 Time Line의 상태(완료)에서 나온다 — 할 일 시트에 손으로 찍은 체크는 다음 패치 때 사라진다. `patch_20260918_s4.py`는 9/19에 시트 적용이 끝났다 — 다음 패치를 만들 때 복사해 쓰는 **예시**로 남겨 둔다(다시 실행해도 새 행이 중복되지는 않는다).
 
-`patch_20260919_rebalance.py`는 Time Line·상세뿐 아니라 **마일스톤·로봇 슬롯, 규칙, 변경이력, 완료 목록, 할일_* 4장**을 함께 고친다. 일정을 바꿀 때는 이 파일처럼 모든 시트를 한 번에 맞춘다. 끝에 사람별·칸별 부하 표를 찍어 한 칸 4건을 넘지 않는지 확인한다.
 
-`patch_20260919_audit.py`(9/19 점검)는 위 방식에 더해 **행을 다른 팀 구역으로 옮기고(`MOVE`) 중복 행을 지운다(`DELETE`)**. 끝에 사람별·칸별 부하 표를 찍는다(5건 이상 ⚠). `patch_20260919_rebalance.py`는 시트 적용이 끝났다 — 다시 실행하면 이번 점검에서 옮긴 칸이 되돌아가므로 **실행하지 않는다**(예시로만 둔다).
 
-`patch_20260919_weekend.py`(v5.0)가 9/19 오후 이후의 최신 패치다. `patch_20260919_audit.py`(v4.3~4.14)와 `patch_20260919_rebalance.py`는 시트 적용이 끝났다 — **다시 실행하지 않는다**(재계획에서 옮긴 칸·담당이 되돌아간다). 진행 상태는 PM이 시트에서 직접 고치거나 최신 패치의 `EDIT`에 `status`를 넣는다.
+`patch_20260919_weekend.py` 가 9/19 오후 이후의 **유일한** 일정표 패치다(v5.0 → v22.x · 변경이력은 이 파일 안 HISTORY). 옛 패치(s4·audit·rebalance)와 프롬프트·아키텍처 생성기는 9/23 정리 때 지웠다(git 이력에 있음). `patch_20260919_audit.py`(v4.3~4.14)와 `patch_20260919_rebalance.py`는 시트 적용이 끝났다 — **다시 실행하지 않는다**(재계획에서 옮긴 칸·담당이 되돌아간다). 진행 상태는 PM이 시트에서 직접 고치거나 최신 패치의 `EDIT`에 `status`를 넣는다.

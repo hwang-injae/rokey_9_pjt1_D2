@@ -63,56 +63,88 @@
 **오늘 남은 것(9/23 저녁)**: 15:00 시연 실행 + 녹화(그릇 2 · 컵 2 · 0.5) → 새 기능 단위 확인(격리 · 펌프 · 넛지) → PR #93 실기 검증 → **동결 · `v1.0-demo` 태그**. 추석에는 로봇 없이 화면(HMI)·문서만.
 자동 시험은 **476개**(9/23 14시 · 두 환경에서 통과). 시험 기록은 `docs/test_logs/`(31개), 결정은 `docs/meetings/20260919_결정기록_DSN-03.md`(E1~E41). 오늘 merge 된 PR: #89 #90 #91 #92 #94 #95 #96 #97.
 
-## 4. 직접 확인해 보는 명령 — 지금까지 된 것만
+## 4. 실행 방법 — 무엇을 치면 무엇이 도는가
 
-별칭(`sod` `soc` `cbc` `sodvir` `sodreal`)은 `docs/setup/M0609_환경설정.md`대로 `.bashrc`에 있다.
-`sod` = 두산 드라이버 워크스페이스 source · `soc` = 두산 + 우리 워크스페이스 source · `cbc` = 우리 워크스페이스 빌드 + source.
+별칭(`sod` `soc` `cbc` `sodvir` `sodreal` `rosinfo` `solo`/`team60`)은 `docs/setup/M0609_환경설정.md`대로 `.bashrc`에 있다.
+`sod` = 두산 드라이버 워크스페이스 source · `soc` = 두산 + 우리 워크스페이스 source · `cbc` = 우리 워크스페이스 빌드 + source. 실기 명령은 배속 `PREWASH_VEL_SCALE`(0.3 = 첫 실기 · 0.5 = 시연)을 앞에 붙인다.
 
-### A. 로봇 없이 (아무 PC)
+### 4-1. 준비 (한 번) — 빌드와 자동 시험
 ```bash
-cbc                                            # 빌드 — "8 packages finished"
-python3 -m pytest -q src                        # 자동 시험 476개 통과 (빌드한 뒤에 실행)
-python3 src/f2_sense_flow/test/rig_int12.py check      # 함수 약속 · 빈 껍데기 여부 · 좌표 점검 (전부 "구현돼 있다" · OK)
-python3 src/f2_sense_flow/test/rig_flow_once.py check  # 메인 흐름 설정(계획 · 컵 무게 건너뛰기 · 팔레트 순서) 확인
+git clone https://github.com/hwang-injae/rokey_9_pjt1_D2.git rokey_pjt01_ws && cd rokey_pjt01_ws
+cbc                                              # 빌드 — "8 packages finished"
+python3 -m pytest -q src                          # 자동 시험 476개 통과 (로봇 없이 · 빌드한 뒤)
+python3 src/f2_sense_flow/test/rig_flow_once.py check   # 메인 흐름 설정(계획 그릇 2 → 컵 2 · 팔레트 순서) 점검
+```
+
+### 4-2. 로봇 없이 — 화면과 흐름만 (아무 PC)
+```bash
+soc && ros2 launch prewash_bringup prewash_mock.launch.py     # 메인 프로그램 + 화면을 가짜 기능으로 → http://localhost:8000 에서 시작·정지·재개·중단
 ```
 ```bash
-# 메인 프로그램 + 화면을 가짜 기능으로 (PC 1대) → 브라우저 http://localhost:8000 에서 시작·일시 정지·재개·중단
-soc && ros2 launch prewash_bringup prewash_mock.launch.py
-```
-```bash
-# 화면만: 가짜 flow 대본(normal · paused · isolate · error · empty_zone)으로 화면 반응 보기
-soc && ros2 run f4_hmi hmi_bridge                  # 터미널 1 → http://localhost:8000
-soc && ros2 run f4_hmi fake_state_pub normal       # 터미널 2 (실제 flow_node 와 동시에 띄우지 않는다)
+soc && ros2 run f4_hmi hmi_bridge                  # 터미널 1: 화면 서버 → http://localhost:8000
+soc && ros2 run f4_hmi fake_state_pub normal       # 터미널 2: 가짜 flow 대본(normal · paused · isolate · error · empty_zone)으로 화면 반응 보기
 ```
 화면(`web/out`)이 없으면 `/`에 시험 페이지가 뜬다 — 화면 PC(PC-B)에서 한 번 `cd src/f4_hmi/web && npm install && npm run build`.
 
-### B. 가상 로봇 (RViz · 그리퍼·무게·힘은 없음 — 팔 동작·흐름만)
+### 4-3. 가상 로봇 (RViz · 팔 동작·흐름만 — 그리퍼·무게·힘은 없음)
 ```bash
-sod && sodvir                                   # 터미널 1: 가상 브링업 (이미 떠 있으면 다시 띄우지 않는다)
-soc && python3 src/cobot_common/test/rig_coords.py --from 1     # 터미널 2: 전 좌표를 순서대로 방문
+sod && sodvir                                                    # 터미널 1: 가상 브링업 (이미 떠 있으면 다시 띄우지 않는다)
+soc && python3 src/cobot_common/test/rig_coords.py --from 1      # 터미널 2: 전 좌표를 순서대로 방문
 soc && python3 src/f2_sense_flow/test/rig_int12.py a --virtual --kind BOWL -n 3   # 집기 → 저울 → 잔반 처리 구간
-soc && python3 src/prewash_bringup/test/rig_v20.py              # 정지 위치 확인
 ```
 
-### C. 실제 로봇 🚨 담당자만 · 팀 확인 뒤 · 첫 실행은 저속
+### 4-4. 실제 로봇 🚨 담당자만 · 팀 확인 뒤 · 로봇 프로그램은 한 번에 하나
 ```bash
-rosinfo                                          # RANGE=LOCALHOST 인지 (아니면 남의 로봇으로 명령이 간다)
-sod && sodreal                                   # 터미널 1: 실기 브링업
-# 움직이기 전에 툴·TCP 이름 확인 — 비어 있으면 움직이지 말고 펜던트에서 다시 고른다
-ros2 service call /dsr01/dsr_controller2/tcp/get_current_tcp  dsr_msgs2/srv/GetCurrentTcp    # → GripperDA_v1
+rosinfo                                          # RANGE=LOCALHOST(격리)인지 — PC 2대 통합 때만 team60, 끝나면 solo
+sod && sodreal                                   # 터미널 1: 실기 브링업 (컨트롤러 192.168.1.100)
+ros2 service call /dsr01/dsr_controller2/tcp/get_current_tcp  dsr_msgs2/srv/GetCurrentTcp    # → GripperDA_v1  (아니면 움직이지 말고 펜던트에서 다시 고른다)
 ros2 service call /dsr01/dsr_controller2/tool/get_current_tool dsr_msgs2/srv/GetCurrentTool  # → Tool Weight
 ```
+브링업 뒤 힘센서가 안정되는 데 약 50분이 걸린다. **빈 용기 기준값은 실행 직전에 1회** 재고 `params.yaml`의 `f2.empty_weight_g`에 넣는다(몇 분 사이에도 수십 g 움직인다):
 ```bash
-soc && PREWASH_VEL_SCALE=0.3 python3 src/f1_handling/test/rig_f1.py tool --action CYCLE -n 10   # 툴 집기 → 반납 10회 (V-08)
-soc && PREWASH_VEL_SCALE=0.3 python3 src/f2_sense_flow/test/rig_f2.py empty --kind BOWL -n 10    # 빈 그릇 기준값 (V-02)
-soc && PREWASH_VEL_SCALE=0.3 python3 src/f3_wipe/test/rig_f3.py                                  # 그릇 닦기 (V-03)
-soc && PREWASH_VEL_SCALE=0.3 python3 src/f2_sense_flow/test/rig_flow_once.py --kind CUP --mock "" -n 1     # 메인 흐름으로 컵 1개 (모든 기능 실제)
-soc && PREWASH_VEL_SCALE=0.3 python3 src/f2_sense_flow/test/rig_f2.py shake --mode RINSE --kind BOWL --count 3 -n 1 --no-home   # 새 물털기만
-soc && PREWASH_VEL_SCALE=0.3 python3 src/cobot_common/test/rig_goto.py RINSE_SHAKE --kind CUP --carrying --via RINSE            # 자리 한 곳으로 가서 멈춤(티칭 확인)
-soc && ros2 launch prewash_bringup prewash.launch.py vel_scale:=0.5     # 메인 프로그램(시연 배속 0.5) → ros2 service call /flow/start … — PC-B 는 ros2 run f4_hmi hmi_bridge
+soc && PREWASH_VEL_SCALE=0.3 python3 src/f2_sense_flow/test/rig_f2.py empty --kind BOWL -n 1   # 빈 그릇 기준값 (HOME 경유 · 21 s 창)
+soc && PREWASH_VEL_SCALE=0.3 python3 src/f2_sense_flow/test/rig_f2.py empty --kind CUP  -n 1   # 빈 컵 기준값
 ```
-🚨 실기 전 **빈 용기 기준값은 실행 직전에 1회**(`rig_f2 empty --kind BOWL/CUP -n 1` · 브링업 뒤 워밍업 ~50분 · 몇 분 사이에도 수십 g 움직인다) · 로봇 프로그램은 **한 번에 하나만** · 단계별 도구(rig)는 프로그램마다 그리퍼 힘·프리셋 기억이 이어지지 않으니 담금·털기는 한 프로그램(흐름) 안에서 본다.
-실기가 끝나면 **프로그램 터미널 Ctrl+C → 브링업 터미널 Ctrl+C → 그다음 랜선**. 급하면 Ctrl+C가 아니라 E-Stop.
+
+**단독 기능 시험(rig)** — 용기를 손으로 시작 자리에 놓고 기능 하나만 돌린다. 볼 것과 통과 기준은 각 파일 머리말에 있다.
+| 명령 | 무엇이 도는가 |
+|---|---|
+| `PREWASH_VEL_SCALE=0.3 python3 src/f1_handling/test/rig_f1.py pick --zone RET_C --kind CUP -n 1` | 반납 구역 집기(슬롯 1 → 2 순회 · 폭 판정) |
+| `… rig_f1.py place --station SPONGE_BED_C --kind CUP -n 1` | 스펀지 홈에 놓기 |
+| `… rig_f1.py pick --zone SPONGE_BED_C --kind CUP -n 1` | 홈에서 다시 집기(컵은 옆면 · 접근점 + 마지막 60 mm 힘 감시) |
+| `… rig_f1.py tool --action CYCLE -n 3` | 툴 집기 → 반납 |
+| `… rig_f1.py rack_place --slot RACK_C1 --kind CUP -n 1` | 팔레트 칸에 꽂기(수조 안에서 출발해도 됨) |
+| `… src/f2_sense_flow/test/rig_f2.py dip --kind CUP --count 2 -n 1 --no-home` | 헹굼 담금 2회 |
+| `… rig_f2.py shake --mode RINSE --kind BOWL --count 3 -n 1 --no-home` | 새 물털기(곧게 위로 → 털기 자세 → J4 3회) |
+| `… rig_f2.py shake --mode WASTE --kind BOWL --count 4 -n 1` | 잔반통 위 털기 |
+| `… src/f3_wipe/test/rig_f3.py` | 세제 → 그릇 닦기 |
+| `… src/cobot_common/test/rig_goto.py RINSE_SHAKE --kind CUP --carrying --via RINSE` | 자리 한 곳으로 가서 멈춤(티칭 확인) |
+🚨 단계별 rig 는 프로그램마다 그리퍼 힘·프리셋 기억이 이어지지 않는다 — 담금·털기는 한 프로그램(흐름) 안에서 본다.
+
+**한 바퀴(흐름 한 번 · 프로그램 하나)**:
+```bash
+soc && PREWASH_VEL_SCALE=0.3 python3 src/f2_sense_flow/test/rig_flow_once.py --kind CUP  --mock "" -n 1   # 컵 1개 · 모든 기능 실제
+soc && PREWASH_VEL_SCALE=0.3 python3 src/f2_sense_flow/test/rig_flow_once.py --kind BOWL --mock f3 -n 1   # 그릇 1개 · F3(세제·닦기)만 가짜
+```
+멈추면(PAUSED) 터미널에서 Enter = 그 단계부터 다시 · a = 이 용기를 접고 격리 · q = 끝(안 움직임).
+
+### 4-5. 시연 실행 — 메인 프로그램으로 그릇 2 → 컵 2 연속 (9/23 리허설 2회 완주한 절차)
+준비: 그릇 2·컵 2 를 반납 구역에 **처음부터 다 배치**(E41) · 잔반 대용품 2개(≈190 g) · 새 컵 · 기준값 2종 실행 직전 1회(4-4).
+```bash
+# PC-A
+soc && ros2 launch prewash_bringup prewash.launch.py vel_scale:=0.5      # 터미널 2: 메인 프로그램(flow_node) — IDLE 로 대기
+ros2 service call /flow/start  std_srvs/srv/Trigger                    # 터미널 3: 시작 → 계획대로 4개 연속 · 끝나면 DONE → IDLE
+ros2 service call /flow/stop   std_srvs/srv/Trigger                    # 즉시 일시 정지 (이동 도중에도)
+ros2 service call /flow/resume std_srvs/srv/Trigger                    # 재개 — 실패로 멈췄으면 그 단계부터 다시
+ros2 service call /flow/abort  std_srvs/srv/Trigger                    # PAUSED 에서만: 이 용기를 격리하고 다음 용기로
+ros2 topic echo /flow/state                                            # 지금 단계·용기·잔반·메시지 (2 Hz)
+```
+```bash
+# PC-B (화면 · 선택 — 두 PC 모두 team60 · 같은 스위치)
+soc && ros2 run f4_hmi hmi_bridge                # http://<PC-B>:8000 — 시작·정지·재개·중단 버튼이 위 서비스를 부른다
+```
+볼 것: 용기마다 `/flow/event`(DONE·ISOLATED) · `records.csv`(PC-A) 1행 · 사이클 타임(리허설: 그릇 ≈4분 · 컵 ≈5~6분 · 4개 ≈19분 30초).
+실기가 끝나면 **프로그램 터미널 Ctrl+C → 브링업 터미널 Ctrl+C → 그다음 랜선**. 급하면 Ctrl+C 가 아니라 E-Stop.
 
 ## 5. 문서 지도
 
@@ -128,7 +160,7 @@ soc && ros2 launch prewash_bringup prewash.launch.py vel_scale:=0.5     # 메인
 | PC 환경 설정 · 별칭 | [docs/setup/M0609_환경설정.md](docs/setup/M0609_환경설정.md) |
 | 팀 규칙 (에이전트 공통) · 기여 규칙 (브랜치 · PR · 검토) | [AGENTS.md](AGENTS.md) · [CONTRIBUTING.md](CONTRIBUTING.md) |
 | 일정표 (구글 시트 · 실시간 정본) | [일정표](https://docs.google.com/spreadsheets/d/1ikTAYTa8bgZofF_3RgP5jDoOipSZBPB1/edit?usp=sharing) · 터미널 `python3 tools/sched.py [담당\|taskID]` |
-| 그림 (아키텍처 · 워크셀 · 노드 구조) | [docs/images/](docs/images/) |
+| 그림 — **시스템 아키텍처(대화형)** · 워크셀 · 셀 평면도 | [docs/images/system_architecture_pc.html](docs/images/system_architecture_pc.html)(브라우저로 열기 · 보기 전환 · Present) · [docs/images/](docs/images/) · 그리는 법은 `tools/gen/README.md` |
 | 팀원 온보딩 · 에이전트 프롬프트 | [docs/00_팀원_시작가이드.md](docs/00_팀원_시작가이드.md) · [docs/prompts/](docs/prompts/) |
 
 ## 6. 팀이 지키는 규칙 (요약)
@@ -145,6 +177,6 @@ rokey_pjt01_ws/            ← clone 폴더 = ROS 2 워크스페이스
 ├── docs/                  문서 · 인터페이스 정본 · 결정 기록 · 시험 기록 · 트러블슈팅 · 그림 · 프롬프트
 ├── src/                   ROS 2 패키지 8개 (cobot_api cobot_msgs cobot_common f1_handling f2_sense_flow f3_wipe f4_hmi prewash_bringup)
 │   └── */test/            pytest(test_*.py) + 실기·가상 시험대(rig_*.py — pytest 는 모으지 않음)
-├── tools/                 PR 자동 검사(pr_check.sh) · 일정표 조회(sched.py) · 일정표 생성(gen/)
+├── tools/                 PR 자동 검사(pr_check.sh · pr_open.py) · 일정표 조회(sched.py) · 일정표 패치·구글 시트 반영(gen/)
 └── build/ install/ log/   (.gitignore)
 ```
