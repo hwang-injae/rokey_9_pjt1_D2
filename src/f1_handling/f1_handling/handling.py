@@ -463,10 +463,12 @@ def _tool_return(station, f1, clear, tool=None) -> ToolResult:
         cc.move_rel(0.0, 0.0, -(clear - watch), 'BASE')             # 자유 하강
         try:
             depth, _force = cc.contact_down(watch, limit, timeout_s=_contact_timeout())   # 집은 z 까지 감시 하강 — 툴이 미끄러졌거나 홀더가 밀렸으면 여기서 멈춘다
-        except cc.ForceLimitError:
+        except cc.ForceLimitError as e:
+            _log().error(f'툴 반납({tool}) 감시 하강 — 힘 상한: {e}')          # 🔄 9/23 12:49 실기: 사유 없이 TIMEOUT 만 보여 원인을 못 갈랐다 → 깊이·시간을 남긴다
             _after_contact_failure(clear - watch, watch)
             return ToolResult.fail(FORCE_LIMIT)
-        except cc.MotionTimeout:
+        except cc.MotionTimeout as e:
+            _log().error(f'툴 반납({tool}) 감시 하강 — 시간 초과: {e}')
             _after_contact_failure(clear - watch, watch)
             return ToolResult.fail(TIMEOUT)
         cc.release()                                                # 집은 자리(또는 닿은 자리)에서 놓는다
