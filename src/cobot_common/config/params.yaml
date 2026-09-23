@@ -79,6 +79,18 @@ f2:                                   # ── f2 절 (민범진) ── 값은 
                                       #      0.70 mm  V-23 첫 NORMAL→HOLD 전환의 정상 변화 ← 이보다 커야 헛경보가 안 난다
                                       #      2.15 mm  그릇 파지 폭 (V-01) ← 이보다 작아야 진짜 놓친 것을 잡는다
                                       #    🚨 컵에는 쓰지 않는다 — 컵은 폭으로 판정하지 않는다(9/21 결정 E19)
+  gripper_box:                        # 🆕 그리퍼를 다루는 작은 상자(OnRobot 컴퓨트박스)와 **직접** 말하는 값 — cc.grip_safety() · cc.grip_reset()
+    ip: 192.168.1.1                   # 상자 주소 — m0609_rg2_bringup/launch/bringup.launch.py 의 /onrobot/ip 와 같아야 한다
+    port: 502                         # Modbus/TCP
+    tool_unit: 65                     # 그리퍼(툴) 번호 — 상태를 읽는 곳 (드라이버의 changer_addr 과 같다)
+    box_unit: 63                      # 상자 자신 — 전원 재시작 명령을 받는 곳
+    status_addr: 258                  # 상태 레지스터 시작 칸 (12~16번째가 안전 스위치)
+    status_count: 18                  # 한 번에 읽는 칸 수 — 드라이버(comModbusTcp.getStatus)와 같은 범위
+    restart_addr: 0                   # 이 칸에 restart_value 를 쓰면 툴 전원을 잠깐 껐다 켠다
+    restart_value: 2
+    connect_timeout_s: 1.0            # 상자 응답 상한
+    restart_wait_s: 8.0               # 전원이 다시 들어오기를 기다리는 상한
+    driver_alive_s: 2.0               # 전원 재시작 뒤 /onrobot_joint_states 가 이 시간 안에 안 오면 드라이버가 죽은 것으로 본다
   shake:                              # joint = 흔들 관절(1~6). 🟡 V-07 에서 J5/J6 중 확정 (SDD §5.3)
                                       # period_s = **한 주기** 시간. shake() 가 구간별로 나눠 쓴다
                                       #   (가운데↔끝 = period/4, 끝↔반대끝 = period/2 — 황인재 9/20)
