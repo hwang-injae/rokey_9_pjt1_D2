@@ -368,3 +368,30 @@ def test_rack_place_with_zero_insert_watch_descends_straight_and_releases(cc):
     down = [c for c in rel if c[3] < 0]
     assert down[0][3] == pytest.approx(-85.0) and down[1][3] == -15.0                # 100 = 칸 위 높이 → 85 빠르게 + 15 완충
     assert cc.names().index('release') > cc.calls.index(down[1])
+
+
+# ------------------------------------------------------------------ 🆕 9/24 결정 ④ 준비 — 재파지 감시 하강 걸음(f1.regrip_step_mm)
+def _cup_bed_with_approach(cc):
+    cc.conf['cell']['beds']['SPONGE_BED_C'] = {
+        'regrip': {'approach_posx': [364.72, 138.56, 152.18, 71.66, 116.03, 87.31], 'posx': [364.72, 138.56, 52.18, 71.66, 116.03, 87.31]},
+        'regrip_preset': 'CUP_SIDE'}
+    cc.conf['cell']['presets']['CUP_SIDE'] = {'grip_target_mm': 70.0, 'grip_zero_mm': 10.58, 'grip_force_n': 10}
+    cc.conf['f1']['regrip_watch_mm'] = 45
+    cc.up[('SPONGE_BED_C', 'regrip')] = 100.0
+
+
+def test_regrip_passes_the_configured_step_to_the_watched_descent(cc):
+    _cup_bed_with_approach(cc)
+    cc.conf['f1']['regrip_step_mm'] = 5
+    cc.contact = (45.0, 2.0)
+    cc.grip_widths = [70.3]
+    assert handling.pick('SPONGE_BED_C', 'CUP').ok
+    assert ('contact_down', 45.0, 15, 5.0) in cc.calls                             # (감시, 힘 상한, 걸음)
+
+
+def test_regrip_without_step_setting_keeps_the_default_step(cc):
+    _cup_bed_with_approach(cc)
+    cc.contact = (45.0, 2.0)
+    cc.grip_widths = [70.3]
+    assert handling.pick('SPONGE_BED_C', 'CUP').ok
+    assert ('contact_down', 45.0, 15) in cc.calls                                  # step_mm 없음 → cell 기본 3 mm

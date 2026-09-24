@@ -165,7 +165,7 @@ def _regrip(bed: str, kind: str) -> PickResult:
                 cc.move_rel(0.0, 0.0, -free, 'BASE')
             limit_n = float(_need(cell.get('limits'), 'insert_limit_n', 'cell.limits'))
             try:
-                depth, force = cc.contact_down(watch, limit_n, timeout_s=_contact_timeout(watch))   # 감시 60 mm → 시간도 3배
+                depth, force = cc.contact_down(watch, limit_n, timeout_s=_contact_timeout(watch), step_mm=_regrip_step())   # 감시 45 mm → 시간도 비례 · 걸음은 f1.regrip_step_mm
             except ForceLimitError as e:
                 _log().error(f'재파지({bed}) 하강 — 힘 상한: {e}')
                 _after_contact_failure(free, watch)
@@ -697,6 +697,14 @@ def _descend(dist_mm):
         cc.move_rel(0.0, 0.0, -fast, 'BASE')
     if slow > 0.0:
         cc.move_rel(0.0, 0.0, -slow, 'BASE', vel_mm_s=float(f1.get('land_vel_mm_s') or 30.0))
+
+
+def _regrip_step():
+    """컵 옆면 재파지 감시 하강(f1.regrip_watch_mm 45)의 순응 걸음(mm) = f1.regrip_step_mm. 없거나 0 이면 None → cell.force.contact_step_mm(3) 그대로.
+    🆕 9/24(황인재 9/23 밤 결정 ④): 지금 3 mm × 15걸음 ≈ 40 s 라 컵 RINSE 단계가 84 s. **9/29(화) 오전 실기**에서 5 로 바꿔 보기 위한 자리 —
+    값이 3 이면 동작이 전과 같다(동결 코드와 동일). 5 면 9걸음 ≈ 24 s(−16 s). 테두리에 얹힘 판정은 감시 거리(45)가 그대로라 유지."""
+    v = (cc.cfg().get('f1') or {}).get('regrip_step_mm')
+    return float(v) if v else None
 
 
 def _watch_step(watch_mm):
