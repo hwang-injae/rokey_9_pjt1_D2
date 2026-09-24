@@ -691,48 +691,52 @@ def dip(station: str, count: int, kind: str) -> Result:
 
 
 # ────────────────────────────────── 케이블 넛지(톡톡) 및 재검증
-def wait_for_nudge(conf=None, sig=None, timeout_s=None):
-    """정지 상태에서 사용자의 가벼운 두드림(톡톡 · 넛지)을 감지한다.
+_nudge_armed = False                     # 🆕 E48: wait_for_nudge 가 cc.start_nudge_watch 를 부른 뒤인가 — 0.2 s 씩 여러 번 불려도 두드림 횟수가 이어지게
 
-    외력 순간 변화량 |F - F_base| >= force_threshold_n 이면 'nudge' 반환.
-    sig 가 주어지면 resume/abort 깃발도 함께 검사한다.
-    timeout_s 에 도달하면 None 반환.
+
+def wait_for_nudge(conf=None, sig=None, timeout_s=None):
+    """정지 상태에서 사용자의 두드림(톡톡 · 넛지)을 감지한다 — 🔄 9/24 E48(황인재): 툴 놓침 넛지와 **같은 감지기**(cc.check_nudge)로
+    **15 N(f2.nudge.force_threshold_n) · 2번 치기(cell.limits.nudge_taps · window nudge_tap_window_s)**. 힘 읽기 주기는 cell.limits.nudge_poll_s(0.2 s)
+    — 0.05 s 로 읽으면 로봇 실시간 채널이 막혀 SAFE_STOP(1.3014)이 났다(9/23).
+    handle_cable_tight 가 timeout_s=0.2 로 반복해서 부르므로 기준(start_nudge_watch)은 **처음 한 번만** 잡고, 'nudge'/'resume'/'abort' 로 끝날 때 다시 잡게 푼다.
+    sig 가 주어지면 resume/abort 깃발도 함께 검사한다. timeout_s 에 도달하면 None 반환.
     """
+    global _nudge_armed
     conf = conf if conf is not None else _f2()
     nudge_cfg = conf.get('nudge') or {}
-    thresh = float(nudge_cfg.get('force_threshold_n') or 5.0)
-    gap = float(nudge_cfg.get('poll_gap_s') or 0.05)
-
-    read_force_fn = getattr(cc, 'read_force', None)
-    try:
-        f_base = [float(v) for v in (read_force_fn()[:3] if callable(read_force_fn) else [0.0, 0.0, 0.0])]
-    except Exception as e:
-        _log().warn(f'기준 외력 읽기 실패({e!r}) — [0, 0, 0] 기준')
-        f_base = [0.0, 0.0, 0.0]
-
+    lim = (cc.cfg().get('cell') or {}).get('limits') or {}
+    thresh = float(nudge_cfg.get('force_threshold_n') or lim.get('nudge_force_n') or 15.0)
+    hold = float(lim.get('nudge_hold_s') or 0.15)
+    taps = int(lim.get('nudge_taps') or 1)
+    window = float(lim.get('nudge_tap_window_s') or 2.0)
+    gap = float(lim.get('nudge_poll_s') or nudge_cfg.get('poll_gap_s') or 0.2)
+    start_fn, check_fn = getattr(cc, 'start_nudge_watch', None), getattr(cc, 'check_nudge', None)
+    if not _nudge_armed and callable(start_fn):
+        try:
+            start_fn()
+            _nudge_armed = True
+        except Exception as e:
+            _log().warn(f'넛지 기준 잡기 실패({e!r}) — HMI 재개만 받는다')
     t0 = time.monotonic()
-    alpha = 0.05  # 느린 드리프트 추적용 저주파 필터 계수
     while True:
         if sig is not None:
             if sig.peek('abort'):
+                _nudge_armed = False
                 return 'abort'
             if sig.peek('resume'):
+                _nudge_armed = False
                 return 'resume'
-
         if timeout_s is not None and (time.monotonic() - t0) > timeout_s:
             return None
-
         time.sleep(gap)
-        try:
-            f_now = [float(v) for v in (read_force_fn()[:3] if callable(read_force_fn) else [0.0, 0.0, 0.0])]
-            diff = sum((curr - base) ** 2 for curr, base in zip(f_now, f_base)) ** 0.5
-            if diff >= thresh:
-                _log().info(f'👉 톡톡(넛지) 감지 — 외력 변화량 {diff:.1f} N >= 임계 {thresh:.1f} N')
-                return 'nudge'
-            # 드리프트 적응 업데이트
-            f_base = [(1.0 - alpha) * b + alpha * c for b, c in zip(f_base, f_now)]
-        except Exception:
-            pass
+        if _nudge_armed and callable(check_fn):
+            try:
+                if check_fn(thresh, hold, taps, window):
+                    _log().info(f'👉 톡톡(넛지) 감지 — {thresh:g} N 넘게 {taps}번 (창 {window:g} s)')
+                    _nudge_armed = False
+                    return 'nudge'
+            except Exception as e:
+                _log().warn(f'넛지 감지 읽기 실패({e!r})')
 
 
 def recheck_cable(conf=None):

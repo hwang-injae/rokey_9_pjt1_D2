@@ -64,25 +64,43 @@ def test_sense_weigh_raises_cable_tight_error_when_jitter_exceeds_limit(monkeypa
     assert '케이블 장력 이상' in str(exc_info.value)
 
 
-def test_wait_for_nudge_detects_force_spike(monkeypatch):
-    """톡톡 감지: 정지 상태에서 외력 변화량이 threshold 를 초과하면 'nudge' 반환."""
+def _limits(monkeypatch, cc, **over):
+    lim = {'nudge_force_n': 15.0, 'nudge_hold_s': 0.15, 'nudge_taps': 2, 'nudge_tap_window_s': 2.0, 'nudge_poll_s': 0.001}
+    lim.update(over)
+    monkeypatch.setattr(cc, 'cfg', lambda: {'cell': {'limits': lim}})
+
+
+def test_wait_for_nudge_uses_the_shared_two_tap_detector(monkeypatch):
+    """🔄 9/24 E48: 톡톡 감지는 툴 놓침 넛지와 같은 cc.check_nudge(15 N · 2번 치기) — 두 번째 두드림이 잡히면 'nudge'."""
     import cobot_common as cc
     import f2_sense_flow.sense as sense
-
-    # 초기 외력 0 -> 2번째 호출에서 외력 7N (임계 5N 초과)
-    force_values = [
-        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 7.0, 0.0, 0.0, 0.0],
-    ]
-    monkeypatch.setattr(cc, 'read_force', lambda: force_values.pop(0) if force_values else [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-
-    conf = {
-        'nudge': {'force_threshold_n': 5.0, 'poll_gap_s': 0.001}
-    }
-    sig = Signals()
-    ev = sense.wait_for_nudge(conf=conf, sig=sig, timeout_s=1.0)
+    _limits(monkeypatch, cc)
+    calls = []
+    monkeypatch.setattr(cc, 'start_nudge_watch', lambda: calls.append('start'))
+    monkeypatch.setattr(cc, 'check_nudge', lambda th, hold, taps, win: (calls.append((th, hold, taps, win)), len(calls) >= 3)[1])
+    sense._nudge_armed = False
+    conf = {'nudge': {'force_threshold_n': 15.0, 'poll_gap_s': 0.05}}
+    ev = sense.wait_for_nudge(conf=conf, sig=Signals(), timeout_s=1.0)
     assert ev == 'nudge'
+    assert calls[0] == 'start' and calls[1] == (15.0, 0.15, 2, 2.0)      # 기준 한 번 잡고 · 15 N · hold 0.15 · 2번 · 창 2 s
+    assert sense._nudge_armed is False                                   # 끝나면 다음 정지 때 기준을 새로 잡게 푼다
+
+
+def test_wait_for_nudge_keeps_the_baseline_across_short_calls(monkeypatch):
+    """handle_cable_tight 가 0.2 s 씩 반복해서 불러도 두드림 횟수가 이어지도록 기준은 처음 한 번만 잡는다 · 시간 초과는 None."""
+    import cobot_common as cc
+    import f2_sense_flow.sense as sense
+    _limits(monkeypatch, cc)
+    starts = []
+    monkeypatch.setattr(cc, 'start_nudge_watch', lambda: starts.append(1))
+    monkeypatch.setattr(cc, 'check_nudge', lambda *a: False)
+    sense._nudge_armed = False
+    conf = {'nudge': {'force_threshold_n': 15.0}}
+    assert sense.wait_for_nudge(conf=conf, sig=Signals(), timeout_s=0.01) is None
+    assert sense.wait_for_nudge(conf=conf, sig=Signals(), timeout_s=0.01) is None
+    assert len(starts) == 1 and sense._nudge_armed is True
+    sig = Signals(); sig.raise_('resume')
+    assert sense.wait_for_nudge(conf=conf, sig=sig, timeout_s=0.5) == 'resume' and sense._nudge_armed is False
 
 
 def test_recheck_cable_judges_ok_and_tight(monkeypatch):

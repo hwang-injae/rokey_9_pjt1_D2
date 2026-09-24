@@ -239,34 +239,51 @@ def recover_robot_if_needed(timeout_s=5.0):
 #    이동 중이 아니라 정지 상태에서만 쓴다 — 그래서 순수 힘 감시(모션 없음)만으로 충분하다.
 _nudge_baseline = None                                   # start_nudge_watch() 가 기록한 정지 시점 힘
 _nudge_above_since = None                                # threshold_n 을 넘기 시작한 시각(모노토닉) — 끊기면 None
+_nudge_counted = False                                   # 🆕 E48 이번 접촉을 이미 한 번으로 셌나 — 손을 떼기 전엔 다시 안 센다
+_nudge_taps = []                                         # 🆕 E48 지금까지 센 두드림 시각들(첫 두드림부터 window_s 안)
 
 
 def start_nudge_watch():
-    """넛지 감시 시작 — 지금(멈춘 자리) 힘을 기준으로 삼는다. PAUSED 들어갈 때 한 번 부른다."""
-    global _nudge_baseline, _nudge_above_since
+    """넛지 감시 시작 — 지금(멈춘 자리) 힘을 기준으로 삼는다. PAUSED 들어갈 때 한 번 부른다. 두드림 횟수도 처음부터."""
+    global _nudge_baseline, _nudge_above_since, _nudge_counted, _nudge_taps
     _nudge_baseline = read_force()
     _nudge_above_since = None
+    _nudge_counted = False
+    _nudge_taps = []
 
 
-def check_nudge(threshold_n, hold_s):
-    """기준보다 threshold_n 넘게 벗어난 상태가 hold_s 동안 이어지면 True — 호출부(flow)가 대기 루프에서 반복해서 부른다.
+def check_nudge(threshold_n, hold_s, taps=1, window_s=2.0):
+    """기준보다 threshold_n 넘게 벗어난 상태가 hold_s 동안 이어지면 **한 번 친 것**으로 센다. taps 번(기본 1)이 window_s 안에 모이면 True.
+    호출부(flow)가 대기 루프에서 반복해서 부른다.
 
     한 번 튄 값(순간 노이즈)에 오검출하지 않으려고 **유지 시간**을 본다(hold_s). 벗어났다가 곧 가라앉으면 다시 None 부터.
+    🆕 9/24 E48(황인재): 케이블 이상·툴 놓침 모두 **15 N · 2번 치기**로 통일 — 한 접촉은 손을 떼(기준 아래로 내려가)야 다음 번으로 센다.
+       첫 두드림 뒤 window_s(cell.limits.nudge_tap_window_s · 2 s) 안에 taps(cell.limits.nudge_taps · 2)번째가 오면 True 이고 상태를 비운다.
+       window 가 지나면 처음부터 다시 센다(우연한 접촉 한 번으로는 재개되지 않게).
     start_nudge_watch() 를 먼저 불러야 한다 — 안 불렀으면 RuntimeError.
     """
-    global _nudge_above_since
+    global _nudge_above_since, _nudge_counted, _nudge_taps
     if _nudge_baseline is None:
         raise RuntimeError('check_nudge: start_nudge_watch() 를 먼저 불러 기준을 잡는다')
     f = read_force()
     mag = sum((f[i] - _nudge_baseline[i]) ** 2 for i in range(3)) ** 0.5   # xyz 크기, 정지 시점 대비
     now = time.monotonic()
+    if _nudge_taps and now - _nudge_taps[0] > float(window_s):        # 첫 두드림 뒤 너무 오래 지났다 → 처음부터
+        _nudge_taps = []
     if mag >= threshold_n:
         if _nudge_above_since is None:
             _nudge_above_since = now
-        elif now - _nudge_above_since >= hold_s:
-            return True
+        elif not _nudge_counted and now - _nudge_above_since >= hold_s:
+            _nudge_counted = True                                        # 이 접촉은 한 번
+            _nudge_taps.append(now)
+            if len(_nudge_taps) >= max(1, int(taps)):
+                _nudge_taps = []
+                _nudge_above_since = None
+                _nudge_counted = False
+                return True
     else:
         _nudge_above_since = None
+        _nudge_counted = False                                           # 손을 뗐다 → 다음 두드림을 받을 수 있다
     return False
 
 

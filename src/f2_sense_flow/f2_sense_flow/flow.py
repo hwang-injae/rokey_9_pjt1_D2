@@ -438,6 +438,9 @@ class Flow:
             nudge_force_n = float(cc.cfg()['cell']['limits']['nudge_force_n'])
             nudge_hold_s = float(cc.cfg()['cell']['limits']['nudge_hold_s'])
             nudge_poll_s = float(cc.cfg()['cell']['limits']['nudge_poll_s'])
+            lim_ = cc.cfg()['cell']['limits']
+            nudge_taps = int(lim_.get('nudge_taps') or 1)                     # 🆕 9/24 E48: 2번 치기(없으면 예전대로 1번)
+            nudge_window_s = float(lim_.get('nudge_tap_window_s') or 2.0)
             last_nudge_check = 0.0
         while True:
             if sig.take('abort'):                     # 🆕 사람이 "이 용기는 접자" 고 판단했다
@@ -455,10 +458,10 @@ class Flow:
             now = time.monotonic()
             if allow_nudge and now - last_nudge_check >= nudge_poll_s:
                 last_nudge_check = now
-                if cc.check_nudge(nudge_force_n, nudge_hold_s):
+                if cc.check_nudge(nudge_force_n, nudge_hold_s, nudge_taps, nudge_window_s):
                     sig.clear('stop')
                     self.step = self._prev_step
-                    self.log.info('넛지 감지 — 이어서 진행한다')
+                    self.log.info(f'넛지 감지({nudge_taps}번 치기) — 이어서 진행한다')
                     return RESUMED_NUDGE
             time.sleep(_POLL_S)
 
