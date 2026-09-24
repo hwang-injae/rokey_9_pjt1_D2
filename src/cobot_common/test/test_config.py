@@ -27,7 +27,7 @@ def test_repo_config_loads_all_sections():
     assert set(cfg) == set(config.CELL_KEYS + config.PARAM_SECTIONS) | {config.RUN_KEY}
     assert all(isinstance(cfg[k], dict) for k in cfg)
     assert {'port', 'state_rate_hz', 'disconnect_after_s', 'db_path'} <= set(cfg['hmi'])
-    assert cfg['run'] == {'vel_scale': 0.5}                  # 🔄 9/23 배속 없으면 0.5(전속 1.0 이던 것 · 황인재 결정)
+    assert cfg['run'] == {'vel_scale': 1.0}
 
 
 def test_repo_cell_skeleton_uses_ird_ids():
