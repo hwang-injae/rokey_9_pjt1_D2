@@ -13,7 +13,7 @@ from livesheet import SID, load, timeline
 import gen_todo
 
 ID = 'AH'
-VERSION = 'v23.8'
+VERSION = 'v24.2'
 OUT = 'prewash_일정표_0919s.xlsx'
 def S(*xs): return [tuple(x.split()) for x in xs]          # S('9/20 오전','9/20 오후')
 
@@ -3032,6 +3032,54 @@ EDIT.update({
 HISTORY188 = ['v23.8', '✅ merge', 'INT-4a, INT-4b, VER-0923', 'PM 9/23 20:33: #105 튜닝 1~3차 merge(0.5 통합 17:39 완주 · E44 감시 0+완충) · main 8874dfc 시연 코드 후보 · 열린 PR 0', '황인재 9/23 20:2x', 'H']
 
 
+
+
+# ---------------------------------------------------------------- 9/23 20:39 황인재: 9/29(화) 오전에 나머지 예외 시나리오 실기 — 오늘은 정상 흐름의 잔반 루프 1개만 봤다
+H2040 = '황인재 9/23 20:39'
+EDIT.update({
+ 'INT-4b':   dict(slots=S('9/29 오전'), owner='H(S,P,M)', status='시작 전',
+                  task='INT-4b 예외 시나리오 실기(시연 코드 main 8874dfc · 0.5) — ① 잔반 과다 → 멈춤(E42) → 재개(다시 잼) / 중단(HOME → J1-only 격리 → 다음 용기) 그릇·컵 ② 빈 구역(EMPTY_ZONE → SKIPPED · HOME 복귀 #98) ③ 툴 놓침(TOOL_LOST → PAUSED → 넛지·HMI 재개 → 재PICK · flow_node 경로) ④ 케이블 장력 → 넛지 재개 → SAFE_STOP 자동 복구(#93·#102) ⑤ 정지·재개·중단 버튼(HMI · 중단 정리 = HOME → 툴 반납 → 격리 → HOME) ⑥ (선택) 그리퍼 놓침 GRIP_FAIL → 멈춤 ⑦ (결정 시) 세제 펌프. 제외: RACK_JAM(E44 판정 없음)',
+                  note_add=H2040 + ': **9/29(화) 오전으로 이동** — 오늘 통합 실기(0.5 · 17:39)에서 예외는 "정상 흐름 중 잔반 남음 → 털기 → 재측정" 1개만 봤다. 나머지 예외 시나리오 ①~⑤(⑥⑦ 선택)를 화요일 오전 리허설(REH-02) 뒤·14:00 시연 전에 실기. 대본(넣는 법 · 볼 것 · 통과 기준 · 복구 방법)은 F4 가 추석 중 준비(원격) · 기능 담당이 옆에서(①③ 한석형·박진용 · ④ 민범진 · ⑤ 황인재 HMI) · 실기 순서는 위험 낮은 것부터(⑤ → ② → ① → ③ → ④) · 각 1회 · 실패하면 시연에서는 그 시나리오를 빼고 정상 흐름만(E28)'),
+ 'REH-02':   dict(note_add=H2040 + ': 9/29 오전 순서 — 브링업 → 좌표 재현 10분 → **정상 흐름 리허설 1회(0.5 · #104 닦기 값 재확인 포함)** → **INT-4b 예외 시나리오 ①~⑤** → 시연 직전 기준값 2종. 예외 실기가 길어지면 시연 대본에 넣을 것만 남기고 나머지는 시연 뒤'),
+ 'DEMO-01':  dict(note_add=H2040 + ': 새 기능 시연 = 오전 INT-4b 에서 **통과한 시나리오만** 넣는다(실패한 것은 정상 흐름만 · E28)'),
+})
+HISTORY189 = ['v23.9', '📅 일정', 'INT-4b, REH-02, DEMO-01', '황인재 9/23 20:39: 예외 시나리오 실기(잔반 과다 멈춤·재개/중단 격리 · 빈 구역 · 툴 놓침 넛지 · 케이블 넛지 · 정지/재개/중단 버튼)를 9/29(화) 오전 REH-02 뒤로 — 오늘은 정상 흐름 잔반 루프 1개만 확인', '황인재 9/23 20:39', 'H']
+
+
+
+
+# ---------------------------------------------------------------- 9/24 17:54 동결(E45 · v1.0-demo = 8874dfc) · 기본 배속 0.5(E46) · ③④ 는 9/29 오전 실기 · INT-4b 대본 준비됨
+P0924 = 'PM 9/24 17:54(date 값)'
+EDIT.update({
+ 'INT-4a':   dict(note_add=P0924 + ': ✅ **동결(E45 · 황인재 9/23 밤) — 태그 `v1.0-demo` = main 8874dfc**(PM 9/24). 이후 기능 추가 금지 · 동결 뒤 코드는 시연 경로 무영향 안전장치·문서만 · 9/29 오전 실기 확인 뒤 반영 · main 이 달라지면 리허설 통과 뒤 `v1.0-demo.1`'),
+ 'INT-4b':   dict(note_add=P0924 + ': ✅ 대본 준비됨(F4 · 브랜치 injae/20260929-INT-4b-script · docs/test_logs/20260929_INT-4b_예외시나리오_대본.md · PR 은 "열어" 뒤) — 순서 ⑤→②→①→③→④ · ⑥ GRIP_FAIL 제외 권고 · 예상 1시간 · 화요일 추가 항목: **홈 B 방향 179.7 · 컵 재파지 걸음 3 → 5 mm**(황인재 9/23 밤 · 실기로 결정 · 준비 코드 f1.regrip_step_mm 기본 3 = 동작 불변) · 케이블 떨림 상한 50→80 은 결정 대기(오늘 45 g 오탐 여지)'),
+ 'VER-0923': dict(status='완료', prog='1.0', note_add=P0924 + ': 9/23 검증 마감 — 동결 v1.0-demo · 남은 🟡(1.0 배속 · flow_node TOOL_LOST · #98 EMPTY_ZONE→HOME)은 9/29 오전 INT-4b/REH-02 로 이관 · **E46 기본 배속 0.5**(F4 tune2 · PR 대기)'),
+})
+HISTORY190 = ['v24.0', '🔒 동결', 'INT-4a, INT-4b, VER-0923', 'PM 9/24 17:54: E45 동결 태그 v1.0-demo(main 8874dfc) · E46 기본 배속 0.5(tune2 PR 대기) · 홈 B 179.7·재파지 걸음 5 는 9/29 오전 실기 · INT-4b 대본 준비됨', '황인재 9/23 밤', 'H']
+
+
+
+
+# ---------------------------------------------------------------- 9/24 19:23 황인재: 떨림 상한·넛지 힘은 화요일 실기로(민범진·박진용) · 세제 펌프는 화요일 구매 뒤 확인(한석형)
+H0924 = '황인재 9/24 19:23'
+EDIT.update({
+ 'INT-4b':   dict(note_add=H0924 + ': ④ 케이블 항목에서 **두 값을 실기로 정한다** — (1) 떨림 상한 `f2.limits.max_weigh_spread_g`(50 · 정상 무게 재기의 떨림 8~45 g 기록 vs 케이블을 실제로 당겼을 때 값 사이) (2) 넛지 힘 `f2.nudge`(케이블 · ≈5 N) · `cell.limits.nudge_force_n`(툴 놓침 · 15 N) — 얼마나 세게 쳐야 재개되는지. 담당 민범진(케이블) · 박진용(툴) · 값 변경은 E45(b) 절차'),
+ 'NEW-01b':  dict(slots=S('9/29 오전'), status='진행 중', note_add=H0924 + ': **9/29 오전 펌프 구매 → 단독 확인(한석형) → 시연 포함 결정** — 켜려면 `f1.soap_pump.enabled: true`(동결 뒤 설정 변경 · 리허설 통과 뒤 · E45(b)) · 대본 ⑦ 은 "결정 시"'),
+})
+HISTORY191 = ['v24.1', '📅 일정', 'INT-4b, NEW-01b', '황인재 9/24 19:23: 케이블 떨림 상한·넛지 힘은 9/29 오전 실기로 결정(민범진·박진용) · 세제 펌프는 9/29 오전 구매 뒤 단독 확인(한석형)', '황인재 9/24 19:23', 'H']
+
+
+
+
+# ---------------------------------------------------------------- 9/24 19:57 황인재 결정 3: 떨림 상한 80(E47) · 넛지 15 N·2번 통일(E48) · 대용품 94 g 1개 + 화요일 무게 확인(E39 종결)
+H0924b = '황인재 9/24 19:57'
+EDIT.update({
+ 'INT-4b':   dict(note_add=H0924b + ': **E47** 떨림 상한 50 → 80(main 반영 · ④ 에서 확인) · **E48** 넛지 힘·횟수 통일 15 N·2번(힘은 설정 · 2번 치기는 코드 = F4 tune2 · ③④ 실기 · 실패 시 태그 v1.0-demo 옛 동작) · **⓪ 대용품 무게 확인 추가**: 94 g 을 그릇·컵에 넣고 각 3회 읽어 모두 ≥ 65 g 이면 그대로, 하나라도 60 g 아래면 2개로(또는 기준 조정) — 리허설 앞에 10분'),
+ 'DEMO-01':  dict(note_add=H0924b + ': **E39 종결 — 대용품 94 g 1개를 그릇 2·컵 2 중 임의 용기에**(판정 기준 50 g 유지 · 오전 ⓪ 무게 확인 통과가 조건) · 시연 직전 빈 용기 기준값 2종 필수'),
+})
+HISTORY192 = ['v24.2', '✅ 결정', 'INT-4b, DEMO-01', '황인재 9/24 19:57: E47 떨림 상한 80 · E48 넛지 15 N·2번 통일(코드 F4 · 9/29 실기) · E39 종결 대용품 94 g 1개 임의 용기 + 오전 무게 확인 ⓪', '황인재 9/24 19:57', 'H']
+
+
 def main(out):
     gen_todo.EASY.update(EASY)
     for _t in DELETE: EDIT.pop(_t, None); MOVE.pop(_t, None)
@@ -3132,7 +3180,7 @@ def main(out):
             ru.rows[k] = n
     # 7) 변경이력
     h = b.sheet('변경이력')
-    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113, HISTORY114, HISTORY115, HISTORY116, HISTORY117, HISTORY118, HISTORY119, HISTORY120, HISTORY121, HISTORY122, HISTORY123, HISTORY124, HISTORY125, HISTORY126, HISTORY127, HISTORY128, HISTORY129, HISTORY130, HISTORY131, HISTORY132, HISTORY133, HISTORY134, HISTORY135, HISTORY136, HISTORY137, HISTORY138, HISTORY139, HISTORY140, HISTORY141, HISTORY142, HISTORY143, HISTORY144, HISTORY145, HISTORY146, HISTORY147, HISTORY148, HISTORY149, HISTORY150, HISTORY151, HISTORY152, HISTORY153, HISTORY154, HISTORY155, HISTORY156, HISTORY157, HISTORY158, HISTORY159, HISTORY160, HISTORY161, HISTORY162, HISTORY163, HISTORY164, HISTORY165, HISTORY166, HISTORY167, HISTORY168, HISTORY169, HISTORY170, HISTORY171, HISTORY172, HISTORY173, HISTORY174, HISTORY175, HISTORY176, HISTORY177, HISTORY178, HISTORY179, HISTORY180, HISTORY181, HISTORY182, HISTORY183, HISTORY184, HISTORY185, HISTORY186, HISTORY187, HISTORY188):
+    for hist in (HISTORY, HISTORY2, HISTORY3, HISTORY4, HISTORY5, HISTORY6, HISTORY7, HISTORY8, HISTORY9, HISTORY10, HISTORY11, HISTORY12, HISTORY13, HISTORY14, HISTORY15, HISTORY16, HISTORY17, HISTORY18, HISTORY19, HISTORY20, HISTORY21, HISTORY22, HISTORY23, HISTORY24, HISTORY25, HISTORY26, HISTORY27, HISTORY28, HISTORY29, HISTORY30, HISTORY31, HISTORY32, HISTORY33, HISTORY34, HISTORY35, HISTORY36, HISTORY37, HISTORY38, HISTORY39, HISTORY40, HISTORY41, HISTORY42, HISTORY43, HISTORY44, HISTORY45, HISTORY46, HISTORY47, HISTORY48, HISTORY49, HISTORY50, HISTORY51, HISTORY52, HISTORY53, HISTORY54, HISTORY55, HISTORY56, HISTORY57, HISTORY58, HISTORY59, HISTORY60, HISTORY61, HISTORY62, HISTORY63, HISTORY64, HISTORY65, HISTORY66, HISTORY67, HISTORY68, HISTORY69, HISTORY70, HISTORY71, HISTORY72, HISTORY73, HISTORY74, HISTORY75, HISTORY76, HISTORY77, HISTORY78, HISTORY79, HISTORY80, HISTORY81, HISTORY82, HISTORY83, HISTORY84, HISTORY85, HISTORY86, HISTORY87, HISTORY88, HISTORY89, HISTORY90, HISTORY91, HISTORY92, HISTORY93, HISTORY94, HISTORY95, HISTORY96, HISTORY97, HISTORY98, HISTORY99, HISTORY100, HISTORY101, HISTORY102, HISTORY103, HISTORY104, HISTORY105, HISTORY106, HISTORY107, HISTORY108, HISTORY109, HISTORY110, HISTORY111, HISTORY112, HISTORY113, HISTORY114, HISTORY115, HISTORY116, HISTORY117, HISTORY118, HISTORY119, HISTORY120, HISTORY121, HISTORY122, HISTORY123, HISTORY124, HISTORY125, HISTORY126, HISTORY127, HISTORY128, HISTORY129, HISTORY130, HISTORY131, HISTORY132, HISTORY133, HISTORY134, HISTORY135, HISTORY136, HISTORY137, HISTORY138, HISTORY139, HISTORY140, HISTORY141, HISTORY142, HISTORY143, HISTORY144, HISTORY145, HISTORY146, HISTORY147, HISTORY148, HISTORY149, HISTORY150, HISTORY151, HISTORY152, HISTORY153, HISTORY154, HISTORY155, HISTORY156, HISTORY157, HISTORY158, HISTORY159, HISTORY160, HISTORY161, HISTORY162, HISTORY163, HISTORY164, HISTORY165, HISTORY166, HISTORY167, HISTORY168, HISTORY169, HISTORY170, HISTORY171, HISTORY172, HISTORY173, HISTORY174, HISTORY175, HISTORY176, HISTORY177, HISTORY178, HISTORY179, HISTORY180, HISTORY181, HISTORY182, HISTORY183, HISTORY184, HISTORY185, HISTORY186, HISTORY187, HISTORY188, HISTORY189, HISTORY190, HISTORY191, HISTORY192):
         if not has(h, 'A', hist[0]):
             k = h.first_empty(); n = h.rows[k - 1].clone()
             for c, v in zip('ABCDEF', hist): n.set(c, v)
