@@ -155,17 +155,25 @@ def _regrip(bed: str, kind: str) -> PickResult:
         #    07:55 실기에서 HOME 에서 곧장 가다 열린 그리퍼가 홈 C 의 컵에 걸려 SAFE_STOP 이 났다.
         up = float(cc.move_to(bed, False, kind, _REGRIP_POINT) or 0.0)
         free = depth = 0.0
-        if up > 0.0:
+        raw_watch = (cc.cfg().get('f1') or {}).get('regrip_watch_mm')
+        watch_mm = float(raw_watch) if raw_watch is not None else 60.0        # 🔄 9/24 0 = 감시 없음(황인재 결정: 걸음 하강 자체를 없앤다)
+        if up > 0.0 and watch_mm <= 0.0:
+            # 🆕 9/24 황인재: 순응 걸음 하강(3 mm ≈ 3 s × 15 = 40 s) 없이 **곧게 내려가 바로 잡는다**(마지막 land_slow_mm 완충).
+            #    컵 XY 는 로봇이 스스로 놓은 자리(SPONGE_BED_C.place)라 어긋남이 작고 손가락 여유(110 − 70 = 양쪽 20 mm)가 있다.
+            #    테두리에 얹힘 판정(GRIP_FAIL)은 없어진다 — 걸리면 로봇 충돌 감지가 마지막 보호. 🟡 9/29 실기 전.
+            _descend(up)
+            free = up
+        elif up > 0.0:
             # 🔄 9/23 08:2x: 내려오는 마지막 f1.regrip_watch_mm(60)은 **힘 감시**(cell.limits.insert_limit_n) — 손가락이 컵 테두리에 얹히면
             #    컨트롤러 SAFE_STOP(07:55) 대신 상한에서 멈춰 되올라오고 GRIP_FAIL(정책 pause · 사람이 자세 XY 확인). 컵 윗단은 잡는 높이 +45 쯤.
             cell = _cell()
-            watch = min(up, float((cc.cfg().get('f1') or {}).get('regrip_watch_mm') or 60.0))
+            watch = min(up, watch_mm)
             free = up - watch
             if free > 0.0:
                 cc.move_rel(0.0, 0.0, -free, 'BASE')
             limit_n = float(_need(cell.get('limits'), 'insert_limit_n', 'cell.limits'))
             try:
-                depth, force = cc.contact_down(watch, limit_n, timeout_s=_contact_timeout(watch), step_mm=_regrip_step())   # 감시 45 mm → 시간도 비례 · 걸음은 f1.regrip_step_mm
+                depth, force = cc.contact_down(watch, limit_n, timeout_s=_contact_timeout(watch))   # 감시 거리에 비례한 시간 상한
             except ForceLimitError as e:
                 _log().error(f'재파지({bed}) 하강 — 힘 상한: {e}')
                 _after_contact_failure(free, watch)
@@ -697,14 +705,6 @@ def _descend(dist_mm):
         cc.move_rel(0.0, 0.0, -fast, 'BASE')
     if slow > 0.0:
         cc.move_rel(0.0, 0.0, -slow, 'BASE', vel_mm_s=float(f1.get('land_vel_mm_s') or 30.0))
-
-
-def _regrip_step():
-    """컵 옆면 재파지 감시 하강(f1.regrip_watch_mm 45)의 순응 걸음(mm) = f1.regrip_step_mm. 없거나 0 이면 None → cell.force.contact_step_mm(3) 그대로.
-    🆕 9/24(황인재 9/23 밤 결정 ④): 지금 3 mm × 15걸음 ≈ 40 s 라 컵 RINSE 단계가 84 s. **9/29(화) 오전 실기**에서 5 로 바꿔 보기 위한 자리 —
-    값이 3 이면 동작이 전과 같다(동결 코드와 동일). 5 면 9걸음 ≈ 24 s(−16 s). 테두리에 얹힘 판정은 감시 거리(45)가 그대로라 유지."""
-    v = (cc.cfg().get('f1') or {}).get('regrip_step_mm')
-    return float(v) if v else None
 
 
 def _watch_step(watch_mm):
