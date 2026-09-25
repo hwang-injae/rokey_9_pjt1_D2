@@ -5,7 +5,7 @@ import { useHmi } from './lib/useHmi';
 import { VIEW, ORDER, BASE, FRONT, DIV, SLOT, BADGE } from './lib/palletArt';
 import {
   FLOW, RUNNING, STEP_KO, KIND_KO, RESULT_KO, CODE_KO,
-  buttons, pallet, zones, cycle, alarm, problems, clock, why, progress, nextStep, consumables,
+  buttons, pallet, zones, cycle, alarm, problems, clock, why, progress, nextStep, consumables, pauseKind,
 } from './lib/derive';
 
 // 그림 — web/illust/build.py 가 코드로 그린 등각 일러스트(황인재 9/21 · Claude 디자인 시안 승인). public/illust/ 에 있다
@@ -59,7 +59,7 @@ export default function Monitor() {
   if (s && RUNNING.includes(s.step) && lastRunning.current !== s.step) { lastRunning.current = s.step; remember(s.step); }
   if (s && (s.step === 'IDLE' || s.step === 'DONE') && lastRunning.current) { lastRunning.current = ''; remember(''); }
 
-  // 🆕 톡톡(Nudge) 재개 감지 시 브라우저 비프음 재생 (1500Hz 기계음)
+  // 🆕 톡톡(Nudge) 재개 감지 시 브라우저 비프음 재생 (1500Hz 기계음) — 케이블 경로는 flow 가 '재개 요청 감지' 문구를 보낸다(#93)
   useEffect(() => {
     const msg = s?.message || '';
     if (msg.includes('재개 요청 감지') && lastSoundMsg.current !== msg) {
@@ -67,6 +67,13 @@ export default function Monitor() {
     }
     lastSoundMsg.current = msg;
   }, [s?.message]);
+  // 🆕 9/25 멈춤이 풀리면(PAUSED → 운전) 짧은 두 음 — 툴 놓침 넛지처럼 문구 없이 재개되는 경로도 소리로 알린다
+  const wasPaused = useRef(false);
+  useEffect(() => {
+    const step = s?.step;
+    if (wasPaused.current && step && RUNNING.includes(step)) playDoubleBeep();
+    wasPaused.current = step === 'PAUSED';
+  }, [s?.step]);
 
   const can = buttons(d);
   async function onPress(name) {
@@ -121,34 +128,23 @@ function Alarm({ d, step }) {
   const a = alarm(d);
   if (!a) return null;
   const label = CODE_KO[a.code] || a.code;
-  if (a.level === 'error') {
+  if (a.level === 'error' || a.level === 'pause') {           // 멈춤 — 원인 갈래별 제목·설명·할 일(derive.GUIDE_KO)
+    const g = a.guide;
+    const where = step ? ` — ${STEP_KO[step]} 단계에서` : '';
     return (
-      <section className="alarm error">
-        <div className="alarm-title">🚨 운영자 복구 필요 — {label}</div>
-        {a.message && <div className="alarm-msg">{a.message}</div>}
-        <ol className="alarm-steps">
-          <li>로봇과 주변을 확인한다(용기·툴이 걸려 있지 않은지)</li>
-          <li>필요하면 <code>release_force.py</code> 로 힘제어를 푼다</li>
-          <li><b>재개</b> 를 누른다 — 1초 안에 대답이 없으면 flow_node 를 다시 띄운다</li>
-        </ol>
-      </section>
-    );
-  }
-  if (a.level === 'pause') {
-    return (
-      <section className="alarm pause">
-        <div className="alarm-title">일시 정지됨{step ? ` — ${STEP_KO[step]} 단계` : ''}</div>
-        <div className="alarm-msg">
-          {a.message || '운영자 요청'} · 확인한 뒤 <b>재개</b>(하던 동작을 이어서) 또는 <b>중단</b>(이 용기를 격리)
-          {a.code && a.code !== 'OK' ? ` · 원인: ${label}` : ''}
-        </div>
+      <section className={`alarm ${a.level}`}>
+        <div className="alarm-title">{a.level === 'error' ? '🚨 ' : ''}{g.title}{where}</div>
+        <div className="alarm-msg">{g.what}{a.message && a.kind !== 'operator' ? ` (flow: ${a.message})` : ''}</div>
+        <ol className="alarm-steps">{g.steps.map((t, i) => <li key={i}>{t}</li>)}</ol>
+        {a.code && a.code !== 'OK' && a.kind !== 'cable' ? <div className="dim small">코드 {a.code} · {label}</div> : null}
       </section>
     );
   }
   return (
     <section className="alarm warn">
-      <div className="alarm-title">⚠ {label}</div>
+      <div className="alarm-title">⚠ 최근 원인: {label}</div>
       {a.message && <div className="alarm-msg">{a.message}</div>}
+      <div className="dim small">재개해 진행 중입니다 — 다시 멈추면 위 안내가 뜹니다</div>
     </section>
   );
 }
@@ -175,7 +171,7 @@ function StepBar({ d, paused }) {
   const at = paused || step;                         // 일시 정지 중이면 멈춘 단계를 가리킨다
   const idx = FLOW.indexOf(at);
   const finished = step === 'DONE';
-  const broken = !!s && s.last_code === 'ROBOT_ERROR';
+  const broken = !!s && pauseKind(s) === 'robot_error';        // 케이블 이상 멈춤은 코드가 ROBOT_ERROR 여도 로봇 오류(붉은 카드)가 아니다
   // 좁은 화면(태블릿)에서는 단계 줄이 옆으로 밀린다 — 지금 단계 카드가 가운데 오게 줄만 민다(화면 전체는 움직이지 않는다)
   const bar = useRef(null);
   useEffect(() => {
@@ -246,8 +242,8 @@ function Now({ d, last }) {
   if (!s) { pill = '연결 대기'; tone = 'idle'; title = '대기'; art = 'PICK'; desc = 'flow 의 방송을 기다린다'; }
   else if (step === 'IDLE') { pill = '대기'; tone = 'idle'; title = '대기'; art = 'PICK'; desc = '시작을 누르면 반납 구역부터 차례로 처리한다'; num = 0; }
   else if (step === 'DONE') { pill = '완료'; tone = 'idle'; title = '완료'; art = 'RACK'; desc = '계획한 용기를 모두 처리했다 — 팔레트를 확인한다'; num = 0; }
-  else if (step === 'PAUSED' && s.last_code === 'ROBOT_ERROR') { pill = '로봇 오류 — 복구 필요'; tone = 'error'; }   // flow 는 로봇 오류에서 멈춰(PAUSED) 사람을 기다린다
-  else if (step === 'PAUSED') { pill = '일시 정지'; tone = 'paused'; }
+  else if (step === 'PAUSED' && pauseKind(s) === 'robot_error') { pill = '로봇 오류 — 복구 필요'; tone = 'error'; }   // flow 는 로봇 오류에서 멈춰(PAUSED) 사람을 기다린다
+  else if (step === 'PAUSED') { pill = { cable: '멈춤 — 케이블 확인', tool_lost: '멈춤 — 툴 놓침', leftover: '멈춤 — 잔반 남음', grip: '멈춤 — 집기 실패', rack_full: '멈춤 — 팔레트 가득' }[pauseKind(s)] || '일시 정지'; tone = 'paused'; }
   else if (step === 'ERROR') { pill = '오류'; tone = 'error'; }
   else if (step === 'ISOLATE') { pill = '격리 중'; tone = 'isolate'; num = '!'; }
   if (!art) { art = 'PICK'; title = STEP_KO[step] || '-'; }

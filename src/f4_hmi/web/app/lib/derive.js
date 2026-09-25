@@ -14,6 +14,40 @@ export const CODE_KO = {                             // cobot_api CODES (IRD §2
   OK: '정상', GRIP_FAIL: '집기 실패', EMPTY_ZONE: '빈 구역', LEFTOVER: '잔반 있음', LEFTOVER_REMAIN: '잔반이 남음',
   SEAT_FAIL: '안착 실패', TOOL_FAIL: '툴 집기 실패', FORCE_LIMIT: '힘 상한 초과', TIMEOUT: '시간 초과',
   RACK_JAM: '적재 걸림', RACK_FULL: '팔레트 가득 참', ROBOT_ERROR: '로봇 오류', STOPPED: '멈춤',
+  TOOL_LOST: '툴 놓침',                              // 🆕 E37(9/23) — 닦는 중 수세미·솔이 그리퍼에서 빠짐
+};
+
+// 멈춤(PAUSED)의 원인 갈래 — flow 가 보내는 last_code 와 message 로 가른다(F4 9/25 · 시연 예외 6개에 맞춤).
+//   'cable' 만 message 로 본다: 케이블 이상은 코드가 아니라 flow 가 last_code=ROBOT_ERROR 에 케이블 안내 문구를 얹어 보낸다(flow.handle_cable_tight).
+export function pauseKind(s) {
+  if (!s || s.step !== 'PAUSED') return null;
+  if ((s.message || '').includes('케이블')) return 'cable';
+  switch (s.last_code) {
+    case 'ROBOT_ERROR': return 'robot_error';
+    case 'TOOL_LOST': return 'tool_lost';
+    case 'LEFTOVER_REMAIN': return 'leftover';
+    case 'GRIP_FAIL': return 'grip';
+    case 'RACK_FULL': return 'rack_full';
+    default: return 'operator';                      // 일시 정지 버튼 · 빈 구역 뒤 HOME 실패 등
+  }
+}
+
+// 멈춤 원인별 운영자 안내 — 무엇이 일어났고, 무엇을 하면 되는지(재개하면 flow 가 어디부터 이어 가는지). 문구는 SDD §7 과 같다.
+export const GUIDE_KO = {
+  operator: { title: '일시 정지됨', what: '운영자 요청으로 그 자리에서 멈췄습니다.',
+    steps: ['재개 — 하던 동작을 이어서 합니다', '중단 — 이 용기를 격리 구역으로 보내고 다음 용기로 갑니다'] },
+  cable: { title: '케이블 이상 — 확인 필요', what: '무게를 재는 동안 값이 크게 떨렸습니다(그리퍼 케이블이 당겨지거나 걸린 것으로 봅니다). 그 자리에서 멈췄습니다.',
+    steps: ['케이블이 팽팽하거나 걸려 있지 않은지 확인하고 정리합니다', '로봇 손목을 가볍게 톡 칩니다(또는 재개) — 떨림을 다시 재고 정상이면 이어 갑니다', '계속 이상이면 중단 — 이 용기를 격리합니다'] },
+  tool_lost: { title: '툴 놓침 — 홀더에 다시 꽂기', what: '닦는 도중 수세미·솔이 그리퍼에서 빠졌습니다. 로봇은 즉시 멈췄습니다.',
+    steps: ['툴을 집어 홀더에 원래 방향으로 꽂습니다', '로봇 손목을 가볍게 톡 칩니다(또는 재개) — 툴을 다시 집고 닦기부터 이어 갑니다', '다시 집지 못하면 이 용기는 격리됩니다'] },
+  leftover: { title: '잔반이 남음 — 용기를 든 채 멈춤', what: '두 번 털어도 잔반이 50 g 넘게 남았습니다. 용기를 든 채 무게 자세에서 멈췄습니다.',
+    steps: ['잔반을 손으로 덜어냅니다(로봇은 멈춰 있습니다)', '재개 — 무게를 다시 재고 이어 갑니다', '또는 중단 — 이 용기를 격리 구역으로 보냅니다'] },
+  grip: { title: '집기 실패 · 미끄러짐', what: '용기를 놓쳤거나 파지 폭이 변했습니다.',
+    steps: ['용기가 어디 있는지 확인합니다', '재개 — 멈춘 단계부터 다시 합니다', '또는 중단 — 이 용기를 격리합니다'] },
+  rack_full: { title: '팔레트 가득 참', what: '넣을 칸이 없습니다.',
+    steps: ['팔레트를 식기세척기로 옮기고 새 팔레트를 놓습니다', '재개 — 적재부터 다시 합니다'] },
+  robot_error: { title: '운영자 복구 필요', what: '로봇 오류로 멈췄습니다 — 로봇이 어디 있는지 사람이 확인해야 합니다.',
+    steps: ['로봇과 주변을 확인합니다(용기·툴이 걸려 있지 않은지)', '필요하면 release_force.py 로 힘제어를 풀고 보호정지는 펜던트에서 해제합니다', '재개 — 이 용기는 오류로 기록하고 다음 용기부터 갑니다'] },
 };
 
 const doneOf = (s, kind) => (kind === 'BOWL' ? s.done_bowl : s.done_cup) || 0;
@@ -27,7 +61,7 @@ export function buttons(d) {
     start: c && step === 'IDLE',
     stop: c && RUNNING.includes(step),
     resume: c && step === 'PAUSED',
-    abort: c && step === 'PAUSED' && s.last_code !== 'ROBOT_ERROR',   // 로봇 오류면 사람이 복구한다 — 중단(격리)으로 덮지 않는다
+    abort: c && step === 'PAUSED' && pauseKind(s) !== 'robot_error',   // 로봇 오류면 사람이 복구한다 — 중단(격리)으로 덮지 않는다. 케이블 이상은 코드가 ROBOT_ERROR 여도 중단 가능(flow.handle_cable_tight)
   };
 }
 
@@ -130,13 +164,13 @@ export function consumables(d) {
   return { sponge: remain(s.sponge_uses, c.sponge_max_uses), soap: remain(s.soap_dips, c.soap_max_dips), rinse: s.rinse_dips };
 }
 
-// 알람 — 로봇 오류(붉은색) > 일시 정지 > 경고(주황)
+// 알람 — 멈춤(PAUSED)이면 원인 갈래(pauseKind)로 붉은색(로봇 오류)/주황(그 밖) · 운전 중이면 마지막 코드가 정상이 아닐 때 노란 경고
 export function alarm(d) {
   const s = d.state;
   if (!s) return null;
-  if (s.last_code === 'ROBOT_ERROR') return { level: 'error', code: s.last_code, message: s.message };
-  if (s.step === 'PAUSED') return { level: 'pause', code: s.last_code, message: s.message };
-  if (s.last_code && s.last_code !== 'OK') return { level: 'warn', code: s.last_code, message: s.message };
+  const kind = pauseKind(s);
+  if (kind) return { level: kind === 'robot_error' ? 'error' : 'pause', kind, guide: GUIDE_KO[kind], code: s.last_code, message: s.message };
+  if (s.last_code && s.last_code !== 'OK') return { level: 'warn', kind: null, guide: null, code: s.last_code, message: s.message };   // 재개해 진행 중 — 최근 원인만
   return null;
 }
 
