@@ -516,10 +516,21 @@ def test_move_incomplete_does_not_retreat():
     from cobot_common.motion import MoveIncomplete
     retreats, force_offs = [], []
     f = _flow_with(retreats, force_offs, (MoveIncomplete,), MoveIncomplete)
-    f.run_plan(PauseWatcher())
+    before_signal = []
 
-    assert retreats == [], '위치를 모르는데 후퇴했다'
+    class Sig(PauseWatcher):                        # 사람이 첫 신호(재개·톡)를 주는 순간까지의 후퇴 횟수를 찍는다
+        def take(self, name):
+            v = super().take(name)
+            if name == 'resume' and v and not before_signal:
+                before_signal.append(len(retreats))
+            return v
+
+    f.run_plan(Sig())
+
+    assert before_signal == [0], '위치를 모르는데 사람 신호 **전에** 후퇴했다'
     assert force_offs, '힘·순응은 꺼야 한다'
+    # 🆕 E52(황인재 9/25): 사람이 확인하고 신호를 준 **뒤**에는 곧게 위로 → HOME 으로 출발점을 만든다(다음 PICK 이 아무 자리에서 출발하지 않게)
+    assert len(retreats) == 1, f'사람 신호 뒤 HOME 출발 전에 한 번 후퇴해야 한다 ({len(retreats)}회)'
     assert f.last_code == 'ROBOT_ERROR'
 
 
@@ -855,3 +866,177 @@ def test_empty_zone_home_failure_pauses_then_resumes_and_retries():
 
     finally:
         mock.reset()
+
+
+# ────────────────────────────────── 🆕 E52 (황인재 9/25 · 9/26 구현) — 로봇 오류 2단 신호 · 격리 정리 통일 · 툴 집기 실패는 멈춤
+def _spy_f1(mods, calls):
+    """f1 의 모든 함수를 감싸 (이름, 인자) 를 calls 에 남긴다."""
+    def spy(name, fn):
+        def wrapped(*a):
+            calls.append((name, a))
+            return fn(*a)
+        return wrapped
+    return types.SimpleNamespace(**{n: spy(n, getattr(mods['f1'], n)) for n in dir(F1Api) if not n.startswith('_')})
+
+
+def _one_bowl(f1=None, f2=None, f3=None, policy=None):
+    mods = load_features(['f1', 'f2', 'f3'])
+    cfg = {'flow': dict(CFG['flow'])}
+    if policy:
+        cfg['flow']['policy'] = dict(CFG['flow']['policy'], **policy)
+    events = []
+    f = Flow(cfg, Quiet(), publish_event=events.append)
+    f.f = {'f1': f1 or mods['f1'], 'f2': f2 or mods['f2'], 'f3': f3 or mods['f3']}
+    f.plan = [{'zone': 'RET_B', 'kind': 'BOWL', 'count': 1}]
+    return f, events, mods
+
+
+def _ns(api, mod):
+    return types.SimpleNamespace(**{n: getattr(mod, n) for n in dir(api) if not n.startswith('_')})
+
+
+def test_robot_error_while_holding_opens_gripper_then_waits_for_second_signal(monkeypatch):
+    """로봇 오류 + 쥔 것 있음 → 신호 1: **그리퍼만** 열림(팔은 안 움직임) → 사람이 받음 → 신호 2: 곧게 위로 → HOME → ERROR → 다음 용기.
+
+    황인재 9/25: 로봇이 제 위치를 모를 수 있으니 격리 구역으로 옮기지 않고 사람이 받아 처리한다.
+    """
+    released = []
+    monkeypatch.setattr(flow_module.cc, 'release', lambda: released.append(1))
+    mods = load_features(['f1', 'f2', 'f3'])
+    calls = []
+    f1 = _spy_f1(mods, calls)
+    f2 = _ns(F2Api, mods['f2'])
+
+    def dip(station, count, kind):
+        raise RuntimeError('드라이버 응답 없음')               # 헹굼 담금 — 용기를 쥔 채 터진다
+    f2.dip = dip
+    at_signal = []
+
+    class Sig(PauseWatcher):
+        def take(self, name):
+            v = super().take(name)
+            if name == 'resume' and v:
+                at_signal.append((len(released), [c for c in calls if c == ('move_to', ('HOME', False))]))
+            return v
+
+    f, events, _ = _one_bowl(f1=f1, f2=f2)
+    sig = Sig()
+    f.run_plan(sig)
+
+    assert sig.resumes == 2, f'쥔 것이 있으면 사람 신호가 2번이어야 한다 ({sig.resumes}번)'
+    assert released == [1], f'그리퍼를 한 번만 열어야 한다 ({len(released)}번)'
+    assert at_signal[0][0] == 0, '첫 신호 **전에** 그리퍼를 열면 안 된다'
+    assert at_signal[1][0] == 1 and at_signal[1][1] == [], '둘째 신호 전에는 그리퍼만 열려 있고 팔은 안 움직여야 한다'
+    assert calls.count(('move_to', ('HOME', False))) == 1, '둘째 신호 뒤 HOME 으로 가야 한다'
+    assert [(e['result'], e['code']) for e in events] == [('ERROR', 'ROBOT_ERROR')]
+    assert f.isolated == 0 and f.holding is None and f.holding_tool is None
+
+
+def test_robot_error_with_empty_hand_needs_one_signal_and_mentions_the_bed(monkeypatch):
+    """로봇 오류 + 빈손(용기는 스펀지 홈에) → 신호 1번 → HOME → ERROR. 그리퍼는 열지 않고, 안내에 홈 위 용기를 꺼내라고 적는다."""
+    released = []
+    monkeypatch.setattr(flow_module.cc, 'release', lambda: released.append(1))
+    mods = load_features(['f1', 'f2', 'f3'])
+    calls = []
+    f1 = _spy_f1(mods, calls)
+
+    def tool(tool_id, action):
+        raise RuntimeError('툴 집기 중 드라이버 응답 없음')     # SEAT 뒤 · 빈손 · 용기는 홈에
+    f1.tool = tool
+
+    f, events, _ = _one_bowl(f1=f1)
+    sig = PauseWatcher()
+    f.run_plan(sig)
+
+    assert sig.resumes == 1, f'빈손이면 신호 1번이어야 한다 ({sig.resumes}번)'
+    assert released == [], '빈손인데 그리퍼를 열었다'
+    assert '스펀지 홈' in f.message, f'홈 위 용기를 꺼내라는 안내가 없다: {f.message}'
+    assert calls.count(('move_to', ('HOME', False))) == 1
+    assert [(e['result'], e['code']) for e in events] == [('ERROR', 'ROBOT_ERROR')]
+
+
+def test_leftover_remain_isolates_physically_via_home():
+    """잔반 남음(정책 isolate) → 멈추지 않고 곧게 위로 → HOME → 격리 → HOME. 용기를 든 채라 홈에서 다시 집지 않는다. 기록 코드는 원인."""
+    mock.configure(['leftover_loop:LEFTOVER_REMAIN'])
+    mods = load_features(['f1', 'f2', 'f3'])
+    calls = []
+    f1 = _spy_f1(mods, calls)
+    f, events, _ = _one_bowl(f1=f1)
+    sig = PauseWatcher()
+    f.run_plan(sig)
+
+    assert sig.resumes == 0, '잔반 남음은 사람을 부르지 않는다(E52 · isolate)'
+    seq = [(n, a) for n, a in calls if n in ('move_to', 'place', 'pick', 'tool')]
+    assert seq[-3:] == [('move_to', ('HOME', True)), ('place', ('ISOLATE', 'BOWL')), ('move_to', ('HOME', False))], seq
+    assert ('pick', ('SPONGE_BED_B', 'BOWL')) not in seq, '용기를 든 채인데 홈에서 다시 집었다'
+    assert [(e['result'], e['code']) for e in events] == [('ISOLATED', 'LEFTOVER_REMAIN')]
+
+
+def test_force_limit_exhausted_returns_tool_regrips_from_bed_and_isolates():
+    """힘 상한(retry:1->isolate) 소진 → 툴 반납 → **스펀지 홈에서 용기 다시 집기** → HOME → 격리 → HOME. 사람 없이. 기록 코드 FORCE_LIMIT."""
+    mock.configure(['wipe_bowl:FORCE_LIMIT'])
+    mods = load_features(['f1', 'f2', 'f3'])
+    calls = []
+    f1 = _spy_f1(mods, calls)
+    f, events, _ = _one_bowl(f1=f1)
+    sig = PauseWatcher()
+    f.run_plan(sig)
+
+    assert sig.resumes == 0
+    seq = [(n, a) for n, a in calls if n in ('move_to', 'place', 'pick', 'tool')]
+    i = seq.index(('tool', ('SPONGE', 'RETURN')))
+    assert seq[i:] == [('tool', ('SPONGE', 'RETURN')), ('pick', ('SPONGE_BED_B', 'BOWL')), ('move_to', ('HOME', True)),
+                       ('place', ('ISOLATE', 'BOWL')), ('move_to', ('HOME', False))], seq[i:]
+    assert [(e['result'], e['code']) for e in events] == [('ISOLATED', 'FORCE_LIMIT')]
+    assert f.isolated == 1 and f.holding is None and f.on_bed is False
+
+
+def test_tool_fail_pauses_and_retries_tool_pick_without_isolation():
+    """툴 집기 실패(정책 pause) → 멈춤(안내: 홀더 확인 → 톡) → 재개 → **툴 집기부터 다시** → DONE. 격리 X."""
+    mods = load_features(['f1', 'f2', 'f3'])
+    tool_calls = []
+    f1 = _ns(F1Api, mods['f1'])
+
+    def tool(tool_id, action):
+        tool_calls.append((tool_id, action))
+        if action == PICK and sum(1 for c in tool_calls if c[1] == PICK) == 1:
+            return Result.fail('TOOL_FAIL')
+        return mods['f1'].tool(tool_id, action)
+    f1.tool = tool
+
+    f, events, _ = _one_bowl(f1=f1, policy={'TOOL_FAIL': 'pause'})
+    sig = PauseWatcher()
+    f.run_plan(sig)
+
+    assert sig.resumes == 1
+    assert sum(1 for c in tool_calls if c[1] == PICK) == 2, tool_calls
+    assert f.isolated == 0 and [e['result'] for e in events] == ['DONE']
+    assert '홀더' in f.message, f'홀더를 확인하라는 안내가 없다: {f.message}'
+
+
+def test_tool_lost_repick_failure_pauses_again_instead_of_isolating(monkeypatch):
+    """툴 놓침 → 재PICK 실패 → (전엔 TOOL_FAIL 정책으로 격리) 이제는 **다시 멈춰** 사람을 부르고, 다음 신호에 또 집는다 → DONE."""
+    mods = load_features(['f1', 'f2', 'f3'])
+    wipe_tries, tool_calls = [], []
+    f3 = _ns(F3Api, mods['f3'])
+    f1 = _ns(F1Api, mods['f1'])
+
+    def wipe_bowl():
+        wipe_tries.append(1)
+        return Result.fail(TOOL_LOST) if len(wipe_tries) == 1 else mods['f3'].wipe_bowl()
+
+    def tool(tool_id, action):
+        tool_calls.append((tool_id, action))
+        if action == PICK and sum(1 for c in tool_calls if c[1] == PICK) == 2:   # 재PICK 첫 시도 — 홀더에 잘못 꽂혔다
+            return Result.fail('TOOL_FAIL')
+        return mods['f1'].tool(tool_id, action)
+    f3.wipe_bowl, f1.tool = wipe_bowl, tool
+
+    f, events, _ = _one_bowl(f1=f1, f3=f3)
+    sig = PauseWatcher()
+    f.run_plan(sig)
+
+    assert sig.resumes == 2, f'놓침 멈춤 1 + 재PICK 실패 멈춤 1 = 2 ({sig.resumes})'
+    assert sum(1 for c in tool_calls if c[1] == PICK) == 3, tool_calls
+    assert len(wipe_tries) == 2 and f.isolated == 0
+    assert [e['result'] for e in events] == ['DONE']

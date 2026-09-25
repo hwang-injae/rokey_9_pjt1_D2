@@ -314,10 +314,9 @@ flow:                                 # ── flow 절 (민범진) ── 🟡 
     CUP: [RACK_C1, RACK_C2]           # 컵 2칸 (9/20 결정: 4 → 2)
   policy:                             # 실패 정책 (IRD §8): next_zone · isolate · retry:N->isolate · pause
     EMPTY_ZONE: next_zone
-    LEFTOVER_REMAIN: pause            # 🔄 9/23 E42(황인재 18:29): isolate → **pause**. 정책 isolate 갈래는 로봇을 격리 구역으로 옮기지 않는다 —
-                                      #    handle_failure 가 ISOLATED 만 기록하고 GO_ON → 다음 용기 PICK 의 release 가 **든 용기를 그 자리(WEIGH)에서 떨어뜨린다**(9/23 PM 발견).
-                                      #    → 멈추고 사람이 확인: resume = 그 단계(다시 잰다)부터 / abort = HOME → 격리(#90 검증 경로) → 다음 용기(test_f2_policy _flow_for_abort 가 이 길).
-                                      #    시연 뒤 정책 갈래에 물리 격리(abort_container 식)를 넣으면 isolate 로 되돌린다. SEAT_FAIL·retry→isolate 도 같은 빈틈(시연 범위 밖 E28).
+    LEFTOVER_REMAIN: isolate          # 🔄 9/26 E52(황인재 9/25): pause → **isolate** 로 되돌림. 두 번 털어도 잔반이 남으면 사람을 부르지 않고
+                                      #    용기를 든 채 곧게 위로 → HOME → 격리 구역 → HOME(flow._cleanup_and_isolate · #90/#103 경로).
+                                      #    9/23 E42 가 pause 로 바꾼 이유(isolate 갈래가 기록만 하고 다음 PICK 이 든 용기를 떨어뜨림)는 E52 로 갈래에 실제 정리를 넣어 닫았다.
     GRIP_FAIL: pause                  # 털기·담금 중 미끄러짐(f2) · 빈손 감지(f2 weigh)
                                       # ✅ 9/20 결정 E12(황인재 17:25) — 격리가 아니라 **멈추고 사람이 확인**한다.
                                       #    놓쳤다면 용기가 손에 없을 수 있어 격리 동작(옮기기)이 의미가 없고,
@@ -328,7 +327,8 @@ flow:                                 # ── flow 절 (민범진) ── 🟡 
     FORCE_LIMIT: "retry:1->isolate"
     TIMEOUT: "retry:1->isolate"
     RACK_JAM: "retry:1->isolate"
-    TOOL_FAIL: "retry:1->isolate"
+    TOOL_FAIL: pause                  # 🔄 9/26 E52(황인재 9/25): retry:1->isolate → **pause**. 홀더에서 못 집으면 용기 잘못이 아니다 —
+                                      #    툴은 홀더에 둔 채 멈추고 사람이 홀더를 확인 → 톡 1번(또는 재개) → 툴 집기부터 다시(격리 X). 툴 놓침 뒤 재PICK 실패도 같다.
     TOOL_LOST: pause                  # 🆕 E37(9/23) — 닦는 도중 놓침. 정지 → 사람이 홀더에 다시 놓고 넛지(또는 HMI 재개)
                                       #    → f1.tool 재PICK(handle_failure) → 그 단계부터 다시. GRIP_FAIL 과 같은 결
     RACK_FULL: pause
