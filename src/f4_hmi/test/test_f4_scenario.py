@@ -4,7 +4,7 @@ import pytest
 
 from f4_hmi import scenario as sc
 
-ALL = ['normal', 'isolate', 'error', 'paused', 'empty_zone', 'tool_lost', 'leftover_remain', 'cable']   # 🆕 9/25 예외 3종(E37·E42·#93)
+ALL = ['normal', 'isolate', 'error', 'paused', 'empty_zone', 'tool_lost', 'leftover_remain', 'cable', 'tool_fail']   # 🆕 9/25 예외 3종(E37·E42·#93) · 9/26 tool_fail(E52)
 
 
 def _contract_steps():

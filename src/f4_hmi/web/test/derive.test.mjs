@@ -30,9 +30,10 @@ test('버튼 — 로봇 오류 멈춤은 중단 불가(사람 복구) · 케이�
   assert.equal(D.buttons(d(st({ step: 'PAUSED', last_code: 'ROBOT_ERROR', message: '케이블 상태를 확인해주세요' }))).abort, true);
 });
 
-test('멈춤 원인 갈래 — 코드·문구로 6가지를 가른다', () => {
+test('멈춤 원인 갈래 — 코드·문구로 8가지를 가른다', () => {
   assert.equal(D.pauseKind(st({ step: 'PAUSED' })), 'operator');
   assert.equal(D.pauseKind(st({ step: 'PAUSED', last_code: 'TOOL_LOST' })), 'tool_lost');
+  assert.equal(D.pauseKind(st({ step: 'PAUSED', last_code: 'TOOL_FAIL' })), 'tool_fail');       // 🆕 E52
   assert.equal(D.pauseKind(st({ step: 'PAUSED', last_code: 'LEFTOVER_REMAIN' })), 'leftover');
   assert.equal(D.pauseKind(st({ step: 'PAUSED', last_code: 'GRIP_FAIL' })), 'grip');
   assert.equal(D.pauseKind(st({ step: 'PAUSED', last_code: 'RACK_FULL' })), 'rack_full');
@@ -44,7 +45,9 @@ test('멈춤 원인 갈래 — 코드·문구로 6가지를 가른다', () => {
 test('알람 — 멈춤은 원인별 안내(제목·할 일)를 가지고, 로봇 오류만 붉은색', () => {
   const a = D.alarm(d(st({ step: 'PAUSED', last_code: 'TOOL_LOST' })));
   assert.equal(a.level, 'pause'); assert.equal(a.kind, 'tool_lost'); assert.match(a.guide.title, /툴 놓침/); assert.ok(a.guide.steps.length >= 2);
-  assert.equal(D.alarm(d(st({ step: 'PAUSED', last_code: 'ROBOT_ERROR' }))).level, 'error');
+  const re = D.alarm(d(st({ step: 'PAUSED', last_code: 'ROBOT_ERROR' })));
+  assert.equal(re.level, 'error'); assert.match(re.guide.steps.join(' '), /그리퍼만 열립니다/);   // 🆕 E52 2단 신호 안내
+  assert.match(D.alarm(d(st({ step: 'PAUSED', last_code: 'TOOL_FAIL' }))).guide.title, /툴 집기 실패/);
   assert.equal(D.alarm(d(st({ step: 'PAUSED', last_code: 'ROBOT_ERROR', message: '케이블 …' }))).level, 'pause');
   assert.equal(D.alarm(d(st({ step: 'WIPE', last_code: 'TOOL_LOST' }))).level, 'warn');       // 재개해 진행 중 — 노란 경고
   assert.equal(D.alarm(d(st({ step: 'WIPE' }))), null);

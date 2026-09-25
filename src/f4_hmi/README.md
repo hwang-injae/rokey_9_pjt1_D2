@@ -8,7 +8,7 @@
 | `fake_state_pub` | **가짜 flow** — 대본대로 실제 flow 와 같은 토픽을 방송하고 버튼(`/flow/start·stop·resume·abort`)에 반응(로봇·브링업 불필요) | `ros2 run f4_hmi fake_state_pub [대본] [--speed N] [--once] [--wait-start]` |
 
 대본(`scenarios/*.yaml`): `normal` 정상 · `isolate` 격리 · `error` 로봇 오류로 멈춤 · `paused` 일시정지→재개 · `empty_zone` 빈 구역
-· 🆕 9/25 `tool_lost` 툴 놓침 → 멈춤 → 다시 집고 이어감(E37) · `leftover_remain` 잔반 남음 → 용기 든 채 멈춤 → 덜어내고 재개(E42) · `cable` 케이블 이상 → 멈춤 → 톡톡 재개(#93)
+· 🆕 9/25 `tool_lost` 툴 놓침 → 멈춤 → 다시 집고 이어감(E37) · `leftover_remain` 잔반 남음 → 용기 든 채 멈춤 → 덜어내고 재개(E42) · `cable` 케이블 이상 → 멈춤 → 톡톡 재개(#93) · 🆕 9/26 `tool_fail` 툴 집기 실패 → 멈춤(홀더 확인 → 톡 → 다시 집기 · E52)
   — 세 대본은 `fail.action: pause_retry`(멈춘 뒤 **그 단계부터 다시** 이어 완료 · 실제 flow 의 RETRY_STEP). 멈춤은 `hold_s` 뒤 저절로 풀리고, 화면의 **재개** 를 누르면 바로 풀린다. 9/29 예외 실기 ①③④⑤ 의 화면 연습용.
 🚨 `fake_state_pub` 와 실제 `flow_node` 를 **동시에 띄우지 않는다**(같은 토픽에 두 곳이 방송한다).
 

@@ -243,7 +243,7 @@ function Now({ d, last }) {
   else if (step === 'IDLE') { pill = '대기'; tone = 'idle'; title = '대기'; art = 'PICK'; desc = '시작을 누르면 반납 구역부터 차례로 처리한다'; num = 0; }
   else if (step === 'DONE') { pill = '완료'; tone = 'idle'; title = '완료'; art = 'RACK'; desc = '계획한 용기를 모두 처리했다 — 팔레트를 확인한다'; num = 0; }
   else if (step === 'PAUSED' && pauseKind(s) === 'robot_error') { pill = '로봇 오류 — 복구 필요'; tone = 'error'; }   // flow 는 로봇 오류에서 멈춰(PAUSED) 사람을 기다린다
-  else if (step === 'PAUSED') { pill = { cable: '멈춤 — 케이블 확인', tool_lost: '멈춤 — 툴 놓침', leftover: '멈춤 — 잔반 남음', grip: '멈춤 — 집기 실패', rack_full: '멈춤 — 팔레트 가득' }[pauseKind(s)] || '일시 정지'; tone = 'paused'; }
+  else if (step === 'PAUSED') { pill = { cable: '멈춤 — 케이블 확인', tool_lost: '멈춤 — 툴 놓침', tool_fail: '멈춤 — 툴 집기 실패', leftover: '멈춤 — 잔반 남음', grip: '멈춤 — 집기 실패', rack_full: '멈춤 — 팔레트 가득' }[pauseKind(s)] || '일시 정지'; tone = 'paused'; }
   else if (step === 'ERROR') { pill = '오류'; tone = 'error'; }
   else if (step === 'ISOLATE') { pill = '격리 중'; tone = 'isolate'; num = '!'; }
   if (!art) { art = 'PICK'; title = STEP_KO[step] || '-'; }
