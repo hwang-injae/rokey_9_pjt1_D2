@@ -877,7 +877,8 @@ class Flow:
         """🆕 E52(황인재 9/25) — 로봇 오류: **그 자리에서 멈춘다.** 로봇은 격리 구역으로 가지 않는다(자기 위치를 모를 수 있다).
 
         쥔 것이 있으면(툴·용기) → 사람이 확인 → 톡 1번(또는 재개) → **그리퍼만 연다**(팔은 안 움직임) → 사람이 받아 치운다
-          (툴은 홀더에 · 용기는 치움 · 스펀지 홈에 용기가 있으면 그것도) → 다시 톡(또는 재개) → 곧게 위로 → HOME → 다음 용기.
+          (툴은 홀더에 · 용기는 치움 · 스펀지 홈에 용기가 있으면 그것도) → **화면 재개 버튼**(신호 2 는 톡을 받지 않는다 —
+          황인재 9/27 · PM 지적: 톡 감지 직후 팔이 위로 움직이기 시작하는데 사람 손이 로봇에 닿아 있을 수 있다) → 곧게 위로 → HOME → 다음 용기.
         빈손이면 → 톡 1번(또는 재개) → 곧게 위로 → HOME → 다음 용기. 이 용기는 ERROR 로 기록한다(격리 X · 사람이 처리).
         🚨 그리퍼 열기·복구는 사람이 신호를 준 **뒤**에만 한다. 넛지가 안 잡히는 상태(보호정지에서 힘 읽기 불가)면 재개 버튼.
         """
@@ -902,9 +903,10 @@ class Flow:
             self.message = (f'그리퍼를 열었습니다 — {what}을(를) 받아 '
                             + ('홀더에 원래 방향으로 꽂고 ' if held == 'TOOL' else '치우고 ')
                             + ('스펀지 홈의 용기도 꺼낸 뒤 ' if self.on_bed else '')
-                            + '다시 톡(또는 재개) → 곧게 위로 → HOME → 다음 용기')
-            self.to_paused('그리퍼 열림 — 받은 뒤 다시 톡', sig)
-            if self.wait_resume(sig, allow_nudge=True) == ABORTED:
+                            + '한 발 물러나 화면의 재개 버튼 → 곧게 위로 → HOME → 다음 용기 (이 신호는 톡을 받지 않습니다)')
+            self.to_paused('그리퍼 열림 — 받은 뒤 화면 재개', sig)
+            # 🚨 신호 2 는 재개 버튼만(allow_nudge=False · 황인재 9/27): 감지 직후 팔이 움직이므로 손이 닿은 채 톡으로 출발시키지 않는다
+            if self.wait_resume(sig, allow_nudge=False) == ABORTED:
                 return self.abort_container(sig)
             self._recover_robot()
         self.on_bed = False                            # 사람이 치웠다고 본다(안내 문구에 넣었다)
@@ -963,7 +965,7 @@ class Flow:
         🚨 로봇 오류 뒤 다음 용기 PICK 으로 곧장 가면 아무 자리에서 관절 이동을 한다(9/22 17:27 충돌의 길) — 중단 정리와 같이
            HOME 을 출발점으로 만든다.
         · 첫 시도: 후퇴(Z 위로) → HOME. 후퇴가 실패하면 로봇 위치를 모르는 것이라 HOME 을 보내지 않고 멈춘다.
-        · 사람이 신호를 준 뒤: 팔을 옮겼다고 보고 후퇴 없이 HOME 만. max_tries 번 다 실패하면 포기하고 로그에 남긴다
+        · 사람이 재개 버튼을 누른 뒤(톡 X): 팔을 옮겼다고 보고 후퇴 없이 HOME 만. max_tries 번 다 실패하면 포기하고 로그에 남긴다
           (무한 반복 금지 — 사람이 매번 확인해도 안 되면 다음 용기 PICK 은 지금 자리에서 출발한다 · 눈으로 본다). 중단이면 False.
         """
         for attempt in range(1, max_tries + 1):
@@ -974,9 +976,9 @@ class Flow:
                 self.log.error(f'HOME 복귀 {max_tries}번 실패 — 포기하고 다음 용기로 간다. 다음 PICK 은 지금 자리에서 출발한다 · 눈으로 확인')
                 return False
             self.message = (f'HOME 복귀 실패({attempt}/{max_tries}) — 펜던트로 팔을 안전한 자리로 옮긴 뒤 '
-                            f'톡 1번(또는 재개)하면 후퇴 없이 HOME 으로 갑니다')
+                            f'화면의 재개 버튼을 누르면 후퇴 없이 HOME 으로 갑니다(톡은 받지 않습니다)')
             self.to_paused('HOME 복귀 실패', sig)
-            if self.wait_resume(sig, allow_nudge=True) == ABORTED:
+            if self.wait_resume(sig, allow_nudge=False) == ABORTED:      # 버튼만 — 누르면 팔이 바로 움직인다(황인재 9/27 신호 2 와 같은 이유)
                 return False
             self._recover_robot()
         return False

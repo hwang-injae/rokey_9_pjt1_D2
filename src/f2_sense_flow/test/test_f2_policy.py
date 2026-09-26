@@ -900,8 +900,10 @@ def test_robot_error_while_holding_opens_gripper_then_waits_for_second_signal(mo
 
     황인재 9/25: 로봇이 제 위치를 모를 수 있으니 격리 구역으로 옮기지 않고 사람이 받아 처리한다.
     """
-    released = []
+    released, watches = [], []
     monkeypatch.setattr(flow_module.cc, 'release', lambda: released.append(1))
+    monkeypatch.setattr(flow_module.cc, 'start_nudge_watch', lambda: watches.append(1))   # 넛지 감시를 켠 횟수 = 톡을 받은 대기 횟수
+    monkeypatch.setattr(flow_module.cc, 'check_nudge', lambda *a: False)
     mods = load_features(['f1', 'f2', 'f3'])
     calls = []
     f1 = _spy_f1(mods, calls)
@@ -930,6 +932,7 @@ def test_robot_error_while_holding_opens_gripper_then_waits_for_second_signal(mo
     assert calls.count(('move_to', ('HOME', False))) == 1, '둘째 신호 뒤 HOME 으로 가야 한다'
     assert [(e['result'], e['code']) for e in events] == [('ERROR', 'ROBOT_ERROR')]
     assert f.isolated == 0 and f.holding is None and f.holding_tool is None
+    assert watches == [1], f'톡은 첫 신호에만 — 둘째 신호(받은 뒤)는 재개 버튼만 받아야 한다(황인재 9/27 · 팔이 바로 움직임) ({len(watches)}회)'
 
 
 def test_robot_error_with_empty_hand_needs_one_signal_and_mentions_the_bed(monkeypatch):
