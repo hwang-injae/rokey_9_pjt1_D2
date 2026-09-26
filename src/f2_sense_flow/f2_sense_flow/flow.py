@@ -931,30 +931,22 @@ class Flow:
         return w <= open_mm
 
     def _repick_tool(self, sig):
-        """🆕 E37 + E52 — 툴 놓침 뒤 다시 집는다. **못 집으면 격리하지 않고** 다시 멈춰 사람을 부른다(홀더 확인 → 톡).
+        """E37 — 툴 놓침 뒤 다시 집는다. 성공하면 놓친 단계부터. 🔙 9/29 정리(③): 재PICK 실패는 **격리**(예전 정책 retry→isolate 의 결과와 같게 · 다시 멈추지 않는다).
 
-        전에는 재PICK 실패 코드(TOOL_FAIL)의 정책을 새로 탔다 → retry→isolate 로 그릇을 격리했다.
-        황인재 9/25: 그릇은 문제 없고 툴이 문제니 사람이 홀더를 고치고 톡 치면 다시 집는다. 성공하면 놓친 단계부터.
+        정책표를 다시 읽지 않고 곧장 정리 함수로 간다 — TOOL_FAIL 정책이 pause 로 남아 있어도(⑨ 미적용) 툴 없이 닦기 단계를 다시 하는 일이 없게.
         """
         tool_id = 'SPONGE' if self.kind == 'BOWL' else 'BRUSH'
-        while True:
-            rt = self.call_fn('f1', 'tool', tool_id, PICK)
-            self._collect('TOOL_LOST 재PICK', 'tool', rt)
-            if rt.ok:
-                self.holding, self.holding_tool = 'TOOL', tool_id
-                self.log.info(f'재개 — {self.step} 단계부터 다시 (툴 {tool_id} 다시 집음)')
-                return RETRY_STEP
-            if rt.code == ROBOT_ERROR:                 # 집기 함수가 터졌다(후퇴는 call 이 했다) → 로봇 오류 절차
-                return self._robot_error_pause(sig)
-            self.last_code = rt.code
-            self.message = (f'툴을 다시 못 집었습니다({rt.code}) — 홀더에 {tool_id} 가 원래 방향으로 제대로 꽂혔는지 확인한 뒤 '
-                            f'톡 1번(또는 재개) → 다시 집습니다')
-            self.to_paused(f'코드 {rt.code} · 툴 재PICK 실패', sig)
-            answer = self.wait_resume(sig, allow_nudge=True)
-            if answer == ABORTED:
-                return self.abort_container(sig)
-            if answer == RESUMED_NUDGE:
-                self._recover_robot()
+        rt = self.call_fn('f1', 'tool', tool_id, PICK)
+        self._collect('TOOL_LOST 재PICK', 'tool', rt)
+        if rt.ok:
+            self.holding, self.holding_tool = 'TOOL', tool_id
+            self.log.info(f'재개 — {self.step} 단계부터 다시 (툴 {tool_id} 다시 집음)')
+            return RETRY_STEP
+        if rt.code == ROBOT_ERROR:                     # 집기 함수가 터졌다(후퇴는 call 이 했다) → 로봇 오류 절차
+            return self._robot_error_pause(sig)
+        self.last_code = rt.code
+        self.log.warn(f'툴 재PICK 실패({rt.code}) — 이 용기는 격리한다(9/29 정리 ③)')
+        return self._cleanup_and_isolate(sig, f'툴 재PICK 실패 · 코드 {rt.code}')
 
     def _recover_robot(self):
         """넛지·재개 뒤 컨트롤러가 STANDBY 로 돌아올 때까지 본다 — 보호정지(SAFE_STOP)면 자동 복구(#102 · set_robot_control).

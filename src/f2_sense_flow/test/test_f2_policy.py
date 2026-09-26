@@ -1087,7 +1087,8 @@ def test_tool_lost_repick_failure_pauses_again_instead_of_isolating(monkeypatch)
     sig = PauseWatcher()
     f.run_plan(sig)
 
-    assert sig.resumes == 2, f'놓침 멈춤 1 + 재PICK 실패 멈춤 1 = 2 ({sig.resumes})'
-    assert sum(1 for c in tool_calls if c[1] == PICK) == 3, tool_calls
-    assert len(wipe_tries) == 2 and f.isolated == 0
-    assert [e['result'] for e in events] == ['DONE']
+    # 🔙 9/29 정리(③): 재PICK 실패 → 다시 멈추지 않고 격리(예전 정책의 결과와 같게)
+    assert sig.resumes == 1, f'놓침 멈춤 1번만 ({sig.resumes})'
+    assert sum(1 for c in tool_calls if c[1] == PICK) == 2, tool_calls
+    assert len(wipe_tries) == 1 and f.isolated == 1
+    assert [(e['result'], e['code']) for e in events] == [('ISOLATED', 'TOOL_FAIL')]
