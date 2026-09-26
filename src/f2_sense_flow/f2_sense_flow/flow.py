@@ -845,9 +845,7 @@ class Flow:
             code = self.last_code
             if code == ROBOT_ERROR:                    # 🆕 E52(황인재 9/25) — 그 자리 멈춤 · 쥔 것이 있으면 톡 2번(첫 톡은 그리퍼만 열기)
                 return self._robot_error_pause(sig)
-            if code == TOOL_FAIL:                      # 🆕 E52 — 홀더에서 못 집었다: 격리하지 않는다 · 사람이 홀더 확인 → 톡 → 툴 집기부터 다시
-                self.message = (f'{self.message or "툴 집기 실패"} — 홀더의 수세미·솔이 원래 방향으로 제대로 꽂혔는지 확인한 뒤 '
-                                f'톡 1번(또는 재개) → 툴 집기부터 다시 합니다')
+            # 🔙 9/29 정리(⑨): TOOL_FAIL 전용 안내 문구를 뺐다 — 정책이 retry:1->isolate 로 돌아가 여기(PAUSE)로 오지 않는다
             self.to_paused(f'코드 {code}', sig)
             # 넛지 재개는 사람이 현장에서 바로 손대는 멈춤(_NUDGE_CODES)에만 — GRIP_FAIL·RACK_FULL 은 화면에서 확인하고 재개
             answer = self.wait_resume(sig, allow_nudge=(code in _NUDGE_CODES))

@@ -1062,7 +1062,7 @@ def test_tool_fail_pauses_and_retries_tool_pick_without_isolation():
     assert sig.resumes == 1
     assert sum(1 for c in tool_calls if c[1] == PICK) == 2, tool_calls
     assert f.isolated == 0 and [e['result'] for e in events] == ['DONE']
-    assert '홀더' in f.message, f'홀더를 확인하라는 안내가 없다: {f.message}'
+    # 🔙 9/29 정리(⑨): 홀더 안내 문구 검사 제거 — 정책이 pause 인 시험 설정에서는 여전히 멈춤 → 재개 → 다시 집기
 
 
 def test_tool_lost_repick_failure_pauses_again_instead_of_isolating(monkeypatch):
