@@ -503,12 +503,11 @@ class Flow:
     def _cleanup_and_isolate(self, sig, why):
         """치우고 격리한다 — 중단(/flow/abort)과 정책 격리(isolate · 재시도 소진)가 **같은 길**을 쓴다 (🆕 E52 · 황인재 9/25).
 
-        순서: 곧게 위로(safe_retreat) → HOME → 툴을 쥐었으면 반납 → 용기가 스펀지 홈에 있으면 **다시 집고 HOME** →
-              격리 구역에 놓기 → HOME → ISOLATED(기록의 코드는 실패 원인 그대로).
+        순서: 곧게 위로(safe_retreat) → HOME → 툴을 쥐었으면 반납 → 격리 구역에 놓기 → HOME → ISOLATED(기록의 코드는 실패 원인 그대로).
+        🔙 9/29 정리(⑤): 스펀지 홈 위 용기 다시 집기 갈래를 뺐다 — 용기가 홈에 있는 채 실패하면(툴을 쥔 단계) 격리 기록만 남고 용기는 홈에 남는다(E42 이전과 같음 · 사람이 치운다).
         🚨 HOME 이 먼저인 이유: 결정 E7 로 이동에서 안전 높이 경유가 없어져 **지금 자리에서 다음 자리로 곧장** 간다.
         🚨 HOME 으로 가기 **전에** 곧게 올라온다 (9/22 17:27 실기 충돌): 헹굼·담금 구간은 수조 안 자세(z −13.6)라
            거기서 HOME 으로 가면 관절 이동이 테이블을 가로질러 그리퍼가 상판을 쓴다. safe_retreat 은 XY 그대로 Z 만 올린다.
-        🚨 홈에서 다시 집은 뒤 HOME 을 거친다 — 홈 → 격리 직행은 실기 0회, HOME → 격리 → HOME 은 #90·#103 으로 검증된 경로.
         🚨 한 단계가 실패해도 **멈추지 않는다** — 치우는 중이라 더 나아가는 편이 낫다. 다만 그 결과는 로그에 남긴다.
         🚨 9/23 E42 의 빈틈(정책 isolate 가 ISOLATED 만 기록 → 다음 PICK 의 release 가 든 용기를 그 자리에서 떨어뜨림)이 이걸로 닫힌다.
         """
@@ -528,10 +527,8 @@ class Flow:
             step('툴 반납', 'f1', 'tool', self.holding_tool, 'RETURN')
             self.holding_tool = None
             self.holding = None
-        if self.on_bed:                               # 세제·닦기 구간에서 왔다 — 용기는 스펀지 홈에 있다
-            bed = 'SPONGE_BED_B' if self.kind == 'BOWL' else 'SPONGE_BED_C'
-            step('스펀지 홈에서 다시 집기', 'f1', 'pick', bed, self.kind)
-            step('HOME 복귀', 'f1', 'move_to', 'HOME', True)
+        if self.on_bed:                               # 🔙 9/29 정리(⑤): 홈 위 용기는 다시 집지 않는다 — 로그만 남기고 사람이 치운다
+            self.log.warn(f'{why} 정리 — 용기가 스펀지 홈에 남아 있다(다시 집기 갈래 제거 · 사람이 치운다)')
             self.on_bed = False
         step('격리 구역에 놓기', 'f1', 'place', 'ISOLATE', self.kind)
         step('HOME 복귀', 'f1', 'move_to', 'HOME', False)

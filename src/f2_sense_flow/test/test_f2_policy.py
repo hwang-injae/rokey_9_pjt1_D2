@@ -1036,8 +1036,8 @@ def test_force_limit_exhausted_returns_tool_regrips_from_bed_and_isolates():
     assert sig.resumes == 0
     seq = [(n, a) for n, a in calls if n in ('move_to', 'place', 'pick', 'tool')]
     i = seq.index(('tool', ('SPONGE', 'RETURN')))
-    assert seq[i:] == [('tool', ('SPONGE', 'RETURN')), ('pick', ('SPONGE_BED_B', 'BOWL')), ('move_to', ('HOME', True)),
-                       ('place', ('ISOLATE', 'BOWL')), ('move_to', ('HOME', False))], seq[i:]
+    # 🔙 9/29 정리(⑤): 홈 위 용기 다시 집기 없이 툴 반납 → 격리 → HOME
+    assert seq[i:] == [('tool', ('SPONGE', 'RETURN')), ('place', ('ISOLATE', 'BOWL')), ('move_to', ('HOME', False))], seq[i:]
     assert [(e['result'], e['code']) for e in events] == [('ISOLATED', 'FORCE_LIMIT')]
     assert f.isolated == 1 and f.holding is None and f.on_bed is False
 
