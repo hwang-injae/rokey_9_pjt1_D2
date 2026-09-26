@@ -530,7 +530,7 @@ def test_move_incomplete_does_not_retreat():
     assert before_signal == [0], '위치를 모르는데 사람 신호 **전에** 후퇴했다'
     assert force_offs, '힘·순응은 꺼야 한다'
     # 🆕 E52(황인재 9/25): 사람이 확인하고 신호를 준 **뒤**에는 곧게 위로 → HOME 으로 출발점을 만든다(다음 PICK 이 아무 자리에서 출발하지 않게)
-    assert len(retreats) == 1, f'사람 신호 뒤 HOME 출발 전에 한 번 후퇴해야 한다 ({len(retreats)}회)'
+    assert len(retreats) == 0, f'🔙 9/29 정리(⑩): 로봇 오류 뒤 로봇은 움직이지 않는다 — 후퇴 0 ({len(retreats)}회)'
     assert f.last_code == 'ROBOT_ERROR'
 
 
@@ -925,14 +925,14 @@ def test_robot_error_while_holding_opens_gripper_then_waits_for_second_signal(mo
     sig = Sig()
     f.run_plan(sig)
 
-    assert sig.resumes == 2, f'쥔 것이 있으면 사람 신호가 2번이어야 한다 ({sig.resumes}번)'
-    assert released == [1], f'그리퍼를 한 번만 열어야 한다 ({len(released)}번)'
-    assert at_signal[0][0] == 0, '첫 신호 **전에** 그리퍼를 열면 안 된다'
-    assert at_signal[1][0] == 1 and at_signal[1][1] == [], '둘째 신호 전에는 그리퍼만 열려 있고 팔은 안 움직여야 한다'
-    assert calls.count(('move_to', ('HOME', False))) == 1, '둘째 신호 뒤 HOME 으로 가야 한다'
+    # 🔙 9/29 정리(⑩): 2단 신호 없음 — 신호 1번 · 그리퍼·팔에 명령 없음 · 사람이 직접 처리
+    assert sig.resumes == 1, f'신호 1번이어야 한다 ({sig.resumes}번)'
+    assert released == [], '로봇 오류에서 그리퍼를 열면 안 된다(사람이 rig_release 로)'
+    assert at_signal[0][0] == 0
+    assert calls.count(('move_to', ('HOME', False))) == 0, '로봇 오류 뒤 로봇은 움직이지 않는다'
     assert [(e['result'], e['code']) for e in events] == [('ERROR', 'ROBOT_ERROR')]
     assert f.isolated == 0 and f.holding is None and f.holding_tool is None
-    assert watches == [1], f'톡은 첫 신호에만 — 둘째 신호(받은 뒤)는 재개 버튼만 받아야 한다(황인재 9/27 · 팔이 바로 움직임) ({len(watches)}회)'
+    assert watches == [], '로봇 오류는 넛지 재개를 받지 않는다(위치를 모른다)'
 
 
 def test_robot_error_with_empty_hand_needs_one_signal_and_mentions_the_bed(monkeypatch):
@@ -951,10 +951,9 @@ def test_robot_error_with_empty_hand_needs_one_signal_and_mentions_the_bed(monke
     sig = PauseWatcher()
     f.run_plan(sig)
 
-    assert sig.resumes == 1, f'빈손이면 신호 1번이어야 한다 ({sig.resumes}번)'
-    assert released == [], '빈손인데 그리퍼를 열었다'
-    assert '스펀지 홈' in f.message, f'홈 위 용기를 꺼내라는 안내가 없다: {f.message}'
-    assert calls.count(('move_to', ('HOME', False))) == 1
+    assert sig.resumes == 1
+    assert released == []
+    assert calls.count(('move_to', ('HOME', False))) == 0      # 🔙 9/29 정리(⑩): HOME 복귀 없음
     assert [(e['result'], e['code']) for e in events] == [('ERROR', 'ROBOT_ERROR')]
 
 
@@ -982,9 +981,7 @@ def test_robot_error_mid_pick_uses_gripper_width_when_record_says_empty(monkeypa
     sig = PauseWatcher()
     f.run_plan(sig)
 
-    assert sig.resumes == 2, f'그리퍼가 닫혀 있으면 기록이 빈손이라도 신호 2번이어야 한다 ({sig.resumes})'
-    assert released == [1]
-    assert '무언가' in f.message or '용기' in f.message
+    assert sig.resumes == 1 and released == []     # 🔙 9/29 정리(⑩): 폭 검사·그리퍼 열기 없음 — 사람이 처리
     assert [(e['result'], e['code']) for e in events] == [('ERROR', 'ROBOT_ERROR')]
 
 

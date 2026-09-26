@@ -869,46 +869,19 @@ class Flow:
         return self._cleanup_and_isolate(sig, f'정책 격리 · 코드 {self.last_code}')
 
     def _robot_error_pause(self, sig):
-        """🆕 E52(황인재 9/25) — 로봇 오류: **그 자리에서 멈춘다.** 로봇은 격리 구역으로 가지 않는다(자기 위치를 모를 수 있다).
+        """로봇 오류: 그 자리에서 멈추고 사람이 복구한 뒤 **화면 재개** → 이 용기는 ERROR 로 기록 → 다음 용기 (IRD §8 · SDD §7 · 9/20 PM 결정).
 
-        쥔 것이 있으면(툴·용기) → 사람이 확인 → 톡 1번(또는 재개) → **그리퍼만 연다**(팔은 안 움직임) → 사람이 받아 치운다
-          (툴은 홀더에 · 용기는 치움 · 스펀지 홈에 용기가 있으면 그것도) → **화면 재개 버튼**(신호 2 는 톡을 받지 않는다 —
-          황인재 9/27 · PM 지적: 톡 감지 직후 팔이 위로 움직이기 시작하는데 사람 손이 로봇에 닿아 있을 수 있다) → 곧게 위로 → HOME → 다음 용기.
-        빈손이면 → 톡 1번(또는 재개) → 곧게 위로 → HOME → 다음 용기. 이 용기는 ERROR 로 기록한다(격리 X · 사람이 처리).
-        🚨 그리퍼 열기·복구는 사람이 신호를 준 **뒤**에만 한다. 넛지가 안 잡히는 상태(보호정지에서 힘 읽기 불가)면 재개 버튼.
+        🔙 9/29 정리(⑩): E52 의 2단 신호(그리퍼 열기 → 받은 뒤 재개 → 위로·HOME)를 뺐다. 예전처럼 로봇은 아무 명령도 보내지 않고
+           사람이 그리퍼·팔을 직접 처리한다(rig_release.py · release_force.py --home · 펜던트). 넛지 재개도 받지 않는다(위치를 모른다).
         """
-        held = self.holding
-        if not held and self._gripper_closed():        # 🆕 9/27 보강: 기록은 빈손인데 그리퍼가 닫혀 있다 — 집는 **도중**(예: 홈 C 옆면 재파지) 오류
-            held = 'UNKNOWN'
-        what = {'TOOL': '툴', 'CONTAINER': '용기'}.get(held, '무언가(집는 도중 오류 · 용기일 수 있음)')
         base = self.message or f'코드 {ROBOT_ERROR}'
-        bed_note = ' 스펀지 홈에 용기가 있으면 그것도 꺼내 주세요.' if self.on_bed else ''
-        if held:
-            self.message = (f'{base} — 로봇 오류 · 그리퍼에 {what}이(가) 있습니다. 로봇과 주변을 확인한 뒤 '
-                            f'톡 1번(또는 재개) → 그리퍼만 열립니다 — 받을 준비를 하세요.{bed_note}')
-        else:
-            self.message = (f'{base} — 로봇 오류 · 빈손. 로봇과 주변을 확인한 뒤 톡 1번(또는 재개) → '
-                            f'곧게 위로 → HOME → 다음 용기로 갑니다.{bed_note}')
+        self.message = (f'{base} — 로봇 오류 · 로봇은 움직이지 않습니다. 쥔 것이 있으면 rig_release.py 로 그리퍼를 열어 받고, '
+                        f'팔은 release_force.py --home 또는 펜던트로 HOME 근처로 옮긴 뒤 화면 재개 → 이 용기는 오류로 기록하고 다음 용기부터')
         self.to_paused(f'코드 {ROBOT_ERROR}', sig)
-        if self.wait_resume(sig, allow_nudge=True) == ABORTED:     # flow_node 는 로봇 오류 중 중단을 거절한다 — 직접 호출·시험 대비
+        if self.wait_resume(sig, allow_nudge=False) == ABORTED:     # flow_node 는 로봇 오류 중 중단을 거절한다 — 직접 호출·시험 대비
             return self.abort_container(sig)
-        self._recover_robot()
-        if held:
-            self.log.warn(f'로봇 오류 — 사람 신호 1 · 그리퍼를 연다({what}) · 팔은 움직이지 않는다')
-            self._guard(cc.release, what='release')
-            self.holding, self.holding_tool = None, None
-            self.message = (f'그리퍼를 열었습니다 — {what}을(를) 받아 '
-                            + ('홀더에 원래 방향으로 꽂고 ' if held == 'TOOL' else '치우고 ')
-                            + ('스펀지 홈의 용기도 꺼낸 뒤 ' if self.on_bed else '')
-                            + '한 발 물러나 화면의 재개 버튼 → 곧게 위로 → HOME → 다음 용기 (이 신호는 톡을 받지 않습니다)')
-            self.to_paused('그리퍼 열림 — 받은 뒤 화면 재개', sig)
-            # 🚨 신호 2 는 재개 버튼만(allow_nudge=False · 황인재 9/27): 감지 직후 팔이 움직이므로 손이 닿은 채 톡으로 출발시키지 않는다
-            if self.wait_resume(sig, allow_nudge=False) == ABORTED:
-                return self.abort_container(sig)
-            self._recover_robot()
-        self.on_bed = False                            # 사람이 치웠다고 본다(안내 문구에 넣었다)
-        self._go_home_or_wait(sig)
-        self.last_code = ROBOT_ERROR                   # HOME 이동이 성공하면 OK 로 덮인다 — 기록엔 원인
+        self.holding, self.holding_tool, self.on_bed = None, None, False   # 사람이 처리했다고 본다
+        self.last_code = ROBOT_ERROR
         self.emit_event('ERROR')
         return GO_ON
 
