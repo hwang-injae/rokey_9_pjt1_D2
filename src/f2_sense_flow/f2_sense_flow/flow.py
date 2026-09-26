@@ -883,7 +883,9 @@ class Flow:
         🚨 그리퍼 열기·복구는 사람이 신호를 준 **뒤**에만 한다. 넛지가 안 잡히는 상태(보호정지에서 힘 읽기 불가)면 재개 버튼.
         """
         held = self.holding
-        what = '툴' if held == 'TOOL' else '용기'
+        if not held and self._gripper_closed():        # 🆕 9/27 보강: 기록은 빈손인데 그리퍼가 닫혀 있다 — 집는 **도중**(예: 홈 C 옆면 재파지) 오류
+            held = 'UNKNOWN'
+        what = {'TOOL': '툴', 'CONTAINER': '용기'}.get(held, '무언가(집는 도중 오류 · 용기일 수 있음)')
         base = self.message or f'코드 {ROBOT_ERROR}'
         bed_note = ' 스펀지 홈에 용기가 있으면 그것도 꺼내 주세요.' if self.on_bed else ''
         if held:
@@ -914,6 +916,21 @@ class Flow:
         self.last_code = ROBOT_ERROR                   # HOME 이동이 성공하면 OK 로 덮인다 — 기록엔 원인
         self.emit_event('ERROR')
         return GO_ON
+
+    def _gripper_closed(self):
+        """🆕 E52 보강(9/27) — 그리퍼가 열려 있지 않으면(폭 ≤ 열림 기준 100 mm · gripper._OPEN_WIDTH_MM) '무언가 쥐었을 수 있다'로 본다.
+
+        기록(holding)은 단계가 **끝난** 결과로만 갱신되므로, 집는 도중 오류(닫은 뒤 들다가 보호정지 등)면 빈손으로 남는다.
+        그때 신호 1번으로 HOME 을 보내면 쥔 용기를 다음 PICK 의 release 가 떨어뜨린다 → 폭으로 한 번 더 본다.
+        빈손인데 닫힌 경우(명령 폭에서 멈춤 · 옆면 70 은 빈손과 폭이 같다)도 True 가 되지만 그 값은 신호 한 번 더 · 그리퍼 열기 한 번이라 해가 없다.
+        못 읽으면(보호정지 · 시험) False — 기록만 믿는다.
+        """
+        try:
+            w = float(cc.grip_width())
+        except Exception:                              # noqa: BLE001
+            return False
+        open_mm = float(getattr(getattr(cc, 'gripper', None), '_OPEN_WIDTH_MM', 100.0))
+        return w <= open_mm
 
     def _repick_tool(self, sig):
         """🆕 E37 + E52 — 툴 놓침 뒤 다시 집는다. **못 집으면 격리하지 않고** 다시 멈춰 사람을 부른다(홀더 확인 → 톡).

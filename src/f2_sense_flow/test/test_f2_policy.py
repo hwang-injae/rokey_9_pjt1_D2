@@ -958,6 +958,54 @@ def test_robot_error_with_empty_hand_needs_one_signal_and_mentions_the_bed(monke
     assert [(e['result'], e['code']) for e in events] == [('ERROR', 'ROBOT_ERROR')]
 
 
+def test_robot_error_mid_pick_uses_gripper_width_when_record_says_empty(monkeypatch):
+    """집는 **도중** 오류 — 기록은 빈손(pick 이 끝나지 않았다)인데 그리퍼는 이미 닫혀 있다(옆면 70.3) → 2단 신호로 그리퍼를 열어 받게 한다.
+
+    9/27 황인재 질문(컵을 옆으로 잡았을 때도 처리되나) 에서 찾은 빈틈: 폭으로 한 번 더 본다.
+    """
+    released = []
+    monkeypatch.setattr(flow_module.cc, 'release', lambda: released.append(1))
+    monkeypatch.setattr(flow_module.cc, 'grip_width', lambda: 70.3)          # 옆면 재파지 폭 — 열림 기준 100 보다 작다
+    mods = load_features(['f1', 'f2', 'f3'])
+    calls = []
+    f1 = _spy_f1(mods, calls)
+    picks = []
+
+    def pick(zone, kind):
+        picks.append(zone)
+        if zone == 'SPONGE_BED_B':                     # 홈에서 다시 집다가(닫은 뒤) 보호정지
+            raise RuntimeError('이동이 도중에 섰다')
+        return mods['f1'].pick(zone, kind)
+    f1.pick = pick
+
+    f, events, _ = _one_bowl(f1=f1)
+    sig = PauseWatcher()
+    f.run_plan(sig)
+
+    assert sig.resumes == 2, f'그리퍼가 닫혀 있으면 기록이 빈손이라도 신호 2번이어야 한다 ({sig.resumes})'
+    assert released == [1]
+    assert '무언가' in f.message or '용기' in f.message
+    assert [(e['result'], e['code']) for e in events] == [('ERROR', 'ROBOT_ERROR')]
+
+
+def test_robot_error_open_gripper_is_treated_as_empty(monkeypatch):
+    """그리퍼가 활짝 열려 있으면(110 > 100) 폭 검사도 빈손 → 신호 1번."""
+    released = []
+    monkeypatch.setattr(flow_module.cc, 'release', lambda: released.append(1))
+    monkeypatch.setattr(flow_module.cc, 'grip_width', lambda: 110.6)
+    mods = load_features(['f1', 'f2', 'f3'])
+    f1 = _ns(F1Api, mods['f1'])
+
+    def tool(tool_id, action):
+        raise RuntimeError('툴 집기 중 드라이버 응답 없음')
+    f1.tool = tool
+    f, events, _ = _one_bowl(f1=f1)
+    sig = PauseWatcher()
+    f.run_plan(sig)
+    assert sig.resumes == 1 and released == []
+    assert [e['result'] for e in events] == ['ERROR']
+
+
 def test_leftover_remain_isolates_physically_via_home():
     """잔반 남음(정책 isolate) → 멈추지 않고 곧게 위로 → HOME → 격리 → HOME. 용기를 든 채라 홈에서 다시 집지 않는다. 기록 코드는 원인."""
     mock.configure(['leftover_loop:LEFTOVER_REMAIN'])
